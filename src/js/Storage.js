@@ -421,9 +421,19 @@ export class Storage {
         }
         const files       = presentationFiles(svgName, name, {outputDir});
         const outLocation = outputDir ? path.resolve(location, files.outputDir) : location;
+        if (outputDir) {
+            this.controller.info(Jed.sprintf(_("HTML files are written to %s"), outLocation));
+        }
         // TODO Save only if SVG is more recent than HTML.
-        await this.createHTMLFile(path.basename(files.html), outLocation);
-        await this.createPresenterHTMLFile(path.basename(files.presenter), outLocation, path.basename(files.html));
+        // An output directory that cannot be written must not abort the opening:
+        // the JSON file and the editing session stay usable.
+        try {
+            await this.createHTMLFile(path.basename(files.html), outLocation);
+            await this.createPresenterHTMLFile(path.basename(files.presenter), outLocation, path.basename(files.html));
+        }
+        catch (err) {
+            this.controller.error(Jed.sprintf(_("Could not write the HTML files in %s: %s"), outLocation, err));
+        }
     }
 
     /** Create the presentation HTML file if it does not exist.
