@@ -248,6 +248,53 @@ describe("exporter in the main process", () => {
         }
     });
 
+    test("the default ffmpeg time limit is 10 minutes plus 100 ms per image", () => {
+        for (const [images, ms] of [[0, 600000], [12, 601200], [30000, 3600000]]) {
+            const report = mainExport({fn: "defaultFfmpegTimeoutMs", presentation: images});
+            assert.equal(report.ok, true, JSON.stringify(report));
+            assert.equal(report.result, ms, `${images} images`);
+        }
+    });
+
+    test("a failed png sequence export leaves the previous images and creates no directory", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
+        try {
+            const html = path.join(dir, "plain.html");
+            fs.writeFileSync(html, "<!doctype html><html><body><p>Not a presentation</p></body></html>");
+            const presentation = Object.assign(JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")),
+                {exportToVideoFormat: "png", exportToVideoWidth: 160, exportToVideoHeight: 90, exportToVideoFrameRate: 2});
+            const seq = path.join(dir, "seq");
+            fs.mkdirSync(seq);
+            fs.writeFileSync(path.join(seq, "img000000.png"), "previous");
+            const failed = mainExport({fn: "exportToVideo", presentation, html, opts: {outPath: seq, timeoutMs: 2000}});
+            assert.equal(failed.ok, false, JSON.stringify(failed));
+            assert.deepEqual(fs.readdirSync(seq), ["img000000.png"]);
+            assert.equal(fs.readFileSync(path.join(seq, "img000000.png"), "utf8"), "previous");
+
+            const fresh = path.join(dir, "new", "seq");
+            assert.equal(mainExport({fn: "exportToVideo", presentation, html, opts: {outPath: fresh, timeoutMs: 2000}}).ok, false);
+            assert.ok(!fs.existsSync(path.join(dir, "new")));
+        }
+        finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
+    });
+
+    test("an unknown video format fails before anything is captured", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
+        try {
+            const presentation = Object.assign(JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")),
+                {exportToVideoFormat: "../evil"});
+            const report = mainExport({fn: "exportToVideo", presentation, html: path.join(dir, "deck.sozi.html"), opts: {}});
+            assert.equal(report.ok, false, JSON.stringify(report));
+            assert.match(report.error, /unknown video format: \.\.\/evil/);
+            assert.deepEqual(fs.readdirSync(dir), []);
+        }
+        finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
+    });
+
     test("a stuck ffmpeg is killed after ffmpegTimeoutMs and the export fails", () => {
         const deck = withTempDeck("basic");
         try {
@@ -262,6 +309,7 @@ describe("exporter in the main process", () => {
             assert.match(report.error, /ffmpeg did not finish within 1 s/);
             assert.ok(report.elapsedMs < 20000, `took ${report.elapsedMs} ms`);
             assert.equal(isAlive(ffmpeg.pid()), false, "the ffmpeg process was killed");
+            assert.deepEqual(fs.readdirSync(deck.dir).filter(name => name.includes("partial") || name.endsWith(".webm")), []);
         }
         finally {
             deck.cleanup();

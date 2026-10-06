@@ -289,33 +289,152 @@ export function findFfmpeg(explicitPath = null) {
     return null;
 }
 
-/** The default time limit of an ffmpeg run, in milliseconds (10 minutes).
+/** The default time limit of an ffmpeg run, in milliseconds.
  *
- * @readonly
- * @default
- * @type {number}
+ * Ten minutes, plus 100 ms per image to encode, so that long videos are not
+ * stopped (ffmpeg encodes from about 10 to 100 images per second).
+ *
+ * @param {number} imageCount - The number of images to encode.
+ * @returns {number} - The time limit, in milliseconds.
  */
-const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000;
+export function defaultFfmpegTimeoutMs(imageCount) {
+    return 10 * 60 * 1000 + 100 * imageCount;
+}
 
-/** Remove a directory when this process exits before the export ends.
+/** Run a clean-up function when this process exits before the export ends.
  *
  * A command line that times out exits at once: this keeps the captured
- * images from staying in the temporary directory.
+ * images and partial output files from staying behind.
  *
- * @param {string} dir - The directory to remove.
- * @returns {Function} - Call it to cancel the removal.
+ * @param {Function} fn - The clean-up function; its errors are ignored.
+ * @returns {Function} - Call it to cancel the clean-up.
  */
-function removeOnExit(dir) {
-    const remove = () => {
+function cleanUpOnExit(fn) {
+    const cleanUp = () => {
         try {
-            fs.rmSync(dir, {recursive: true, force: true});
+            fn();
         }
         catch (e) {
             // Nothing more can be done while exiting.
         }
     };
-    process.on("exit", remove);
-    return () => process.removeListener("exit", remove);
+    process.on("exit", cleanUp);
+    return () => process.removeListener("exit", cleanUp);
+}
+
+/** Remove a directory when this process exits before the export ends.
+ *
+ * @param {string} dir - The directory to remove.
+ * @returns {Function} - Call it to cancel the removal.
+ */
+function removeOnExit(dir) {
+    return cleanUpOnExit(() => fs.rmSync(dir, {recursive: true, force: true}));
+}
+
+/** Remove the directories created by `fs.mkdirSync(dir, {recursive: true})` if they are empty.
+ *
+ * @param {string} dir - The directory given to `mkdirSync`.
+ * @param {?string} created - The first directory created, as returned by `mkdirSync`, or `undefined`.
+ */
+function removeCreatedDirs(dir, created) {
+    if (!created) {
+        return;
+    }
+    for (let d = path.resolve(dir); ; d = path.dirname(d)) {
+        try {
+            fs.rmdirSync(d);
+        }
+        catch (e) {
+            // Not empty, or already gone: keep it and its parents.
+            return;
+        }
+        if (d === path.resolve(created) || d === path.dirname(d)) {
+            return;
+        }
+    }
+}
+
+/** The name of the partial file written before an output file is complete.
+ *
+ * @param {string} outPath - The output file, e.g. `dir/talk.webm`.
+ * @returns {string} - The partial file in the same directory, e.g. `dir/.talk.partial.webm`.
+ */
+export function partialPath(outPath) {
+    const ext = path.extname(outPath);
+    return path.join(path.dirname(outPath), `.${path.basename(outPath, ext)}.partial${ext}`);
+}
+
+/** Write an output file without replacing the previous one before success.
+ *
+ * The missing directories of the file are created, then `write` writes a
+ * partial file in the same directory, which is renamed to `outPath` once it
+ * is complete. On failure, or if this process exits first, the partial file
+ * and the directories created here are removed: the previous output stays as it was.
+ *
+ * @param {string} outPath - The output file.
+ * @param {function(string):Promise} write - Writes the file at the path it is given.
+ * @returns {Promise} - Resolved once `outPath` is complete.
+ */
+async function writeOutput(outPath, write) {
+    const dir     = path.dirname(outPath);
+    const created = fs.mkdirSync(dir, {recursive: true});
+    const partial = partialPath(outPath);
+    const cleanUp = () => {
+        fs.rmSync(partial, {force: true});
+        removeCreatedDirs(dir, created);
+    };
+    const cancelCleanUp = cleanUpOnExit(cleanUp);
+    try {
+        await write(partial);
+        fs.renameSync(partial, outPath);
+    }
+    catch (err) {
+        try {
+            cleanUp();
+        }
+        catch (e) {
+            // Report the error of the export, not of the clean-up.
+        }
+        throw err;
+    }
+    finally {
+        cancelCleanUp();
+    }
+}
+
+/** Move a file, also across file systems.
+ *
+ * @param {string} from - The source file.
+ * @param {string} to - The target file, replaced if it exists.
+ */
+export function moveFile(from, to) {
+    try {
+        fs.renameSync(from, to);
+    }
+    catch (err) {
+        if (err.code !== "EXDEV") {
+            throw err;
+        }
+        fs.copyFileSync(from, to);
+        fs.unlinkSync(from);
+    }
+}
+
+/** Make a file a hard link of another one, or a copy where links are not supported.
+ *
+ * @param {string} from - The existing file.
+ * @param {string} to - The new file.
+ */
+function linkOrCopy(from, to) {
+    try {
+        fs.linkSync(from, to);
+    }
+    catch (err) {
+        if (!["EXDEV", "EPERM", "EMLINK"].includes(err.code)) {
+            throw err;
+        }
+        fs.copyFileSync(from, to);
+    }
 }
 
 /** Run ffmpeg and wait for it to terminate.
@@ -328,7 +447,7 @@ function removeOnExit(dir) {
  * @param {number} [timeoutMs] - The time limit, in milliseconds.
  * @returns {Promise} - Resolved when ffmpeg succeeds; rejected with its status and the end of its standard error otherwise.
  */
-function runFfmpeg(ffmpegPath, args, timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS) {
+function runFfmpeg(ffmpegPath, args, timeoutMs) {
     return new Promise((resolve, reject) => {
         let stderr = "";
         let timedOut = false;
@@ -345,7 +464,8 @@ function runFfmpeg(ffmpegPath, args, timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS) {
             timedOut = true;
             kill();
         }, Math.min(timeoutMs, 2 ** 31 - 1));
-        process.on("exit", kill);
+        // Before the other exit handlers, which remove the files that ffmpeg writes.
+        process.prependListener("exit", kill);
         const done = () => {
             clearTimeout(timer);
             process.removeListener("exit", kill);
@@ -792,7 +912,7 @@ function withDefaults(opts) {
         transparent: false,
         frameNumber: false,
         timeoutMs  : DEFAULT_TIMEOUT_MS,
-        ffmpegTimeoutMs: DEFAULT_FFMPEG_TIMEOUT_MS,
+        ffmpegTimeoutMs: null,
         onProgress : null
     }, opts || {});
 }
@@ -917,7 +1037,7 @@ async function pdfExport(presentation, htmlPath, opts) {
     const landscape = presentation.exportToPDFPageOrientation !== "portrait";
     const g = landscape ? geometry : {width: geometry.height, height: geometry.width};
 
-    const {warnings} = await withExportWindow(htmlPath, Object.assign({}, opts, g, {transparent: false}), async ew => {
+    const {value: pdfBytes, warnings} = await withExportWindow(htmlPath, Object.assign({}, opts, g, {transparent: false}), async ew => {
         const pdfDoc = await PDFDocument.create();
         for (let i = 0; i < frames.length; i ++) {
             await ew.jumpToFrame(frames[i]);
@@ -932,8 +1052,9 @@ async function pdfExport(presentation, htmlPath, opts) {
             pdfDoc.addPage(pdfPage);
             progress(opts, i + 1, frames.length);
         }
-        fs.writeFileSync(outPath, await pdfDoc.save());
+        return pdfDoc.save();
     });
+    await writeOutput(outPath, partial => fs.writeFileSync(partial, pdfBytes));
     return {out: outPath, frames: frames.length, warnings, capture: "printToPDF"};
 }
 
@@ -986,15 +1107,15 @@ async function pptxExport(presentation, htmlPath, opts) {
             }
         });
 
-        await new Promise((resolve, reject) => {
-            const pptxFile = fs.createWriteStream(outPath);
+        await writeOutput(outPath, partial => new Promise((resolve, reject) => {
+            const pptxFile = fs.createWriteStream(partial);
             pptxFile.on("close", resolve);
             pptxFile.on("error", reject);
             pptxDoc.on("error", reject);
             pptxDoc.generate(pptxFile, {
                 error: err => reject(err instanceof Error ? err : new Error(`PPTX generation failed: ${err}`))
             });
-        });
+        }));
         return {out: outPath, frames: frames.length, warnings, capture};
     }
     finally {
@@ -1018,16 +1139,29 @@ function removeTmpDir(dir) {
     }
 }
 
+/** The video formats of the export: the extension of the video file, or `png` for an image sequence.
+ *
+ * @readonly
+ * @type {string[]}
+ */
+const VIDEO_FORMATS = ["mp4", "ogv", "webm", "wmv", "png"];
+
 /** Export a presentation to a video or a PNG image sequence.
  *
  * With format `png`, the images `img000000.png`, `img000001.png`... are written
- * to the output directory (created if needed; earlier images of that pattern are removed).
- * Other formats are encoded by an external ffmpeg (see {@linkcode module:exporter.findFfmpeg|findFfmpeg}).
+ * to the output directory (created if needed). They are captured in a temporary
+ * directory and moved there once they are all written; then the earlier images
+ * of that pattern that were not replaced are removed: a failed export leaves the
+ * directory as it was. Other formats are encoded by an external ffmpeg (see
+ * {@linkcode module:exporter.findFfmpeg|findFfmpeg}) to a partial file renamed to
+ * the output file on success. The images of a frame held for several time steps
+ * are hard links of one file where the file system allows it.
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToVideo*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
  * @param {object} [opts] - `{outPath, ffmpegPath, hidden, transparent, frameNumber, timeoutMs, ffmpegTimeoutMs, onProgress}`;
- *  `transparent` applies to PNG sequences only; `ffmpegTimeoutMs` bounds the encoding (default 10 minutes);
+ *  `transparent` applies to PNG sequences only; `ffmpegTimeoutMs` bounds the encoding
+ *  (default {@linkcode module:exporter.defaultFfmpegTimeoutMs|defaultFfmpegTimeoutMs} of the image count);
  *  `outPath` defaults to the HTML path with the format as extension, or `<name>-sozi-export` for PNG sequences.
  * @returns {Promise<object>} - `{out, format, frames, images, files, ffmpeg, warnings, capture}` (`files` for PNG sequences only).
  */
@@ -1044,6 +1178,9 @@ export function exportToVideo(presentation, htmlPath, opts) {
  */
 async function videoExport(presentation, htmlPath, opts) {
     const format  = presentation.exportToVideoFormat;
+    if (!VIDEO_FORMATS.includes(format)) {
+        throw new Error(`unknown video format: ${format}; expected ${VIDEO_FORMATS.join(", ")}`);
+    }
     const isPNG   = format === "png";
     const outPath = opts.outPath || (isPNG ?
         htmlPath.replace(/\.sozi\.html$|\.html$/, "-sozi-export") :
@@ -1070,30 +1207,24 @@ async function videoExport(presentation, htmlPath, opts) {
     const timeline = videoTimeline(presentation.frames, frameRate);
     const total    = timelineImageCount(timeline);
 
-    let destDir = null, destDirName;
-    if (isPNG) {
-        destDirName = outPath;
-        fs.mkdirSync(destDirName, {recursive: true});
-        for (const name of fs.readdirSync(destDirName)) {
-            if (/^img\d{6}\.png$/.test(name)) {
-                fs.unlinkSync(path.join(destDirName, name));
-            }
-        }
-    }
-    else {
-        destDir = tmp.dirSync({unsafeCleanup: true});
-        destDirName = destDir.name;
-    }
-    const cancelRemoval = destDir ? removeOnExit(destDir.name) : () => {};
+    // The images are captured in a temporary directory, deleted even if not empty.
+    const destDir = tmp.dirSync({unsafeCleanup: true});
+    const cancelRemoval = removeOnExit(destDir.name);
 
     const files = [];
     try {
-        // Write the next image of the sequence.
-        const write = png => {
-            const fileName = path.join(destDirName, `img${String(files.length).padStart(6, "0")}.png`);
-            fs.writeFileSync(fileName, png);
+        // Write the next image of the sequence, or link it to an earlier image with the same content.
+        const write = (png, sameAs = null) => {
+            const fileName = path.join(destDir.name, `img${String(files.length).padStart(6, "0")}.png`);
+            if (sameAs) {
+                linkOrCopy(sameAs, fileName);
+            }
+            else {
+                fs.writeFileSync(fileName, png);
+            }
             files.push(fileName);
             progress(opts, files.length, total);
+            return fileName;
         };
 
         const windowOpts = Object.assign({}, opts, {width, height, transparent: isPNG && opts.transparent});
@@ -1101,9 +1232,9 @@ async function videoExport(presentation, htmlPath, opts) {
             for (const step of timeline) {
                 if (step.type === "hold") {
                     await ew.jumpToFrame(step.frame);
-                    const png = await ew.capture();
-                    for (let i = 0; i < step.count; i ++) {
-                        write(png);
+                    const first = write(await ew.capture());
+                    for (let i = 1; i < step.count; i ++) {
+                        write(null, first);
                     }
                 }
                 else {
@@ -1118,24 +1249,24 @@ async function videoExport(presentation, htmlPath, opts) {
             }
         });
 
-        if (!isPNG) {
-            await runFfmpeg(ffmpegPath, [
+        const result = {out: outPath, format, frames: presentation.frames.length, images: files.length, ffmpeg: ffmpegPath, warnings, capture};
+        if (isPNG) {
+            result.files = moveSequence(files, outPath);
+        }
+        else {
+            const ffmpegTimeoutMs = opts.ffmpegTimeoutMs > 0 ? opts.ffmpegTimeoutMs : defaultFfmpegTimeoutMs(total);
+            await writeOutput(outPath, partial => runFfmpeg(ffmpegPath, [
                 "-hide_banner", "-loglevel", "error", "-y",
                 "-framerate", String(frameRate),
                 "-start_number", "0",
                 "-f", "image2",
-                "-i", path.join(destDirName, "img%06d.png"),
+                "-i", path.join(destDir.name, "img%06d.png"),
                 // Most codecs require even dimensions with 4:2:0 chroma subsampling.
                 "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
                 "-pix_fmt", "yuv420p",
                 "-b:v", String(presentation.exportToVideoBitRate),
-                outPath
-            ], opts.ffmpegTimeoutMs);
-        }
-
-        const result = {out: outPath, format, frames: presentation.frames.length, images: files.length, ffmpeg: ffmpegPath, warnings, capture};
-        if (isPNG) {
-            result.files = files;
+                partial
+            ], ffmpegTimeoutMs));
         }
         return result;
     }
@@ -1143,6 +1274,44 @@ async function videoExport(presentation, htmlPath, opts) {
         cancelRemoval();
         removeTmpDir(destDir);
     }
+}
+
+/** Move the images of a PNG sequence into the output directory, then remove the earlier images.
+ *
+ * The directory is created if needed. Images that were hard links of one file
+ * stay hard links of one file when the move copies them to another file system.
+ * The earlier `img000000.png`... images that were not replaced are removed last;
+ * other files are kept.
+ *
+ * @param {string[]} files - The images, in a temporary directory.
+ * @param {string} dir - The output directory.
+ * @returns {string[]} - The images in the output directory.
+ */
+function moveSequence(files, dir) {
+    fs.mkdirSync(dir, {recursive: true});
+    const moved  = new Map(); // inode -> the image already moved to the output directory
+    const result = files.map(file => {
+        const target = path.join(dir, path.basename(file));
+        const {ino} = fs.statSync(file);
+        if (moved.has(ino)) {
+            // Replace an earlier image first: a link cannot overwrite a file.
+            fs.rmSync(target, {force: true});
+            linkOrCopy(moved.get(ino), target);
+            fs.unlinkSync(file);
+        }
+        else {
+            moveFile(file, target);
+            moved.set(ino, target);
+        }
+        return target;
+    });
+    const names = new Set(result.map(file => path.basename(file)));
+    for (const name of fs.readdirSync(dir)) {
+        if (/^img\d{6}\.png$/.test(name) && !names.has(name)) {
+            fs.unlinkSync(path.join(dir, name));
+        }
+    }
+    return result;
 }
 
 /** Render frames of a presentation to PNG images, one image per frame.

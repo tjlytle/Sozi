@@ -182,7 +182,7 @@ async function renderAll(exporter, presentation, html, opts, images, dir) {
 
         fs.mkdirSync(dir, {recursive: true});
         const names = new Set(images.map(({file}) => path.basename(file)));
-        images.forEach(({file}, i) => moveFile(tmpImages[i].file, file));
+        images.forEach(({file}, i) => exporter.moveFile(tmpImages[i].file, file));
         for (const name of fs.readdirSync(dir)) {
             if (/^frame-\d+\.png$/.test(name) && !names.has(name)) {
                 fs.unlinkSync(path.join(dir, name));
@@ -192,24 +192,5 @@ async function renderAll(exporter, presentation, html, opts, images, dir) {
     }
     finally {
         fs.rmSync(tmpDir, {recursive: true, force: true});
-    }
-}
-
-/** Move a file, also across file systems.
- *
- * @param {string} from - The source file.
- * @param {string} to - The target file, replaced if it exists.
- */
-function moveFile(from, to) {
-    const fs = require("fs");
-    try {
-        fs.renameSync(from, to);
-    }
-    catch (err) {
-        if (err.code !== "EXDEV") {
-            throw err;
-        }
-        fs.copyFileSync(from, to);
-        fs.unlinkSync(from);
     }
 }

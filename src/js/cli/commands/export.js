@@ -185,10 +185,12 @@ function exportSettings(exporter, presentation, type, format, flags) {
  * The type is `--export-type`, else the `exportType` of the presentation file.
  * `--out` (relative to the working directory) is the output file, or the
  * directory of a PNG sequence; by default the output goes beside the HTML
- * file, as in the editor. Missing directories are created. A video other than
+ * file, as in the editor. Missing directories are created, and the previous
+ * output replaced, only when the export succeeds. A video other than
  * a PNG sequence needs ffmpeg: `--ffmpeg`, else `ffmpeg` on the `PATH`, else
  * the one bundled with Sozi; it is looked up before anything is built or
  * captured, and its run is bounded by `--timeout` (default 120 s).
+ * `--size` does not apply: the export settings give the size.
  *
  * @param {object} context - The command context.
  * @param {module:Controller.Controller} context.controller - The controller.
@@ -260,10 +262,7 @@ export async function exportPresentation(context) {
     if (!built.ok) {
         return Object.assign(fields, built);
     }
-    if (out && !isSequence) {
-        fs.mkdirSync(path.dirname(out), {recursive: true});
-    }
-
+    // The exporter creates the missing directories of --out once the export succeeds.
     const settings = exportSettings(exporter, presentation, type, format, flags);
     const opts = {
         outPath:         out,
