@@ -214,6 +214,29 @@ describe("presentation title", () => {
 });
 
 describe("build --title", () => {
+    test("cannot break out of the embedded presentation data", (t) => {
+        const deck = withTempDeck("basic");
+        try {
+            const title = "</script><b>x\u2028y";
+            build(deck, "--title", title);
+            const {html} = htmlPaths(deck);
+            const text = fs.readFileSync(html, "utf8");
+            const data = /var soziPresentationData = (.*);<\/script>/.exec(text);
+            assert.ok(data, "no soziPresentationData");
+            assert.equal(data[1].includes("</script><b>x"), false);
+            assert.equal(/[\u2028\u2029]/.test(data[1]), false);
+            assert.equal(JSON.parse(data[1]).title, title);
+            const shown = browserTitle(t, html);
+            if (shown !== null) {
+                // The player appends the title of the current frame.
+                assert.equal(shown, `${title} \u2014 One`);
+            }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("sets the explicit title in the JSON and both HTML files", () => {
         const deck = withTempDeck("basic");
         try {
