@@ -107,6 +107,14 @@ function cliMain() {
         return;
     }
 
+    // A value-taking flag given without a value is parsed as true.
+    for (const name of ["size", "timeout"]) {
+        if (name in cliArgs.flags && typeof cliArgs.flags[name] !== "string") {
+            cliExit(2, {error: `missing value for --${name}`});
+            return;
+        }
+    }
+
     const size = /^(\d+)x(\d+)$/.exec(cliArgs.flags.size || "1280x720");
     if (!size) {
         cliExit(2, {error: `invalid --size: ${cliArgs.flags.size}; expected WxH`});

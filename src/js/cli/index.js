@@ -116,11 +116,6 @@ export async function runCli(options, {controller, storage, preferences}) {
     const errors   = [];
     const result   = partialResult = {command: options.command, svg: null, presentation: null, warnings, errors};
 
-    // Test hook: never reply, so that the main process times out.
-    if (process.env.SOZI_CLI_TEST_HANG) {
-        return;
-    }
-
     try {
         // In-memory settings only: preferences are never saved in CLI mode.
         // Messages are in English so that errors and warnings are stable.
@@ -129,6 +124,11 @@ export async function runCli(options, {controller, storage, preferences}) {
         preferences.reloadMode         = "manual";
         preferences.language           = "en";
         controller.applyPreferences({language: true});
+
+        // Test hook: never reply, so that the main process times out.
+        if (process.env.SOZI_CLI_TEST_HANG) {
+            return;
+        }
 
         controller.info = body => {
             warnings.push(body);
@@ -139,7 +139,7 @@ export async function runCli(options, {controller, storage, preferences}) {
             log(`error: ${body}`);
         };
 
-        const command = COMMANDS[options.command];
+        const command = Object.hasOwn(COMMANDS, options.command) ? COMMANDS[options.command] : null;
         if (!command) {
             reply(2, Object.assign(result, {ok: false, error: `unknown command: ${options.command}`, usage: USAGE}));
             return;
