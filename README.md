@@ -127,9 +127,9 @@ When running from the source tree, replace `sozi` with
   `deck.sozi.json` (no HTML file). It reports in `changed` the old and new
   value of each property that changed, e.g.
   `"changed": {"title": {"from": "", "to": "My Talk"}}`, and in `files` the
-  files written. Like `build`, it writes `deck.sozi.json` only when something
-  changed or the file does not exist, so setting a property to its current
-  value writes nothing. At least one option is required.
+  files written. It writes `deck.sozi.json` only when the file does not exist
+  or when loading or an option changed the presentation, so setting a
+  property to its current value usually writes nothing. At least one option is required.
 * `--title TITLE` (for `build` and `set`) sets the explicit title of the
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
