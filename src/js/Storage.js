@@ -10,7 +10,7 @@ import nunjucks from "nunjucks";
 import Jed from "jed";
 import {upgradeFromSVG, upgradeFromStorable} from "./upgrade";
 import path from "path";
-import {presentationFiles, svgKeyOf, svgOfPresentation} from "./naming";
+import {isPresentationFile, presentationDataError, presentationFiles, svgKeyOf, svgOfPresentation} from "./naming";
 
 /** File read/write manager. */
 export class Storage {
@@ -195,17 +195,25 @@ export class Storage {
 
     /** Open an SVG file or a presentation file.
      *
-     * A file whose name ends in `.json` is a presentation file
-     * (see {@linkcode module:Storage.Storage#openPresentationFile|openPresentationFile});
-     * any other file is an SVG file.
+     * A file whose name ends in `.sozi.json` is a presentation file
+     * (see {@linkcode module:Storage.Storage#openPresentationFile|openPresentationFile}).
+     * Another `.json` file is not opened: an error is notified and nothing is written.
+     * Any other file is an SVG file.
      *
      * @param {any} fileDescriptor - A descriptor of the file to open.
      * @param {module:backend/AbstractBackend.AbstractBackend} backend - The selected backend to manage the presentation files.
-     * @returns {Promise<boolean>} - A promise resolved with `false` if the SVG file of a presentation file was not found.
+     * @returns {Promise<boolean>} - A promise resolved with `false` if a presentation file
+     *  or its SVG file could not be opened, or if the file is a `.json` file that is not a presentation file.
      */
     async open(fileDescriptor, backend) {
-        if (/\.json$/i.test(backend.getName(fileDescriptor))) {
+        const name = backend.getName(fileDescriptor);
+        if (isPresentationFile(name)) {
             return this.openPresentationFile(fileDescriptor, backend);
+        }
+        if (/\.json$/i.test(name)) {
+            const _ = this.controller.gettext;
+            this.controller.error(Jed.sprintf(_("Not a presentation file: %s. The name of a presentation file ends in .sozi.json."), name));
+            return false;
         }
         await this.setSVGFile(fileDescriptor, backend);
         return true;
@@ -215,23 +223,37 @@ export class Storage {
      *
      * The SVG file is given by the `svg` key of the presentation file,
      * relative to its directory, or is `<base>.svg` beside it.
-     * If the SVG file is not found, an error is notified.
+     * If the file cannot be read, is not presentation data (a JSON object
+     * with a `frames` array), or if the SVG file is not found, an error is
+     * notified and nothing is written.
      *
      * @param {any} fileDescriptor - A descriptor of the presentation file.
      * @param {module:backend/AbstractBackend.AbstractBackend} backend - The selected backend to manage the presentation files.
-     * @returns {Promise<boolean>} - A promise resolved with `false` if the SVG file was not found.
+     * @returns {Promise<boolean>} - A promise resolved with `false` if the presentation file or its SVG file could not be opened.
      */
     async openPresentationFile(fileDescriptor, backend) {
         const _        = this.controller.gettext;
         const name     = backend.getName(fileDescriptor);
         const location = backend.getLocation(fileDescriptor);
+        const jsonPath = path.join(location, name);
 
-        // A file that cannot be read or parsed is reported when it is opened as JSON:
-        // in the meantime, assume the default SVG file.
-        const svg = await backend.load(fileDescriptor).then(data => JSON.parse(data).svg).catch(() => "");
+        // Check the file before anything is written.
+        let data, reason;
+        try {
+            data   = await backend.load(fileDescriptor);
+            reason = presentationDataError(data);
+        }
+        catch (err) {
+            reason = String(err && err.message || err);
+        }
+        if (reason) {
+            this.controller.error(Jed.sprintf(_("Not a presentation file: %s: %s"), jsonPath, reason));
+            return false;
+        }
+        const svg = JSON.parse(data).svg;
         const svgKey = typeof svg === "string" ? svg : "";
 
-        const svgPath = svgOfPresentation(path.join(location, name), svgKey);
+        const svgPath = svgOfPresentation(jsonPath, svgKey);
         const svgFileDescriptor = await backend.find(path.basename(svgPath), path.dirname(svgPath)).catch(() => null);
         if (!svgFileDescriptor) {
             this.controller.error(Jed.sprintf(_("File not found: %s."), svgPath));

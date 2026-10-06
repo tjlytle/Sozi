@@ -25,6 +25,38 @@ export function replaceFileExtWith(fileName, ext) {
 /** The extension of presentation files. */
 const PRESENTATION_EXT = ".sozi.json";
 
+/** Is a file a presentation file?
+ *
+ * Only a file whose name ends in `.sozi.json`, in any letter case, is a
+ * presentation file; another `.json` file is not.
+ *
+ * @param {string} fileName - The name or path of a file.
+ * @returns {boolean} - `true` if the name ends in `.sozi.json`.
+ */
+export function isPresentationFile(fileName) {
+    return fileName.toLowerCase().endsWith(PRESENTATION_EXT);
+}
+
+/** Check the content of a presentation file.
+ *
+ * @param {string} text - The content of the file.
+ * @returns {?string} - `null` if the content is presentation data: a JSON object
+ *  with a `frames` array; else the reason why it is not.
+ */
+export function presentationDataError(text) {
+    let data;
+    try {
+        data = JSON.parse(text);
+    }
+    catch (err) {
+        return err.message;
+    }
+    if (data === null || typeof data !== "object" || !Array.isArray(data.frames)) {
+        return "no \"frames\" array";
+    }
+    return null;
+}
+
 /** Remove the presentation extension from a file name.
  *
  * The extension `.sozi.json` is matched in any letter case; another
@@ -34,7 +66,7 @@ const PRESENTATION_EXT = ".sozi.json";
  * @returns {string} - The path without its extension.
  */
 function presentationBase(presentation) {
-    return presentation.toLowerCase().endsWith(PRESENTATION_EXT) ?
+    return isPresentationFile(presentation) ?
         presentation.slice(0, -PRESENTATION_EXT.length) :
         replaceFileExtWith(presentation, "");
 }

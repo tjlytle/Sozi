@@ -166,7 +166,11 @@ name with its extension replaced by `.sozi.json`.
 
 A presentation file can have any name ending in `.sozi.json`, so one SVG
 document can have several presentations, e.g. a short and a long talk or one
-per language. Name the presentation file with `--presentation`; if it does not
+per language. Only a file ending in `.sozi.json` is a presentation file: another
+`.json` file is refused, even beside an SVG of the same name (exit code 1 on the
+command line, an error in the editor), and nothing is written. The editor's file
+chooser lists every `.json` file because it cannot filter on a double extension.
+Name the presentation file with `--presentation`; if it does not
 exist, it is created from the SVG like `deck.sozi.json` on the first open:
 
 ```
@@ -188,9 +192,11 @@ presentation file can then be opened directly, on the command line
 Images, media and custom CSS and JavaScript files keep their paths relative to
 the SVG document.
 
-A presentation file without an `svg` key and without `<base>.svg` beside it,
-or whose `svg` key names a missing file, is an error (exit code 1);
-`--presentation` naming a directory or a file that does not end in `.json`, or given with a
+A presentation file that is not JSON or has no `frames` array
+(`not a presentation file: <path>: <reason>`), a `.json` file argument that does
+not end in `.sozi.json`, a presentation file without an `svg` key and without
+`<base>.svg` beside it, or whose `svg` key names a missing file, is an error (exit code 1);
+`--presentation` naming a directory or a file that does not end in `.sozi.json`, or given with a
 presentation file argument, is a usage error (exit code 2).
 
 Exit codes:
