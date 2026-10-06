@@ -17,6 +17,13 @@ function build(deck, ...flags) {
     return run;
 }
 
+/** The `soziPresentationData` object embedded in a presentation HTML file. */
+function presentationData(file) {
+    const match = /var soziPresentationData = (.*);<\/script>/.exec(fs.readFileSync(file, "utf8"));
+    assert.ok(match, `no soziPresentationData in ${file}`);
+    return JSON.parse(match[1]);
+}
+
 function htmlPaths(deck) {
     const base = deck.svg.replace(/\.svg$/, "");
     return {html: base + ".sozi.html", presenter: base + "-presenter.sozi.html"};
@@ -160,15 +167,19 @@ describe("build", () => {
         }
     });
 
-    test("builds the BattleSnake deck like the GUI does", () => {
+    test("builds the BattleSnake deck with the frames and layers of its JSON", () => {
         const deck = withTempDeck("battlesnake");
         try {
             const {code, json, stderr} = build(deck, "--no-json");
             assert.equal(code, 0, `${JSON.stringify(json)}\n${stderr}`);
             assert.equal(json.frames, 32);
-            const size = fs.statSync(htmlPaths(deck).html).size;
-            const reference = fs.statSync(path.join(deck.dir, "hacksnake-edit.reference.sozi.html")).size;
-            assert.ok(Math.abs(size - reference) <= reference * 0.1, `size ${size}, reference ${reference}`);
+            const built = presentationData(htmlPaths(deck).html).frames;
+            const source = JSON.parse(fs.readFileSync(deck.json, "utf8")).frames;
+            assert.equal(built.length, source.length);
+            assert.deepEqual(built.map(f => f.frameId), source.map(f => f.frameId));
+            built.forEach((frame, i) => {
+                assert.deepEqual(Object.keys(frame.layerProperties).sort(), Object.keys(source[i].layerProperties).sort(), frame.frameId);
+            });
         }
         finally {
             deck.cleanup();
