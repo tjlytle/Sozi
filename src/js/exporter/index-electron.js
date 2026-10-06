@@ -343,6 +343,29 @@ function isUniform(img) {
     return true;
 }
 
+/** The default time limit of each step of an export, in milliseconds.
+ *
+ * @readonly
+ * @default
+ * @type {number}
+ */
+const DEFAULT_TIMEOUT_MS = 30000;
+
+/** Wait for a promise with a time limit.
+ *
+ * @param {Promise} promise - The promise to wait for.
+ * @param {number} ms - The time limit, in milliseconds.
+ * @param {string} message - The error message if the time limit is reached.
+ * @returns {Promise} - Settled like `promise`, or rejected with `message` after `ms`.
+ */
+function withTimeout(promise, ms, message) {
+    let timer;
+    const timeout = new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** A window that shows a presentation HTML file for capture.
  *
  * Create instances with {@linkcode module:exporter.openExportWindow|openExportWindow}.
@@ -399,6 +422,22 @@ export class ExportWindow {
          * @type {?boolean}
          */
         this.hasContent = null;
+
+        /** The time limit of each step (page load, script, capture), in milliseconds.
+         *
+         * @type {number}
+         */
+        this.timeoutMs = opts.timeoutMs > 0 ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
+    }
+
+    /** Wait for an operation of the window with the time limit.
+     *
+     * @param {Promise} promise - The operation.
+     * @param {string} what - A description of the operation for the error message.
+     * @returns {Promise} - Settled like `promise`, or rejected after the time limit.
+     */
+    bounded(promise, what) {
+        return withTimeout(promise, this.timeoutMs, `the export window did not respond within ${this.timeoutMs / 1000} s (${what})`);
     }
 
     /** Run a script in the page.
@@ -407,7 +446,7 @@ export class ExportWindow {
      * @returns {Promise<any>} - The value of the expression.
      */
     run(code) {
-        return this.window.webContents.executeJavaScript(code);
+        return this.bounded(this.window.webContents.executeJavaScript(code), "script: " + code.trim().split("\n")[0].slice(0, 60));
     }
 
     /** Wait until the page has painted its current state (two animation frames).
@@ -432,10 +471,15 @@ export class ExportWindow {
      *
      * @returns {Electron.Debugger} - The debugger of the window.
      */
-    attachDebugger() {
+    async attachDebugger() {
         const dbg = this.window.webContents.debugger;
         if (!dbg.isAttached()) {
             dbg.attach("1.3");
+            // Render at device scale 1, so that the screenshots have the requested
+            // size in pixels on high-density displays too.
+            await this.bounded(dbg.sendCommand("Emulation.setDeviceMetricsOverride", {
+                width: this.size.width, height: this.size.height, deviceScaleFactor: 1, mobile: false
+            }), "device metrics override");
         }
         return dbg;
     }
@@ -445,43 +489,64 @@ export class ExportWindow {
      * @returns {Promise<Buffer>} - A PNG image.
      */
     async captureCDP() {
+        const dbg = await this.attachDebugger();
         // The screenshot waits for a new frame: repaint the unchanged viewport until it arrives.
-        const shot = this.attachDebugger().sendCommand("Page.captureScreenshot", {format: "png"});
+        const shot = dbg.sendCommand("Page.captureScreenshot", {format: "png"});
         try {
             await this.run("__soziExport.kick(true)");
-            const img = await shot;
+            const img = await this.bounded(shot, "screenshot");
             return Buffer.from(img.data, "base64");
         }
         finally {
-            await this.run("__soziExport.kick(false)");
+            try {
+                await this.run("__soziExport.kick(false)");
+            }
+            catch (e) {
+                // The page does not respond: the window will be destroyed anyway.
+            }
         }
+    }
+
+    /** Does the SVG document have visible content? Computed once.
+     *
+     * @returns {Promise<boolean>} - `true` if the bounding box of the SVG root is not empty.
+     */
+    async svgHasContent() {
+        if (this.hasContent === null) {
+            this.hasContent = await this.run(`(() => {
+                const svg = document.querySelector("svg");
+                const box = svg && svg.getBBox();
+                return !!box && box.width > 0 && box.height > 0;
+            })()`);
+        }
+        return this.hasContent;
     }
 
     /** Capture the current state of the window as a PNG image.
      *
-     * Uses `capturePage`, and falls back to the Chrome DevTools Protocol
-     * if the image is empty or uniform while the SVG has visible content.
+     * Uses `capturePage`, and falls back to the Chrome DevTools Protocol (at device
+     * scale 1) if the image is empty, has another size (high-density display),
+     * or is uniform while the SVG has visible content.
      *
      * @returns {Promise<Buffer>} - A PNG image of exactly the requested size.
      */
     async capture() {
         let png;
         if (!this.useCDP) {
-            const img = await this.window.webContents.capturePage();
-            let empty = img.isEmpty();
-            if (!empty && isUniform(img)) {
-                if (this.hasContent === null) {
-                    this.hasContent = await this.run(`(() => {
-                        const svg = document.querySelector("svg");
-                        const box = svg && svg.getBBox();
-                        return !!box && box.width > 0 && box.height > 0;
-                    })()`);
-                }
-                empty = this.hasContent;
-            }
-            if (empty) {
+            const img  = await this.bounded(this.window.webContents.capturePage(), "capturePage");
+            const size = img.getSize();
+            if (img.isEmpty()) {
                 this.useCDP = true;
                 this.warnings.push("capturePage returned an empty image; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
+            }
+            else if (size.width !== this.size.width || size.height !== this.size.height) {
+                // On a high-density display, capturePage returns device pixels.
+                this.useCDP = true;
+                this.warnings.push(`capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`);
+            }
+            else if (isUniform(img) && await this.svgHasContent()) {
+                this.useCDP = true;
+                this.warnings.push("capturePage returned a uniform image of a non-empty SVG; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
             }
             else {
                 png = img.toPNG();
@@ -521,9 +586,10 @@ export class ExportWindow {
  * Main process only. The window has exactly the requested content size,
  * a white background (or a transparent one), and is hidden unless `hidden` is false.
  * The promise resolves when the player is ready, with media disabled.
+ * Each step is bounded by `timeoutMs` (default 30 s); on failure the window is destroyed.
  *
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} opts - `{width, height, hidden, transparent}`.
+ * @param {object} opts - `{width, height, hidden, transparent, timeoutMs}`.
  * @returns {Promise<module:exporter.ExportWindow>} - The capture window.
  */
 export async function openExportWindow(htmlPath, opts) {
@@ -548,9 +614,9 @@ export async function openExportWindow(htmlPath, opts) {
     });
     const ew = new ExportWindow(w, opts);
     try {
-        await w.loadFile(htmlPath);
+        await ew.bounded(w.loadFile(htmlPath), `loading ${htmlPath}`);
         // The player is created in the load event handler of the page.
-        await ew.run(`new Promise(resolve => {
+        await withTimeout(w.webContents.executeJavaScript(`new Promise(resolve => {
             (function check() {
                 if (window.sozi && window.sozi.player && window.__soziExport) {
                     resolve(true);
@@ -559,7 +625,7 @@ export async function openExportWindow(htmlPath, opts) {
                     setTimeout(check, 10);
                 }
             })();
-        })`);
+        })`), ew.timeoutMs, `the Sozi player did not start within ${ew.timeoutMs / 1000} s in ${htmlPath}; is it a Sozi presentation HTML file?`);
         // Stop the player and remove the blank screen, whose fade-out is a CSS transition.
         await ew.run(`(() => {
             sozi.player.disableMedia();
@@ -571,7 +637,8 @@ export async function openExportWindow(htmlPath, opts) {
             return true;
         })()`);
         if (transparent) {
-            await ew.attachDebugger().sendCommand("Emulation.setDefaultBackgroundColorOverride", {color: {r: 0, g: 0, b: 0, a: 0}});
+            const dbg = await ew.attachDebugger();
+            await ew.bounded(dbg.sendCommand("Emulation.setDefaultBackgroundColorOverride", {color: {r: 0, g: 0, b: 0, a: 0}}), "background override");
         }
     }
     catch (err) {
@@ -579,6 +646,24 @@ export async function openExportWindow(htmlPath, opts) {
         throw err;
     }
     return ew;
+}
+
+/** Open a capture window, run an operation with it and destroy it.
+ *
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - The options of {@linkcode module:exporter.openExportWindow|openExportWindow}.
+ * @param {function(module:exporter.ExportWindow):Promise} fn - The operation.
+ * @returns {Promise<{value: any, warnings: string[], capture: ?string}>} - The result of the operation and the capture report.
+ */
+async function withExportWindow(htmlPath, opts, fn) {
+    const ew = await openExportWindow(htmlPath, opts);
+    try {
+        const value = await fn(ew);
+        return {value, warnings: ew.warnings, capture: ew.captureMethod};
+    }
+    finally {
+        ew.close();
+    }
 }
 
 /** Fill the default options of an export.
@@ -592,6 +677,7 @@ function withDefaults(opts) {
         ffmpegPath : null,
         hidden     : !process.env.SOZI_EXPORT_SHOW,
         transparent: false,
+        timeoutMs  : DEFAULT_TIMEOUT_MS,
         onProgress : null
     }, opts || {});
 }
@@ -613,6 +699,21 @@ function progress(opts, done, total) {
     }
 }
 
+/** Select the frames of an export, and reject an empty selection.
+ *
+ * @param {object} presentation - The presentation settings.
+ * @param {string} include - The frames to include (frame-list grammar).
+ * @param {string} exclude - The frames to exclude.
+ * @returns {number[]} - The 0-based indices of the selected frames.
+ */
+function requireFrames(presentation, include, exclude) {
+    const frames = selectFrames(presentation.frames.length, include, exclude);
+    if (!frames.length) {
+        throw new Error("no frames selected for export");
+    }
+    return frames;
+}
+
 /** Forward an export call to this module in the main process.
  *
  * @param {string} name - The name of the export function.
@@ -631,6 +732,25 @@ async function inMainProcess(name, presentation, htmlPath, opts) {
     return JSON.parse(await mainModule.runExport(name, args, onProgress));
 }
 
+/** Run an export function in the main process.
+ *
+ * In a renderer, the call is forwarded to this module in the main process.
+ * In the main process, the implementation runs with the default options filled in.
+ *
+ * @param {string} name - The name of the exported function (a key of `exportFunctions`).
+ * @param {object} presentation - A presentation or presentation-like object.
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - The export options.
+ * @param {function(object, string, object):Promise<object>} impl - The implementation.
+ * @returns {Promise<object>} - The export result.
+ */
+function dispatch(name, presentation, htmlPath, opts, impl) {
+    if (process.type === "renderer") {
+        return inMainProcess(name, presentation, htmlPath, opts);
+    }
+    return impl(presentation, htmlPath, withDefaults(opts));
+}
+
 /** Entry point of the export functions called from a renderer.
  *
  * Arguments and result go through JSON so that `@electron/remote`
@@ -642,43 +762,37 @@ async function inMainProcess(name, presentation, htmlPath, opts) {
  * @returns {Promise<string>} - The export result as JSON.
  */
 export async function runExport(name, argsJSON, onProgress) {
-    const fn = {exportToPDF, exportToPPTX, exportToVideo}[name];
-    if (!fn) {
+    if (!Object.hasOwn(exportFunctions, name)) {
         throw new Error(`unknown export function: ${name}`);
     }
     const [presentation, htmlPath, opts] = JSON.parse(argsJSON);
     if (onProgress) {
         opts.onProgress = onProgress;
     }
-    return JSON.stringify(await fn(presentation, htmlPath, opts));
-}
-
-/** Is the current process a renderer?
- *
- * @returns {boolean} - `true` in a renderer process.
- */
-function inRenderer() {
-    return process.type === "renderer";
+    return JSON.stringify(await exportFunctions[name](presentation, htmlPath, opts));
 }
 
 /** Export a presentation to a PDF document.
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToPDF*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} [opts] - `{outPath, hidden, onProgress}`; `outPath` defaults to the HTML path with a `.pdf` extension.
+ * @param {object} [opts] - `{outPath, hidden, timeoutMs, onProgress}`; `outPath` defaults to the HTML path with a `.pdf` extension.
  * @returns {Promise<object>} - `{out, frames, warnings, capture}`.
  */
-export async function exportToPDF(presentation, htmlPath, opts) {
-    if (inRenderer()) {
-        return inMainProcess("exportToPDF", presentation, htmlPath, opts);
-    }
-    opts = withDefaults(opts);
-    const outPath = opts.outPath || htmlPath.replace(/html$/, "pdf");
+export function exportToPDF(presentation, htmlPath, opts) {
+    return dispatch("exportToPDF", presentation, htmlPath, opts, pdfExport);
+}
 
-    const frames = selectFrames(presentation.frames.length, presentation.exportToPDFInclude, presentation.exportToPDFExclude);
-    if (!frames.length) {
-        throw new Error("no frames selected for export");
-    }
+/** Implementation of {@linkcode module:exporter.exportToPDF|exportToPDF} (main process).
+ *
+ * @param {object} presentation - The presentation settings.
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - The export options, with defaults.
+ * @returns {Promise<object>} - The export result.
+ */
+async function pdfExport(presentation, htmlPath, opts) {
+    const outPath = opts.outPath || htmlPath.replace(/html$/, "pdf");
+    const frames  = requireFrames(presentation, presentation.exportToPDFInclude, presentation.exportToPDFExclude);
 
     // Get the PDF page size and swap width and height in portrait orientation.
     const geometry = pdfPageGeometry[presentation.exportToPDFPageSize];
@@ -688,48 +802,47 @@ export async function exportToPDF(presentation, htmlPath, opts) {
     const landscape = presentation.exportToPDFPageOrientation !== "portrait";
     const g = landscape ? geometry : {width: geometry.height, height: geometry.width};
 
-    const ew = await openExportWindow(htmlPath, {width: g.width, height: g.height, hidden: opts.hidden});
-    try {
+    const {warnings} = await withExportWindow(htmlPath, Object.assign({}, opts, g, {transparent: false}), async ew => {
         const pdfDoc = await PDFDocument.create();
         for (let i = 0; i < frames.length; i ++) {
             await ew.jumpToFrame(frames[i]);
-            const pdfData = await ew.window.webContents.printToPDF({
+            const pdfData = await ew.bounded(ew.window.webContents.printToPDF({
                 pageSize       : presentation.exportToPDFPageSize,
                 landscape,
                 printBackground: true,
                 margins        : {top: 0, bottom: 0, left: 0, right: 0}
-            });
+            }), "printToPDF");
             const pdfDocForFrame = await PDFDocument.load(pdfData);
             const [pdfPage]      = await pdfDoc.copyPages(pdfDocForFrame, [0]);
             pdfDoc.addPage(pdfPage);
             progress(opts, i + 1, frames.length);
         }
         fs.writeFileSync(outPath, await pdfDoc.save());
-    }
-    finally {
-        ew.close();
-    }
-    return {out: outPath, frames: frames.length, warnings: ew.warnings, capture: "printToPDF"};
+    });
+    return {out: outPath, frames: frames.length, warnings, capture: "printToPDF"};
 }
 
 /** Export a presentation to a PPTX document.
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToPPTX*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} [opts] - `{outPath, hidden, onProgress}`; `outPath` defaults to the HTML path with a `.pptx` extension.
+ * @param {object} [opts] - `{outPath, hidden, timeoutMs, onProgress}`; `outPath` defaults to the HTML path with a `.pptx` extension.
  * @returns {Promise<object>} - `{out, frames, warnings, capture}`.
  */
-export async function exportToPPTX(presentation, htmlPath, opts) {
-    if (inRenderer()) {
-        return inMainProcess("exportToPPTX", presentation, htmlPath, opts);
-    }
-    opts = withDefaults(opts);
-    const outPath = opts.outPath || htmlPath.replace(/html$/, "pptx");
+export function exportToPPTX(presentation, htmlPath, opts) {
+    return dispatch("exportToPPTX", presentation, htmlPath, opts, pptxExport);
+}
 
-    const frames = selectFrames(presentation.frames.length, presentation.exportToPPTXInclude, presentation.exportToPPTXExclude);
-    if (!frames.length) {
-        throw new Error("no frames selected for export");
-    }
+/** Implementation of {@linkcode module:exporter.exportToPPTX|exportToPPTX} (main process).
+ *
+ * @param {object} presentation - The presentation settings.
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - The export options, with defaults.
+ * @returns {Promise<object>} - The export result.
+ */
+async function pptxExport(presentation, htmlPath, opts) {
+    const outPath = opts.outPath || htmlPath.replace(/html$/, "pptx");
+    const frames  = requireFrames(presentation, presentation.exportToPPTXInclude, presentation.exportToPPTXExclude);
 
     // Get the PPTX slide size and convert it to pixels.
     const geometry = pptxSlideGeometry[presentation.exportToPPTXSlideSize];
@@ -743,21 +856,19 @@ export async function exportToPPTX(presentation, htmlPath, opts) {
 
     // A temporary directory for the slide images, deleted even if not empty.
     const destDir = tmp.dirSync({unsafeCleanup: true});
-    let ew;
     try {
-        ew = await openExportWindow(htmlPath, {width: g.width, height: g.height, hidden: opts.hidden});
-
         const pptxDoc = officegen("pptx");
         pptxDoc.setSlideSize(g.width, g.height, presentation.exportToPPTXSlideSize);
 
-        for (let i = 0; i < frames.length; i ++) {
-            await ew.jumpToFrame(frames[i]);
-            const fileName = path.join(destDir.name, `img${String(i).padStart(6, "0")}.png`);
-            fs.writeFileSync(fileName, await ew.capture());
-            pptxDoc.makeNewSlide().addImage(fileName, {x: 0, y: 0, cx: "100%", cy: "100%"});
-            progress(opts, i + 1, frames.length);
-        }
-        ew.close();
+        const {warnings, capture} = await withExportWindow(htmlPath, Object.assign({}, opts, g, {transparent: false}), async ew => {
+            for (let i = 0; i < frames.length; i ++) {
+                await ew.jumpToFrame(frames[i]);
+                const fileName = path.join(destDir.name, `img${String(i).padStart(6, "0")}.png`);
+                fs.writeFileSync(fileName, await ew.capture());
+                pptxDoc.makeNewSlide().addImage(fileName, {x: 0, y: 0, cx: "100%", cy: "100%"});
+                progress(opts, i + 1, frames.length);
+            }
+        });
 
         await new Promise((resolve, reject) => {
             const pptxFile = fs.createWriteStream(outPath);
@@ -768,19 +879,26 @@ export async function exportToPPTX(presentation, htmlPath, opts) {
                 error: err => reject(err instanceof Error ? err : new Error(`PPTX generation failed: ${err}`))
             });
         });
+        return {out: outPath, frames: frames.length, warnings, capture};
     }
     finally {
-        if (ew) {
-            ew.close();
-        }
+        removeTmpDir(destDir);
+    }
+}
+
+/** Remove a temporary directory, ignoring failures.
+ *
+ * @param {?object} dir - A directory created by `tmp.dirSync`, or `null`.
+ */
+function removeTmpDir(dir) {
+    if (dir) {
         try {
-            destDir.removeCallback();
+            dir.removeCallback();
         }
         catch (e) {
             // Ignore failures to remove the temporary directory.
         }
     }
-    return {out: outPath, frames: frames.length, warnings: ew.warnings, capture: ew.captureMethod};
 }
 
 /** Export a presentation to a video or a PNG image sequence.
@@ -791,15 +909,22 @@ export async function exportToPPTX(presentation, htmlPath, opts) {
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToVideo*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} [opts] - `{outPath, ffmpegPath, hidden, transparent, onProgress}`; `transparent` applies to PNG sequences only;
+ * @param {object} [opts] - `{outPath, ffmpegPath, hidden, transparent, timeoutMs, onProgress}`; `transparent` applies to PNG sequences only;
  *  `outPath` defaults to the HTML path with the format as extension, or `<name>-sozi-export` for PNG sequences.
  * @returns {Promise<object>} - `{out, format, frames, images, files, ffmpeg, warnings, capture}` (`files` for PNG sequences only).
  */
-export async function exportToVideo(presentation, htmlPath, opts) {
-    if (inRenderer()) {
-        return inMainProcess("exportToVideo", presentation, htmlPath, opts);
-    }
-    opts = withDefaults(opts);
+export function exportToVideo(presentation, htmlPath, opts) {
+    return dispatch("exportToVideo", presentation, htmlPath, opts, videoExport);
+}
+
+/** Implementation of {@linkcode module:exporter.exportToVideo|exportToVideo} (main process).
+ *
+ * @param {object} presentation - The presentation settings.
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - The export options, with defaults.
+ * @returns {Promise<object>} - The export result.
+ */
+async function videoExport(presentation, htmlPath, opts) {
     const format  = presentation.exportToVideoFormat;
     const isPNG   = format === "png";
     const outPath = opts.outPath || (isPNG ?
@@ -827,7 +952,7 @@ export async function exportToVideo(presentation, htmlPath, opts) {
     const timeline = videoTimeline(presentation.frames, frameRate);
     const total    = timelineImageCount(timeline);
 
-    let destDir, destDirName;
+    let destDir = null, destDirName;
     if (isPNG) {
         destDirName = outPath;
         fs.mkdirSync(destDirName, {recursive: true});
@@ -843,10 +968,7 @@ export async function exportToVideo(presentation, htmlPath, opts) {
     }
 
     const files = [];
-    let ew;
     try {
-        ew = await openExportWindow(htmlPath, {width, height, hidden: opts.hidden, transparent: isPNG && opts.transparent});
-
         // Write the next image of the sequence.
         const write = png => {
             const fileName = path.join(destDirName, `img${String(files.length).padStart(6, "0")}.png`);
@@ -855,25 +977,27 @@ export async function exportToVideo(presentation, htmlPath, opts) {
             progress(opts, files.length, total);
         };
 
-        for (const step of timeline) {
-            if (step.type === "hold") {
-                await ew.jumpToFrame(step.frame);
-                const png = await ew.capture();
-                for (let i = 0; i < step.count; i ++) {
-                    write(png);
+        const windowOpts = Object.assign({}, opts, {width, height, transparent: isPNG && opts.transparent});
+        const {warnings, capture} = await withExportWindow(htmlPath, windowOpts, async ew => {
+            for (const step of timeline) {
+                if (step.type === "hold") {
+                    await ew.jumpToFrame(step.frame);
+                    const png = await ew.capture();
+                    for (let i = 0; i < step.count; i ++) {
+                        write(png);
+                    }
+                }
+                else {
+                    await ew.run(`__soziExport.setup(${step.to})`);
+                    for (const p of step.progress) {
+                        await ew.run(`__soziExport.step(${p})`);
+                        await ew.settle();
+                        write(await ew.capture());
+                    }
+                    await ew.run("__soziExport.finish()");
                 }
             }
-            else {
-                await ew.run(`__soziExport.setup(${step.to})`);
-                for (const p of step.progress) {
-                    await ew.run(`__soziExport.step(${p})`);
-                    await ew.settle();
-                    write(await ew.capture());
-                }
-                await ew.run("__soziExport.finish()");
-            }
-        }
-        ew.close();
+        });
 
         if (!isPNG) {
             await runFfmpeg(ffmpegPath, [
@@ -889,32 +1013,21 @@ export async function exportToVideo(presentation, htmlPath, opts) {
                 outPath
             ]);
         }
+
+        const result = {out: outPath, format, frames: presentation.frames.length, images: files.length, ffmpeg: ffmpegPath, warnings, capture};
+        if (isPNG) {
+            result.files = files;
+        }
+        return result;
     }
     finally {
-        if (ew) {
-            ew.close();
-        }
-        if (destDir) {
-            try {
-                destDir.removeCallback();
-            }
-            catch (e) {
-                // Ignore failures to remove the temporary directory.
-            }
-        }
+        removeTmpDir(destDir);
     }
-
-    const result = {
-        out     : outPath,
-        format,
-        frames  : presentation.frames.length,
-        images  : files.length,
-        ffmpeg  : ffmpegPath,
-        warnings: ew.warnings,
-        capture : ew.captureMethod
-    };
-    if (isPNG) {
-        result.files = files;
-    }
-    return result;
 }
+
+/** The export functions that a renderer can call through {@linkcode module:exporter.runExport|runExport}.
+ *
+ * @readonly
+ * @type {object.<string, Function>}
+ */
+const exportFunctions = {exportToPDF, exportToPPTX, exportToVideo};

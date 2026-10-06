@@ -46,6 +46,10 @@ window.__soziExport = {
      * @param {boolean} enable - Start (`true`) or stop (`false`) repainting.
      */
     kick(enable) {
+        // Do not start a second repaint loop.
+        if (enable && this.kicking) {
+            return;
+        }
         this.kicking = enable;
         const loop = () => {
             if (this.kicking) {
