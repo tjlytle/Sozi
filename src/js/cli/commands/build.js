@@ -10,11 +10,13 @@
  * @module
  */
 
+import {applyOptions, FLAGS as setFlags} from "./set";
+
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
  *
- * @type {{[name: string]: boolean}}
+ * @type {{[name: string]: (boolean|string)}}
  */
-export const FLAGS = {"write-json": false};
+export const FLAGS = {"write-json": false, title: setFlags.title};
 
 /** Build the HTML files of a presentation that has been loaded.
  *
@@ -23,7 +25,11 @@ export const FLAGS = {"write-json": false};
  * Loading and saving a presentation is not byte-stable (camera coordinates
  * drift slightly), so rewriting it on every build would make spurious changes.
  *
+ * `--title` sets the explicit title before writing, like the `set` command;
+ * a change of title marks the JSON file as needing to be saved.
+ *
  * @param {object} context - The command context.
+ * @param {module:Controller.Controller} context.controller - The controller.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
  * @param {string} context.svg - The absolute path of the SVG file.
  * @param {string} context.presentation - The absolute path of the JSON file.
@@ -31,7 +37,7 @@ export const FLAGS = {"write-json": false};
  * @param {string[]} context.warnings - Warnings to report; this command may add some.
  * @returns {{ok: boolean, files: string[], frames: number}} - The command result.
  */
-export function build({storage, svg, presentation, flags, warnings}) {
+export function build({controller, storage, svg, presentation, flags, warnings}) {
     const fs   = require("fs");
     const path = require("path");
 
@@ -42,6 +48,8 @@ export function build({storage, svg, presentation, flags, warnings}) {
     if (fs.existsSync(htmlPath) && fs.statSync(svg).mtimeMs > fs.statSync(htmlPath).mtimeMs) {
         warnings.push("svg newer than existing html");
     }
+
+    applyOptions(controller, flags);
 
     const files = [];
     function write(file, data) {
