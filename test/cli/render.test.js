@@ -33,8 +33,7 @@ function soziFails(deck, code, args) {
 
 /** Decode a PNG file and check its size, and that its pixels are not all the same colour.
  *
- * Every fourth row is sampled. A frame of the basic fixture is filled by a
- * rectangle, so only the frame number in its top left corner differs.
+ * Every fourth row and column is sampled.
  */
 function checkPng(file, width, height) {
     assert.ok(fs.existsSync(file), `${file} exists`);
@@ -48,6 +47,24 @@ function checkPng(file, width, height) {
     }
     assert.ok(colours.size > 1, `${file} is uniform: ${[...colours]}`);
     return {png, colours: colours.size};
+}
+
+/** Decode a PNG file of the basic fixture and check its size, and that it shows the frame.
+ *
+ * The frames of the basic fixture are filled by the orange rectangle r2 (#cc6633),
+ * and the frame number of the player is hidden by default: every sampled pixel is orange.
+ */
+function checkBasicPng(file, width, height) {
+    assert.ok(fs.existsSync(file), `${file} exists`);
+    const png = decodePng(fs.readFileSync(file));
+    assert.deepEqual({width: png.width, height: png.height}, {width, height});
+    for (let y = 0; y < height; y += 4) {
+        for (let x = 0; x < width; x += 4) {
+            const [r, g, b] = png.pixel(x, y);
+            assert.ok(Math.abs(r - 0xcc) < 8 && Math.abs(g - 0x66) < 8 && Math.abs(b - 0x33) < 8, `${file} at ${x},${y}: ${[r, g, b]}`);
+        }
+    }
+    return png;
 }
 
 /** The number of pixels of an image that are clearly green. */
@@ -83,7 +100,7 @@ describe("render --frame", () => {
             assert.equal(json.rebuilt, true);
             assert.ok(fs.existsSync(html), "the HTML was built");
             assert.match(json.capture, /^(capturePage|cdp)(\+cdp)?$/);
-            checkPng(out, 1280, 720);
+            checkBasicPng(out, 1280, 720);
         }
         finally {
             deck.cleanup();
@@ -97,7 +114,7 @@ describe("render --frame", () => {
             const {json} = soziOk(deck, ["render", "--frame", "frame2", "--size", "320x180", "--out", "shots/second.png", "basic.svg"]);
             assert.deepEqual(json.frames, [{index: 1, id: "frame2", file: out}]);
             assert.deepEqual(json.size, {width: 320, height: 180});
-            checkPng(out, 320, 180);
+            checkBasicPng(out, 320, 180);
         }
         finally {
             deck.cleanup();
@@ -121,10 +138,11 @@ describe("render --frame", () => {
     });
 
     test("different frames give different images", () => {
+        // The two frames of the basic fixture look the same but for their frame numbers.
         const deck = withTempDeck("basic");
         try {
-            soziOk(deck, ["render", "--frame", "0", "--size", "320x180", "--out", "a.png", "basic.svg"]);
-            soziOk(deck, ["render", "--frame", "1", "--size", "320x180", "--out", "b.png", "basic.svg"]);
+            soziOk(deck, ["render", "--frame", "0", "--size", "320x180", "--frame-number", "--out", "a.png", "basic.svg"]);
+            soziOk(deck, ["render", "--frame", "1", "--size", "320x180", "--frame-number", "--out", "b.png", "basic.svg"]);
             assert.ok(!fs.readFileSync(path.join(deck.dir, "a.png")).equals(fs.readFileSync(path.join(deck.dir, "b.png"))));
         }
         finally {
@@ -190,7 +208,10 @@ describe("render --all", () => {
                 {index: 1, id: "frame2", file: files[1]}
             ]);
             assert.deepEqual(fs.readdirSync(dir).sort(), ["frame-000.png", "frame-001.png", "notes.txt"]);
-            files.forEach(file => checkPng(file, 320, 180));
+            files.forEach(file => checkBasicPng(file, 320, 180));
+            // One-colour frames are believed once the Chrome DevTools Protocol agrees: no fallback, no warning.
+            assert.equal(json.capture, "capturePage");
+            assert.deepEqual(json.warnings, []);
         }
         finally {
             deck.cleanup();
@@ -272,6 +293,69 @@ describe("render and the built HTML", () => {
             fs.rmSync(path.join(deck.dir, "img", "dot.png"));
             soziOk(deck, args);
             assert.equal(greenPixels(decodePng(fs.readFileSync(path.join(deck.dir, "f.png")))), 0);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+});
+
+describe("render: carried fixes", () => {
+    test("after build --write-json the HTML is not older than the JSON: two renders reuse it", () => {
+        const deck = withTempDeck("basic");
+        try {
+            assert.equal(runSozi(["build", "--write-json", "basic.svg"], {cwd: deck.dir}).code, 0);
+            const html = fs.statSync(path.join(deck.dir, "basic.sozi.html")).mtimeMs;
+            assert.ok(html >= fs.statSync(deck.json).mtimeMs, "the HTML is written after the JSON");
+            const args = ["render", "--frame", "0", "--size", "160x90", "--out", "f.png", "basic.svg"];
+            assert.equal(soziOk(deck, args).json.rebuilt, false);
+            assert.equal(soziOk(deck, args).json.rebuilt, false);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("--all keeps the existing images when the render fails", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const dir = path.join(deck.dir, "frames");
+            fs.mkdirSync(dir);
+            fs.writeFileSync(path.join(dir, "frame-000.png"), "old 0");
+            fs.writeFileSync(path.join(dir, "frame-007.png"), "old 7");
+            // An up-to-date HTML file without the Sozi player: the capture never starts.
+            const html = path.join(deck.dir, "basic.sozi.html");
+            fs.writeFileSync(html, "<!doctype html><html><body>not a presentation</body></html>");
+            touch(html, 60);
+            const run = runSozi(["render", "--all", "--size", "160x90", "--out", "frames", "--timeout", "4", "basic.svg"], {cwd: deck.dir});
+            assert.equal(run.code, 1, run.stdout);
+            assert.deepEqual(fs.readdirSync(dir).sort(), ["frame-000.png", "frame-007.png"]);
+            assert.equal(fs.readFileSync(path.join(dir, "frame-000.png"), "utf8"), "old 0");
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("the frame-number badge is hidden unless --frame-number", () => {
+        const deck = withTempDeck("basic");
+        try {
+            // The badge is a dark box in the top left corner; the basic frames are orange there.
+            const darkInCorner = file => {
+                const png = decodePng(fs.readFileSync(path.join(deck.dir, file)));
+                let count = 0;
+                for (let y = 0; y < 40; y++) {
+                    for (let x = 0; x < 100; x++) {
+                        const [r, g, b] = png.pixel(x, y);
+                        count += r < 100 && g < 100 && b < 100 ? 1 : 0;
+                    }
+                }
+                return count;
+            };
+            soziOk(deck, ["render", "--frame", "0", "--size", "320x180", "--out", "plain.png", "basic.svg"]);
+            soziOk(deck, ["render", "--frame", "0", "--size", "320x180", "--out", "badge.png", "--frame-number", "basic.svg"]);
+            assert.equal(darkInCorner("plain.png"), 0, "no badge by default");
+            assert.ok(darkInCorner("badge.png") > 50, "the badge is drawn with --frame-number");
         }
         finally {
             deck.cleanup();

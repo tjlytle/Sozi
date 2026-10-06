@@ -130,4 +130,91 @@ function decodePng(buf) {
     return {width, height, pixel: (x, y) => [...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)]};
 }
 
-module.exports = {runSozi, withTempDeck, decodePng, electronBinary, repoDir, appDir, fixturesDir};
+/** Write a fake ffmpeg that records its process id and never finishes.
+ *
+ * @param {string} dir - The directory of the script.
+ * @returns {{path: string, pid: Function}} - The script; `pid()` reads its process id, or null if it never ran.
+ */
+function fakeFfmpeg(dir) {
+    const file = path.join(dir, "stuck-ffmpeg");
+    const pidFile = path.join(dir, "stuck-ffmpeg.pid");
+    fs.writeFileSync(file, `#!/bin/sh\necho $$ > "${pidFile}"\nexec sleep 60\n`, {mode: 0o755});
+    return {path: file, pid: () => fs.existsSync(pidFile) ? Number(fs.readFileSync(pidFile, "utf8")) : null};
+}
+
+/** Is a process running? A zombie counts as finished.
+ *
+ * @param {?number} pid - A process id.
+ * @returns {boolean} - true if the process exists and is not a zombie.
+ */
+function isAlive(pid) {
+    if (!pid) {
+        return false;
+    }
+    try {
+        process.kill(pid, 0);
+    }
+    catch {
+        return false;
+    }
+    try {
+        return !/^\S+ \(.*\) Z/.test(fs.readFileSync(`/proc/${pid}/stat`, "utf8"));
+    }
+    catch {
+        return true;
+    }
+}
+
+/** Find an executable on the PATH.
+ *
+ * @param {string} name - The executable name.
+ * @returns {?string} - Its path, or null.
+ */
+function which(name) {
+    for (const dir of (process.env.PATH || "").split(path.delimiter)) {
+        const file = path.join(dir, name);
+        try {
+            fs.accessSync(file, fs.constants.X_OK);
+            return file;
+        }
+        catch {
+            // Not in this directory.
+        }
+    }
+    return null;
+}
+
+/** The entries of a zip file, from its central directory.
+ *
+ * @param {Buffer} buf - The content of a zip file.
+ * @returns {{name: string, data: Function}[]} - The entries; `data()` gives the uncompressed content.
+ */
+function zipEntries(buf) {
+    const zlib = require("node:zlib");
+    const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+    assert.ok(eocd >= 0, "zip end of central directory");
+    const count = buf.readUInt16LE(eocd + 10);
+    let o = buf.readUInt32LE(eocd + 16);
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+        assert.equal(buf.readUInt32LE(o), 0x02014b50, "zip central directory entry");
+        const method         = buf.readUInt16LE(o + 10);
+        const compressedSize = buf.readUInt32LE(o + 20);
+        const nameLength     = buf.readUInt16LE(o + 28);
+        const extraLength    = buf.readUInt16LE(o + 30);
+        const commentLength  = buf.readUInt16LE(o + 32);
+        const local          = buf.readUInt32LE(o + 42);
+        entries.push({
+            name: buf.toString("utf8", o + 46, o + 46 + nameLength),
+            data() {
+                const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+                const raw = buf.subarray(start, start + compressedSize);
+                return method === 8 ? zlib.inflateRawSync(raw) : raw;
+            }
+        });
+        o += 46 + nameLength + extraLength + commentLength;
+    }
+    return entries;
+}
+
+module.exports = {runSozi, withTempDeck, decodePng, zipEntries, fakeFfmpeg, isAlive, which, electronBinary, repoDir, appDir, fixturesDir};
