@@ -18,15 +18,15 @@ import {build, FLAGS as buildFlags} from "./commands/build";
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
 import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
 import {validateArgs} from "./args";
-import {presentationFiles} from "../naming";
+import {presentationFiles, svgOfPresentation} from "../naming";
 
 const CLI_PREFIX = "--sozi-cli=";
 
-const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
+const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg|file.sozi.json>";
 
 /** The available commands.
  *
- * A command receives a context `{controller, storage, svg, presentation, flags, warnings}`
+ * A command receives a context `{controller, storage, svg, presentation, svgSource, flags, warnings}`
  * once the presentation is loaded, and returns a result object with an `ok` property.
  *
  * @type {{[name: string]: Function}}
@@ -109,6 +109,73 @@ export function catchCliErrors() {
     window.addEventListener("unhandledrejection", evt => fail(evt.reason));
 }
 
+/** Find the SVG and presentation files of the command line.
+ *
+ * The file argument is a presentation file if its name ends in `.json`,
+ * else an SVG file. With an SVG file, `--presentation` names the
+ * presentation file; it is created by the commands that write if needed.
+ *
+ * @param {string} file - The absolute path of the file argument.
+ * @param {object} options - The value returned by {@link getCliOptions}.
+ * @returns {{result: {svg: ?string, presentation: ?string}, svgSource: string, code: number, error: ?string}} -
+ *  The file paths, how the SVG file was found (`"default"`, `"json"` for the `svg` key, `"flag"` for `--presentation`),
+ *  and an exit code with an error message, or code 0.
+ */
+function resolveFiles(file, options) {
+    const fs   = require("fs");
+    const path = require("path");
+
+    const flag   = options.flags.presentation;
+    const result = {svg: null, presentation: null};
+    const fail   = (code, error) => ({result, svgSource: null, code, error});
+
+    if (/\.json$/i.test(file)) {
+        result.presentation = file;
+        if (flag !== undefined) {
+            return fail(2, `--presentation needs an SVG file argument, not a presentation file: ${file}`);
+        }
+        if (!fs.existsSync(file)) {
+            return fail(1, `file not found: ${file}`);
+        }
+        let svgKey;
+        try {
+            svgKey = JSON.parse(fs.readFileSync(file, {encoding: "utf-8"})).svg;
+        }
+        catch (err) {
+            return fail(1, `presentation JSON could not be parsed: ${file}: ${err.message}`);
+        }
+        // A non-string key is ignored, with a warning once the presentation is loaded.
+        svgKey = typeof svgKey === "string" ? svgKey : "";
+        result.svg = svgOfPresentation(file, svgKey);
+        if (!fs.existsSync(result.svg)) {
+            return fail(1, `SVG file not found: ${result.svg} (` +
+                (svgKey ? `from the "svg" key of ${file})` : `${file} has no "svg" key; add one to name the SVG file)`));
+        }
+        return {result, svgSource: svgKey ? "json" : "default", code: 0, error: null};
+    }
+
+    result.svg = file;
+    if (flag !== undefined) {
+        result.presentation = path.resolve(options.cwd, flag);
+        if (!/\.json$/i.test(result.presentation)) {
+            return fail(2, `--presentation must name a .json file, e.g. talk.sozi.json: ${result.presentation}`);
+        }
+        if (fs.existsSync(result.presentation) && fs.statSync(result.presentation).isDirectory()) {
+            return fail(2, `--presentation is a directory: ${result.presentation}`);
+        }
+    }
+    else {
+        result.presentation = presentationFiles(file).presentation;
+        if (result.presentation === file) {
+            return fail(2, `file has no extension: ${file}`);
+        }
+    }
+    if (!fs.existsSync(file)) {
+        return fail(1, `file not found: ${file}`);
+    }
+    return {result, svgSource: flag !== undefined ? "flag" : "default", code: 0, error: null};
+}
+
 /** Run a CLI command in the renderer.
  *
  * @param {object} options - The value returned by {@link getCliOptions}.
@@ -119,7 +186,6 @@ export function catchCliErrors() {
  * @returns {Promise} - A promise resolved when the result has been sent.
  */
 export async function runCli(options, {controller, storage, preferences}) {
-    const fs   = require("fs");
     const path = require("path");
 
     const warnings = [];
@@ -168,20 +234,16 @@ export async function runCli(options, {controller, storage, preferences}) {
             return;
         }
 
-        result.svg = path.resolve(options.cwd, file);
-        result.presentation = presentationFiles(result.svg).presentation;
-        if (result.presentation === result.svg) {
-            reply(2, Object.assign(result, {ok: false, error: `file has no extension: ${result.svg}`}));
-            return;
-        }
-        if (!fs.existsSync(result.svg)) {
-            reply(1, Object.assign(result, {ok: false, error: `file not found: ${result.svg}`}));
+        const files = resolveFiles(path.resolve(options.cwd, file), options);
+        Object.assign(result, files.result);
+        if (files.code) {
+            reply(files.code, Object.assign(result, {ok: false, error: files.error}));
             return;
         }
 
         const backend = storage.backends.find(b => b.constructor.name === "Electron");
         storage.writeOnOpen = false;
-        await storage.setSVGFile(result.svg, backend);
+        await storage.setSVGFile(result.svg, backend, {name: path.basename(result.presentation), location: path.dirname(result.presentation)});
         if (storage.jsonLoadError) {
             const message = storage.jsonLoadError.message || String(storage.jsonLoadError);
             reply(1, Object.assign(result, {ok: false, error: `presentation JSON could not be parsed: ${result.presentation}: ${message}`}));
@@ -200,6 +262,7 @@ export async function runCli(options, {controller, storage, preferences}) {
             storage,
             svg:          result.svg,
             presentation: result.presentation,
+            svgSource:    files.svgSource,
             flags:        options.flags,
             warnings
         });
