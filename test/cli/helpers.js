@@ -23,15 +23,16 @@ const electronBinary = require("electron");
 /** Run `electron build/electron --cli ...args`.
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
- * @param {object} [opts] - `cwd` (default: the repository), `env` (default: process.env).
+ * @param {object} [opts] - `cwd` (default: the repository), `env` (default: process.env),
+ *  `timeout` in milliseconds (default: 60000).
  * @returns {{code: number|null, stdout: string, stderr: string, json: object|null}}
  */
-function runSozi(args, {cwd = repoDir, env = process.env} = {}) {
+function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000} = {}) {
     const result = spawnSync(electronBinary, [appDir, "--cli", ...args], {
         cwd,
         env,
         encoding: "utf8",
-        timeout: 60000,
+        timeout,
         // Electron ignores SIGTERM while a window is open.
         killSignal: "SIGKILL"
     });

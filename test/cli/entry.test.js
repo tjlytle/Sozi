@@ -17,7 +17,7 @@ const APP = "/path/to/build/electron";
 // The flags of each command, as exported by src/js/cli/commands/*.js.
 const FLAGS = {build: {"write-json": false, title: "maybe-empty"}, inspect: {frame: true}, set: {title: "maybe-empty"}};
 
-const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
+const USAGE = "sozi --cli <inspect|build|set|render> [options] <file.svg>";
 
 /** The fields that every CLI result carries. */
 function assertBaseFields(json) {
