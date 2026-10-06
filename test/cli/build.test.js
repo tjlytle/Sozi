@@ -127,6 +127,39 @@ describe("build", () => {
         }
     });
 
+    test("refuses to build when the presentation JSON cannot be parsed", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.writeFileSync(deck.json, "{ not json");
+            const before = fs.readFileSync(deck.json);
+            const {code, json} = build(deck);
+            assert.equal(code, 1);
+            assert.equal(json.ok, false);
+            assert.match(json.error, new RegExp(`^presentation JSON could not be parsed: ${deck.json.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: .+`));
+            assert.deepEqual(fs.readFileSync(deck.json), before);
+            for (const file of Object.values(htmlPaths(deck))) {
+                assert.ok(!fs.existsSync(file), file);
+            }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("fails with exit 1 when an output file cannot be written", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.mkdirSync(htmlPaths(deck).html);
+            const {code, json} = build(deck, "--no-json");
+            assert.equal(code, 1);
+            assert.equal(json.ok, false);
+            assert.match(json.error, /EISDIR/);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("builds the BattleSnake deck like the GUI does", () => {
         const deck = withTempDeck("battlesnake");
         try {

@@ -143,6 +143,11 @@ export async function runCli(options, {controller, storage, preferences}) {
         const backend = storage.backends.find(b => b.constructor.name === "Electron");
         storage.writeOnOpen = false;
         await storage.setSVGFile(result.svg, backend);
+        if (storage.jsonLoadError) {
+            const message = storage.jsonLoadError.message || String(storage.jsonLoadError);
+            reply(1, Object.assign(result, {ok: false, error: `presentation JSON could not be parsed: ${result.presentation}: ${message}`}));
+            return;
+        }
         if (errors.length) {
             reply(1, Object.assign(result, {ok: false, error: errors[0]}));
             return;
