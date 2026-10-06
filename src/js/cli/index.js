@@ -123,9 +123,12 @@ export async function runCli(options, {controller, storage, preferences}) {
 
     try {
         // In-memory settings only: preferences are never saved in CLI mode.
+        // Messages are in English so that errors and warnings are stable.
         preferences.animateTransitions = false;
         preferences.saveMode           = "manual";
         preferences.reloadMode         = "manual";
+        preferences.language           = "en";
+        controller.applyPreferences({language: true});
 
         controller.info = body => {
             warnings.push(body);

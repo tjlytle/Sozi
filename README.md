@@ -95,7 +95,8 @@ Sozi can run without its editor window to inspect a presentation or to
 build its HTML files, for scripts and continuous integration.
 Each run prints exactly one JSON document on the standard output;
 logs go to the standard error. Every document has the fields `ok`, `command`,
-`svg`, `presentation`, `warnings`, `errors` and `error` (`null` on success).
+`svg`, `presentation`, `warnings`, `errors` and `error` (`null` on success);
+messages are always in English.
 
 ```
 sozi --cli inspect [--frame N] deck.svg

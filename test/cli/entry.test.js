@@ -209,6 +209,22 @@ describe("electron entry", () => {
     });
 });
 
+describe("language", () => {
+    test("messages are in English whatever the system locale", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.writeFileSync(deck.svg, "this is not svg");
+            const env = {...process.env, LANG: "fr_FR.UTF-8", LANGUAGE: "fr", LC_ALL: "fr_FR.UTF-8"};
+            const {code, json} = runSozi(["inspect", "basic.svg"], {cwd: deck.dir, env});
+            assert.equal(code, 1);
+            assert.deepEqual(json.errors, ["Document is not valid SVG."]);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+});
+
 describe("withTempDeck", () => {
     test("copies a file pair or a directory fixture", () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-fixtures-"));
