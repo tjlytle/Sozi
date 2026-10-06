@@ -28,7 +28,8 @@ describe("presentationFiles", () => {
             svg:          "/decks/talk.svg",
             presentation: "/decks/talk.sozi.json",
             html:         "/decks/talk.sozi.html",
-            presenter:    "/decks/talk-presenter.sozi.html"
+            presenter:    "/decks/talk-presenter.sozi.html",
+            outputDir:    "/decks"
         });
     });
 
@@ -37,7 +38,8 @@ describe("presentationFiles", () => {
             svg:          "/decks/v1.2/my.talk.svg",
             presentation: "/decks/v1.2/my.talk.sozi.json",
             html:         "/decks/v1.2/my.talk.sozi.html",
-            presenter:    "/decks/v1.2/my.talk-presenter.sozi.html"
+            presenter:    "/decks/v1.2/my.talk-presenter.sozi.html",
+            outputDir:    "/decks/v1.2"
         });
     });
 
@@ -46,7 +48,8 @@ describe("presentationFiles", () => {
             svg:          "talk.svg",
             presentation: "talk.sozi.json",
             html:         "talk.sozi.html",
-            presenter:    "talk-presenter.sozi.html"
+            presenter:    "talk-presenter.sozi.html",
+            outputDir:    "."
         });
     });
 
@@ -60,7 +63,8 @@ describe("presentationFiles", () => {
             svg:          "/decks/talk.svg",
             presentation: "/decks/talk-es.sozi.json",
             html:         "/decks/talk-es.sozi.html",
-            presenter:    "/decks/talk-es-presenter.sozi.html"
+            presenter:    "/decks/talk-es-presenter.sozi.html",
+            outputDir:    "/decks"
         });
     });
 
@@ -69,7 +73,8 @@ describe("presentationFiles", () => {
             svg:          "/decks/talk.svg",
             presentation: "/decks/es/spanish.sozi.json",
             html:         "/decks/es/spanish.sozi.html",
-            presenter:    "/decks/es/spanish-presenter.sozi.html"
+            presenter:    "/decks/es/spanish-presenter.sozi.html",
+            outputDir:    "/decks/es"
         });
     });
 
@@ -78,7 +83,8 @@ describe("presentationFiles", () => {
             svg:          "/decks/talk.svg",
             presentation: "/decks/talk.json",
             html:         "/decks/talk.sozi.html",
-            presenter:    "/decks/talk-presenter.sozi.html"
+            presenter:    "/decks/talk-presenter.sozi.html",
+            outputDir:    "/decks"
         });
     });
 
@@ -86,6 +92,40 @@ describe("presentationFiles", () => {
         const files = presentationFiles("/decks/talk.svg", "/decks/Talk-ES.SOZI.JSON");
         assert.equal(files.html, "/decks/Talk-ES.sozi.html");
         assert.equal(files.presenter, "/decks/Talk-ES-presenter.sozi.html");
+    });
+
+    test("an output directory: the HTML files go there, relative to the presentation directory", () => {
+        assert.deepEqual(presentationFiles("/decks/talk.svg", null, {outputDir: "site/talk"}), {
+            svg:          "/decks/talk.svg",
+            presentation: "/decks/talk.sozi.json",
+            html:         "/decks/site/talk/talk.sozi.html",
+            presenter:    "/decks/site/talk/talk-presenter.sozi.html",
+            outputDir:    "/decks/site/talk"
+        });
+        const es = presentationFiles("/decks/talk.svg", "/decks/es/spanish.sozi.json", {outputDir: "../site"});
+        assert.equal(es.html, "/decks/site/spanish.sozi.html");
+        assert.equal(es.presenter, "/decks/site/spanish-presenter.sozi.html");
+        assert.equal(es.outputDir, "/decks/site");
+    });
+
+    test("an output directory with bare names: relative to the backend location", () => {
+        const files = presentationFiles("talk.svg", "talk.sozi.json", {outputDir: "site/talk"});
+        assert.equal(files.html, "site/talk/talk.sozi.html");
+        assert.equal(files.presenter, "site/talk/talk-presenter.sozi.html");
+        assert.equal(files.outputDir, "site/talk");
+    });
+
+    test("an absolute output directory is used as is", () => {
+        const files = presentationFiles("/decks/talk.svg", null, {outputDir: "/www/talk/"});
+        assert.equal(files.html, "/www/talk/talk.sozi.html");
+        assert.equal(files.outputDir, "/www/talk");
+    });
+
+    test("an empty or absent output directory means beside the presentation", () => {
+        for (const options of [{}, {outputDir: ""}, {outputDir: null}, undefined]) {
+            assert.deepEqual(presentationFiles("/decks/talk.svg", null, options), presentationFiles("/decks/talk.svg"));
+        }
+        assert.equal(presentationFiles("/decks/talk.svg", null, {outputDir: "."}).html, "/decks/talk.sozi.html");
     });
 });
 
