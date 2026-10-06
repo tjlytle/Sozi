@@ -189,6 +189,11 @@ beside the presentation file, so `deck.sozi.json` never gets one. A
 presentation file can then be opened directly, on the command line
 (`sozi --cli inspect es/spanish.sozi.json`) and in the editor
 (`sozi es/spanish.sozi.json`, or choose it in the file chooser).
+Opening a presentation file with another SVG document (e.g.
+`--presentation talk.sozi.json other.svg`, or opening `deck.svg` when
+`deck.sozi.json` names another SVG) rewrites its `svg` key, with the warning
+`svg key changed from X to Y` (an info notification in the editor).
+
 Images, media and custom CSS and JavaScript files keep their paths relative to
 the SVG document.
 
