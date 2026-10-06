@@ -127,6 +127,14 @@ describe("rewriteRelativeHrefs", () => {
         assert.equal(rewriteRelativeHrefs(text, "/d", "/d/out"), text);
     });
 
+    test("elements whose name only starts with image are untouched", () => {
+        const text = svg("<image-foo href=\"a.png\"/><x:image-set xlink:href=\"b.png\"/><imagex href=\"c.png\"/>");
+        assert.equal(rewriteRelativeHrefs(text, "/d", "/d/out"), text);
+        // An image element with no attribute before its end, or a self-closing one, still matches.
+        assert.equal(rewriteRelativeHrefs(svg("<image\nxlink:href=\"a.png\"/>"), "/d", "/d/out"),
+            svg("<image\nxlink:href=\"../a.png\"/>"));
+    });
+
     test("every image is rewritten", () => {
         const text = svg("<image xlink:href=\"a.png\"/><g><image xlink:href=\"b/c.png\"/></g>");
         assert.equal(rewriteRelativeHrefs(text, "/d", "/d/out"),
