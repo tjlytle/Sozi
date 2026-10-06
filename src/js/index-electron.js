@@ -118,7 +118,8 @@ function cliMain() {
         cliExit(2, {error: `invalid --timeout: ${cliArgs.flags.timeout}; expected a number of seconds`});
         return;
     }
-    setTimeout(() => cliExit(1, {error: `timed out after ${timeout} s`}), timeout * 1000);
+    // setTimeout fires at once beyond 2^31 - 1 ms (about 24.8 days).
+    setTimeout(() => cliExit(1, {error: `timed out after ${timeout} s`}), Math.min(timeout * 1000, 2 ** 31 - 1));
 
     process.on("uncaughtException", err => {
         process.stderr.write(`${err.stack || err}\n`);

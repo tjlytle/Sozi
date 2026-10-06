@@ -164,6 +164,18 @@ describe("electron entry", () => {
         }
     });
 
+    test("a --timeout beyond the range of setTimeout does not fire at once", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const {code, json} = runSozi(["inspect", "--timeout", "3000000", "basic.svg"], {cwd: deck.dir});
+            assert.equal(code, 0, JSON.stringify(json));
+            assert.equal(json.ok, true);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("--timeout exits 1 with a JSON result when the renderer does not reply", () => {
         const deck = withTempDeck("basic");
         try {
