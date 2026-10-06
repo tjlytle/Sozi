@@ -153,6 +153,28 @@ describe("outputDir key", () => {
         }
     });
 
+    test("the key is trimmed: a blank key means beside the presentation file", () => {
+        const deck = withTempDeck("linked");
+        try {
+            addKeys(deck.json, {outputDir: " "});
+            const {json} = soziOk(deck, "build", "linked.svg");
+            assert.deepEqual(json.files, [
+                path.join(deck.dir, "linked.sozi.html"),
+                path.join(deck.dir, "linked-presenter.sozi.html")
+            ]);
+            assert.ok(!fs.existsSync(path.join(deck.dir, " ")));
+            assert.equal(soziOk(deck, "inspect", "linked.svg").json.outputSource, "default");
+
+            addKeys(deck.json, {outputDir: " out "});
+            soziOk(deck, "build", "linked.svg");
+            assert.ok(fs.existsSync(path.join(deck.dir, "out", "linked.sozi.html")));
+            assert.ok(!fs.existsSync(path.join(deck.dir, " out ")));
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("a non-string key is ignored with a warning", () => {
         const deck = withTempDeck("linked");
         try {

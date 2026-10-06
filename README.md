@@ -228,9 +228,14 @@ sozi --cli set --out-dir "" deck.svg                 # back to beside the presen
 * `set --out-dir DIR` stores the directory in the key `outputDir` of the
   presentation file, as a path relative to the directory of the presentation
   file with forward slashes, e.g. `"outputDir": "site/talk"` or `"../site"` in
-  `es/spanish.sozi.json`. `--out-dir ""` removes the key. Nothing else adds
+  `es/spanish.sozi.json`. `--out-dir ""` removes the key, and so does
+  `--out-dir` naming the directory of the presentation file itself (e.g.
+  `--out-dir .` for `deck.sozi.json` in the working directory). Leading and
+  trailing spaces of the key are ignored. Nothing else adds
   the key, so existing presentation files are unchanged. The editor also writes its HTML files to the
-  stored directory when it saves.
+  stored directory when it saves, and tells so when it opens the presentation
+  ("HTML files are written to DIR"); if that directory cannot be written, it
+  shows an error and keeps editing the presentation without HTML files.
 * Both HTML files go to the output directory, which is created if missing.
   The presentation file stays beside the SVG or where `--presentation` put it,
   and the SVG document is not copied.
