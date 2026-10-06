@@ -40,29 +40,29 @@ Everything else hangs off the hidden-window entry point and the "await the load"
 plumbing. Build alone already removes the edit/convert/rebuild chore.
 
 ### Tasks
-- [ ] `index-electron.js`: parse argv before `ready`; `--cli` -> `show:false`, fixed size
+- [x] `index-electron.js`: parse argv before `ready`; `--cli` -> `show:false`, fixed size
       from `--size` (default 1280x720), `backgroundThrottling:false`, args via
       `additionalArguments`; `uncaughtException` and `render-process-gone` -> `app.exit(1)`;
       `ipcMain.handle("cli:exit")`; refuse to start without DISPLAY/WAYLAND_DISPLAY with a
       clear stderr message.
-- [ ] `backend/Electron.js`: CLI-aware argv (file is the first non-flag arg, not the
+- [x] `backend/Electron.js`: CLI-aware argv (file is the first non-flag arg, not the
       last argv); in CLI mode skip file chooser, geometry restore, `beforeunload` dialog.
-- [ ] `Storage.js`: `openJSONFile` awaits the HTML and presenter writes; expose a
+- [x] `Storage.js`: `openJSONFile` awaits the HTML and presenter writes; expose a
       `loaded` promise from `setSVGFile`.
-- [ ] New `src/js/cli/index.js`: command table, `controller.error/info` capture,
+- [x] New `src/js/cli/index.js`: command table, `controller.error/info` capture,
       in-memory prefs (`animateTransitions=false`, `saveMode=manual`, `reloadMode=manual`),
       never calls `preferences.save()` or `doAutosave()`; writes with `getJSONData()` and
       `exportHTML()`; stdout JSON `{ok, command, files, warnings, errors}`; exit codes
       0 ok, 1 command error, 2 usage.
-- [ ] `inspect`: presentation summary, frames (id, title, index), layers, per-frame
+- [x] `inspect`: presentation summary, frames (id, title, index), layers, per-frame
       per-layer camera state, reference/outline ids with `missing: true` when the id is
       not in the SVG.
-- [ ] `build`: writes `<name>.sozi.html` and `<name>-presenter.sozi.html`; `--no-json`
+- [x] `build`: writes `<name>.sozi.html` and `<name>-presenter.sozi.html`; `--no-json`
       to avoid rewriting the JSON; warns when the SVG is newer than the existing HTML.
-- [ ] Tests (`test/cli/*.test.js`, node:test, run via `xvfb-run -a`): build produces
+- [x] Tests (`test/cli/*.test.js`, node:test, run via `xvfb-run -a`): build produces
       two files, JSON byte-identical when unchanged, inspect schema, usage error exit 2,
       missing file exit 1, no-display message.
-- [ ] README section "Command line".
+- [x] README section "Command line".
 
 ### Success Criteria
 Tests green under `npm test`. Running build on a copy of the BattleSnake deck yields
@@ -81,13 +81,13 @@ HTML equal to the editor's output apart from nothing (diff empty) and the JSON u
 `sozi --cli set --title "X" deck.svg` stores the title; build and player use it.
 
 ### Tasks
-- [ ] `Presentation.js`: `explicitTitle` field; `title` getter -> explicitTitle || svgTitle
+- [x] `Presentation.js`: `explicitTitle` field; `title` getter -> explicitTitle || svgTitle
       || "Untitled"; add to `toStorable`, `toMinimalStorable`, `fromStorable`; guard empty
       `<title/>`.
-- [ ] `view/Properties.js`: title field in the presentation section (one input).
-- [ ] CLI: `--title` on `build` and a `set` command; `inspect` reports `title` and
+- [x] `view/Properties.js`: title field in the presentation section (one input).
+- [x] CLI: `--title` on `build` and a `set` command; `inspect` reports `title` and
       `titleSource` (json | svg | default).
-- [ ] Tests: JSON round-trip, HTML `<title>`, player `document.title` after load
+- [x] Tests: JSON round-trip, HTML `<title>`, player `document.title` after load
       (Playwright or Electron-driven check), old JSON without the key unchanged.
 
 ### Success Criteria
@@ -107,12 +107,12 @@ the key still shows the SVG title.
 `talk-es.sozi.json` in the editor both resolve the SVG from the JSON.
 
 ### Tasks
-- [ ] `Storage.js`: `outputBaseName`; naming helper used at the three sites; JSON gains
+- [x] `Storage.js`: `outputBaseName`; naming helper used at the three sites; JSON gains
       optional `svg` (path relative to the JSON). Opening a `.sozi.json` path (CLI or
       editor argv) reads `svg` and loads that SVG.
-- [ ] Editor: "Save presentation as..." is out of scope; only opening by JSON path.
-- [ ] CLI flag `--presentation`; `inspect` reports `svg` and `presentation` paths.
-- [ ] Tests: two JSONs on one SVG build two HTML pairs; default naming unchanged.
+- [x] Editor: "Save presentation as..." is out of scope; only opening by JSON path.
+- [x] CLI flag `--presentation`; `inspect` reports `svg` and `presentation` paths.
+- [x] Tests: two JSONs on one SVG build two HTML pairs; default naming unchanged.
 
 ### Success Criteria
 Two presentations built from one SVG; editor opens the JSON path and shows the deck.
@@ -129,12 +129,12 @@ Two presentations built from one SVG; editor opens the JSON path and shows the d
 rewritten so they still resolve.
 
 ### Tasks
-- [ ] `Storage.js`: `outputLocation` at the HTML and presenter sites only; `exportHTML`
+- [x] `Storage.js`: `outputLocation` at the HTML and presenter sites only; `exportHTML`
       rewrites relative `xlink:href`/`href` on `<image>` and `sozi:src` on media using
       `path.relative(outLoc, join(svgLoc, href))`; skip absolute, scheme and `#` hrefs.
-- [ ] Optional JSON key `outputDir` honoured by the editor's autosave.
-- [ ] CLI flag `--out-dir`; create the directory; `inspect` reports it.
-- [ ] Tests: deck with a relative image builds elsewhere and the href resolves (open in
+- [x] Optional JSON key `outputDir` honoured by the editor's autosave.
+- [x] CLI flag `--out-dir`; create the directory; `inspect` reports it.
+- [x] Tests: deck with a relative image builds elsewhere and the href resolves (open in
       headless Chrome and check `naturalWidth > 0`).
 
 ### Success Criteria
@@ -152,16 +152,16 @@ Built deck in a different directory renders its linked images.
 (PDF, PPTX, video, PNG sequence) from the CLI; the GUI export works again from source.
 
 ### Tasks
-- [ ] Exporter: replace `ipcRenderer.sendTo` with `executeJavaScript`-driven stepping
+- [x] Exporter: replace `ipcRenderer.sendTo` with `executeJavaScript`-driven stepping
       (fixes upstream #722); check ffmpeg exit status and capture stderr; zero-pad
       names; `-pix_fmt yuv420p` and even dimensions; background override; return after
       `onDone`; capture the first image even when `timeoutMs` is 0; empty selection error.
-- [ ] Move the exporter to a module usable from main or renderer (BrowserWindow, not
+- [x] Move the exporter to a module usable from main or renderer (BrowserWindow, not
       remote); hidden or offscreen window with size check; CDP fallback for captures.
-- [ ] `render`: one frame (or `--all` to a directory) via the same window; `--size`.
-- [ ] `export`: honours JSON export settings with CLI overrides `--type --format --fps
+- [x] `render`: one frame (or `--all` to a directory) via the same window; `--size`.
+- [x] `export`: honours JSON export settings with CLI overrides `--type --format --fps
       --width --height --bitrate --include --exclude --ffmpeg --out`.
-- [ ] Tests: render produces a PNG of the requested size with non-uniform pixels; PNG
+- [x] Tests: render produces a PNG of the requested size with non-uniform pixels; PNG
       sequence count matches frames and timings; PDF page count; video only if ffmpeg
       present (skip otherwise).
 
@@ -175,7 +175,7 @@ completes from the source build.
 ---
 
 ## Post-Implementation
-- [ ] README and `doc/` updates; note xvfb and display requirement.
+- [x] README updated (all commands, xvfb and display requirement); `doc/` site pages still to do.
 - [ ] Skill `sozi-cli` in `~/Dropbox/Talks/.claude/skills` teaching the inspect/edit/
       render loop (separate repo, after phase 5).
 - [ ] Evaluate upstream PR #759 for merge conflicts.
