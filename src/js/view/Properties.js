@@ -334,8 +334,9 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Player")),
 
-            h("label", {for: "field-explicitTitle"}, _("Title")),
-            this.renderTextField("explicitTitle", false, controller.getPresentationProperty, controller.setPresentationProperty, true,
+            h("label", {for: "field-explicitTitle"}, _("Presentation title")),
+            this.renderTextField("explicitTitle", false, controller.getPresentationProperty,
+                (property, value) => controller.setPresentationProperty(property, value.trim()), true,
                 controller.presentation.svgTitle || "Untitled"),
 
             h("div.side-by-side", [

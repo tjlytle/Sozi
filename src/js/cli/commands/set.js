@@ -41,9 +41,9 @@ export function checkFlags(flags) {
 
 /** Apply the options of {@link OPTIONS} found in the flags to the presentation.
  *
- * Each property is set through the controller, which marks the presentation
- * JSON as needing to be saved. A property that already has the given value
- * is left alone.
+ * String values are trimmed. Each property is set through the controller,
+ * which marks the presentation JSON as needing to be saved. A property that
+ * already has the given value is left alone.
  *
  * @param {module:Controller.Controller} controller - The controller.
  * @param {object} flags - The command-line flags.
@@ -56,7 +56,7 @@ export function applyOptions(controller, flags) {
             continue;
         }
         const from = controller.presentation[property];
-        const to   = flags[option];
+        const to   = typeof flags[option] === "string" ? flags[option].trim() : flags[option];
         if (from !== to) {
             controller.setPresentationProperty(property, to);
             changed[option] = {from, to};
