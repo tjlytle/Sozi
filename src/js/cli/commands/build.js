@@ -17,7 +17,7 @@ import {presentationFiles} from "../../naming";
  *
  * @type {{[name: string]: (boolean|string)}}
  */
-export const FLAGS = {"write-json": false, title: setFlags.title};
+export const FLAGS = {"write-json": false, title: setFlags.title, presentation: true};
 
 /** Build the HTML files of a presentation that has been loaded.
  *

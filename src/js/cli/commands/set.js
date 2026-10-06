@@ -21,11 +21,15 @@ export const OPTIONS = {
     title: {property: "explicitTitle", kind: "maybe-empty"}
 };
 
-/** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
+/** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}):
+ * the options and `--presentation`, which names the presentation file.
  *
  * @type {{[name: string]: (boolean|string)}}
  */
-export const FLAGS = Object.fromEntries(Object.entries(OPTIONS).map(([option, {kind}]) => [option, kind]));
+export const FLAGS = Object.assign(
+    Object.fromEntries(Object.entries(OPTIONS).map(([option, {kind}]) => [option, kind])),
+    {presentation: true}
+);
 
 /** Check that the command line gives at least one property to set.
  *
