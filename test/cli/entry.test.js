@@ -15,9 +15,9 @@ const ELECTRON = "/path/to/electron";
 const APP = "/path/to/build/electron";
 
 // The flags of each command, as exported by src/js/cli/commands/*.js.
-const FLAGS = {build: {"write-json": false}, inspect: {frame: true}};
+const FLAGS = {build: {"write-json": false, title: "maybe-empty"}, inspect: {frame: true}, set: {title: "maybe-empty"}};
 
-const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
 
 /** The fields that every CLI result carries. */
 function assertBaseFields(json) {
@@ -118,6 +118,12 @@ describe("validateArgs", () => {
         assert.equal(check("build", "--__proto__", "deck.svg"), "unknown option for build: --__proto__");
         assert.equal(check("constructor", "--title", "x", "deck.svg"), "unknown option for constructor: --title");
         assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "build", "--toString", "deck.svg"], FLAGS).positionals, ["deck.svg"]);
+    });
+
+    test("a flag that accepts an empty value", () => {
+        assert.equal(check("set", "--title", "", "deck.svg"), null);
+        assert.equal(check("set", "--title=", "deck.svg"), null);
+        assert.equal(check("set", "deck.svg", "--title"), "missing value for --title");
     });
 
     test("missing value", () => {

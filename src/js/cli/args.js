@@ -31,6 +31,7 @@ const CHROMIUM_SWITCHES = new Set([
 /** The flags that every command accepts.
  *
  * A flag table maps a flag name to `true` if the flag takes a value,
+ * `"maybe-empty"` if it takes a value that may be empty,
  * `false` if it is boolean.
  *
  * @type {{[name: string]: (boolean|string)}}
@@ -126,7 +127,7 @@ export function validateArgs(parsed, commandFlags) {
         if (!Object.hasOwn(allowed, name)) {
             return `unknown option for ${parsed.command}: --${name}`;
         }
-        if (allowed[name] && (value === true || value === "")) {
+        if (allowed[name] && (value === true || (value === "" && allowed[name] !== "maybe-empty"))) {
             return `missing value for --${name}`;
         }
         if (!allowed[name] && value !== true) {
