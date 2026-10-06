@@ -990,8 +990,13 @@ export class Presentation extends EventEmitter {
      * @param {object} storable - A plain object with the properties to copy.
      */
     fromStorable(storable) {
-        if (storable.hasOwnProperty("title")) {
+        // Keys of the storable that were ignored because of an invalid value.
+        this.ignoredStorableKeys = [];
+        if (typeof storable.title === "string") {
             this.explicitTitle = storable.title;
+        }
+        else if (storable.hasOwnProperty("title")) {
+            this.ignoredStorableKeys.push("title");
         }
         copyIfSet(this, storable, "aspectWidth");
         copyIfSet(this, storable, "aspectHeight");

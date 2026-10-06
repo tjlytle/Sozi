@@ -375,4 +375,18 @@ describe("inspect title fields", () => {
             }
         });
     }
+
+    test("ignores a non-string title in the JSON with a warning", () => {
+        const deck = withTempDeck("basic");
+        try {
+            setJsonTitle(deck, 42);
+            const {code, json} = run(deck, "inspect");
+            assert.equal(code, 0, JSON.stringify(json));
+            assert.deepEqual({title: json.title, titleSource: json.titleSource}, {title: "Basic", titleSource: "svg"});
+            assert.ok(json.warnings.includes(`ignored non-string title in ${deck.json}`), JSON.stringify(json.warnings));
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
 });
