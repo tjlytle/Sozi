@@ -526,14 +526,20 @@ export class ExportWindow {
      *
      * Uses `capturePage`, and falls back to the Chrome DevTools Protocol (at device
      * scale 1) if the image is empty, has another size (high-density display),
-     * or is uniform while the SVG has visible content.
+     * or is uniform while the SVG has visible content, even after waiting for a paint.
      *
      * @returns {Promise<Buffer>} - A PNG image of exactly the requested size.
      */
     async capture() {
         let png;
         if (!this.useCDP) {
-            const img  = await this.bounded(this.window.webContents.capturePage(), "capturePage");
+            let img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
+            if (!img.isEmpty() && isUniform(img) && await this.svgHasContent()) {
+                // The first capture of a hidden window can come before its first
+                // paint (an all-black image): wait for a paint and capture again once.
+                await this.settle();
+                img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
+            }
             const size = img.getSize();
             if (img.isEmpty()) {
                 this.useCDP = true;
