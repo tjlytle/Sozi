@@ -321,6 +321,24 @@ describe("export video", () => {
         }
     });
 
+    test("wmv: accepted, as in the editor, and encoded by ffmpeg", t => {
+        if (!which("ffmpeg")) {
+            t.skip("ffmpeg is not on the PATH");
+            return;
+        }
+        const deck = withTempDeck("basic");
+        try {
+            const {json} = soziOk(deck, ["export", "--export-type", "video", "--format", "wmv", "--fps", "2",
+                "--width", "160", "--height", "90", "--out", "talk.wmv", "basic.svg"]);
+            assert.equal(json.format, "wmv");
+            assert.equal(json.out, path.join(deck.dir, "talk.wmv"));
+            assert.ok(fs.statSync(json.out).size > 0);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("without ffmpeg, a video export fails before building or capturing", () => {
         const deck = withTempDeck("basic");
         try {

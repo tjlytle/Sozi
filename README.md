@@ -303,11 +303,12 @@ What they have in common:
   setting is on, as in the player). The *Export* button of the editor keeps
   it, as before.
 * `--out` is relative to the working directory; missing directories are created.
-* A failed `render` or `export` leaves the previous output as it was, and
-  creates no directory: images are captured in a temporary directory, and a
-  PDF, PPTX or video is written to a partial file beside it
+* `render --all` and `export` keep the previous output until success, and a
+  failed one creates no directory: images are captured in a temporary
+  directory, and a PDF, PPTX or video is written to a partial file beside it
   (`.talk.partial.webm` for `talk.webm`); they replace the previous output
-  only when the export succeeds.
+  only when the export succeeds. `render --frame` writes the file only after
+  the capture succeeded.
 * `capture` is `"capturePage"`, or `"cdp"` when the images were captured
   through the Chrome DevTools Protocol (slower: a fallback that comes with a
   warning, or always with `--transparent`), or `"printToPDF"` for a PDF export.
@@ -355,7 +356,7 @@ What they have in common:
   `deck.sozi.json`; a PPTX has one slide image per frame.
 * A video (`--export-type video`) holds each frame for its timeout (at least one
   image) and plays each transition, at `--fps` images per second (default
-  `exportToVideoFrameRate`, 50). `--format` is `webm`, `mp4`, `ogv`, or `png`
+  `exportToVideoFrameRate`, 50). `--format` is `webm`, `mp4`, `ogv`, `wmv`, or `png`
   for an image sequence `img000000.png`, `img000001.png`... in the `--out`
   directory (moved there once all are written; then the earlier images of
   that pattern that were not replaced are removed, and other files are kept).
@@ -365,7 +366,7 @@ What they have in common:
   `--transparent` (PNG sequences only) leaves the background transparent.
   `--include` and `--exclude` do not apply to videos.
 * The extension of `--out` must match the export: `.pdf`, `.pptx`, or the
-  video format (`.webm`, `.mp4`, `.ogv`); for a PNG sequence, `--out` is a
+  video format (`.webm`, `.mp4`, `.ogv`, `.wmv`); for a PNG sequence, `--out` is a
   directory. Without `--out`, the output goes beside the HTML file: `deck.sozi.pdf`,
   `deck.sozi.pptx`, `deck.sozi.webm`..., or the directory `deck-sozi-export`
   for a PNG sequence, as in the editor.
@@ -373,6 +374,7 @@ What they have in common:
   part of Sozi's npm dependencies. It is looked up in this order:
   `--ffmpeg PATH` (relative to the working directory), then `ffmpeg` on the
   `PATH`, then the `ffmpeg` bundled in the resources of a packaged Sozi.
+  That ffmpeg must have an encoder for the format (e.g. `wmv`).
   Without one, the export fails with exit code 1 and the error
   `ffmpeg not found` before anything is built or captured. When the command
   times out, ffmpeg is stopped and the temporary images are removed. When
