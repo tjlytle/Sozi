@@ -16,15 +16,14 @@
  * @module
  */
 
-import {build} from "./build";
-import {outputDirError, resolveOutputDir} from "../output";
-import {presentationFiles} from "../../naming";
+import {buildIfNeeded, presentationHtml} from "../html";
+import {outputDirError} from "../output";
 
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
  *
  * @type {{[name: string]: (boolean|string)}}
  */
-export const FLAGS = {frame: true, all: false, out: true, rebuild: false, "out-dir": true, presentation: true};
+export const FLAGS = {frame: true, all: false, out: true, rebuild: false, "frame-number": false, "out-dir": true, presentation: true};
 
 /** The default size of the images, as in the `--size` flag.
  *
@@ -78,30 +77,17 @@ function findFrame(presentation, key) {
     return presentation.frames.findIndex(frame => frame.frameId === key);
 }
 
-/** Is the HTML file missing, or older than the SVG file or the JSON file?
- *
- * @param {string} html - The path of the HTML file.
- * @param {string[]} sources - The paths of the SVG and JSON files; missing files are ignored.
- * @returns {boolean} - `true` if the HTML file must be built.
- */
-function isStale(html, sources) {
-    const fs = require("fs");
-
-    if (!fs.existsSync(html)) {
-        return true;
-    }
-    const built = fs.statSync(html).mtimeMs;
-    return sources.some(file => fs.existsSync(file) && fs.statSync(file).mtimeMs > built);
-}
-
 /** Render frames of a presentation that has been loaded to PNG images.
  *
  * With `--frame N|id`, `--out` is the image file (relative to the working
  * directory). With `--all`, `--out` is a directory that receives
  * `frame-000.png`, `frame-001.png`... named after the 0-based frame index;
- * earlier images of that pattern in the directory are removed.
+ * the images are rendered in a temporary directory and moved there once they
+ * are all written, then the earlier images of that pattern that were not
+ * replaced are removed: a failed render leaves the directory as it was.
  * Directories are created if missing. The images have the `--size` (default
  * 1280x720), with the presentation aspect ratio fitted inside, as in the player.
+ * The frame number of the player is hidden unless `--frame-number`.
  *
  * @param {object} context - The command context.
  * @param {module:Controller.Controller} context.controller - The controller.
@@ -118,14 +104,13 @@ export async function render(context) {
     const fs       = require("fs");
     const path     = require("path");
     const exporter = require("../../exporter");
-    const {controller, svg, presentation, cwd, flags, warnings} = context;
+    const {controller, cwd, flags, warnings} = context;
     const frames   = controller.presentation.frames;
 
-    const {dir: outputDir, error} = resolveOutputDir(context);
+    const {html, error} = presentationHtml(context);
     if (error) {
         return {ok: false, error, exitCode: 2};
     }
-    const html = presentationFiles(svg, presentation, {outputDir}).html;
     const size = parseSize(flags);
     const out  = path.resolve(cwd, flags.out);
 
@@ -158,35 +143,81 @@ export async function render(context) {
     }
 
     // Build the HTML file in this process if needed.
-    const rebuilt = !!flags.rebuild || isStale(html, [svg, presentation]);
-    if (rebuilt) {
-        const buildWarnings = [];
-        const built = build(Object.assign({}, context, {warnings: buildWarnings}));
-        if (!built.ok) {
-            return built;
-        }
-        // The HTML is rebuilt precisely because it was stale.
-        warnings.push(...buildWarnings.filter(w => w !== "svg newer than existing html"));
+    const built = buildIfNeeded(context, html);
+    if (!built.ok) {
+        return built;
     }
 
-    if (flags.all && fs.existsSync(out)) {
-        for (const name of fs.readdirSync(out)) {
-            if (/^frame-\d+\.png$/.test(name)) {
-                fs.unlinkSync(path.join(out, name));
-            }
-        }
-    }
-
-    const result = await exporter.renderFrames(controller.presentation, html, {width: size.width, height: size.height, frames: images});
+    const renderOpts = {width: size.width, height: size.height, frameNumber: !!flags["frame-number"]};
+    const result = flags.all ?
+        await renderAll(exporter, controller.presentation, html, renderOpts, images, out) :
+        await exporter.renderFrames(controller.presentation, html, Object.assign({frames: images}, renderOpts));
     warnings.push(...result.warnings);
 
     return {
         ok:     true,
-        files:  result.files,
+        files:  images.map(({file}) => file),
         size:   result.size,
         frames: images.map(({index, file}) => ({index, id: frames[index].frameId, file})),
         html,
-        rebuilt,
+        rebuilt: built.rebuilt,
         capture: result.capture
     };
+}
+
+/** Render every frame into a directory, replacing the earlier images only after success.
+ *
+ * The images are written to a temporary directory, then moved to their names
+ * in `dir`; the earlier `frame-NNN.png` images that were not replaced are removed last.
+ *
+ * @param {object} exporter - The exporter module.
+ * @param {module:model/Presentation.Presentation} presentation - The presentation.
+ * @param {string} html - The path of the HTML file.
+ * @param {object} opts - The options of `renderFrames`, without `frames`.
+ * @param {{index: number, file: string}[]} images - The frames and their final image files in `dir`.
+ * @param {string} dir - The directory of the images.
+ * @returns {Promise<object>} - The result of `renderFrames`.
+ */
+async function renderAll(exporter, presentation, html, opts, images, dir) {
+    const fs   = require("fs");
+    const os   = require("os");
+    const path = require("path");
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-render-"));
+    try {
+        const tmpImages = images.map(({index, file}) => ({index, file: path.join(tmpDir, path.basename(file))}));
+        const result = await exporter.renderFrames(presentation, html, Object.assign({frames: tmpImages}, opts));
+
+        fs.mkdirSync(dir, {recursive: true});
+        const names = new Set(images.map(({file}) => path.basename(file)));
+        images.forEach(({file}, i) => moveFile(tmpImages[i].file, file));
+        for (const name of fs.readdirSync(dir)) {
+            if (/^frame-\d+\.png$/.test(name) && !names.has(name)) {
+                fs.unlinkSync(path.join(dir, name));
+            }
+        }
+        return result;
+    }
+    finally {
+        fs.rmSync(tmpDir, {recursive: true, force: true});
+    }
+}
+
+/** Move a file, also across file systems.
+ *
+ * @param {string} from - The source file.
+ * @param {string} to - The target file, replaced if it exists.
+ */
+function moveFile(from, to) {
+    const fs = require("fs");
+    try {
+        fs.renameSync(from, to);
+    }
+    catch (err) {
+        if (err.code !== "EXDEV") {
+            throw err;
+        }
+        fs.copyFileSync(from, to);
+        fs.unlinkSync(from);
+    }
 }

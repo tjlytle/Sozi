@@ -19,7 +19,7 @@
  * @module
  */
 
-import {BrowserWindow} from "electron";
+import {BrowserWindow, nativeImage} from "electron";
 import path from "path";
 import process from "process";
 import * as tmp from "tmp";
@@ -289,23 +289,61 @@ export function findFfmpeg(explicitPath = null) {
     return null;
 }
 
+/** The default time limit of an ffmpeg run, in milliseconds (10 minutes).
+ *
+ * @readonly
+ * @default
+ * @type {number}
+ */
+const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000;
+
 /** Run ffmpeg and wait for it to terminate.
+ *
+ * ffmpeg is killed if it runs longer than `timeoutMs`, and when this process
+ * exits (e.g. when the command line times out), so that it never outlives the export.
  *
  * @param {string} ffmpegPath - The ffmpeg executable.
  * @param {string[]} args - The command-line arguments.
+ * @param {number} [timeoutMs] - The time limit, in milliseconds.
  * @returns {Promise} - Resolved when ffmpeg succeeds; rejected with its status and the end of its standard error otherwise.
  */
-function runFfmpeg(ffmpegPath, args) {
+function runFfmpeg(ffmpegPath, args, timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
         let stderr = "";
+        let timedOut = false;
         const child = spawn(ffmpegPath, args, {stdio: ["ignore", "ignore", "pipe"]});
+        const kill = () => {
+            try {
+                child.kill("SIGKILL");
+            }
+            catch (e) {
+                // The process is already gone.
+            }
+        };
+        const timer = setTimeout(() => {
+            timedOut = true;
+            kill();
+        }, Math.min(timeoutMs, 2 ** 31 - 1));
+        process.on("exit", kill);
+        const done = () => {
+            clearTimeout(timer);
+            process.removeListener("exit", kill);
+        };
         child.stderr.on("data", chunk => {
             // Keep the end of the output, where ffmpeg explains failures.
             stderr = (stderr + chunk).slice(-4000);
         });
-        child.on("error", err => reject(new Error(`could not run ${ffmpegPath}: ${err.message}`)));
+        child.on("error", err => {
+            done();
+            reject(new Error(`could not run ${ffmpegPath}: ${err.message}`));
+        });
         child.on("close", (code, signal) => {
-            if (code === 0) {
+            done();
+            if (timedOut) {
+                const tail = stderr.trim();
+                reject(new Error(`ffmpeg did not finish within ${timeoutMs / 1000} s and was stopped` + (tail ? `: ${tail}` : "")));
+            }
+            else if (code === 0) {
                 resolve();
             }
             else {
@@ -341,6 +379,17 @@ function isUniform(img) {
         }
     }
     return true;
+}
+
+/** Are two images uniform, of the same colour?
+ *
+ * @param {Electron.NativeImage} a - An image.
+ * @param {Electron.NativeImage} b - Another image.
+ * @returns {boolean} - `true` if both images are uniform with the same pixel value.
+ */
+function sameUniformColour(a, b) {
+    return !b.isEmpty() && isUniform(a) && isUniform(b) &&
+        a.toBitmap().readUInt32LE(0) === b.toBitmap().readUInt32LE(0);
 }
 
 /** The default time limit of each step of an export, in milliseconds.
@@ -492,6 +541,8 @@ export class ExportWindow {
         const dbg = await this.attachDebugger();
         // The screenshot waits for a new frame: repaint the unchanged viewport until it arrives.
         const shot = dbg.sendCommand("Page.captureScreenshot", {format: "png"});
+        // If the kick fails, the screenshot is not awaited: never leave its rejection unhandled.
+        shot.catch(() => {});
         try {
             await this.run("__soziExport.kick(true)");
             const img = await this.bounded(shot, "screenshot");
@@ -536,7 +587,7 @@ export class ExportWindow {
             let img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
             if (!img.isEmpty() && isUniform(img) && await this.svgHasContent()) {
                 // The first capture of a hidden window can come before its first
-                // paint (an all-black image): wait for a paint and capture again once.
+                // paint (a uniform image, usually black): wait for a paint and capture again once.
                 await this.settle();
                 img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
             }
@@ -551,8 +602,19 @@ export class ExportWindow {
                 this.warnings.push(`capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`);
             }
             else if (isUniform(img) && await this.svgHasContent()) {
-                this.useCDP = true;
-                this.warnings.push("capturePage returned a uniform image of a non-empty SVG; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
+                // A frame can be all one colour (e.g. inside a filled shape): believe
+                // capturePage if the Chrome DevTools Protocol shows the same colour.
+                const cdpPng = await this.captureCDP();
+                if (sameUniformColour(img, nativeImage.createFromBuffer(cdpPng))) {
+                    png = img.toPNG();
+                    this.captureMethods.add("capturePage");
+                }
+                else {
+                    png = cdpPng;
+                    this.captureMethods.add("cdp");
+                    this.useCDP = true;
+                    this.warnings.push("capturePage returned a uniform image of a non-empty SVG; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
+                }
             }
             else {
                 png = img.toPNG();
@@ -591,11 +653,12 @@ export class ExportWindow {
  *
  * Main process only. The window has exactly the requested content size,
  * a white background (or a transparent one), and is hidden unless `hidden` is false.
- * The promise resolves when the player is ready, with media disabled.
+ * The promise resolves when the player is ready, with media disabled and,
+ * unless `frameNumber` is true, the frame number of the player hidden.
  * Each step is bounded by `timeoutMs` (default 30 s); on failure the window is destroyed.
  *
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} opts - `{width, height, hidden, transparent, timeoutMs}`.
+ * @param {object} opts - `{width, height, hidden, transparent, frameNumber, timeoutMs}`.
  * @returns {Promise<module:exporter.ExportWindow>} - The capture window.
  */
 export async function openExportWindow(htmlPath, opts) {
@@ -640,6 +703,11 @@ export async function openExportWindow(htmlPath, opts) {
             if (blankScreen) {
                 blankScreen.style.display = "none";
             }
+            // The player sets the visibility of the frame number at each frame change, not its display.
+            const frameNumber = document.querySelector(".sozi-frame-number");
+            if (frameNumber && ${!opts.frameNumber}) {
+                frameNumber.style.display = "none";
+            }
             return true;
         })()`);
         if (transparent) {
@@ -683,7 +751,9 @@ function withDefaults(opts) {
         ffmpegPath : null,
         hidden     : !process.env.SOZI_EXPORT_SHOW,
         transparent: false,
+        frameNumber: false,
         timeoutMs  : DEFAULT_TIMEOUT_MS,
+        ffmpegTimeoutMs: DEFAULT_FFMPEG_TIMEOUT_MS,
         onProgress : null
     }, opts || {});
 }
@@ -782,7 +852,7 @@ export async function runExport(name, argsJSON, onProgress) {
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToPDF*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} [opts] - `{outPath, hidden, timeoutMs, onProgress}`; `outPath` defaults to the HTML path with a `.pdf` extension.
+ * @param {object} [opts] - `{outPath, hidden, frameNumber, timeoutMs, onProgress}`; `outPath` defaults to the HTML path with a `.pdf` extension.
  * @returns {Promise<object>} - `{out, frames, warnings, capture}`.
  */
 export function exportToPDF(presentation, htmlPath, opts) {
@@ -832,7 +902,7 @@ async function pdfExport(presentation, htmlPath, opts) {
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToPPTX*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} [opts] - `{outPath, hidden, timeoutMs, onProgress}`; `outPath` defaults to the HTML path with a `.pptx` extension.
+ * @param {object} [opts] - `{outPath, hidden, frameNumber, timeoutMs, onProgress}`; `outPath` defaults to the HTML path with a `.pptx` extension.
  * @returns {Promise<object>} - `{out, frames, warnings, capture}`.
  */
 export function exportToPPTX(presentation, htmlPath, opts) {
@@ -915,7 +985,8 @@ function removeTmpDir(dir) {
  *
  * @param {object} presentation - The presentation, or a plain object with the `exportToVideo*` fields and `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} [opts] - `{outPath, ffmpegPath, hidden, transparent, timeoutMs, onProgress}`; `transparent` applies to PNG sequences only;
+ * @param {object} [opts] - `{outPath, ffmpegPath, hidden, transparent, frameNumber, timeoutMs, ffmpegTimeoutMs, onProgress}`;
+ *  `transparent` applies to PNG sequences only; `ffmpegTimeoutMs` bounds the encoding (default 10 minutes);
  *  `outPath` defaults to the HTML path with the format as extension, or `<name>-sozi-export` for PNG sequences.
  * @returns {Promise<object>} - `{out, format, frames, images, files, ffmpeg, warnings, capture}` (`files` for PNG sequences only).
  */
@@ -1017,7 +1088,7 @@ async function videoExport(presentation, htmlPath, opts) {
                 "-pix_fmt", "yuv420p",
                 "-b:v", String(presentation.exportToVideoBitRate),
                 outPath
-            ]);
+            ], opts.ffmpegTimeoutMs);
         }
 
         const result = {out: outPath, format, frames: presentation.frames.length, images: files.length, ffmpeg: ffmpegPath, warnings, capture};
@@ -1039,7 +1110,7 @@ async function videoExport(presentation, htmlPath, opts) {
  *
  * @param {object} presentation - The presentation, or a plain object with `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} opts - `{width, height, frames: [{index, file}], hidden, timeoutMs, onProgress}`,
+ * @param {object} opts - `{width, height, frames: [{index, file}], hidden, frameNumber, timeoutMs, onProgress}`,
  *  where `index` is the 0-based index of a frame and `file` the path of its image.
  * @returns {Promise<object>} - `{files, size: {width, height}, warnings, capture}`.
  */

@@ -16,9 +16,8 @@ const path = require("node:path");
 const {PDFDocument} = require("pdf-lib");
 
 const os = require("node:os");
-const zlib = require("node:zlib");
 
-const {withTempDeck, decodePng, electronBinary, appDir, fixturesDir} = require("./helpers.js");
+const {runSozi, withTempDeck, decodePng, electronBinary, appDir, fixturesDir, fakeFfmpeg, isAlive, which, zipEntries} = require("./helpers.js");
 
 /** Run the editor on a deck with the export test hook.
  *
@@ -50,57 +49,6 @@ function guiExport(deck, type, switches = []) {
 function setExportSettings(deck, settings) {
     const data = JSON.parse(fs.readFileSync(deck.json, "utf8"));
     fs.writeFileSync(deck.json, JSON.stringify(Object.assign(data, settings)));
-}
-
-/** The entries of a zip file, from its central directory.
- *
- * @param {Buffer} buf - The content of a zip file.
- * @returns {{name: string, data: Function}[]} - The entries; `data()` gives the uncompressed content.
- */
-function zipEntries(buf) {
-    const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-    assert.ok(eocd >= 0, "zip end of central directory");
-    const count = buf.readUInt16LE(eocd + 10);
-    let o = buf.readUInt32LE(eocd + 16);
-    const entries = [];
-    for (let i = 0; i < count; i++) {
-        assert.equal(buf.readUInt32LE(o), 0x02014b50, "zip central directory entry");
-        const method         = buf.readUInt16LE(o + 10);
-        const compressedSize = buf.readUInt32LE(o + 20);
-        const nameLength     = buf.readUInt16LE(o + 28);
-        const extraLength    = buf.readUInt16LE(o + 30);
-        const commentLength  = buf.readUInt16LE(o + 32);
-        const local          = buf.readUInt32LE(o + 42);
-        entries.push({
-            name: buf.toString("utf8", o + 46, o + 46 + nameLength),
-            data() {
-                const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
-                const raw = buf.subarray(start, start + compressedSize);
-                return method === 8 ? zlib.inflateRawSync(raw) : raw;
-            }
-        });
-        o += 46 + nameLength + extraLength + commentLength;
-    }
-    return entries;
-}
-
-/** Find an executable on the PATH.
- *
- * @param {string} name - The executable name.
- * @returns {?string} - Its path, or null.
- */
-function which(name) {
-    for (const dir of (process.env.PATH || "").split(path.delimiter)) {
-        const file = path.join(dir, name);
-        try {
-            fs.accessSync(file, fs.constants.X_OK);
-            return file;
-        }
-        catch {
-            // Not in this directory.
-        }
-    }
-    return null;
 }
 
 // The basic fixture: 2 frames, timeouts 0 (disabled), transitions 1000 ms.
@@ -292,6 +240,26 @@ describe("exporter in the main process", () => {
         }
         finally {
             fs.rmSync(dir, {recursive: true, force: true});
+        }
+    });
+
+    test("a stuck ffmpeg is killed after ffmpegTimeoutMs and the export fails", () => {
+        const deck = withTempDeck("basic");
+        try {
+            assert.equal(runSozi(["build", "basic.svg"], {cwd: deck.dir}).code, 0);
+            const ffmpeg = fakeFfmpeg(deck.dir);
+            const presentation = Object.assign(JSON.parse(fs.readFileSync(deck.json, "utf8")),
+                {exportToVideoFormat: "webm", exportToVideoWidth: 160, exportToVideoHeight: 90, exportToVideoFrameRate: 2});
+            const out = path.join(deck.dir, "stuck.webm");
+            const report = mainExport({fn: "exportToVideo", presentation, html: path.join(deck.dir, "basic.sozi.html"),
+                opts: {outPath: out, ffmpegPath: ffmpeg.path, ffmpegTimeoutMs: 1000}});
+            assert.equal(report.ok, false, JSON.stringify(report));
+            assert.match(report.error, /ffmpeg did not finish within 1 s/);
+            assert.ok(report.elapsedMs < 20000, `took ${report.elapsedMs} ms`);
+            assert.equal(isAlive(ffmpeg.pid()), false, "the ffmpeg process was killed");
+        }
+        finally {
+            deck.cleanup();
         }
     });
 });
