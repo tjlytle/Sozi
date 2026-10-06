@@ -49,12 +49,12 @@ export const FLAGS = {
  */
 const TYPES = ["pdf", "pptx", "video"];
 
-/** The video formats; `png` is an image sequence.
+/** The video formats, as in the editor; `png` is an image sequence.
  *
  * @readonly
  * @type {string[]}
  */
-const FORMATS = ["mp4", "webm", "ogv", "png"];
+const FORMATS = ["mp4", "webm", "ogv", "wmv", "png"];
 
 /** The flags that only apply to video exports.
  *

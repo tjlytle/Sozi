@@ -420,19 +420,20 @@ export function moveFile(from, to) {
     }
 }
 
-/** Make a file a hard link of another one, or a copy where links are not supported.
+/** Make a file a hard link of another one, or a copy if the link fails.
+ *
+ * A copy is always a correct result: links fail across file systems (EXDEV),
+ * on file systems without hard links (ENOTSUP, EOPNOTSUPP, EPERM: FAT, exFAT,
+ * some network and FUSE mounts) and beyond the link count limit (EMLINK).
  *
  * @param {string} from - The existing file.
  * @param {string} to - The new file.
  */
-function linkOrCopy(from, to) {
+export function linkOrCopy(from, to) {
     try {
         fs.linkSync(from, to);
     }
     catch (err) {
-        if (!["EXDEV", "EPERM", "EMLINK"].includes(err.code)) {
-            throw err;
-        }
         fs.copyFileSync(from, to);
     }
 }
