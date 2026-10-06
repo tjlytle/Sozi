@@ -11,8 +11,8 @@ Branch `2-render-export` off `4-out-dir`; PR base `4-out-dir`. Anchor issue #2.
 ## Global Constraints
 
 Same as phases 1 to 4. Plus:
-- ffmpeg stays external: system `ffmpeg` on PATH first, then the bundled
-  `process.resourcesPath/ffmpeg`, then `--ffmpeg <path>`. No npm ffmpeg package.
+- ffmpeg stays external: an explicit `--ffmpeg <path>` first, then system `ffmpeg` on PATH,
+  then the bundled `process.resourcesPath/ffmpeg`. No npm ffmpeg package.
 - Captures are deterministic: frames and transition steps are driven by stepping the player
   (`player.jumpToFrame`, `player.onAnimatorStep(t)`), one capture per step; never wall-clock.
 - The capture window is hidden (`show:false`, `backgroundThrottling:false`) or offscreen; it is
