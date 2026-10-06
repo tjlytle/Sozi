@@ -19,9 +19,28 @@ import {presentationFiles} from "../../naming";
  */
 export const FLAGS = {"write-json": false, title: setFlags.title, presentation: true};
 
+/** Does an SVG document contain a relative image or media href?
+ *
+ * A relative href has no scheme (such as `data:` or `https:`) and does not
+ * start with `/` or `#`. The hrefs checked are those of `<image>` elements
+ * and `sozi:src` attributes.
+ *
+ * @param {string} svgText - The content of the SVG file.
+ * @returns {boolean} - `true` if a relative href was found.
+ */
+function hasRelativeHrefs(svgText) {
+    const hrefs = [
+        ...svgText.matchAll(/<image\b[^>]*?\s(?:[\w.-]+:)?href\s*=\s*(["'])(.*?)\1/gi),
+        ...svgText.matchAll(/\ssozi:src\s*=\s*(["'])(.*?)\1/gi)
+    ].map(match => match[2].trim());
+    return hrefs.some(href => href && !/^[a-z][a-z0-9+.-]*:|^[/#]/i.test(href));
+}
+
 /** Build the HTML files of a presentation that has been loaded.
  *
  * The HTML files are named after the presentation file and written beside it.
+ * When that is not the directory of the SVG file and the SVG has relative image
+ * or media hrefs, a warning says that they will not resolve from the HTML.
  *
  * The JSON file is written only if it does not exist, if the presentation
  * was changed while loading (`storage.jsonNeedsSaving`), or with `--write-json`.
@@ -48,6 +67,12 @@ export function build({controller, storage, svg, presentation, flags, warnings})
 
     if (fs.existsSync(htmlPath) && fs.statSync(svg).mtimeMs > fs.statSync(htmlPath).mtimeMs) {
         warnings.push("svg newer than existing html");
+    }
+    // Until the output-directory feature rewrites them, the relative hrefs
+    // of the SVG are copied unchanged into the HTML.
+    if (path.dirname(htmlPath) !== path.dirname(svg) && hasRelativeHrefs(fs.readFileSync(svg, {encoding: "utf-8"}))) {
+        warnings.push("html directory differs from the svg directory; " +
+            "relative image and media hrefs will not resolve until the output-directory feature lands");
     }
 
     applyOptions(controller, flags);

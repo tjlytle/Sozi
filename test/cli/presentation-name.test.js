@@ -354,3 +354,44 @@ describe("svg key stability", () => {
         }
     });
 });
+
+describe("relative hrefs and the html directory", () => {
+    /** Add an image with a relative href to the SVG of a deck. */
+    function addImage(deck) {
+        const text = fs.readFileSync(deck.svg, "utf8")
+            .replace("<svg\n", "<svg\n   xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n")
+            .replace("</svg>", "  <image xlink:href=\"photo.png\" x=\"0\" y=\"0\" width=\"10\" height=\"10\" />\n</svg>");
+        fs.writeFileSync(deck.svg, text);
+    }
+
+    const WARNING = "html directory differs from the svg directory; relative image and media hrefs will not resolve until the output-directory feature lands";
+
+    test("a presentation in a subdirectory warns", () => {
+        const deck = withTempDeck("basic");
+        try {
+            addImage(deck);
+            fs.mkdirSync(path.join(deck.dir, "es"));
+            const {json} = soziOk(deck, "build", "--presentation", "es/x.sozi.json", "basic.svg");
+            assert.ok(json.warnings.includes(WARNING), json.warnings.join("\n"));
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("a presentation beside the SVG, or an SVG without relative hrefs, does not warn", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.mkdirSync(path.join(deck.dir, "es"));
+            const plain = soziOk(deck, "build", "--presentation", "es/x.sozi.json", "basic.svg").json;
+            assert.ok(!plain.warnings.includes(WARNING), plain.warnings.join("\n"));
+
+            addImage(deck);
+            const beside = soziOk(deck, "build", "--presentation", "x.sozi.json", "basic.svg").json;
+            assert.ok(!beside.warnings.includes(WARNING), beside.warnings.join("\n"));
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+});
