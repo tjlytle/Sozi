@@ -339,7 +339,8 @@ export class Storage {
      *
      * The HTML files are named after the JSON file and written beside it.
      * The `svg` key of the presentation is set to the current SVG file; if the
-     * loaded key named another file, the JSON file needs saving.
+     * loaded key named another file, the JSON file needs saving, and a change
+     * of an existing key is notified.
      *
      * @param {string} name - The name of the JSON file to open.
      * @param {any} location - The location of the file (backend-dependent).
@@ -364,8 +365,13 @@ export class Storage {
             const data = await this.backend.load(fileDescriptor);
             this.loadJSONData(data);
             if (path.normalize(svgOfPresentation(jsonRef, this.presentation.svgPath)) !== path.normalize(svgRef)) {
+                const oldKey = this.presentation.svgPath;
                 this.presentation.svgPath = svgKeyOf(svgRef, jsonRef);
                 this.jsonNeedsSaving = true;
+                // Adding a key to a presentation without one is not a change.
+                if (oldKey) {
+                    this.controller.info(Jed.sprintf(_("svg key changed from %s to %s"), oldKey, this.presentation.svgPath || _("(none)")));
+                }
             }
         }
         catch (err) {

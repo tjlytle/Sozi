@@ -329,4 +329,28 @@ describe("svg key stability", () => {
         }
     });
 
+    test("retargeting an existing key warns", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.copyFileSync(deck.svg, path.join(deck.dir, "other.svg"));
+            const talk = path.join(deck.dir, "talk.sozi.json");
+            writePresentation(talk, {svg: "basic.svg"});
+            const retarget = soziOk(deck, "build", "--presentation", "talk.sozi.json", "other.svg").json;
+            assert.ok(retarget.warnings.includes("svg key changed from basic.svg to other.svg"), retarget.warnings.join("\n"));
+            assert.equal(readJson(talk).svg, "other.svg");
+
+            // A default presentation bound to another SVG loses its key.
+            writePresentation(deck.json, {svg: "other.svg"});
+            const unbind = soziOk(deck, "inspect", "basic.svg").json;
+            assert.ok(unbind.warnings.includes("svg key changed from other.svg to (none)"), unbind.warnings.join("\n"));
+
+            // Adding a key to a presentation without one is not a change of key.
+            writePresentation(path.join(deck.dir, "fresh.sozi.json"));
+            const added = soziOk(deck, "build", "--presentation", "fresh.sozi.json", "basic.svg").json;
+            assert.ok(!added.warnings.some(w => /svg key changed/.test(w)), added.warnings.join("\n"));
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
 });
