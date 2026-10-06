@@ -54,6 +54,7 @@ describe("no-upstream-writes hook", () => {
         [`gh api repos/${UPSTREAM}/issues -f title=x`, "deny"],
         [`gh-as builder api repos/${UPSTREAM}/issues/1/comments -F body=x`, "deny"],
         [`gh api repos/${UPSTREAM}/issues --field=title=x`, "deny"],
+        [`gh api repos/${UPSTREAM}/issues -ftitle=x`, "deny"],
         [`gh api repos/${UPSTREAM}/issues --raw-field title=x`, "deny"],
         [`gh api repos/${UPSTREAM}/issues --input body.json`, "deny"]
     ]) {
