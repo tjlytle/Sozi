@@ -18,7 +18,7 @@ import {build, FLAGS as buildFlags} from "./commands/build";
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
 import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
 import {validateArgs} from "./args";
-import {presentationFiles, svgOfPresentation} from "../naming";
+import {isPresentationFile, presentationDataError, presentationFiles, svgOfPresentation} from "../naming";
 
 const CLI_PREFIX = "--sozi-cli=";
 
@@ -111,9 +111,10 @@ export function catchCliErrors() {
 
 /** Find the SVG and presentation files of the command line.
  *
- * The file argument is a presentation file if its name ends in `.json`,
- * else an SVG file. With an SVG file, `--presentation` names the
- * presentation file; it is created by the commands that write if needed.
+ * The file argument is a presentation file if its name ends in `.sozi.json`,
+ * else an SVG file; another `.json` file is an error. With an SVG file,
+ * `--presentation` names the presentation file; it is created by the commands
+ * that write if needed.
  *
  * @param {string} file - The absolute path of the file argument.
  * @param {object} options - The value returned by {@link getCliOptions}.
@@ -129,7 +130,11 @@ function resolveFiles(file, options) {
     const result = {svg: null, presentation: null};
     const fail   = (code, error) => ({result, svgSource: null, code, error});
 
-    if (/\.json$/i.test(file)) {
+    if (/\.json$/i.test(file) && !isPresentationFile(file)) {
+        return fail(1, `not a presentation file: ${file}: the name does not end in .sozi.json`);
+    }
+
+    if (isPresentationFile(file)) {
         result.presentation = file;
         if (flag !== undefined) {
             return fail(2, `--presentation needs an SVG file argument, not a presentation file: ${file}`);
@@ -137,13 +142,12 @@ function resolveFiles(file, options) {
         if (!fs.existsSync(file)) {
             return fail(1, `file not found: ${file}`);
         }
-        let svgKey;
-        try {
-            svgKey = JSON.parse(fs.readFileSync(file, {encoding: "utf-8"})).svg;
+        const text   = fs.readFileSync(file, {encoding: "utf-8"});
+        const reason = presentationDataError(text);
+        if (reason) {
+            return fail(1, `not a presentation file: ${file}: ${reason}`);
         }
-        catch (err) {
-            return fail(1, `presentation JSON could not be parsed: ${file}: ${err.message}`);
-        }
+        let svgKey = JSON.parse(text).svg;
         // A non-string key is ignored, with a warning once the presentation is loaded.
         svgKey = typeof svgKey === "string" ? svgKey : "";
         result.svg = svgOfPresentation(file, svgKey);
@@ -157,8 +161,8 @@ function resolveFiles(file, options) {
     result.svg = file;
     if (flag !== undefined) {
         result.presentation = path.resolve(options.cwd, flag);
-        if (!/\.json$/i.test(result.presentation)) {
-            return fail(2, `--presentation must name a .json file, e.g. talk.sozi.json: ${result.presentation}`);
+        if (!isPresentationFile(result.presentation)) {
+            return fail(2, `--presentation must name a .sozi.json file, e.g. talk.sozi.json: ${result.presentation}`);
         }
         if (fs.existsSync(result.presentation) && fs.statSync(result.presentation).isDirectory()) {
             return fail(2, `--presentation is a directory: ${result.presentation}`);

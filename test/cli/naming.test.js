@@ -9,7 +9,7 @@ const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const {presentationFiles, replaceFileExtWith, svgOfPresentation, svgKeyOf} = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
+const {presentationFiles, replaceFileExtWith, svgOfPresentation, svgKeyOf, isPresentationFile, presentationDataError} = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
 
 describe("replaceFileExtWith", () => {
     test("replaces the last extension", () => {
@@ -129,5 +129,30 @@ describe("svgKeyOf", () => {
         ]) {
             assert.equal(svgOfPresentation(presentation, svgKeyOf(svg, presentation)), svg);
         }
+    });
+});
+
+describe("isPresentationFile", () => {
+    test("only a name ending in .sozi.json, in any letter case", () => {
+        assert.equal(isPresentationFile("/decks/talk.sozi.json"), true);
+        assert.equal(isPresentationFile("TALK.SOZI.JSON"), true);
+        assert.equal(isPresentationFile("/decks/chart.json"), false);
+        assert.equal(isPresentationFile("/decks/talk.svg"), false);
+        assert.equal(isPresentationFile("sozi.json"), false);
+    });
+});
+
+describe("presentationDataError", () => {
+    test("null for presentation data", () => {
+        assert.equal(presentationDataError(JSON.stringify({frames: []})), null);
+        assert.equal(presentationDataError(JSON.stringify({svg: "a.svg", frames: [{}]})), null);
+    });
+
+    test("a reason for unparsable text or data without a frames array", () => {
+        assert.match(presentationDataError("{ not json"), /.+/);
+        assert.equal(presentationDataError("{}"), "no \"frames\" array");
+        assert.equal(presentationDataError(JSON.stringify({frames: {}})), "no \"frames\" array");
+        assert.equal(presentationDataError("null"), "no \"frames\" array");
+        assert.equal(presentationDataError("[1, 2]"), "no \"frames\" array");
     });
 });

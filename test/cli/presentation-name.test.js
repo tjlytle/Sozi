@@ -239,3 +239,74 @@ describe("presentation file errors", () => {
         }
     });
 });
+
+/** The names of the files in a directory, recursively, with their contents. */
+function snapshot(dir) {
+    const result = {};
+    for (const name of fs.readdirSync(dir, {recursive: true})) {
+        const file = path.join(dir, name);
+        if (fs.statSync(file).isFile()) {
+            result[name] = fs.readFileSync(file).toString("base64");
+        }
+    }
+    return result;
+}
+
+describe("only .sozi.json files are presentations", () => {
+    test("a foreign .json beside an SVG of the same base name: exit 1, nothing written", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.copyFileSync(deck.svg, path.join(deck.dir, "chart.svg"));
+            fs.writeFileSync(path.join(deck.dir, "chart.json"), "{\"data\": [1, 2, 3]}\n");
+            const before = snapshot(deck.dir);
+            const {code, json} = sozi(deck, "build", "chart.json");
+            assert.equal(code, 1);
+            assert.equal(json.ok, false);
+            assert.match(json.error, /^not a presentation file: .*chart\.json: .+/);
+            assert.deepEqual(snapshot(deck.dir), before);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("--presentation naming a .json that is not .sozi.json: exit 2", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const before = snapshot(deck.dir);
+            const {code, json} = sozi(deck, "build", "--presentation", "x.json", "basic.svg");
+            assert.equal(code, 2);
+            assert.match(json.error, /--presentation .*\.sozi\.json/);
+            assert.deepEqual(snapshot(deck.dir), before);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("a .sozi.json without a frames array or not parsable: exit 1, nothing written", () => {
+        const deck = withTempDeck("basic");
+        try {
+            fs.writeFileSync(path.join(deck.dir, "noframes.sozi.json"), JSON.stringify({svg: "basic.svg", title: "x"}));
+            fs.writeFileSync(path.join(deck.dir, "broken.sozi.json"), "{ not json");
+            const before = snapshot(deck.dir);
+
+            const noFrames = sozi(deck, "build", "noframes.sozi.json");
+            assert.equal(noFrames.code, 1);
+            assert.match(noFrames.json.error, /^not a presentation file: .*noframes\.sozi\.json: no "frames" array$/);
+
+            const broken = sozi(deck, "build", "broken.sozi.json");
+            assert.equal(broken.code, 1);
+            assert.match(broken.json.error, /^not a presentation file: .*broken\.sozi\.json: .+/);
+
+            const byFlag = sozi(deck, "build", "--presentation", "noframes.sozi.json", "basic.svg");
+            assert.equal(byFlag.code, 1);
+            assert.equal(byFlag.json.ok, false);
+
+            assert.deepEqual(snapshot(deck.dir), before);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+});
