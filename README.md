@@ -194,8 +194,11 @@ Opening a presentation file with another SVG document (e.g.
 `deck.sozi.json` names another SVG) rewrites its `svg` key, with the warning
 `svg key changed from X to Y` (an info notification in the editor).
 
-Images, media and custom CSS and JavaScript files keep their paths relative to
-the SVG document.
+In the editor, images, media and custom CSS and JavaScript files keep their
+paths relative to the SVG document. The generated HTML copies the relative image
+and media hrefs of the SVG unchanged, so HTML written in another directory than
+the SVG (a presentation file in a subdirectory) has broken relative links until
+the output-directory feature lands; `build` warns about it.
 
 A presentation file that is not JSON or has no `frames` array
 (`not a presentation file: <path>: <reason>`), a `.json` file argument that does
