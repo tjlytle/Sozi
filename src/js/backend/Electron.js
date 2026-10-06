@@ -107,7 +107,7 @@ export class Electron extends AbstractBackend {
             const arg = remote.process.argv[remote.process.argv.length - 1];
             const fileName = path.resolve(cwd, arg);
             if (fs.existsSync(fileName) && fs.statSync(fileName).isFile()) {
-                // Open the file chooser if the file is a presentation whose SVG file is missing.
+                // Open the file chooser if the file could not be opened, e.g. a presentation whose SVG file is missing.
                 this.controller.storage.open(fileName, this).then(ok => ok || setTimeout(() => this.openFileChooser(), 100));
             }
             else {
@@ -143,13 +143,14 @@ export class Electron extends AbstractBackend {
         const _ = this.controller.gettext;
 
         const files = remote.dialog.showOpenDialogSync({
-            title: _("Choose an SVG file"),
+            title: _("Choose an SVG or presentation file"),
             filters: [{name: _("SVG and presentation files"), extensions: ["svg", "json"]}],
             properties: ["openFile"]
         });
         this.controller.hideNotification();
         if (files) {
-            this.controller.storage.open(files[0], this);
+            // Reopen the file chooser if the file could not be opened, as for a file on the command line.
+            this.controller.storage.open(files[0], this).then(ok => ok || setTimeout(() => this.openFileChooser(), 100));
         }
     }
 
