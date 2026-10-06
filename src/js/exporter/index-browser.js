@@ -47,3 +47,21 @@ export function renderFrames(presentation, htmlFileName) {
     console.log("Rendering frames is not supported on this platform.");
     return Promise.resolve();
 }
+
+/** Copy the export settings of a presentation (not supported on this platform).
+ *
+ * @param {module:model/Presentation.Presentation} presentation - The presentation.
+ * @returns {object} - An empty object.
+ */
+export function exportSettings(presentation) {
+    return {};
+}
+
+/** Find an ffmpeg executable (not supported on this platform).
+ *
+ * @param {?string} explicitPath - A path given by the user, or `null`.
+ * @returns {null} - Always `null`.
+ */
+export function findFfmpeg(explicitPath) {
+    return null;
+}

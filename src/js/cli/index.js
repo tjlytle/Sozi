@@ -15,6 +15,7 @@
  */
 
 import {build, FLAGS as buildFlags} from "./commands/build";
+import {exportPresentation, FLAGS as exportFlags, checkFlags as checkExportFlags} from "./commands/export";
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
 import {render, FLAGS as renderFlags, checkFlags as checkRenderFlags} from "./commands/render";
 import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
@@ -23,7 +24,7 @@ import {isPresentationFile, presentationDataError, presentationFiles, svgOfPrese
 
 const CLI_PREFIX = "--sozi-cli=";
 
-const USAGE = "sozi --cli <inspect|build|set|render> [options] <file.svg|file.sozi.json>";
+const USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg|file.sozi.json>";
 
 /** The available commands.
  *
@@ -33,13 +34,13 @@ const USAGE = "sozi --cli <inspect|build|set|render> [options] <file.svg|file.so
  *
  * @type {{[name: string]: Function}}
  */
-const COMMANDS = {build, inspect, set, render};
+const COMMANDS = {build, inspect, set, render, export: exportPresentation};
 
 /** The flag table of each command, used to parse and validate the command line.
  *
  * @type {{[name: string]: {[flag: string]: (boolean|string)}}}
  */
-export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags, set: setFlags, render: renderFlags};
+export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags, set: setFlags, render: renderFlags, export: exportFlags};
 
 /** Command-specific checks of the flags, run before the presentation is loaded.
  *
@@ -47,7 +48,7 @@ export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags, set: set
  *
  * @type {{[name: string]: Function}}
  */
-const FLAG_CHECKS = {set: checkSetFlags, render: checkRenderFlags};
+const FLAG_CHECKS = {set: checkSetFlags, render: checkRenderFlags, export: checkExportFlags};
 
 /** Has a result been sent to the main process?
  *
