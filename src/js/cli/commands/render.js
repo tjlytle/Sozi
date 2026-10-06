@@ -16,6 +16,7 @@
  * @module
  */
 
+import {DEFAULT_SIZE, parseSize, sizeError} from "../args";
 import {buildIfNeeded, presentationHtml} from "../html";
 import {outputDirError} from "../output";
 
@@ -25,23 +26,13 @@ import {outputDirError} from "../output";
  */
 export const FLAGS = {frame: true, all: false, out: true, rebuild: false, "frame-number": false, "out-dir": true, presentation: true};
 
-/** The default size of the images, as in the `--size` flag.
- *
- * @readonly
- * @default
- * @type {string}
- */
-const DEFAULT_SIZE = "1280x720";
-
 /** Parse the `--size` flag.
  *
  * @param {object} flags - The command-line flags.
  * @returns {?{width: number, height: number}} - The image size, or `null` if the flag is invalid.
  */
-function parseSize(flags) {
-    const match = /^(\d+)x(\d+)$/.exec(flags.size || DEFAULT_SIZE);
-    const size  = match && {width: Number(match[1]), height: Number(match[2])};
-    return size && size.width > 0 && size.height > 0 ? size : null;
+function sizeOf(flags) {
+    return parseSize(flags.size || DEFAULT_SIZE);
 }
 
 /** Check the flags of the `render` command before the presentation is loaded.
@@ -56,8 +47,8 @@ export function checkFlags(flags) {
     if (!Object.hasOwn(flags, "out")) {
         return "render needs --out <file.png> with --frame, or --out <directory> with --all";
     }
-    if (!parseSize(flags)) {
-        return `invalid --size: ${flags.size}; expected WxH with W and H greater than 0`;
+    if (!sizeOf(flags)) {
+        return sizeError(flags.size);
     }
     return null;
 }
@@ -111,7 +102,7 @@ export async function render(context) {
     if (error) {
         return {ok: false, error, exitCode: 2};
     }
-    const size = parseSize(flags);
+    const size = sizeOf(flags);
     const out  = path.resolve(cwd, flags.out);
 
     // The frames to render and their image files.

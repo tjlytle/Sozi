@@ -333,7 +333,9 @@ describe("export usage errors", () => {
         [["--export-type", "video", "--format", "webm", "--out", "x.mp4"], /extension \.mp4, which does not match the video format webm/],
         [["--export-type", "pptx", "--out", "x.pdf"], /extension \.pdf, which does not match the export type pptx/],
         [["--out", "handout"], /no extension, which does not match the export type pdf/],
-        [["--export-type", "video", "--format", "webm", "--transparent"], /--transparent applies to png image sequences/]
+        [["--export-type", "video", "--format", "webm", "--transparent"], /--transparent applies to png image sequences/],
+        [["--size", "320x180"], /--size does not apply to export; .*--width and --height/],
+        [["--export-type", "video", "--size", "320x180"], /--size does not apply to export/]
     ];
     for (const [flags, message] of cases) {
         test(flags.join(" "), () => {

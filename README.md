@@ -152,8 +152,10 @@ When running from the source tree, replace `sozi` with
   HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)
   names the presentation file instead of `deck.sozi.json`; see below.
-* `--size WxH` sets the size of the hidden window (default `1280x720`), and
-  the size of the images of `render`.
+* `--size WxH` (default `1280x720`) sets the size of the images of `render`,
+  and of the hidden window of the other commands. It does not apply to
+  `export`, where it is a usage error: the export settings give the size, and
+  `--width` and `--height` override it for a video.
 * `--timeout S` stops the command after `S` seconds (default `120`) with exit code 1.
 
 Options go after the command. An unknown option, an option without its value
