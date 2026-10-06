@@ -188,7 +188,8 @@ export class Electron extends AbstractBackend {
                     // Watch for changes in the loaded file.
                     // This includes a debouncing mechanism to ensure the file is in a stable
                     // state when the storage is notified.
-                    if (!(fileDescriptor in this.watchers)) {
+                    // In command-line mode, files are read once: no watcher.
+                    if (!getCliOptions() && !(fileDescriptor in this.watchers)) {
                         try {
                             const watcher = this.watchers[fileDescriptor] = fs.watch(fileDescriptor);
                             let timer;

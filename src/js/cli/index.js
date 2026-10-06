@@ -15,6 +15,7 @@
  */
 
 import {build} from "./commands/build";
+import {inspect} from "./commands/inspect";
 
 const CLI_PREFIX = "--sozi-cli=";
 
@@ -27,7 +28,7 @@ const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
  *
  * @type {{[name: string]: Function}}
  */
-const COMMANDS = {build};
+const COMMANDS = {build, inspect};
 
 /** Has a result been sent to the main process?
  *
@@ -84,6 +85,8 @@ function log(line) {
  * never leaves the process running without a result.
  */
 export function catchCliErrors() {
+    const options = getCliOptions();
+    partialResult = {command: options ? options.command : null, svg: null, presentation: null, warnings: [], errors: []};
     const fail = err => reply(1, Object.assign({}, partialResult, {ok: false, error: String(err), stack: err && err.stack}));
     window.addEventListener("error", evt => fail(evt.error || evt.message));
     window.addEventListener("unhandledrejection", evt => fail(evt.reason));
@@ -135,6 +138,10 @@ export async function runCli(options, {controller, storage, preferences}) {
 
         result.svg = path.resolve(options.cwd, file);
         result.presentation = result.svg.replace(/\.[^/.]+$/, ".sozi.json");
+        if (result.presentation === result.svg) {
+            reply(2, Object.assign(result, {ok: false, error: `file has no extension: ${result.svg}`}));
+            return;
+        }
         if (!fs.existsSync(result.svg)) {
             reply(1, Object.assign(result, {ok: false, error: `file not found: ${result.svg}`}));
             return;
