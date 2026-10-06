@@ -10,7 +10,7 @@ import nunjucks from "nunjucks";
 import Jed from "jed";
 import {upgradeFromSVG, upgradeFromStorable} from "./upgrade";
 import path from "path";
-import {presentationFiles} from "./naming";
+import {presentationFiles, svgKeyOf, svgOfPresentation} from "./naming";
 
 /** File read/write manager. */
 export class Storage {
@@ -58,6 +58,16 @@ export class Storage {
          * @type {any}
          */
         this.svgFileDescriptor  = null;
+
+        /** The presentation file, when it is not the default one for the SVG file.
+         *
+         * Set by {@linkcode module:Storage.Storage#openPresentationFile|openPresentationFile}
+         * and {@linkcode module:Storage.Storage#setSVGFile|setSVGFile}.
+         *
+         * @default
+         * @type {?{name: string, location: any}}
+         */
+        this.presentationFile = null;
 
         /** The descriptor of the presentation HTML file.
          *
@@ -183,15 +193,65 @@ export class Storage {
         await this.loadSVGData(data);
     }
 
+    /** Open an SVG file or a presentation file.
+     *
+     * A file whose name ends in `.json` is a presentation file
+     * (see {@linkcode module:Storage.Storage#openPresentationFile|openPresentationFile});
+     * any other file is an SVG file.
+     *
+     * @param {any} fileDescriptor - A descriptor of the file to open.
+     * @param {module:backend/AbstractBackend.AbstractBackend} backend - The selected backend to manage the presentation files.
+     * @returns {Promise<boolean>} - A promise resolved with `false` if the SVG file of a presentation file was not found.
+     */
+    async open(fileDescriptor, backend) {
+        if (/\.json$/i.test(backend.getName(fileDescriptor))) {
+            return this.openPresentationFile(fileDescriptor, backend);
+        }
+        await this.setSVGFile(fileDescriptor, backend);
+        return true;
+    }
+
+    /** Open a presentation file and the SVG file it names.
+     *
+     * The SVG file is given by the `svg` key of the presentation file,
+     * relative to its directory, or is `<base>.svg` beside it.
+     * If the SVG file is not found, an error is notified.
+     *
+     * @param {any} fileDescriptor - A descriptor of the presentation file.
+     * @param {module:backend/AbstractBackend.AbstractBackend} backend - The selected backend to manage the presentation files.
+     * @returns {Promise<boolean>} - A promise resolved with `false` if the SVG file was not found.
+     */
+    async openPresentationFile(fileDescriptor, backend) {
+        const _        = this.controller.gettext;
+        const name     = backend.getName(fileDescriptor);
+        const location = backend.getLocation(fileDescriptor);
+
+        // A file that cannot be read or parsed is reported when it is opened as JSON:
+        // in the meantime, assume the default SVG file.
+        const svg = await backend.load(fileDescriptor).then(data => JSON.parse(data).svg).catch(() => "");
+        const svgKey = typeof svg === "string" ? svg : "";
+
+        const svgPath = svgOfPresentation(path.join(location, name), svgKey);
+        const svgFileDescriptor = await backend.find(path.basename(svgPath), path.dirname(svgPath)).catch(() => null);
+        if (!svgFileDescriptor) {
+            this.controller.error(Jed.sprintf(_("File not found: %s."), svgPath));
+            return false;
+        }
+        await this.setSVGFile(svgFileDescriptor, backend, {name, location});
+        return true;
+    }
+
     /** Assign an SVG file descriptor and backend.
      *
      * This method is called when opening a new SVG file.
      *
      * @param {any} fileDescriptor - A descriptor of the SVG file.
      * @param {module:backend/AbstractBackend.AbstractBackend} backend - The selected backend to manage the presentation files.
+     * @param {?{name: string, location: any}} [presentationFile] - The presentation file, if not the default one for the SVG file.
      */
-    async setSVGFile(fileDescriptor, backend) {
+    async setSVGFile(fileDescriptor, backend, presentationFile = null) {
         this.svgFileDescriptor = fileDescriptor;
+        this.presentationFile  = presentationFile;
         this.backend           = backend;
         const data = await this.backend.load(this.svgFileDescriptor);
         await this.loadSVGData(data);
@@ -201,7 +261,8 @@ export class Storage {
      *
      * This method creates an {@link module:svg/SVGDocumentWrapper.SVGDocumentWrapper| SVG document wrapper}
      * with the given data and assigns it to the current presentation.
-     * Then it loads the presentation data from a JSON file in the same folder.
+     * Then it loads the presentation data from the presentation file:
+     * by default, a JSON file in the same folder, named after the SVG file.
      *
      * @param {string} data  - The content of an SVG file, as text.
      */
@@ -214,7 +275,8 @@ export class Storage {
         if (this.document.isValidSVG) {
             this.resolveRelativeURLs(location);
             this.presentation.setSVGDocument(this.document);
-            await this.openJSONFile(presentationFiles(name).presentation, location);
+            const json = this.presentationFile || {name: presentationFiles(name).presentation, location};
+            await this.openJSONFile(json.name, json.location);
         }
         else {
             this.controller.error(_("Document is not valid SVG."));
@@ -253,11 +315,22 @@ export class Storage {
      * It the file does not exist, it is created and populated with the current
      * presentation data.
      *
+     * The HTML files are named after the JSON file and written beside it.
+     * The `svg` key of the presentation is set to the current SVG file; if the
+     * loaded key named another file, the JSON file needs saving.
+     *
      * @param {string} name - The name of the JSON file to open.
      * @param {any} location - The location of the file (backend-dependent).
      */
     async openJSONFile(name, location) {
         const _ = this.controller.gettext;
+
+        // The SVG and JSON paths, as bare names when they are in the same location.
+        const svgName     = this.backend.getName(this.svgFileDescriptor);
+        const svgLocation = this.backend.getLocation(this.svgFileDescriptor);
+        const [svgRef, jsonRef] = location === svgLocation ?
+            [svgName, name] :
+            [path.join(svgLocation, svgName), path.join(location, name)];
 
         let fileDescriptor;
         this.jsonLoadError = null;
@@ -266,6 +339,10 @@ export class Storage {
             fileDescriptor = await this.backend.find(name, location);
             const data = await this.backend.load(fileDescriptor);
             this.loadJSONData(data);
+            if (path.normalize(svgOfPresentation(jsonRef, this.presentation.svgPath)) !== path.normalize(svgRef)) {
+                this.presentation.svgPath = svgKeyOf(svgRef, jsonRef);
+                this.jsonNeedsSaving = true;
+            }
         }
         catch (err) {
             // The file was found but could not be read or parsed.
@@ -278,6 +355,7 @@ export class Storage {
             // it has been generated from Sozi 13 or earlier.
             // Then save the extracted data to a JSON file.
             upgradeFromSVG(this.presentation, this.controller);
+            this.presentation.svgPath = svgKeyOf(svgRef, jsonRef);
 
             // If the document contains frames, it means it was imported from Sozi 13.
             if (this.presentation.frames.length) {
@@ -302,7 +380,7 @@ export class Storage {
         }
 
         // The HTML files are named after the presentation file.
-        const files = presentationFiles(this.backend.getName(this.svgFileDescriptor), name);
+        const files = presentationFiles(svgName, name);
         // TODO Save only if SVG is more recent than HTML.
         await this.createHTMLFile(files.html, location);
         await this.createPresenterHTMLFile(files.presenter, location, path.basename(files.html));

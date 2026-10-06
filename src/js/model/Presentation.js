@@ -667,6 +667,17 @@ export class Presentation extends EventEmitter {
          */
         this.explicitTitle = "";
 
+        /** The SVG file of this presentation, as stored in the `svg` key of the presentation file.
+         *
+         * A path relative to the directory of the presentation file;
+         * empty when the SVG file is `<base>.svg` beside it.
+         * It is set by {@linkcode module:Storage.Storage#openJSONFile|Storage}.
+         *
+         * @default
+         * @type {string}
+         */
+        this.svgPath = "";
+
         /** The sequence of frames in this presentation.
          *
          * @default
@@ -932,6 +943,7 @@ export class Presentation extends EventEmitter {
      */
     toStorable() {
         return {
+            ...(this.svgPath ? {svg: this.svgPath} : {}),
             ...(this.explicitTitle ? {title: this.explicitTitle} : {}),
             aspectWidth               : this.aspectWidth,
             aspectHeight              : this.aspectHeight,
@@ -997,6 +1009,13 @@ export class Presentation extends EventEmitter {
         }
         else if (storable.hasOwnProperty("title")) {
             this.ignoredStorableKeys.push("title");
+        }
+        this.svgPath = "";
+        if (typeof storable.svg === "string") {
+            this.svgPath = storable.svg;
+        }
+        else if (storable.hasOwnProperty("svg")) {
+            this.ignoredStorableKeys.push("svg");
         }
         copyIfSet(this, storable, "aspectWidth");
         copyIfSet(this, storable, "aspectHeight");
