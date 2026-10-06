@@ -308,6 +308,20 @@ describe("set", () => {
         }
     });
 
+    test("--title with only spaces clears the explicit title", () => {
+        const deck = withTempDeck("basic");
+        try {
+            setJsonTitle(deck, "My Talk");
+            const {code, json} = run(deck, "set", "--title", "  ");
+            assert.equal(code, 0, JSON.stringify(json));
+            assert.deepEqual(json.changed, {title: {from: "My Talk", to: ""}});
+            assert.equal("title" in readJson(deck), false);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("with the current value changes and writes nothing", () => {
         const deck = withTempDeck("basic");
         try {
