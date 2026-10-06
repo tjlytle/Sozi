@@ -13,7 +13,8 @@
     "eslint": "eslint --config config/eslintrc.mjs src/js/",
     "csslint": "csslint --config=config/csslintrc.json src/css/",
     "build": "gulp",
-    "start": "electron build/electron"
+    "start": "electron build/electron",
+    "test": "bash test/cli/run.sh"
   },
   "dependencies": {
     "@electron/remote": "^2.0.8",
