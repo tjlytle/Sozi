@@ -75,7 +75,7 @@ export function rewriteRelativeHrefs(svgText, svgDir, outDir) {
     }
 
     // href and xlink:href of image elements.
-    let result = svgText.replace(/<(?:[\w.-]+:)?image\b[^>]*>/g, tag =>
+    let result = svgText.replace(/<(?:[\w.-]+:)?image(?=[\s/>])[^>]*>/g, tag =>
         tag.replace(/(\s(?:[\w.-]+:)?href\s*=\s*)(["'])(.*?)\2/g, rebase));
 
     // src attributes in the Sozi namespace, with any declared prefix.
