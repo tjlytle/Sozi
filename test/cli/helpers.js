@@ -7,6 +7,7 @@
 // The tests spawn the real Electron binary on build/electron, so they assume
 // a current build: run `npx gulp` after editing src/ and before `npm test`.
 
+const assert = require("node:assert/strict");
 const {spawnSync} = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -83,4 +84,49 @@ function withTempDeck(fixtureName, {fixturesDir: root = fixturesDir} = {}) {
     };
 }
 
-module.exports = {runSozi, withTempDeck, repoDir, appDir, fixturesDir};
+/** Decode an 8-bit, non-interlaced RGB or RGBA PNG (what Chrome writes).
+ *
+ * @returns {{width: number, height: number, pixel: Function}} - `pixel(x, y)` gives `[r, g, b]`.
+ */
+function decodePng(buf) {
+    const zlib = require("node:zlib");
+    assert.ok(buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), "PNG signature");
+    let width, height, channels;
+    const idat = [];
+    for (let o = 8; o < buf.length; ) {
+        const length = buf.readUInt32BE(o);
+        const type = buf.toString("ascii", o + 4, o + 8);
+        const data = buf.subarray(o + 8, o + 8 + length);
+        if (type === "IHDR") {
+            width = data.readUInt32BE(0);
+            height = data.readUInt32BE(4);
+            assert.equal(data[8], 8, "PNG bit depth");
+            assert.equal(data[12], 0, "PNG interlace");
+            channels = {2: 3, 6: 4}[data[9]];
+            assert.ok(channels, `PNG color type ${data[9]}`);
+        }
+        else if (type === "IDAT") {
+            idat.push(data);
+        }
+        o += 12 + length;
+    }
+    const raw = zlib.inflateSync(Buffer.concat(idat));
+    const stride = width * channels;
+    const pixels = Buffer.alloc(stride * height);
+    for (let y = 0; y < height; y++) {
+        const filter = raw[y * (stride + 1)];
+        for (let i = 0; i < stride; i++) {
+            const x = raw[y * (stride + 1) + 1 + i];
+            const a = i >= channels ? pixels[y * stride + i - channels] : 0;
+            const b = y > 0 ? pixels[(y - 1) * stride + i] : 0;
+            const c = i >= channels && y > 0 ? pixels[(y - 1) * stride + i - channels] : 0;
+            const p = a + b - c;
+            const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a :
+                Math.abs(p - b) <= Math.abs(p - c) ? b : c;
+            pixels[y * stride + i] = (x + [0, a, b, (a + b) >> 1, paeth][filter]) & 0xff;
+        }
+    }
+    return {width, height, pixel: (x, y) => [...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)]};
+}
+
+module.exports = {runSozi, withTempDeck, decodePng, electronBinary, repoDir, appDir, fixturesDir};
