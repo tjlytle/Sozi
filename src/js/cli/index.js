@@ -190,6 +190,9 @@ export async function runCli(options, {controller, storage, preferences}) {
             reply(1, Object.assign(result, {ok: false, error: errors[0]}));
             return;
         }
+        for (const key of controller.presentation.ignoredStorableKeys || []) {
+            warnings.push(`ignored non-string ${key} in ${result.presentation}`);
+        }
 
         const commandResult = await command({
             controller,
