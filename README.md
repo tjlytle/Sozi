@@ -374,15 +374,15 @@ What they have in common:
   `--ffmpeg PATH` (relative to the working directory), then `ffmpeg` on the
   `PATH`, then the `ffmpeg` bundled in the resources of a packaged Sozi.
   Without one, the export fails with exit code 1 and the error
-  `ffmpeg not found` before anything is built or captured. ffmpeg is stopped,
-  and the temporary images are removed, when the command times out, and its standard error ends the error message
-  when it fails.
+  `ffmpeg not found` before anything is built or captured. When the command
+  times out, ffmpeg is stopped and the temporary images are removed. When
+  ffmpeg fails, the end of its standard error ends the error message.
 * The result has `type`, `format` (the video format, or `pdf`/`pptx`),
   `out` (the file or directory written), `frames` (the number of frames
   exported), `ffmpeg` (the ffmpeg used, or `null`), `html`, `rebuilt` and
   `capture`; a video adds `images` (the number of images), and a PNG
   sequence `files`.
-* An invalid `--export-type`, `--format`, `--fps`, `--width`, `--height`,
+* `--size`, an invalid `--export-type`, `--format`, `--fps`, `--width`, `--height`,
   `--bitrate` or frame list, an option that does not apply to the export type
   (e.g. `--fps` for a PDF, `--transparent` for a webm video), an `--out`
   whose extension does not match, or an `--out`
@@ -415,9 +415,11 @@ xvfb-run -a sh -c "sozi --cli build deck.svg 2>/dev/null"
 xvfb-run -a sh -c "sozi --cli inspect deck.svg 2>err.log"
 ```
 
-Close the deck in the Sozi editor before running a command on it: the editor
-watches and saves the same files, so it would reload or overwrite what
-`build` writes.
+Close the deck in the Sozi editor before running `build`, `set`, `render` or
+`export` on it: the editor watches and saves the same files, so it would
+reload or overwrite the presentation and HTML files that these commands write
+(`set` changes the presentation file; `render` and `export` rebuild the HTML
+file when it is out of date).
 
 Helping debug Sozi
 ==================

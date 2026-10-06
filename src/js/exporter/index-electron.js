@@ -840,6 +840,9 @@ export async function openExportWindow(htmlPath, opts) {
             spellcheck          : false
         }
     });
+    // The capture window shows the presentation only: no link may navigate away or open a window.
+    w.webContents.on("will-navigate", event => event.preventDefault());
+    w.webContents.setWindowOpenHandler(() => ({action: "deny"}));
     const ew = new ExportWindow(w, opts);
     try {
         await ew.bounded(w.loadFile(htmlPath), `loading ${htmlPath}`);
