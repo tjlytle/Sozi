@@ -171,12 +171,12 @@ describe("build", () => {
         }
     });
 
-    test("builds the BattleSnake deck with the frames and layers of its JSON", () => {
-        const deck = withTempDeck("battlesnake");
+    test("builds the Sozi website deck with the frames and layers of its JSON", () => {
+        const deck = withTempDeck("website");
         try {
             const {code, json, stderr} = build(deck);
             assert.equal(code, 0, `${JSON.stringify(json)}\n${stderr}`);
-            assert.equal(json.frames, 32);
+            assert.equal(json.frames, 9);
             const built = presentationData(htmlPaths(deck).html).frames;
             const source = JSON.parse(fs.readFileSync(deck.json, "utf8")).frames;
             assert.equal(built.length, source.length);
@@ -190,8 +190,8 @@ describe("build", () => {
         }
     });
 
-    test("leaves the BattleSnake JSON byte-identical across two builds", () => {
-        const deck = withTempDeck("battlesnake");
+    test("leaves the website deck JSON byte-identical across two builds", () => {
+        const deck = withTempDeck("website");
         try {
             const original = fs.readFileSync(deck.json);
             for (const run of [1, 2]) {

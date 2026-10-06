@@ -196,12 +196,12 @@ describe("inspect", () => {
         }
     });
 
-    test("inspects the BattleSnake deck", () => {
-        const deck = withTempDeck("battlesnake");
+    test("inspects the Sozi website deck", () => {
+        const deck = withTempDeck("website");
         try {
             const {code, json, stderr} = inspect(deck);
             assert.equal(code, 0, `${JSON.stringify(json).slice(0, 500)}\n${stderr}`);
-            assert.equal(json.frames.length, 32);
+            assert.equal(json.frames.length, 9);
             assert.ok(json.layers.length > 0);
         }
         finally {
