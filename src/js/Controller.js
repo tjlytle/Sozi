@@ -19,6 +19,27 @@ import * as exporter from "./exporter";
  */
 const UNDO_STACK_LIMIT = 100;
 
+/** Log the warnings of an export result.
+ *
+ * @param {?object} result - The result of an export function (absent in the browser).
+ */
+function logExportWarnings(result) {
+    if (result && result.warnings) {
+        for (const warning of result.warnings) {
+            console.log(`Export warning: ${warning}`);
+        }
+    }
+}
+
+/** Get the message of an export error.
+ *
+ * @param {any} err - An error.
+ * @returns {string} - The error message.
+ */
+function exportErrorMessage(err) {
+    return String(err && err.message || err);
+}
+
 /** Signals that the presentation data has changed.
  *
  * @event module:Controller.presentationChange
@@ -1766,11 +1787,12 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            await exporter.exportToPDF(this.presentation, this.storage.htmlFileDescriptor);
+            const result = await exporter.exportToPDF(this.presentation, this.storage.htmlFileDescriptor);
+            logExportWarnings(result);
             this.info(_("Presentation was exported to PDF."));
         }
         catch (e) {
-            this.error(_("Failed to write PDF file."));
+            this.error(_("Failed to write PDF file.") + " " + exportErrorMessage(e));
             console.log(e);
         }
         this.toggleExportState();
@@ -1782,11 +1804,12 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            await exporter.exportToPPTX(this.presentation, this.storage.htmlFileDescriptor);
+            const result = await exporter.exportToPPTX(this.presentation, this.storage.htmlFileDescriptor);
+            logExportWarnings(result);
             this.info(_("Presentation was exported to PPTX."));
         }
         catch (e) {
-            this.error(_("Failed to write PPTX file."));
+            this.error(_("Failed to write PPTX file.") + " " + exportErrorMessage(e));
             console.log(e);
         }
         this.toggleExportState();
@@ -1798,11 +1821,12 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            await exporter.exportToVideo(this.presentation, this.storage.htmlFileDescriptor);
+            const result = await exporter.exportToVideo(this.presentation, this.storage.htmlFileDescriptor);
+            logExportWarnings(result);
             this.info(_("Presentation was exported to video."));
         }
         catch (e) {
-            this.error(_("Failed to write video file."));
+            this.error(_("Failed to write video file.") + " " + exportErrorMessage(e));
             console.log(e);
         }
         this.toggleExportState();
