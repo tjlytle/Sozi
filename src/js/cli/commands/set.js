@@ -10,16 +10,61 @@
  * @module
  */
 
+import {resolveOutputDir} from "../output";
+
+/** Convert the value of `--out-dir` to the `outputDir` key of a presentation file.
+ *
+ * The flag is a path relative to the working directory; the key is relative
+ * to the directory of the presentation file, with forward slashes.
+ * An empty value, or the directory of the presentation file, gives `""`.
+ *
+ * @param {string} value - The flag value.
+ * @param {object} context - The command context.
+ * @param {string} context.cwd - The working directory.
+ * @param {string} context.presentation - The absolute path of the JSON file.
+ * @returns {string} - The value of the key.
+ */
+function outputDirKey(value, {cwd, presentation}) {
+    const path = require("path");
+
+    if (!value) {
+        return "";
+    }
+    return path.relative(path.dirname(presentation), path.resolve(cwd, value)).split(path.sep).join("/");
+}
+
+/** Check the value of `--out-dir` (see {@link module:cli/output.resolveOutputDir}).
+ *
+ * An empty value, which removes the key, is always valid.
+ *
+ * @param {string} value - The flag value.
+ * @param {object} context - The command context.
+ * @returns {?string} - An error message, or `null`.
+ */
+function checkOutputDir(value, context) {
+    return value ? resolveOutputDir({...context, flags: {"out-dir": value}}).error : null;
+}
+
 /** The options of this command, with the presentation property each one sets.
  *
  * `kind` is the entry of the option in the flag table
  * (see {@link module:cli/args.GLOBAL_FLAGS}).
+ * `value(flag, context)`, if any, converts the trimmed flag value to the property value;
+ * `check(flag, context)`, if any, returns a usage error for the flag value, or `null`.
+ * `build: false` marks an option that `build` uses for one run without storing it.
  *
- * @type {{[option: string]: {property: string, kind: (boolean|string)}}}
+ * @type {{[option: string]: {property: string, kind: (boolean|string), value: ?Function, check: ?Function, build: ?boolean}}}
  */
 export const OPTIONS = {
-    title: {property: "explicitTitle", kind: "maybe-empty"}
+    title:     {property: "explicitTitle", kind: "maybe-empty"},
+    "out-dir": {property: "outputDir", kind: "maybe-empty", value: outputDirKey, check: checkOutputDir, build: false}
 };
+
+/** The options of {@link OPTIONS} that `build` stores in the presentation.
+ *
+ * @type {{[option: string]: object}}
+ */
+export const BUILD_OPTIONS = Object.fromEntries(Object.entries(OPTIONS).filter(([, {build}]) => build !== false));
 
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}):
  * the options and `--presentation`, which names the presentation file.
@@ -43,24 +88,47 @@ export function checkFlags(flags) {
     return "no property to set; use " + Object.keys(OPTIONS).map(option => `--${option}`).join(", ");
 }
 
+/** Check the values of the options found in the flags (see {@link OPTIONS}).
+ *
+ * @param {object} flags - The command-line flags.
+ * @param {object} context - The command context.
+ * @param {object} [options] - The option table (default {@link OPTIONS}).
+ * @returns {?string} - A usage error, or `null`.
+ */
+export function checkOptions(flags, context, options = OPTIONS) {
+    for (const [option, {check}] of Object.entries(options)) {
+        const error = check && Object.hasOwn(flags, option) ? check(flags[option].trim(), context) : null;
+        if (error) {
+            return error;
+        }
+    }
+    return null;
+}
+
 /** Apply the options of {@link OPTIONS} found in the flags to the presentation.
  *
- * String values are trimmed. Each property is set through the controller,
+ * String values are trimmed, then converted by the `value` function of the
+ * option, if any. Each property is set through the controller,
  * which marks the presentation JSON as needing to be saved. A property that
  * already has the given value is left alone.
  *
  * @param {module:Controller.Controller} controller - The controller.
  * @param {object} flags - The command-line flags.
+ * @param {object} context - The command context, passed to the `value` functions.
+ * @param {object} [options] - The option table (default {@link OPTIONS}).
  * @returns {{[option: string]: {from: any, to: any}}} - The changed options, with their old and new values.
  */
-export function applyOptions(controller, flags) {
+export function applyOptions(controller, flags, context, options = OPTIONS) {
     const changed = {};
-    for (const [option, {property}] of Object.entries(OPTIONS)) {
+    for (const [option, {property, value}] of Object.entries(options)) {
         if (!Object.hasOwn(flags, option)) {
             continue;
         }
         const from = controller.presentation[property];
-        const to   = typeof flags[option] === "string" ? flags[option].trim() : flags[option];
+        let to     = typeof flags[option] === "string" ? flags[option].trim() : flags[option];
+        if (value) {
+            to = value(to, context);
+        }
         if (from !== to) {
             controller.setPresentationProperty(property, to);
             changed[option] = {from, to};
@@ -78,13 +146,20 @@ export function applyOptions(controller, flags) {
  * @param {module:Controller.Controller} context.controller - The controller.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
  * @param {string} context.presentation - The absolute path of the JSON file.
+ * @param {string} context.cwd - The working directory.
  * @param {object} context.flags - The command-line flags.
- * @returns {{ok: boolean, changed: object, files: string[]}} - The command result.
+ * @returns {{ok: boolean, changed: object, files: string[]}} - The command result,
+ *  or `{ok: false, error, exitCode: 2}` for an invalid option value.
  */
-export function set({controller, storage, presentation, flags}) {
+export function set(context) {
     const fs = require("fs");
+    const {controller, storage, presentation, flags} = context;
 
-    const changed = applyOptions(controller, flags);
+    const error = checkOptions(flags, context);
+    if (error) {
+        return {ok: false, error, exitCode: 2};
+    }
+    const changed = applyOptions(controller, flags, context);
     const files = [];
     if (!fs.existsSync(presentation) || storage.jsonNeedsSaving) {
         fs.writeFileSync(presentation, storage.getJSONData(), {encoding: "utf-8"});

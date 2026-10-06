@@ -232,13 +232,20 @@ export class Electron extends AbstractBackend {
     create(name, location, mimeType, data) {
         const fileName = path.join(location, name);
         return new Promise((resolve, reject) => {
-            fs.writeFile(fileName, data, { encoding: "utf-8" }, err => {
+            // The directory is created if missing (an output directory).
+            fs.mkdir(path.dirname(fileName), {recursive: true}, err => {
                 if (err) {
                     reject(err);
+                    return;
                 }
-                else {
-                    resolve(fileName);
-                }
+                fs.writeFile(fileName, data, { encoding: "utf-8" }, err => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve(fileName);
+                    }
+                });
             });
         });
     }

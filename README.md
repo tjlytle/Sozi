@@ -100,9 +100,9 @@ logs go to the standard error. Every document has the fields `ok`, `command`,
 messages are always in English.
 
 ```
-sozi --cli inspect [--frame N] [--presentation P.sozi.json] deck.svg
-sozi --cli build [--write-json] [--title TITLE] [--presentation P.sozi.json] deck.svg
-sozi --cli set --title TITLE [--presentation P.sozi.json] deck.svg
+sozi --cli inspect [--frame N] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli build [--write-json] [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli set [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 ```
 
 The file argument may also be a presentation file, e.g.
@@ -117,14 +117,15 @@ When running from the source tree, replace `sozi` with
   document or `""`), the aspect ratio, the layers of the SVG (with `inJson` telling whether
   the JSON file has properties for each layer), `svgSource` (`"json"` when the
   `svg` key of the presentation file named the SVG, `"flag"` with
-  `--presentation`, else `"default"`) and, for each frame, its
+  `--presentation`, else `"default"`), `outputDir` and `outputSource` (see
+  [Output directory](#output-directory)) and, for each frame, its
   properties and, for each layer, the reference element (`referenceMissing` is
   true when the element is not in the SVG), the outline element, the link
   flag and the camera. It writes no file.
 * `--frame N` restricts the frames reported by `inspect` to one frame, given by
   its 0-based index or its frame id.
 * `--cli build` writes `deck.sozi.html` and `deck-presenter.sozi.html`, and
-  reports the files written and the number of frames.
+  reports the files written (in `files`, with their real paths) and the number of frames.
   It warns when the SVG is newer than an existing `deck.sozi.html`.
   It writes `deck.sozi.json` only when the file does not exist or when loading
   or `--title` changed the presentation, because a load/save round trip is not byte-stable.
@@ -140,6 +141,8 @@ When running from the source tree, replace `sozi` with
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
   explicit title. Use `--title=TITLE` for a title that starts with `--`.
+* `--out-dir DIR` (for `build`, `set` and `inspect`) is the directory of the
+  HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)
   names the presentation file instead of `deck.sozi.json`; see below.
 * `--size WxH` sets the size of the hidden window (default `1280x720`).
@@ -195,10 +198,10 @@ Opening a presentation file with another SVG document (e.g.
 `svg key changed from X to Y` (an info notification in the editor).
 
 In the editor, images, media and custom CSS and JavaScript files keep their
-paths relative to the SVG document. The generated HTML copies the relative image
-and media hrefs of the SVG unchanged, so HTML written in another directory than
-the SVG (a presentation file in a subdirectory) has broken relative links until
-the output-directory feature lands; `build` warns about it.
+paths relative to the SVG document. When the HTML is written in another
+directory than the SVG (a presentation file in a subdirectory, or an
+[output directory](#output-directory)), the relative image and media hrefs
+of the generated HTML are rewritten to resolve from the HTML.
 
 A presentation file that is not JSON or has no `frames` array
 (`not a presentation file: <path>: <reason>`), a `.json` file argument that does
@@ -207,13 +210,57 @@ not end in `.sozi.json`, a presentation file without an `svg` key and without
 `--presentation` naming a directory or a file that does not end in `.sozi.json`, or given with a
 presentation file argument, is a usage error (exit code 2).
 
-Exit codes:
+### Output directory
+
+By default the HTML files are written beside the presentation file. To write
+them in another directory, e.g. a web site:
+
+```
+sozi --cli build --out-dir site/talk deck.svg        # this build only
+sozi --cli set --out-dir site/talk deck.svg          # store it in deck.sozi.json
+sozi --cli build deck.svg                            # then every build uses it
+sozi --cli set --out-dir "" deck.svg                 # back to beside the presentation
+```
+
+* `--out-dir DIR` is relative to the working directory. With `build`, it
+  applies to this run only and does not change the presentation file; it
+  overrides the stored directory.
+* `set --out-dir DIR` stores the directory in the key `outputDir` of the
+  presentation file, as a path relative to the directory of the presentation
+  file with forward slashes, e.g. `"outputDir": "site/talk"` or `"../site"` in
+  `es/spanish.sozi.json`. `--out-dir ""` removes the key, and so does
+  `--out-dir` naming the directory of the presentation file itself (e.g.
+  `--out-dir .` for `deck.sozi.json` in the working directory). Leading and
+  trailing spaces of the key are ignored. Nothing else adds
+  the key, so existing presentation files are unchanged. The editor also writes its HTML files to the
+  stored directory when it saves, and tells so when it opens the presentation
+  ("HTML files are written to DIR"); if that directory cannot be written, it
+  shows an error and keeps editing the presentation without HTML files.
+* Both HTML files go to the output directory, which is created if missing.
+  The presentation file stays beside the SVG or where `--presentation` put it,
+  and the SVG document is not copied.
+* In the generated HTML, the relative hrefs of images and media (`href` and
+  `xlink:href` of `<image>` elements, `sozi:src` of video and audio) are
+  rewritten so that they resolve from the output directory, e.g.
+  `img/dot.png` becomes `../../img/dot.png` in `site/talk`. Absolute paths,
+  URLs with a scheme (`http:`, `data:`, ...) and `#` fragments are kept.
+  Custom CSS and JavaScript files are inlined in the HTML, but `url(...)`
+  references inside custom CSS are **not** rewritten: use absolute URLs there,
+  or copy the files they point to next to the HTML.
+* `inspect` reports `outputDir`, the absolute directory that `build` would
+  use, and `outputSource`: `"flag"` for `--out-dir`, `"json"` for the stored
+  key, or `"default"` with `outputDir` `null` (beside the presentation file).
+* An output directory that is (or is inside) an existing file is a usage
+  error (exit code 2) of `build`, `set` and `inspect`, with the same message,
+  and nothing is written.
+
+### Exit codes
 
 | Code | Meaning                                                                                       |
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
 | `1`  | The command failed: missing or invalid file, unparsable JSON, missing SVG of a presentation file, unknown frame, write error, timeout, crash. |
-| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, no display. |
+| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, output directory that is a file, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.
