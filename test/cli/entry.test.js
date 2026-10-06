@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {parseArgs, validateArgs} = require("../../src/js/cli/args.js");
+const {parseArgs, validateArgs, parseSize} = require("../../src/js/cli/args.js");
 const {runSozi, withTempDeck} = require("./helpers.js");
 
 const ELECTRON = "/path/to/electron";
@@ -161,12 +161,22 @@ describe("electron entry", () => {
         assert.equal(json.usage, USAGE);
     });
 
+    test("parseSize: WxH with positive whole numbers", () => {
+        assert.deepEqual(parseSize("1280x720"), {width: 1280, height: 720});
+        assert.deepEqual(parseSize("1x1"), {width: 1, height: 1});
+        for (const bad of ["0x10", "10x0", "big", "10x", "x10", "10.5x10", "-1x10", "10X10", " 10x10", "", undefined, true]) {
+            assert.equal(parseSize(bad), null, String(bad));
+        }
+    });
+
     test("invalid --size exits 2", () => {
-        const {code, json} = runSozi(["build", "--size", "big", "deck.svg"]);
-        assert.equal(code, 2);
-        assertBaseFields(json);
-        assert.equal(json.ok, false);
-        assert.match(json.error, /--size/);
+        for (const value of ["big", "0x10"]) {
+            const {code, json} = runSozi(["build", "--size", value, "deck.svg"]);
+            assert.equal(code, 2, value);
+            assertBaseFields(json);
+            assert.equal(json.ok, false);
+            assert.equal(json.error, `invalid --size: ${value}; expected WxH with W and H greater than 0`);
+        }
     });
 
     test("invalid --timeout exits 2", () => {

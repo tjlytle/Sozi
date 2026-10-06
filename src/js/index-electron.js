@@ -2,7 +2,7 @@
 import {app, BrowserWindow, ipcMain} from "electron";
 import * as remoteMain from "@electron/remote/main";
 import settings from "electron-app-settings";
-import {DEFAULT_TIMEOUT_S, parseArgs} from "./cli/args";
+import {DEFAULT_SIZE, DEFAULT_TIMEOUT_S, parseArgs, parseSize, sizeError} from "./cli/args";
 import {COMMAND_FLAGS} from "./cli";
 
 remoteMain.initialize();
@@ -121,9 +121,9 @@ function cliMain() {
         }
     }
 
-    const size = /^(\d+)x(\d+)$/.exec(cliArgs.flags.size || "1280x720");
+    const size = parseSize(cliArgs.flags.size || DEFAULT_SIZE);
     if (!size) {
-        cliExit(2, {error: `invalid --size: ${cliArgs.flags.size}; expected WxH`});
+        cliExit(2, {error: sizeError(cliArgs.flags.size)});
         return;
     }
 
@@ -153,8 +153,8 @@ function cliMain() {
         const options = Object.assign({cwd: process.cwd()}, cliArgs);
         mainWindow = new BrowserWindow({
             show: false,
-            width: Number(size[1]),
-            height: Number(size[2]),
+            width: size.width,
+            height: size.height,
             webPreferences: Object.assign({
                 backgroundThrottling: false,
                 additionalArguments: ["--sozi-cli=" + JSON.stringify(options)]

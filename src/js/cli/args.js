@@ -46,6 +46,34 @@ export const GLOBAL_FLAGS = {help: false, size: true, timeout: true};
  */
 export const DEFAULT_TIMEOUT_S = 120;
 
+/** The default size of the hidden window and of the images of `render`, as in the `--size` flag.
+ *
+ * @readonly
+ * @default
+ * @type {string}
+ */
+export const DEFAULT_SIZE = "1280x720";
+
+/** Parse a size given as `WxH`.
+ *
+ * @param {any} text - The value of the `--size` flag.
+ * @returns {?{width: number, height: number}} - The size, or `null` unless W and H are whole numbers greater than 0.
+ */
+export function parseSize(text) {
+    const match = typeof text === "string" && /^(\d+)x(\d+)$/.exec(text);
+    const size  = match && {width: Number(match[1]), height: Number(match[2])};
+    return size && size.width > 0 && size.height > 0 ? size : null;
+}
+
+/** The usage error of an invalid `--size` flag.
+ *
+ * @param {any} text - The value of the `--size` flag.
+ * @returns {string} - The error message.
+ */
+export function sizeError(text) {
+    return `invalid --size: ${text}; expected WxH with W and H greater than 0`;
+}
+
 /** Get the flag table of a command, including the global flags.
  *
  * @param {{[command: string]: object}} commandFlags - The flag table of each command.

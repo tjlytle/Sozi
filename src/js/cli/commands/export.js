@@ -133,6 +133,9 @@ function checkApplicable(flags, type, format) {
  * @returns {?string} - A usage error, or `null`.
  */
 export function checkFlags(flags) {
+    if (Object.hasOwn(flags, "size")) {
+        return "--size does not apply to export; the export settings give the size (use --width and --height for a video)";
+    }
     const type = flags["export-type"];
     if (type !== undefined && !TYPES.includes(type)) {
         return `invalid --export-type: ${type}; expected ${TYPES.join(", ")}`;
