@@ -49,6 +49,12 @@ function escapeRegExp(str) {
  * Other hrefs are untouched. The text is returned unchanged when both
  * directories are the same.
  *
+ * The rewrite is text-based: it does not parse the document, so it does not
+ * skip `<script>` elements or CDATA sections. A raw `>` inside an attribute
+ * value of an `<image>` element ends the match of that element early, so its
+ * href may be left unchanged (it fails safe). Serialized SVG escapes `>` in
+ * attribute values.
+ *
  * @param {string} svgText - The serialized SVG document.
  * @param {string} svgDir - The directory of the SVG file.
  * @param {string} outDir - The directory of the HTML file.
@@ -74,7 +80,9 @@ export function rewriteRelativeHrefs(svgText, svgDir, outDir) {
 
     // src attributes in the Sozi namespace, with any declared prefix.
     const soziNs = new RegExp(`\\sxmlns:([\\w.-]+)\\s*=\\s*(["'])${escapeRegExp(SOZI_NS)}\\2`, "g");
-    for (const [, prefix] of svgText.matchAll(soziNs)) {
+    // A prefix may be declared on several elements: rewrite each prefix once.
+    const prefixes = new Set(Array.from(svgText.matchAll(soziNs), match => match[1]));
+    for (const prefix of prefixes) {
         const src = new RegExp(`(\\s${escapeRegExp(prefix)}:src\\s*=\\s*)(["'])(.*?)\\2`, "g");
         result = result.replace(src, rebase);
     }
