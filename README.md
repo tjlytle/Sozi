@@ -195,10 +195,11 @@ Opening a presentation file with another SVG document (e.g.
 `svg key changed from X to Y` (an info notification in the editor).
 
 In the editor, images, media and custom CSS and JavaScript files keep their
-paths relative to the SVG document. The generated HTML copies the relative image
-and media hrefs of the SVG unchanged, so HTML written in another directory than
-the SVG (a presentation file in a subdirectory) has broken relative links until
-the output-directory feature lands; `build` warns about it.
+paths relative to the SVG document. When the HTML is written in another
+directory than the SVG (a presentation file in a subdirectory), the relative
+image and media hrefs of the generated HTML (`href`/`xlink:href` of `<image>`
+elements, `sozi:src` of media) are rewritten to resolve from the HTML;
+`url(...)` references in custom CSS files are not rewritten.
 
 A presentation file that is not JSON or has no `frames` array
 (`not a presentation file: <path>: <reason>`), a `.json` file argument that does

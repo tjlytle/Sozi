@@ -11,6 +11,7 @@ import Jed from "jed";
 import {upgradeFromSVG, upgradeFromStorable} from "./upgrade";
 import path from "path";
 import {isPresentationFile, presentationDataError, presentationFiles, svgKeyOf, svgOfPresentation} from "./naming";
+import {rewriteRelativeHrefs} from "./hrefs";
 
 /** File read/write manager. */
 export class Storage {
@@ -337,7 +338,10 @@ export class Storage {
      * It the file does not exist, it is created and populated with the current
      * presentation data.
      *
-     * The HTML files are named after the JSON file and written beside it.
+     * The HTML files are named after the JSON file and written beside it,
+     * or in the directory given by the `outputDir` key of the presentation
+     * (created if missing) when locations are directory paths (Electron);
+     * other backends ignore the key with a notification.
      * The `svg` key of the presentation is set to the current SVG file; if the
      * loaded key named another file, the JSON file needs saving, and a change
      * of an existing key is notified.
@@ -410,10 +414,16 @@ export class Storage {
         }
 
         // The HTML files are named after the presentation file.
-        const files = presentationFiles(svgName, name);
+        let outputDir = this.presentation.outputDir;
+        if (outputDir && typeof location !== "string") {
+            this.controller.info(Jed.sprintf(_("outputDir is ignored here: the HTML files are written beside %s."), name));
+            outputDir = "";
+        }
+        const files       = presentationFiles(svgName, name, {outputDir});
+        const outLocation = outputDir ? path.resolve(location, files.outputDir) : location;
         // TODO Save only if SVG is more recent than HTML.
-        await this.createHTMLFile(files.html, location);
-        await this.createPresenterHTMLFile(files.presenter, location, path.basename(files.html));
+        await this.createHTMLFile(path.basename(files.html), outLocation);
+        await this.createPresenterHTMLFile(path.basename(files.presenter), outLocation, path.basename(files.html));
     }
 
     /** Create the presentation HTML file if it does not exist.
@@ -424,15 +434,15 @@ export class Storage {
     async createHTMLFile(name, location) {
         let fileDescriptor = await this.backend.find(name, location).catch(() => null);
         if (!fileDescriptor) {
-            fileDescriptor = await this.backend.create(name, location, "text/html", this.exportHTML());
+            fileDescriptor = await this.backend.create(name, location, "text/html", this.exportHTML(location));
         }
         else if (this.controller.preferences.saveMode !== "manual") {
-            await this.backend.save(fileDescriptor, this.exportHTML());
+            await this.backend.save(fileDescriptor, this.exportHTML(location));
         }
 
         if (!this.htmlFileDescriptor) {
             this.htmlFileDescriptor = fileDescriptor;
-            this.backend.autosave(fileDescriptor, () => this.htmlNeedsSaving, () => this.exportHTML());
+            this.backend.autosave(fileDescriptor, () => this.htmlNeedsSaving, () => this.exportHTML(location));
         }
     }
 
@@ -510,11 +520,22 @@ export class Storage {
      * - the presentation data needed by the player,
      * - a copy of the custom style sheets and scripts.
      *
+     * When the HTML file is written in another directory than the SVG file,
+     * the relative image and media hrefs of the SVG document are rewritten
+     * so that they resolve from the HTML file
+     * (see {@linkcode module:hrefs.rewriteRelativeHrefs|rewriteRelativeHrefs}).
+     *
+     * @param {any} [location] - The location of the HTML file (backend-dependent);
+     *  by default, the location of the SVG file. Only directory paths (Electron) are compared.
      * @returns {string} - An HTML document content, as text.
      */
-    exportHTML() {
+    exportHTML(location) {
+        const svgLocation = this.backend.getLocation(this.svgFileDescriptor);
+        const svg = typeof location === "string" && typeof svgLocation === "string" ?
+            rewriteRelativeHrefs(this.document.asText, svgLocation, location) :
+            this.document.asText;
         return nunjucks.render("player.html", {
-            svg: this.document.asText,
+            svg,
             pres: this.presentation,
             // Inline script: "<" could close the script element ("</script>") or
             // keep it open ("<!--<script>"), and U+2028/U+2029 are line terminators

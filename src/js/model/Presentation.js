@@ -678,6 +678,16 @@ export class Presentation extends EventEmitter {
          */
         this.svgPath = "";
 
+        /** The directory of the HTML files, as stored in the `outputDir` key of the presentation file.
+         *
+         * A path relative to the directory of the presentation file, with forward slashes;
+         * empty when the HTML files are written beside it.
+         *
+         * @default
+         * @type {string}
+         */
+        this.outputDir = "";
+
         /** The sequence of frames in this presentation.
          *
          * @default
@@ -945,6 +955,7 @@ export class Presentation extends EventEmitter {
         return {
             ...(this.svgPath ? {svg: this.svgPath} : {}),
             ...(this.explicitTitle ? {title: this.explicitTitle} : {}),
+            ...(this.outputDir ? {outputDir: this.outputDir} : {}),
             aspectWidth               : this.aspectWidth,
             aspectHeight              : this.aspectHeight,
             enableKeyboardZoom        : this.enableKeyboardZoom,
@@ -1016,6 +1027,13 @@ export class Presentation extends EventEmitter {
         }
         else if (storable.hasOwnProperty("svg")) {
             this.ignoredStorableKeys.push("svg");
+        }
+        this.outputDir = "";
+        if (typeof storable.outputDir === "string") {
+            this.outputDir = storable.outputDir;
+        }
+        else if (storable.hasOwnProperty("outputDir")) {
+            this.ignoredStorableKeys.push("outputDir");
         }
         copyIfSet(this, storable, "aspectWidth");
         copyIfSet(this, storable, "aspectHeight");
