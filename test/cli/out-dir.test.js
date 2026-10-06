@@ -13,7 +13,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {runSozi, withTempDeck} = require("./helpers.js");
+const {runSozi, withTempDeck, decodePng} = require("./helpers.js");
 
 /** Run a command in the directory of a temp deck and check that it succeeded. */
 function soziOk(deck, ...args) {
@@ -95,50 +95,6 @@ function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
     finally {
         fs.rmSync(profile, {recursive: true, force: true});
     }
-}
-
-/** Decode an 8-bit, non-interlaced RGB or RGBA PNG (what Chrome writes).
- *
- * @returns {{width: number, height: number, pixel: Function}} - `pixel(x, y)` gives `[r, g, b]`.
- */
-function decodePng(buf) {
-    const zlib = require("node:zlib");
-    let width, height, channels;
-    const idat = [];
-    for (let o = 8; o < buf.length; ) {
-        const length = buf.readUInt32BE(o);
-        const type = buf.toString("ascii", o + 4, o + 8);
-        const data = buf.subarray(o + 8, o + 8 + length);
-        if (type === "IHDR") {
-            width = data.readUInt32BE(0);
-            height = data.readUInt32BE(4);
-            assert.equal(data[8], 8, "PNG bit depth");
-            assert.equal(data[12], 0, "PNG interlace");
-            channels = {2: 3, 6: 4}[data[9]];
-            assert.ok(channels, `PNG color type ${data[9]}`);
-        }
-        else if (type === "IDAT") {
-            idat.push(data);
-        }
-        o += 12 + length;
-    }
-    const raw = zlib.inflateSync(Buffer.concat(idat));
-    const stride = width * channels;
-    const pixels = Buffer.alloc(stride * height);
-    for (let y = 0; y < height; y++) {
-        const filter = raw[y * (stride + 1)];
-        for (let i = 0; i < stride; i++) {
-            const x = raw[y * (stride + 1) + 1 + i];
-            const a = i >= channels ? pixels[y * stride + i - channels] : 0;
-            const b = y > 0 ? pixels[(y - 1) * stride + i] : 0;
-            const c = i >= channels && y > 0 ? pixels[(y - 1) * stride + i - channels] : 0;
-            const p = a + b - c;
-            const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a :
-                Math.abs(p - b) <= Math.abs(p - c) ? b : c;
-            pixels[y * stride + i] = (x + [0, a, b, (a + b) >> 1, paeth][filter]) & 0xff;
-        }
-    }
-    return {width, height, pixel: (x, y) => [...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)]};
 }
 
 /** Read a JSON file. */
