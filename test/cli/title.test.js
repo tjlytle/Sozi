@@ -46,6 +46,15 @@ function setJsonTitle(deck, title) {
     fs.writeFileSync(deck.json, JSON.stringify(data, null, "  "));
 }
 
+/** A title with characters that HTML must escape. */
+const TRICKY = "<b>&\"";
+
+/** Decode the character references that the HTML serializer emits in text. */
+function decodeHtml(text) {
+    return text.replace(/&(lt|gt|quot|#39|nbsp|amp);/g, (m, name) =>
+        ({lt: "<", gt: ">", quot: "\"", "#39": "'", nbsp: "\u00a0", amp: "&"})[name]);
+}
+
 /** The document title of an HTML file after its scripts ran in headless Chrome.
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
@@ -70,7 +79,7 @@ function browserTitle(t, file) {
         assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
         const match = /<title>([^<]*)<\/title>/.exec(result.stdout);
         assert.ok(match, "no <title> in the dumped DOM");
-        return match[1];
+        return decodeHtml(match[1]);
     }
     finally {
         fs.rmSync(profile, {recursive: true, force: true});
@@ -178,6 +187,24 @@ describe("presentation title", () => {
             const title = browserTitle(t, htmlPaths(deck).html);
             if (title !== null) {
                 assert.match(title, /My Talk/);
+            }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("is HTML-escaped in the generated files", (t) => {
+        const deck = withTempDeck("basic");
+        try {
+            build(deck, "--title", TRICKY);
+            const {html, presenter} = htmlPaths(deck);
+            assert.equal(htmlTitle(html), "&lt;b&gt;&amp;&quot;");
+            assert.equal(htmlTitle(presenter), "&lt;b&gt;&amp;&quot;");
+            assert.equal(presentationData(html).title, TRICKY);
+            const title = browserTitle(t, html);
+            if (title !== null) {
+                assert.ok(title.startsWith(TRICKY), title);
             }
         }
         finally {

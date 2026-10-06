@@ -97,7 +97,7 @@ export class Preview {
         // Set the window title to the presentation title.
         // The title can change when the presentation data is loaded or edited.
         if (this.presentation.document) {
-            document.querySelector("html head title").innerHTML = this.presentation.title;
+            document.querySelector("html head title").textContent = this.presentation.title;
         }
 
         // this.container is assumed to have padding: 0
