@@ -12,6 +12,7 @@ import Jed from "jed";
 import screenfull from "screenfull";
 import * as remote from "@electron/remote";
 import settings from "electron-app-settings";
+import {getCliOptions} from "../cli";
 
 /** Type for Electron browser windows.
  *
@@ -49,6 +50,20 @@ export class Electron extends AbstractBackend {
 
         super(controller, container, "sozi-editor-backend-Electron-input", _("Open an SVG file from your computer"));
 
+        /** A dictionary of file watchers.
+         *
+         * Populated by the {@linkcode module:backend/Electron.Electron#load|load} method.
+         *
+         * @type {object.<string, fs.FSWatcher>}
+         */
+        this.watchers = {};
+
+        // In command-line mode, the CLI runner opens the file and the
+        // window is hidden: no window geometry, no close dialog, no file chooser.
+        if (getCliOptions()) {
+            return;
+        }
+
         this.loadConfiguration();
 
         document.getElementById("sozi-editor-backend-Electron-input").addEventListener("click", () => this.openFileChooser());
@@ -83,14 +98,6 @@ export class Electron extends AbstractBackend {
                 window.setTimeout(() => this.quit(true));
             }
         });
-
-        /** A dictionary of file watchers.
-         *
-         * Populated by the {@linkcode module:backend/Electron.Electron#load|load} method.
-         *
-         * @type {object.<string, fs.FSWatcher>}
-         */
-        this.watchers = {};
 
         // If a file name was provided on the command line,
         // check that the file exists and load it.

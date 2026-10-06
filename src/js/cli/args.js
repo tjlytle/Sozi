@@ -28,11 +28,15 @@ const CHROMIUM_SWITCHES = new Set([
     "--disable-features"
 ]);
 
-/** Flags that never take a value (besides those starting with `--no-`).
+/** Flags that never take a value.
+ *
+ * Every boolean flag of every command must be listed here, so that
+ * `--flag deck.svg` does not take `deck.svg` as the value of the flag.
+ * (`--no-*` flags are also treated as boolean by the parser.)
  *
  * @type {Set<string>}
  */
-const BOOLEAN_FLAGS = new Set(["help"]);
+const BOOLEAN_FLAGS = new Set(["help", "no-json"]);
 
 /** Parse the command line of the Electron main process.
  *

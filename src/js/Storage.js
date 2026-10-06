@@ -101,6 +101,22 @@ export class Storage {
          */
         this.htmlNeedsSaving = false;
 
+        /** Create or update the JSON and HTML files when a presentation is opened?
+         *
+         * The command-line mode sets it to `false` so that opening a
+         * presentation writes nothing.
+         *
+         * @default
+         * @type {boolean}
+         */
+        this.writeOnOpen = true;
+
+        /** The backend instances created by {@linkcode module:Storage.Storage#activate|activate}.
+         *
+         * @type {module:backend/AbstractBackend.AbstractBackend[]}
+         */
+        this.backends = [];
+
         // Adjust the template path depending on the target platform.
         // In the web browser, __dirname is set to "/src/js". The leading "/" will result
         // in an incorrect URL if the app is not hosted at the root of its domain.
@@ -137,7 +153,7 @@ export class Storage {
             const listItem = document.createElement("li");
             document.querySelector("#sozi-editor-view-preview ul").appendChild(listItem);
 
-            const backendInstance = new backend(this.controller, listItem);
+            this.backends.push(new backend(this.controller, listItem));
         }
     }
 
@@ -262,22 +278,28 @@ export class Storage {
             }
 
             // Create a JSON file for the presentation data.
-            fileDescriptor = await this.backend.create(name, location, "application/json", this.getJSONData());
+            if (this.writeOnOpen) {
+                fileDescriptor = await this.backend.create(name, location, "application/json", this.getJSONData());
+            }
         }
 
-        if (!this.jsonFileDescriptor) {
+        if (fileDescriptor && !this.jsonFileDescriptor) {
             this.jsonFileDescriptor = fileDescriptor;
             this.backend.autosave(fileDescriptor, () => this.jsonNeedsSaving, () => this.getJSONData());
         }
 
         this.controller.onLoad();
 
+        if (!this.writeOnOpen) {
+            return;
+        }
+
         const svgName           = this.backend.getName(this.svgFileDescriptor);
         const htmlFileName      = replaceFileExtWith(svgName, ".sozi.html");
         const presenterFileName = replaceFileExtWith(svgName, "-presenter.sozi.html");
         // TODO Save only if SVG is more recent than HTML.
-        this.createHTMLFile(htmlFileName, location);
-        this.createPresenterHTMLFile(presenterFileName, location, htmlFileName);
+        await this.createHTMLFile(htmlFileName, location);
+        await this.createPresenterHTMLFile(presenterFileName, location, htmlFileName);
     }
 
     /** Create the presentation HTML file if it does not exist.
@@ -290,7 +312,7 @@ export class Storage {
         try {
             fileDescriptor = await this.backend.find(name, location);
             if (this.controller.preferences.saveMode !== "manual") {
-                this.backend.save(fileDescriptor, this.exportHTML());
+                await this.backend.save(fileDescriptor, this.exportHTML());
             }
         }
         catch (err) {
@@ -312,10 +334,10 @@ export class Storage {
     async createPresenterHTMLFile(name, location, htmlFileName) {
         try {
             const fileDescriptor = await this.backend.find(name, location);
-            this.backend.save(fileDescriptor, this.exportPresenterHTML(htmlFileName));
+            await this.backend.save(fileDescriptor, this.exportPresenterHTML(htmlFileName));
         }
         catch (err) {
-            this.backend.create(name, location, "text/html", this.exportPresenterHTML(htmlFileName));
+            await this.backend.create(name, location, "text/html", this.exportPresenterHTML(htmlFileName));
         }
     }
 

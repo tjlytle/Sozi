@@ -15,15 +15,14 @@ import {Preview} from "./view/Preview";
 import {Properties} from "./view/Properties";
 import {Toolbar} from "./view/Toolbar";
 import {Timeline} from "./view/Timeline";
-import {getCliOptions, runCli} from "./cli";
+import {getCliOptions, catchCliErrors, runCli} from "./cli";
 
 import nunjucks from "nunjucks";
 
 window.addEventListener("load", () => {
     const cliOptions = getCliOptions();
     if (cliOptions) {
-        runCli(cliOptions);
-        return;
+        catchCliErrors();
     }
 
     nunjucks.configure({watch: false});
@@ -41,6 +40,11 @@ window.addEventListener("load", () => {
     const toolbar      = new Toolbar(document.getElementById("sozi-editor-view-toolbar"), properties, presentation, viewport, controller);
     const timeline     = new Timeline(document.getElementById("sozi-editor-view-timeline"), presentation, selection, controller);
     controller.activate();
+
+    if (cliOptions) {
+        runCli(cliOptions, {controller, storage: controller.storage, preferences});
+        return;
+    }
 
     const body         = document.querySelector("body");
     const left         = document.querySelector(".left");

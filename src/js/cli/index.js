@@ -14,7 +14,32 @@
  * @module
  */
 
+import {build} from "./commands/build";
+
 const CLI_PREFIX = "--sozi-cli=";
+
+const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+
+/** The available commands.
+ *
+ * A command receives a context `{storage, svg, presentation, flags, warnings}`
+ * once the presentation is loaded, and returns a result object with an `ok` property.
+ *
+ * @type {{[name: string]: Function}}
+ */
+const COMMANDS = {build};
+
+/** Has a result been sent to the main process?
+ *
+ * @type {boolean}
+ */
+let replied = false;
+
+/** The fields of the result known so far, reported by the global error handlers.
+ *
+ * @type {object}
+ */
+let partialResult = {};
 
 /** Get the CLI options passed by the main process.
  *
@@ -30,33 +55,114 @@ export function getCliOptions() {
 
 /** Send the result of the command to the main process, which exits.
  *
+ * Only the first call has an effect.
+ *
  * @param {number} code - The exit code.
  * @param {object} result - The JSON document to print on stdout.
  */
 function reply(code, result) {
+    if (replied) {
+        return;
+    }
+    replied = true;
     const {ipcRenderer} = require("electron");
     ipcRenderer.send("sozi-cli:result", {code, json: JSON.stringify(result)});
+}
+
+/** Send a line to the standard error of the main process.
+ *
+ * @param {string} line - The text to log.
+ */
+function log(line) {
+    const {ipcRenderer} = require("electron");
+    ipcRenderer.send("sozi-cli:log", line);
+}
+
+/** Fail with exit code 1 on any uncaught error in the renderer.
+ *
+ * Call this as early as possible in command-line mode so that a failure
+ * never leaves the process running without a result.
+ */
+export function catchCliErrors() {
+    const fail = err => reply(1, Object.assign({}, partialResult, {ok: false, error: String(err), stack: err && err.stack}));
+    window.addEventListener("error", evt => fail(evt.error || evt.message));
+    window.addEventListener("unhandledrejection", evt => fail(evt.reason));
 }
 
 /** Run a CLI command in the renderer.
  *
  * @param {object} options - The value returned by {@link getCliOptions}.
+ * @param {object} editor - The editor objects.
+ * @param {module:Controller.Controller} editor.controller - The controller.
+ * @param {module:Storage.Storage} editor.storage - The storage, already activated.
+ * @param {module:model/Preferences.Preferences} editor.preferences - The user preferences.
+ * @returns {Promise} - A promise resolved when the result has been sent.
  */
-export function runCli(options) {
-    const fs = require("fs");
+export async function runCli(options, {controller, storage, preferences}) {
+    const fs   = require("fs");
     const path = require("path");
 
-    const file = options.positionals[0];
-    if (!file) {
-        reply(2, {ok: false, error: "missing file argument"});
-        return;
-    }
+    const warnings = [];
+    const errors   = [];
+    const result   = partialResult = {command: options.command, svg: null, presentation: null, warnings, errors};
 
-    const svgPath = path.resolve(options.cwd, file);
-    if (!fs.existsSync(svgPath)) {
-        reply(1, {ok: false, error: `file not found: ${svgPath}`});
-        return;
-    }
+    try {
+        // In-memory settings only: preferences are never saved in CLI mode.
+        preferences.animateTransitions = false;
+        preferences.saveMode           = "manual";
+        preferences.reloadMode         = "manual";
 
-    reply(1, {ok: false, error: `command not implemented: ${options.command}`});
+        controller.info = body => {
+            warnings.push(body);
+            log(`info: ${body}`);
+        };
+        controller.error = body => {
+            errors.push(body);
+            log(`error: ${body}`);
+        };
+
+        const command = COMMANDS[options.command];
+        if (!command) {
+            reply(2, Object.assign(result, {ok: false, error: `unknown command: ${options.command}`, usage: USAGE}));
+            return;
+        }
+
+        const file = options.positionals[0];
+        if (!file) {
+            reply(2, Object.assign(result, {ok: false, error: "missing file argument"}));
+            return;
+        }
+
+        result.svg = path.resolve(options.cwd, file);
+        result.presentation = result.svg.replace(/\.[^/.]+$/, ".sozi.json");
+        if (!fs.existsSync(result.svg)) {
+            reply(1, Object.assign(result, {ok: false, error: `file not found: ${result.svg}`}));
+            return;
+        }
+
+        const backend = storage.backends.find(b => b.constructor.name === "Electron");
+        storage.writeOnOpen = false;
+        await storage.setSVGFile(result.svg, backend);
+        if (errors.length) {
+            reply(1, Object.assign(result, {ok: false, error: errors[0]}));
+            return;
+        }
+
+        const commandResult = await command({
+            storage,
+            svg:          result.svg,
+            presentation: result.presentation,
+            flags:        options.flags,
+            warnings
+        });
+        Object.assign(result, commandResult);
+        if (errors.length) {
+            result.ok = false;
+            result.error = errors[0];
+        }
+        reply(result.ok ? 0 : 1, result);
+    }
+    catch (err) {
+        reply(1, Object.assign(result, {ok: false, error: String(err), stack: err && err.stack}));
+    }
 }
