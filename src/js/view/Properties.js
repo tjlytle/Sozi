@@ -334,6 +334,10 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Player")),
 
+            h("label", {for: "field-explicitTitle"}, _("Title")),
+            this.renderTextField("explicitTitle", false, controller.getPresentationProperty, controller.setPresentationProperty, true,
+                controller.presentation.svgTitle || "Untitled"),
+
             h("div.side-by-side", [
                 _("Support the browser's \"Back\" button to move to the previous frame"),
                 this.renderToggleField(h("i.fa.fa-arrow-circle-left"), _("Moving from one frame to another will change the content of the location bar automatically."), "updateURLOnFrameChange", controller.getPresentationProperty, controller.setPresentationProperty)
@@ -578,9 +582,10 @@ export class Properties extends VirtualDOMView {
      * @param {Function} getter - A function that returns the current value of the property in the model.
      * @param {Function} setter - A function that updates the value of the property in the model.
      * @param {boolean} acceptsEmpty - Is an empty field a valid entry?
+     * @param {string} [placeholder] - A hint to show when the field is empty.
      * @returns {VNode} - A virtuel DOM tree.
      */
-    renderTextField(property, disabled, getter, setter, acceptsEmpty) {
+    renderTextField(property, disabled, getter, setter, acceptsEmpty, placeholder) {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
@@ -592,6 +597,7 @@ export class Properties extends VirtualDOMView {
             type: "text",
             className,
             disabled,
+            placeholder,
             onchange() {
                 const value = this.value;
                 if (acceptsEmpty || value.length) {

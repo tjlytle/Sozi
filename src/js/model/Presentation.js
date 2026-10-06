@@ -648,15 +648,24 @@ export class Presentation extends EventEmitter {
          */
         this.document = null;
 
-        /** The title of this presentation.
+        /** The text of the SVG document's <title> element.
          *
-         * It is extracted automatically from the SVG document's <title> element
-         * if it exists.
+         * It is extracted automatically when the SVG document is attached.
+         * It is empty if the element is absent or empty.
          *
          * @default
          * @type {string}
          */
-        this.title = "Untitled";
+        this.svgTitle = "";
+
+        /** The title set explicitly in the presentation data.
+         *
+         * When not empty, it overrides the SVG title.
+         *
+         * @default
+         * @type {string}
+         */
+        this.explicitTitle = "";
 
         /** The sequence of frames in this presentation.
          *
@@ -884,12 +893,23 @@ export class Presentation extends EventEmitter {
 
         // Extract the title of the document and remove the <title> element.
         const svgTitle = this.document.root.querySelector("svg > title");
-        this.title = svgTitle ? svgTitle.firstChild.wholeText.trim() : "Untitled";
+        this.svgTitle = svgTitle ? svgTitle.textContent.trim() : "";
         if (svgTitle) {
             svgTitle.parentNode.removeChild(svgTitle);
         }
 
         this.emit("svgChange");
+    }
+
+    /** The title of this presentation.
+     *
+     * The explicit title if set, else the SVG title, else "Untitled".
+     *
+     * @readonly
+     * @type {string}
+     */
+    get title() {
+        return this.explicitTitle || this.svgTitle || "Untitled";
     }
 
     /** Sets the initial state of all cameras to fit the bounding box of the SVG content. */
@@ -912,6 +932,7 @@ export class Presentation extends EventEmitter {
      */
     toStorable() {
         return {
+            ...(this.explicitTitle ? {title: this.explicitTitle} : {}),
             aspectWidth               : this.aspectWidth,
             aspectHeight              : this.aspectHeight,
             enableKeyboardZoom        : this.enableKeyboardZoom,
@@ -950,6 +971,7 @@ export class Presentation extends EventEmitter {
      */
     toMinimalStorable() {
         return {
+            ...(this.explicitTitle ? {title: this.explicitTitle} : {}),
             enableKeyboardZoom      : this.enableKeyboardZoom,
             enableKeyboardRotation  : this.enableKeyboardRotation,
             enableKeyboardNavigation: this.enableKeyboardNavigation,
@@ -968,6 +990,9 @@ export class Presentation extends EventEmitter {
      * @param {object} storable - A plain object with the properties to copy.
      */
     fromStorable(storable) {
+        if (storable.hasOwnProperty("title")) {
+            this.explicitTitle = storable.title;
+        }
         copyIfSet(this, storable, "aspectWidth");
         copyIfSet(this, storable, "aspectHeight");
         copyIfSet(this, storable, "enableKeyboardZoom");

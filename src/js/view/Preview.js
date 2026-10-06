@@ -69,9 +69,6 @@ export class Preview {
      * @listens module:model/Presentation.svgChange
      */
     onLoad() {
-        // Set the window title to the presentation title
-        document.querySelector("html head title").innerHTML = this.presentation.title;
-
         // Replace the content of the preview area with the SVG document
         while(this.container.hasChildNodes()) {
             this.container.removeChild(this.container.firstChild);
@@ -97,6 +94,12 @@ export class Preview {
      * @see {@linkcode module:player/Viewport.Viewport#repaint}
      */
     repaint() {
+        // Set the window title to the presentation title.
+        // The title can change when the presentation data is loaded or edited.
+        if (this.presentation.document) {
+            document.querySelector("html head title").innerHTML = this.presentation.title;
+        }
+
         // this.container is assumed to have padding: 0
         const parentWidth  = this.container.parentNode.clientWidth;
         const parentHeight = this.container.parentNode.clientHeight;
