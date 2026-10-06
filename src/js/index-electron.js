@@ -97,6 +97,12 @@ function cliExit(code, result) {
 }
 
 function cliMain() {
+    // The command line never shows a window: render at device scale 1 on any
+    // display, so that capturePage returns images of the requested size in
+    // pixels instead of falling back to the slower Chrome DevTools Protocol.
+    // This overrides a --force-device-scale-factor given on the command line.
+    app.commandLine.appendSwitch("force-device-scale-factor", "1");
+
     if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
         cliExit(2, {error: "no display; run under xvfb-run"});
         return;
