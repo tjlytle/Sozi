@@ -160,6 +160,9 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             setExportSettings(deck, Object.assign({exportToVideoFormat: "png"}, VIDEO_SETTINGS));
             const run = guiExport(deck, "video", ["--force-device-scale-factor=2"]);
             assert.equal(run.code, 0, run.output);
+            // The device-pixel images of capturePage are scaled down, without the slower CDP fallback.
+            assert.match(run.output, /Export capture: capturePage\b/);
+            assert.doesNotMatch(run.output, /Export capture: \S*cdp/);
             const dir = path.join(deck.dir, "basic-sozi-export");
             const names = fs.readdirSync(dir).sort();
             assert.equal(names.length, VIDEO_IMAGES);

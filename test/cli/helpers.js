@@ -24,11 +24,11 @@ const electronBinary = require("electron");
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
  * @param {object} [opts] - `cwd` (default: the repository), `env` (default: process.env),
- *  `timeout` in milliseconds (default: 60000).
+ *  `timeout` in milliseconds (default: 60000), `switches`: Chromium switches placed before `--cli`.
  * @returns {{code: number|null, stdout: string, stderr: string, json: object|null}}
  */
-function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000} = {}) {
-    const result = spawnSync(electronBinary, [appDir, "--cli", ...args], {
+function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
+    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...args], {
         cwd,
         env,
         encoding: "utf8",

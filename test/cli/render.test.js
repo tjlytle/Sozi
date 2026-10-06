@@ -190,6 +190,8 @@ describe("render --all", () => {
             t.diagnostic(`32-frame render --all at 320x180: ${Date.now() - start} ms`);
             assert.equal(json.files.length, 32);
             // No frame is blank: capturePage is used throughout, without falling back to the slower CDP.
+            // The command line renders at device scale 1 on any display (see the scale-factor-2 test),
+            // so this holds on a high-density desktop as under xvfb.
             assert.equal(json.capture, "capturePage");
             assert.deepEqual(json.warnings, []);
             assert.equal(json.frames.length, 32);
@@ -200,6 +202,23 @@ describe("render --all", () => {
                 const {colours} = checkPng(file, 320, 180);
                 assert.ok(colours > 20, `${file} has ${colours} colours`);
             }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+});
+
+describe("render on a display with scale factor 2", () => {
+    test("captures with capturePage at the requested size, without the slower fallback", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const {json} = soziOk(deck, ["render", "--all", "--size", "320x180", "--out", "frames", "basic.svg"],
+                {switches: ["--force-device-scale-factor=2"]});
+            assert.equal(json.capture, "capturePage");
+            assert.deepEqual(json.warnings, []);
+            assert.deepEqual(json.size, {width: 320, height: 180});
+            json.files.forEach(file => checkBasicPng(file, 320, 180));
         }
         finally {
             deck.cleanup();

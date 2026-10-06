@@ -29,11 +29,14 @@ const UNDO_STACK_LIMIT = 100;
  */
 const EXPORT_OPTIONS = {frameNumber: true};
 
-/** Log the warnings of an export result.
+/** Log the capture method and the warnings of an export result.
  *
  * @param {?object} result - The result of an export function (absent in the browser).
  */
-function logExportWarnings(result) {
+function logExportResult(result) {
+    if (result && result.capture) {
+        console.log(`Export capture: ${result.capture}`);
+    }
     if (result && result.warnings) {
         for (const warning of result.warnings) {
             console.log(`Export warning: ${warning}`);
@@ -1798,7 +1801,7 @@ export class Controller extends EventEmitter {
         await this.save();
         try {
             const result = await exporter.exportToPDF(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
-            logExportWarnings(result);
+            logExportResult(result);
             this.info(_("Presentation was exported to PDF."));
         }
         catch (e) {
@@ -1815,7 +1818,7 @@ export class Controller extends EventEmitter {
         await this.save();
         try {
             const result = await exporter.exportToPPTX(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
-            logExportWarnings(result);
+            logExportResult(result);
             this.info(_("Presentation was exported to PPTX."));
         }
         catch (e) {
@@ -1832,7 +1835,7 @@ export class Controller extends EventEmitter {
         await this.save();
         try {
             const result = await exporter.exportToVideo(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
-            logExportWarnings(result);
+            logExportResult(result);
             this.info(_("Presentation was exported to video."));
         }
         catch (e) {

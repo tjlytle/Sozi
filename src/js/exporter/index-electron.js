@@ -604,9 +604,11 @@ export class ExportWindow {
 
     /** Capture the current state of the window as a PNG image.
      *
-     * Uses `capturePage`, and falls back to the Chrome DevTools Protocol (at device
-     * scale 1) if the image is empty, has another size (high-density display),
-     * or is uniform while the SVG has visible content, even after waiting for a paint.
+     * Uses `capturePage`. On a high-density display, where `capturePage` returns
+     * device pixels, an image that is exactly an integer multiple of the requested
+     * size is scaled down. It falls back to the Chrome DevTools Protocol (at device
+     * scale 1) if the image is empty, has another size, or is uniform while the SVG
+     * has visible content, even after waiting for a paint.
      *
      * @returns {Promise<Buffer>} - A PNG image of exactly the requested size.
      */
@@ -620,13 +622,19 @@ export class ExportWindow {
                 await this.settle();
                 img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
             }
-            const size = img.getSize();
+            let size = img.getSize();
+            const scale = size.width / this.size.width;
+            if (!img.isEmpty() && Number.isInteger(scale) && scale > 1 && size.height === scale * this.size.height) {
+                // On a high-density display, capturePage returns device pixels: scale them down.
+                img  = img.resize({width: this.size.width, height: this.size.height, quality: "best"});
+                size = img.getSize();
+            }
             if (img.isEmpty()) {
                 this.useCDP = true;
                 this.warnings.push("capturePage returned an empty image; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
             }
             else if (size.width !== this.size.width || size.height !== this.size.height) {
-                // On a high-density display, capturePage returns device pixels.
+                // Device pixels at a fractional scale factor, or a window clamped to the screen.
                 this.useCDP = true;
                 this.warnings.push(`capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`);
             }
