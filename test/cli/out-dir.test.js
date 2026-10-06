@@ -36,10 +36,27 @@ function soziUsageError(deck, ...args) {
 
 const CHROME = "/usr/bin/google-chrome";
 
+/** Check the result of a headless Chrome run.
+ *
+ * Only a failure to spawn Chrome (ENOENT, EACCES) skips the test;
+ * a timeout or a non-zero exit status fails it.
+ *
+ * @returns {boolean} - `true` if Chrome ran, `false` if the test was skipped.
+ */
+function chromeRan(t, result) {
+    if (result.error && ["ENOENT", "EACCES"].includes(result.error.code)) {
+        t.skip(`headless Chrome could not be run: ${result.error}`);
+        return false;
+    }
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
+    return true;
+}
+
 /** The DOM of an HTML file after its scripts ran in headless Chrome.
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
- * a Chrome run that fails is a test failure.
+ * a Chrome run that fails or times out is a test failure.
  */
 function browserDom(t, file) {
     if (!fs.existsSync(CHROME)) {
@@ -53,11 +70,9 @@ function browserDom(t, file) {
             `--user-data-dir=${profile}`,
             "--dump-dom", "file://" + file
         ], {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024});
-        if (result.error) {
-            t.skip(`headless Chrome could not be run: ${result.error}`);
+        if (!chromeRan(t, result)) {
             return null;
         }
-        assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
         return result.stdout;
     }
     finally {
@@ -67,7 +82,8 @@ function browserDom(t, file) {
 
 /** A PNG screenshot of an HTML file in headless Chrome, after its scripts ran.
  *
- * Skips the test and returns null when Chrome is missing or cannot be spawned.
+ * Skips the test and returns null when Chrome is missing or cannot be spawned;
+ * a Chrome run that fails or times out is a test failure.
  */
 function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
     if (!fs.existsSync(CHROME)) {
@@ -85,11 +101,9 @@ function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
             `--window-size=${width},${height}`,
             `--screenshot=${png}`, "file://" + file
         ], {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL"});
-        if (result.error) {
-            t.skip(`headless Chrome could not be run: ${result.error}`);
+        if (!chromeRan(t, result)) {
             return null;
         }
-        assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
         return decodePng(fs.readFileSync(png));
     }
     finally {
@@ -419,7 +433,11 @@ describe("--out-dir", () => {
         }
     });
 
-    test("an output directory that cannot be created fails without writing anything", () => {
+    test("an output directory that cannot be created fails without writing anything", t => {
+        if (process.getuid?.() === 0) {
+            t.skip("root can write to a read-only directory");
+            return;
+        }
         const deck = withTempDeck("linked");
         const locked = path.join(deck.dir, "locked");
         try {
@@ -554,6 +572,9 @@ describe("runtime check", () => {
             // Control: without the image file, the same page has no green pixel.
             fs.rmSync(path.join(deck.dir, "img", "dot.png"));
             const missing = browserScreenshot(t, html);
+            if (missing === null) {
+                return;
+            }
             assert.equal(greenPixels(missing), 0);
         }
         finally {
