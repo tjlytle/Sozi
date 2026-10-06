@@ -100,10 +100,14 @@ logs go to the standard error. Every document has the fields `ok`, `command`,
 messages are always in English.
 
 ```
-sozi --cli inspect [--frame N] deck.svg
-sozi --cli build [--write-json] [--title TITLE] deck.svg
-sozi --cli set --title TITLE deck.svg
+sozi --cli inspect [--frame N] [--presentation P.sozi.json] deck.svg
+sozi --cli build [--write-json] [--title TITLE] [--presentation P.sozi.json] deck.svg
+sozi --cli set --title TITLE [--presentation P.sozi.json] deck.svg
 ```
+
+The file argument may also be a presentation file, e.g.
+`sozi --cli build talk.sozi.json` (see
+[Several presentations from one SVG](#several-presentations-from-one-svg)).
 
 When running from the source tree, replace `sozi` with
 `node_modules/.bin/electron build/electron` (after `gulp`).
@@ -111,7 +115,9 @@ When running from the source tree, replace `sozi` with
 * `--cli inspect` loads `deck.svg` and `deck.sozi.json` and reports the
   title (with `titleSource`, see below, and `svgTitle`, the title of the SVG
   document or `""`), the aspect ratio, the layers of the SVG (with `inJson` telling whether
-  the JSON file has properties for each layer) and, for each frame, its
+  the JSON file has properties for each layer), `svgSource` (`"json"` when the
+  `svg` key of the presentation file named the SVG, `"flag"` with
+  `--presentation`, else `"default"`) and, for each frame, its
   properties and, for each layer, the reference element (`referenceMissing` is
   true when the element is not in the SVG), the outline element, the link
   flag and the camera. It writes no file.
@@ -134,6 +140,8 @@ When running from the source tree, replace `sozi` with
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
   explicit title. Use `--title=TITLE` for a title that starts with `--`.
+* `--presentation P.sozi.json` (for every command, with an SVG file argument)
+  names the presentation file instead of `deck.sozi.json`; see below.
 * `--size WxH` sets the size of the hidden window (default `1280x720`).
 * `--timeout S` stops the command after `S` seconds (default `120`) with exit code 1.
 
@@ -151,16 +159,61 @@ the player and in the editor window, is the first of:
 
 The title of the SVG document is never copied into `deck.sozi.json`.
 
-The file name must have an extension: the presentation file is the SVG file
+The file name must have an extension: by default, the presentation file is the SVG file
 name with its extension replaced by `.sozi.json`.
+
+### Several presentations from one SVG
+
+A presentation file can have any name ending in `.sozi.json`, so one SVG
+document can have several presentations, e.g. a short and a long talk or one
+per language. Only a file ending in `.sozi.json` is a presentation file: another
+`.json` file is refused, even beside an SVG of the same name (exit code 1 on the
+command line, an error in the editor), and nothing is written. The editor's file
+chooser lists every `.json` file because it cannot filter on a double extension.
+Name the presentation file with `--presentation`; if it does not
+exist, it is created from the SVG like `deck.sozi.json` on the first open:
+
+```
+sozi --cli build --presentation talk-es.sozi.json deck.svg
+sozi --cli build --presentation es/spanish.sozi.json deck.svg
+```
+
+The output names follow the presentation file, not the SVG, and the HTML files
+are written beside it: `talk-es.sozi.json` gives `talk-es.sozi.html` and
+`talk-es-presenter.sozi.html`. `deck.sozi.html` is not written.
+
+A presentation file records its SVG document in the key `svg`, a path relative
+to the directory of the presentation file, e.g. `"svg": "../deck.svg"` in
+`es/spanish.sozi.json`. Without the key, the SVG document is `<base>.svg`
+beside the presentation file, so `deck.sozi.json` never gets one. A
+presentation file can then be opened directly, on the command line
+(`sozi --cli inspect es/spanish.sozi.json`) and in the editor
+(`sozi es/spanish.sozi.json`, or choose it in the file chooser).
+Opening a presentation file with another SVG document (e.g.
+`--presentation talk.sozi.json other.svg`, or opening `deck.svg` when
+`deck.sozi.json` names another SVG) rewrites its `svg` key, with the warning
+`svg key changed from X to Y` (an info notification in the editor).
+
+In the editor, images, media and custom CSS and JavaScript files keep their
+paths relative to the SVG document. The generated HTML copies the relative image
+and media hrefs of the SVG unchanged, so HTML written in another directory than
+the SVG (a presentation file in a subdirectory) has broken relative links until
+the output-directory feature lands; `build` warns about it.
+
+A presentation file that is not JSON or has no `frames` array
+(`not a presentation file: <path>: <reason>`), a `.json` file argument that does
+not end in `.sozi.json`, a presentation file without an `svg` key and without
+`<base>.svg` beside it, or whose `svg` key names a missing file, is an error (exit code 1);
+`--presentation` naming a directory or a file that does not end in `.sozi.json`, or given with a
+presentation file argument, is a usage error (exit code 2).
 
 Exit codes:
 
 | Code | Meaning                                                                                       |
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
-| `1`  | The command failed: missing or invalid file, unparsable JSON, unknown frame, write error, timeout, crash. |
-| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, no display. |
+| `1`  | The command failed: missing or invalid file, unparsable JSON, missing SVG of a presentation file, unknown frame, write error, timeout, crash. |
+| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.

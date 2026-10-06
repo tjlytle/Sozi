@@ -13,7 +13,7 @@
  *
  * @type {{[name: string]: boolean}}
  */
-export const FLAGS = {frame: true};
+export const FLAGS = {frame: true, presentation: true};
 
 /** Read the layer ids that the presentation JSON file has properties for.
  *
@@ -102,13 +102,18 @@ function describeFrame(frame, index) {
  * The title is reported with its source: `"json"` for an explicit title,
  * `"svg"` for the title of the SVG document, `"default"` when there is neither.
  *
+ * The SVG file is reported with its source: `"json"` when the `svg` key of the
+ * presentation file named it, `"flag"` when `--presentation` named the
+ * presentation file, `"default"` otherwise.
+ *
  * @param {object} context - The command context.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
  * @param {string} context.presentation - The absolute path of the JSON file.
+ * @param {string} context.svgSource - How the SVG file was found.
  * @param {object} context.flags - The command-line flags.
- * @returns {object} - The command result: `{ok, title, titleSource, svgTitle, aspect, layers, frames}`, or `{ok: false, error}`.
+ * @returns {object} - The command result: `{ok, svgSource, title, titleSource, svgTitle, aspect, layers, frames}`, or `{ok: false, error}`.
  */
-export function inspect({storage, presentation: jsonPath, flags}) {
+export function inspect({storage, presentation: jsonPath, svgSource, flags}) {
     const presentation = storage.presentation;
 
     let frames = presentation.frames.map((frame, index) => ({frame, index}));
@@ -129,6 +134,7 @@ export function inspect({storage, presentation: jsonPath, flags}) {
 
     return {
         ok:     true,
+        svgSource,
         title:  presentation.title,
         titleSource: presentation.explicitTitle ? "json" : presentation.svgTitle ? "svg" : "default",
         svgTitle:    presentation.svgTitle,
