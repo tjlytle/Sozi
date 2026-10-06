@@ -10,27 +10,7 @@
  * @module
  */
 
-/** Find why a directory cannot be the output directory of the HTML files.
- *
- * The directory may not exist yet (it is created by `build`), but neither it
- * nor any of its existing ancestors may be something else than a directory.
- *
- * @param {string} dir - The absolute path of the directory.
- * @returns {?string} - The path that is not a directory, or `null` if the directory is usable.
- */
-export function outputDirError(dir) {
-    const fs   = require("fs");
-    const path = require("path");
-
-    for (let p = dir; ; p = path.dirname(p)) {
-        if (fs.existsSync(p)) {
-            return fs.statSync(p).isDirectory() ? null : p;
-        }
-        if (path.dirname(p) === p) {
-            return null;
-        }
-    }
-}
+import {resolveOutputDir} from "../output";
 
 /** Convert the value of `--out-dir` to the `outputDir` key of a presentation file.
  *
@@ -53,18 +33,16 @@ function outputDirKey(value, {cwd, presentation}) {
     return path.relative(path.dirname(presentation), path.resolve(cwd, value)).split(path.sep).join("/");
 }
 
-/** Check the value of `--out-dir` (see {@link outputDirError}).
+/** Check the value of `--out-dir` (see {@link module:cli/output.resolveOutputDir}).
+ *
+ * An empty value, which removes the key, is always valid.
  *
  * @param {string} value - The flag value.
  * @param {object} context - The command context.
- * @param {string} context.cwd - The working directory.
  * @returns {?string} - An error message, or `null`.
  */
-function checkOutputDir(value, {cwd}) {
-    const path = require("path");
-
-    const bad = value ? outputDirError(path.resolve(cwd, value)) : null;
-    return bad ? `--out-dir ${value}: ${bad} is not a directory` : null;
+function checkOutputDir(value, context) {
+    return value ? resolveOutputDir({...context, flags: {"out-dir": value}}).error : null;
 }
 
 /** The options of this command, with the presentation property each one sets.

@@ -347,10 +347,50 @@ describe("--out-dir", () => {
             assert.match(json.error, /--out-dir .*afile.* is not a directory/);
             assert.equal(fs.readFileSync(deck.json, "utf8"), before);
 
+            // inspect reports the error that build exits on, with the same message.
+            const built = soziUsageError(deck, "build", "--out-dir", "afile", "linked.svg").json;
+            ({json} = soziUsageError(deck, "inspect", "--out-dir", "afile", "linked.svg"));
+            assert.equal(json.error, built.error);
+
             addKeys(deck.json, {outputDir: "afile"});
             ({json} = soziUsageError(deck, "build", "linked.svg"));
             assert.match(json.error, /outputDir .*afile.* is not a directory/);
+            assert.equal(soziUsageError(deck, "inspect", "linked.svg").json.error, json.error);
             assert.deepEqual(fs.readdirSync(deck.dir).sort(), ["afile", "img", "linked.sozi.json", "linked.svg"]);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("an output directory that cannot be created fails without writing anything", () => {
+        const deck = withTempDeck("linked");
+        const locked = path.join(deck.dir, "locked");
+        try {
+            const before = fs.readFileSync(deck.json, "utf8");
+            fs.mkdirSync(locked);
+            fs.chmodSync(locked, 0o555);
+            const run = runSozi(["build", "--out-dir", "locked/site", "linked.svg"], {cwd: deck.dir});
+            assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`);
+            assert.equal(run.json.ok, false);
+            assert.match(run.json.error, /EACCES/);
+            assert.deepEqual(fs.readdirSync(locked), []);
+            assert.ok(!fs.existsSync(path.join(deck.dir, "linked.sozi.html")));
+            assert.equal(fs.readFileSync(deck.json, "utf8"), before);
+        }
+        finally {
+            fs.chmodSync(locked, 0o755);
+            deck.cleanup();
+        }
+    });
+
+    test("set --out-dir naming the directory of the presentation file removes the key", () => {
+        const deck = withTempDeck("linked");
+        try {
+            addKeys(deck.json, {outputDir: "site"});
+            const {json} = soziOk(deck, "set", "--out-dir", ".", "linked.svg");
+            assert.deepEqual(json.changed, {"out-dir": {from: "site", to: ""}});
+            assert.ok(!("outputDir" in readJson(deck.json)));
         }
         finally {
             deck.cleanup();
