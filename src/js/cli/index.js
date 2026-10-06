@@ -116,6 +116,11 @@ export async function runCli(options, {controller, storage, preferences}) {
     const errors   = [];
     const result   = partialResult = {command: options.command, svg: null, presentation: null, warnings, errors};
 
+    // Test hook: never reply, so that the main process times out.
+    if (process.env.SOZI_CLI_TEST_HANG) {
+        return;
+    }
+
     try {
         // In-memory settings only: preferences are never saved in CLI mode.
         preferences.animateTransitions = false;

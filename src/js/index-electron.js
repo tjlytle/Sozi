@@ -74,37 +74,59 @@ if (!settings.get("enableHardwareAcceleration")) {
 }
 
 // Command-line mode: run a command in a hidden window, print one JSON
-// document on stdout and exit. All exits go through app.exit() because
-// Electron ignores process.exitCode.
+// document on stdout and exit. All exits go through cliExit(), and
+// app.exit() because Electron ignores process.exitCode.
 const cliArgs = parseArgs(process.argv, COMMAND_FLAGS);
 
+const CLI_USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+
+let cliExiting = false;
+
+/** Print the result of the command line and exit; only the first call has an effect.
+ *
+ * @param {number} code - The exit code.
+ * @param {object} result - The fields of the result; missing base fields get default values.
+ */
 function cliExit(code, result) {
-    process.stdout.write(JSON.stringify(result) + "\n", () => app.exit(code));
+    if (cliExiting) {
+        return;
+    }
+    cliExiting = true;
+    const base = {ok: false, command: cliArgs.command, svg: null, presentation: null, warnings: [], errors: [], error: null};
+    process.stdout.write(JSON.stringify(Object.assign(base, result)) + "\n", () => app.exit(code));
 }
 
 function cliMain() {
     if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-        cliExit(2, {ok: false, error: "no display; run under xvfb-run"});
+        cliExit(2, {error: "no display; run under xvfb-run"});
         return;
     }
 
     if (cliArgs.command === null || cliArgs.flags.help) {
-        cliExit(2, {ok: false, usage: "sozi --cli <inspect|build> [options] <file.svg>"});
+        cliExit(2, {error: cliArgs.command === null ? "missing command" : "help requested", usage: CLI_USAGE});
         return;
     }
 
     const size = /^(\d+)x(\d+)$/.exec(cliArgs.flags.size || "1280x720");
     if (!size) {
-        cliExit(2, {ok: false, error: `invalid --size: ${cliArgs.flags.size}; expected WxH`});
+        cliExit(2, {error: `invalid --size: ${cliArgs.flags.size}; expected WxH`});
         return;
     }
 
+    const timeout = Number(cliArgs.flags.timeout || "120");
+    if (!(timeout > 0)) {
+        cliExit(2, {error: `invalid --timeout: ${cliArgs.flags.timeout}; expected a number of seconds`});
+        return;
+    }
+    setTimeout(() => cliExit(1, {error: `timed out after ${timeout} s`}), timeout * 1000);
+
     process.on("uncaughtException", err => {
-        process.stderr.write(`${err.stack || err}\n`, () => app.exit(1));
+        process.stderr.write(`${err.stack || err}\n`);
+        cliExit(1, {error: String(err)});
     });
 
     ipcMain.on("sozi-cli:result", (event, {code, json}) => {
-        process.stdout.write(json + "\n", () => app.exit(code));
+        cliExit(code, JSON.parse(json));
     });
 
     ipcMain.on("sozi-cli:log", (event, line) => {
@@ -127,7 +149,13 @@ function cliMain() {
         remoteMain.enable(mainWindow.webContents);
 
         mainWindow.webContents.on("render-process-gone", (event, details) => {
-            process.stderr.write(`renderer process gone: ${details.reason}\n`, () => app.exit(1));
+            cliExit(1, {error: `renderer process gone: ${details.reason}`});
+        });
+
+        mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+            if (isMainFrame) {
+                cliExit(1, {error: `editor failed to load: ${errorDescription} (${errorCode}) ${validatedURL}`});
+            }
         });
 
         mainWindow.loadURL(`file://${__dirname}/../index.html`);

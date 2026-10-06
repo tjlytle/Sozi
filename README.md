@@ -94,7 +94,8 @@ Command line
 Sozi can run without its editor window to inspect a presentation or to
 build its HTML files, for scripts and continuous integration.
 Each run prints exactly one JSON document on the standard output;
-logs go to the standard error.
+logs go to the standard error. Every document has the fields `ok`, `command`,
+`svg`, `presentation`, `warnings`, `errors` and `error` (`null` on success).
 
 ```
 sozi --cli inspect [--frame N] deck.svg
@@ -119,6 +120,7 @@ When running from the source tree, replace `sozi` with
   changed the presentation, because a load/save round trip is not byte-stable.
 * `--write-json` makes `build` always rewrite `deck.sozi.json`.
 * `--size WxH` sets the size of the hidden window (default `1280x720`).
+* `--timeout S` stops the command after `S` seconds (default `120`) with exit code 1.
 
 Options go after the command. An unknown option, an option without its value
 or an extra file argument is a usage error.
@@ -131,7 +133,7 @@ Exit codes:
 | Code | Meaning                                                                                       |
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
-| `1`  | The command failed: missing or invalid file, unparsable JSON, unknown frame, write error.     |
+| `1`  | The command failed: missing or invalid file, unparsable JSON, unknown frame, write error, timeout, crash. |
 | `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line

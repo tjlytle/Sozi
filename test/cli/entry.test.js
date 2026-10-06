@@ -17,6 +17,17 @@ const APP = "/path/to/build/electron";
 // The flags of each command, as exported by src/js/cli/commands/*.js.
 const FLAGS = {build: {"write-json": false}, inspect: {frame: true}};
 
+const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+
+/** The fields that every CLI result carries. */
+function assertBaseFields(json) {
+    for (const key of ["ok", "command", "svg", "presentation", "warnings", "errors", "error"]) {
+        assert.ok(key in json, `missing ${key} in ${JSON.stringify(json)}`);
+    }
+    assert.ok(Array.isArray(json.warnings));
+    assert.ok(Array.isArray(json.errors));
+}
+
 describe("parseArgs", () => {
     test("no --cli means GUI mode", () => {
         const parsed = parseArgs([ELECTRON, APP, "deck.svg"]);
@@ -119,22 +130,55 @@ describe("electron entry", () => {
     test("--cli with no command exits 2 with usage JSON", () => {
         const {code, stdout, json} = runSozi([]);
         assert.equal(code, 2, stdout);
-        assert.deepEqual(json, {ok: false, usage: "sozi --cli <inspect|build> [options] <file.svg>"});
+        assert.deepEqual(json, {
+            ok: false, command: null, svg: null, presentation: null, warnings: [], errors: [],
+            error: "missing command", usage: USAGE
+        });
         assert.equal(stdout.trim().split("\n").length, 1);
     });
 
     test("--cli --help exits 2 with usage JSON", () => {
         const {code, json} = runSozi(["build", "--help"]);
         assert.equal(code, 2);
+        assertBaseFields(json);
         assert.equal(json.ok, false);
-        assert.match(json.usage, /^sozi --cli/);
+        assert.equal(json.command, "build");
+        assert.equal(json.error, "help requested");
+        assert.equal(json.usage, USAGE);
     });
 
     test("invalid --size exits 2", () => {
         const {code, json} = runSozi(["build", "--size", "big", "deck.svg"]);
         assert.equal(code, 2);
+        assertBaseFields(json);
         assert.equal(json.ok, false);
         assert.match(json.error, /--size/);
+    });
+
+    test("invalid --timeout exits 2", () => {
+        for (const value of ["0", "soon", "-3"]) {
+            const {code, json} = runSozi(["build", `--timeout=${value}`, "deck.svg"]);
+            assert.equal(code, 2, value);
+            assertBaseFields(json);
+            assert.match(json.error, /--timeout/);
+        }
+    });
+
+    test("--timeout exits 1 with a JSON result when the renderer does not reply", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const env = {...process.env, SOZI_CLI_TEST_HANG: "1"};
+            const {code, stdout, stderr, json} = runSozi(["inspect", "--timeout", "1", "basic.svg"], {cwd: deck.dir, env});
+            assert.equal(code, 1, `stdout: ${stdout}\nstderr: ${stderr}`);
+            assert.equal(stdout.trim().split("\n").length, 1);
+            assertBaseFields(json);
+            assert.equal(json.ok, false);
+            assert.equal(json.command, "inspect");
+            assert.equal(json.error, "timed out after 1 s");
+        }
+        finally {
+            deck.cleanup();
+        }
     });
 
     test("build on a missing file exits 1 with an error JSON", () => {
@@ -142,6 +186,7 @@ describe("electron entry", () => {
         try {
             const {code, stdout, stderr, json} = runSozi(["build", "missing.svg"], {cwd: dir});
             assert.equal(code, 1, `stdout: ${stdout}\nstderr: ${stderr}`);
+            assertBaseFields(json);
             assert.equal(json.ok, false);
             assert.equal(json.error, `file not found: ${path.join(dir, "missing.svg")}`);
             assert.equal(stdout.trim().split("\n").length, 1);
@@ -157,7 +202,10 @@ describe("electron entry", () => {
         delete env.WAYLAND_DISPLAY;
         const {code, json} = runSozi(["build", "deck.svg"], {env});
         assert.equal(code, 2);
-        assert.deepEqual(json, {ok: false, error: "no display; run under xvfb-run"});
+        assert.deepEqual(json, {
+            ok: false, command: "build", svg: null, presentation: null, warnings: [], errors: [],
+            error: "no display; run under xvfb-run"
+        });
     });
 });
 
