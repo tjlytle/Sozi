@@ -99,11 +99,14 @@ function describeFrame(frame, index) {
  * With `--frame N`, only the frame with 0-based index N, or with frame id N,
  * is described.
  *
+ * The title is reported with its source: `"json"` for an explicit title,
+ * `"svg"` for the title of the SVG document, `"default"` when there is neither.
+ *
  * @param {object} context - The command context.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
  * @param {string} context.presentation - The absolute path of the JSON file.
  * @param {object} context.flags - The command-line flags.
- * @returns {object} - The command result: `{ok, title, aspect, layers, frames}`, or `{ok: false, error}`.
+ * @returns {object} - The command result: `{ok, title, titleSource, svgTitle, aspect, layers, frames}`, or `{ok: false, error}`.
  */
 export function inspect({storage, presentation: jsonPath, flags}) {
     const presentation = storage.presentation;
@@ -127,6 +130,8 @@ export function inspect({storage, presentation: jsonPath, flags}) {
     return {
         ok:     true,
         title:  presentation.title,
+        titleSource: presentation.explicitTitle ? "json" : presentation.svgTitle ? "svg" : "default",
+        svgTitle:    presentation.svgTitle,
         aspect: {width: presentation.aspectWidth, height: presentation.aspectHeight},
         layers: svgLayers(presentation).map(layer => ({
             id:     layer.groupId,

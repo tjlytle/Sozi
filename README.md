@@ -91,8 +91,9 @@ generated application archives for each platform.
 Command line
 ------------
 
-Sozi can run without its editor window to inspect a presentation or to
-build its HTML files, for scripts and continuous integration.
+Sozi can run without its editor window to inspect a presentation, to
+build its HTML files or to change its properties, for scripts and continuous
+integration.
 Each run prints exactly one JSON document on the standard output;
 logs go to the standard error. Every document has the fields `ok`, `command`,
 `svg`, `presentation`, `warnings`, `errors` and `error` (`null` on success);
@@ -100,14 +101,16 @@ messages are always in English.
 
 ```
 sozi --cli inspect [--frame N] deck.svg
-sozi --cli build [--write-json] deck.svg
+sozi --cli build [--write-json] [--title TITLE] deck.svg
+sozi --cli set --title TITLE deck.svg
 ```
 
 When running from the source tree, replace `sozi` with
 `node_modules/.bin/electron build/electron` (after `gulp`).
 
 * `--cli inspect` loads `deck.svg` and `deck.sozi.json` and reports the
-  title, the aspect ratio, the layers of the SVG (with `inJson` telling whether
+  title (with `titleSource`, see below, and `svgTitle`, the title of the SVG
+  document or `""`), the aspect ratio, the layers of the SVG (with `inJson` telling whether
   the JSON file has properties for each layer) and, for each frame, its
   properties and, for each layer, the reference element (`referenceMissing` is
   true when the element is not in the SVG), the outline element, the link
@@ -118,13 +121,35 @@ When running from the source tree, replace `sozi` with
   reports the files written and the number of frames.
   It warns when the SVG is newer than an existing `deck.sozi.html`.
   It writes `deck.sozi.json` only when the file does not exist or when loading
-  changed the presentation, because a load/save round trip is not byte-stable.
+  or `--title` changed the presentation, because a load/save round trip is not byte-stable.
 * `--write-json` makes `build` always rewrite `deck.sozi.json`.
+* `--cli set` changes properties of the presentation and writes
+  `deck.sozi.json` (no HTML file). It reports in `changed` the old and new
+  value of each property that changed, e.g.
+  `"changed": {"title": {"from": "", "to": "My Talk"}}`, and in `files` the
+  files written. Like `build`, it writes `deck.sozi.json` only when something
+  changed or the file does not exist, so setting a property to its current
+  value writes nothing. At least one option is required.
+* `--title TITLE` (for `build` and `set`) sets the explicit title of the
+  presentation in `deck.sozi.json`; `build` then writes the JSON file and the
+  HTML files with the new title. `--title ""` (or `--title=`) removes the
+  explicit title. Use `--title=TITLE` for a title that starts with `--`.
 * `--size WxH` sets the size of the hidden window (default `1280x720`).
 * `--timeout S` stops the command after `S` seconds (default `120`) with exit code 1.
 
 Options go after the command. An unknown option, an option without its value
 or an extra file argument is a usage error.
+
+The title of a presentation, used in the HTML files, in the browser tab of
+the player and in the editor window, is the first of:
+
+1. the explicit title stored in `deck.sozi.json` (set with `--title` or in the
+   presentation properties of the editor) — `titleSource` `"json"`;
+2. the title of the SVG document — `titleSource` `"svg"`; in Inkscape, set it
+   under *Document Properties > Metadata > Title*;
+3. `Untitled` — `titleSource` `"default"`.
+
+The title of the SVG document is never copied into `deck.sozi.json`.
 
 The file name must have an extension: the presentation file is the SVG file
 name with its extension replaced by `.sozi.json`.
@@ -135,7 +160,7 @@ Exit codes:
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
 | `1`  | The command failed: missing or invalid file, unparsable JSON, unknown frame, write error, timeout, crash. |
-| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, no display. |
+| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.
