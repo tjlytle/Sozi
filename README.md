@@ -303,9 +303,16 @@ What they have in common:
   setting is on, as in the player). The *Export* button of the editor keeps
   it, as before.
 * `--out` is relative to the working directory; missing directories are created.
+* A failed `render` or `export` leaves the previous output as it was, and
+  creates no directory: images are captured in a temporary directory, and a
+  PDF, PPTX or video is written to a partial file beside it
+  (`.talk.partial.webm` for `talk.webm`); they replace the previous output
+  only when the export succeeds.
 * `capture` is `"capturePage"`, or `"cdp"` when the images were captured
   through the Chrome DevTools Protocol (slower: a fallback that comes with a
   warning, or always with `--transparent`), or `"printToPDF"` for a PDF export.
+  The command line renders at device scale 1 on any display, so the images
+  have the requested size in pixels without the fallback.
 * The whole command is bounded by `--timeout` (default 120 s); raise it for
   large decks, sizes or videos. Each step of the capture (page load, frame
   change, capture) also fails on its own after 30 s.
@@ -350,7 +357,10 @@ What they have in common:
   image) and plays each transition, at `--fps` images per second (default
   `exportToVideoFrameRate`, 50). `--format` is `webm`, `mp4`, `ogv`, or `png`
   for an image sequence `img000000.png`, `img000001.png`... in the `--out`
-  directory (earlier images of that pattern are removed). `--width`,
+  directory (moved there once all are written; then the earlier images of
+  that pattern that were not replaced are removed, and other files are kept).
+  The images of a frame held for several time steps are hard links of one
+  file where the file system allows it. `--width`,
   `--height` and `--bitrate` (bits per second) override the video settings.
   `--transparent` (PNG sequences only) leaves the background transparent.
   `--include` and `--exclude` do not apply to videos.
@@ -381,7 +391,8 @@ What they have in common:
 
 The export of the editor (the *Export* button) uses the same exporter, in
 a hidden window. It works again in builds from source (`gulp`, then
-`npm start`), where it used to fail with recent Electron versions. Set the
+`npm start`), where it used to fail with recent Electron versions. There,
+ffmpeg is stopped after 10 minutes plus 100 ms per image of the video. Set the
 environment variable `SOZI_EXPORT_SHOW=1` to watch the export window.
 
 ### Exit codes

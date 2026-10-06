@@ -210,6 +210,17 @@ function fakeFfmpeg(dir) {
     return {path: file, pid: () => fs.existsSync(pidFile) ? Number(fs.readFileSync(pidFile, "utf8")) : null};
 }
 
+/** Write a fake ffmpeg that writes junk to its output file (its last argument) and fails.
+ *
+ * @param {string} dir - The directory of the script.
+ * @returns {string} - The path of the script.
+ */
+function failingFfmpeg(dir) {
+    const file = path.join(dir, "failing-ffmpeg");
+    fs.writeFileSync(file, `#!/bin/sh\nfor last; do :; done\necho junk > "$last"\necho "simulated failure" >&2\nexit 1\n`, {mode: 0o755});
+    return file;
+}
+
 /** Is a process running? A zombie counts as finished.
  *
  * @param {?number} pid - A process id.
@@ -285,4 +296,4 @@ function zipEntries(buf) {
     return entries;
 }
 
-module.exports = {runSozi, withTempDeck, privateTmp, decodePng, checkPng, checkBasicPng, darkInCorner, zipEntries, fakeFfmpeg, isAlive, which, electronBinary, repoDir, appDir, fixturesDir};
+module.exports = {runSozi, withTempDeck, privateTmp, decodePng, checkPng, checkBasicPng, darkInCorner, zipEntries, fakeFfmpeg, failingFfmpeg, isAlive, which, electronBinary, repoDir, appDir, fixturesDir};

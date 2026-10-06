@@ -11,7 +11,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {PDFDocument} = require("pdf-lib");
 
-const {runSozi, withTempDeck, privateTmp, decodePng, darkInCorner, zipEntries, fakeFfmpeg, isAlive, which} = require("./helpers.js");
+const {runSozi, withTempDeck, privateTmp, decodePng, darkInCorner, zipEntries, fakeFfmpeg, failingFfmpeg, isAlive, which} = require("./helpers.js");
 
 /** Run a command in the directory of a temp deck and check that it succeeded. */
 function soziOk(deck, args, opts = {}) {
@@ -151,6 +151,20 @@ describe("export pdf", () => {
         }
     });
 
+    test("a failed export leaves the previous PDF as it was, and no partial file", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const out = path.join(deck.dir, "x.pdf");
+            fs.writeFileSync(out, "previous");
+            soziFails(deck, 1, ["export", "--exclude", "all", "--out", "x.pdf", "basic.svg"]);
+            assert.equal(fs.readFileSync(out, "utf8"), "previous");
+            assert.deepEqual(fs.readdirSync(deck.dir).filter(name => name.includes("partial")), []);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("--out is relative to the working directory; missing directories are created", async () => {
         const deck = withTempDeck("basic");
         try {
@@ -219,6 +233,35 @@ describe("export video", () => {
             const {json} = soziOk(deck, ["export", "--export-type", "video", "--format", "png", "--fps", "2",
                 "--width", "320", "--height", "180", "--frame-number", "--out", "seq", "basic.svg"]);
             assert.ok(darkInCorner(json.files[0]) > 50, "the frame number is drawn");
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("png: the images of a hold share one file on disk; earlier images are pruned after success", () => {
+        const deck = withTempDeck("basic");
+        try {
+            // Hold the first frame for 1 s: 5 images at 5 fps.
+            const data = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            data.frames[0].timeoutMs = 1000;
+            fs.writeFileSync(deck.json, JSON.stringify(data, null, 4));
+            const dir = path.join(deck.dir, "seq");
+            fs.mkdirSync(dir);
+            fs.writeFileSync(path.join(dir, "img000099.png"), "stale");
+            fs.writeFileSync(path.join(dir, "notes.txt"), "keep");
+
+            const {json} = soziOk(deck, ["export", "--export-type", "video", "--format", "png", "--fps", "5",
+                "--width", "160", "--height", "90", "--out", "seq", "basic.svg"]);
+            assert.equal(json.images, expectedImages(framesOf(deck), 5));
+            const hold = json.files.slice(0, 5).map(file => fs.statSync(file));
+            for (const stat of hold) {
+                assert.equal(stat.ino, hold[0].ino, "a hold is written as hard links");
+            }
+            assert.ok(hold[0].nlink >= 5);
+            assert.notEqual(fs.statSync(json.files[5]).ino, hold[0].ino, "a transition image is its own file");
+            const names = fs.readdirSync(dir).sort();
+            assert.deepEqual(names, [...json.files.map(file => path.basename(file)), "notes.txt"].sort());
         }
         finally {
             deck.cleanup();
@@ -300,6 +343,27 @@ describe("export video", () => {
         }
     });
 
+    test("a failing ffmpeg leaves the previous video as it was, no partial file and no new directory", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const ffmpeg = failingFfmpeg(deck.dir);
+            const out = path.join(deck.dir, "talk.webm");
+            fs.writeFileSync(out, "previous");
+            const args = ["export", "--export-type", "video", "--format", "webm", "--fps", "2",
+                "--width", "160", "--height", "90", "--ffmpeg", ffmpeg];
+            const run = soziFails(deck, 1, [...args, "--out", "talk.webm", "basic.svg"]);
+            assert.match(run.json.error, /ffmpeg failed \(exit status 1\): simulated failure/);
+            assert.equal(fs.readFileSync(out, "utf8"), "previous");
+            assert.deepEqual(fs.readdirSync(deck.dir).filter(name => name.includes("partial")), []);
+
+            soziFails(deck, 1, [...args, "--out", "new/sub/talk.webm", "basic.svg"]);
+            assert.ok(!fs.existsSync(path.join(deck.dir, "new")), "no empty directory is left");
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("a stuck ffmpeg does not outlive a command that times out", () => {
         const deck = withTempDeck("basic");
         try {
@@ -311,6 +375,7 @@ describe("export video", () => {
             assert.ok(ffmpeg.pid(), "the fake ffmpeg was started");
             assert.equal(isAlive(ffmpeg.pid()), false, "the fake ffmpeg was killed");
             assert.deepEqual(tmp.leftovers(), [], "the captured images were removed");
+            assert.deepEqual(fs.readdirSync(deck.dir).filter(name => name.includes("partial")), []);
         }
         finally {
             deck.cleanup();
