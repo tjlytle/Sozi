@@ -65,6 +65,82 @@ function browserDom(t, file) {
     }
 }
 
+/** A PNG screenshot of an HTML file in headless Chrome, after its scripts ran.
+ *
+ * Skips the test and returns null when Chrome is missing or cannot be spawned.
+ */
+function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
+    if (!fs.existsSync(CHROME)) {
+        t.skip(`${CHROME} not found`);
+        return null;
+    }
+    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
+    try {
+        const png = path.join(profile, "shot.png");
+        const result = spawnSync(CHROME, [
+            "--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
+            `--user-data-dir=${profile}`,
+            // Let the player run its initial transition before the screenshot.
+            "--virtual-time-budget=5000",
+            `--window-size=${width},${height}`,
+            `--screenshot=${png}`, "file://" + file
+        ], {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL"});
+        if (result.error) {
+            t.skip(`headless Chrome could not be run: ${result.error}`);
+            return null;
+        }
+        assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
+        return decodePng(fs.readFileSync(png));
+    }
+    finally {
+        fs.rmSync(profile, {recursive: true, force: true});
+    }
+}
+
+/** Decode an 8-bit, non-interlaced RGB or RGBA PNG (what Chrome writes).
+ *
+ * @returns {{width: number, height: number, pixel: Function}} - `pixel(x, y)` gives `[r, g, b]`.
+ */
+function decodePng(buf) {
+    const zlib = require("node:zlib");
+    let width, height, channels;
+    const idat = [];
+    for (let o = 8; o < buf.length; ) {
+        const length = buf.readUInt32BE(o);
+        const type = buf.toString("ascii", o + 4, o + 8);
+        const data = buf.subarray(o + 8, o + 8 + length);
+        if (type === "IHDR") {
+            width = data.readUInt32BE(0);
+            height = data.readUInt32BE(4);
+            assert.equal(data[8], 8, "PNG bit depth");
+            assert.equal(data[12], 0, "PNG interlace");
+            channels = {2: 3, 6: 4}[data[9]];
+            assert.ok(channels, `PNG color type ${data[9]}`);
+        }
+        else if (type === "IDAT") {
+            idat.push(data);
+        }
+        o += 12 + length;
+    }
+    const raw = zlib.inflateSync(Buffer.concat(idat));
+    const stride = width * channels;
+    const pixels = Buffer.alloc(stride * height);
+    for (let y = 0; y < height; y++) {
+        const filter = raw[y * (stride + 1)];
+        for (let i = 0; i < stride; i++) {
+            const x = raw[y * (stride + 1) + 1 + i];
+            const a = i >= channels ? pixels[y * stride + i - channels] : 0;
+            const b = y > 0 ? pixels[(y - 1) * stride + i] : 0;
+            const c = i >= channels && y > 0 ? pixels[(y - 1) * stride + i - channels] : 0;
+            const p = a + b - c;
+            const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a :
+                Math.abs(p - b) <= Math.abs(p - c) ? b : c;
+            pixels[y * stride + i] = (x + [0, a, b, (a + b) >> 1, paeth][filter]) & 0xff;
+        }
+    }
+    return {width, height, pixel: (x, y) => [...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)]};
+}
+
 /** Read a JSON file. */
 function readJson(file) {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -196,6 +272,30 @@ describe("relative hrefs and the html directory", () => {
             const {json} = soziOk(deck, "build", "linked.svg");
             assert.deepEqual(imageHrefs(path.join(deck.dir, "linked.sozi.html")), ["img/dot.png"]);
             assert.deepEqual(json.warnings, []);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("default build: the embedded SVG is the serialized document, byte for byte", () => {
+        // An href that a rewrite would normalize, even to the same directory.
+        const deck = withTempDeck("linked");
+        try {
+            const href = "./img/../img/dot.png";
+            fs.writeFileSync(deck.svg, fs.readFileSync(deck.svg, "utf8").replace("img/dot.png", href));
+            const embeddedSvg = file => fs.readFileSync(file, "utf8").match(/<svg\b[\s\S]*<\/svg>/)[0];
+
+            soziOk(deck, "build", "linked.svg");
+            const plain = embeddedSvg(path.join(deck.dir, "linked.sozi.html"));
+            assert.deepEqual(imageHrefs(path.join(deck.dir, "linked.sozi.html")), [href]);
+
+            // The same document written elsewhere differs only by its rewritten href,
+            // so the default build is the serialized document with no rewrite at all.
+            soziOk(deck, "build", "--out-dir", "site/talk", "linked.svg");
+            const moved = embeddedSvg(path.join(deck.dir, "site", "talk", "linked.sozi.html"));
+            assert.equal(moved, plain.replace(`"${href}"`, "\"../../img/dot.png\""));
+            assert.notEqual(moved, plain);
         }
         finally {
             deck.cleanup();
@@ -466,8 +566,39 @@ describe("runtime check", () => {
             const image = path.resolve(path.dirname(html), hrefs[0]);
             assert.equal(image, path.join(deck.dir, "img", "dot.png"));
             assert.ok(fs.statSync(image).isFile());
-            // Not checked: naturalWidth of the loaded image (dump-dom shows no
-            // load state, and an SVG <image> exposes no naturalWidth).
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("the player in the output directory shows the linked image", t => {
+        // The fixture image is a 1x1 half-transparent green PNG stretched over
+        // the middle of the blue frame: only it gives green pixels.
+        const greenPixels = shot => {
+            let count = 0;
+            for (let y = 0; y < shot.height; y++) {
+                for (let x = 0; x < shot.width; x++) {
+                    const [r, g, b] = shot.pixel(x, y);
+                    count += g > r + 80 && g > b + 40 ? 1 : 0;
+                }
+            }
+            return count;
+        };
+        const deck = withTempDeck("linked");
+        try {
+            soziOk(deck, "build", "--out-dir", "site/talk", "linked.svg");
+            const html = path.join(deck.dir, "site", "talk", "linked.sozi.html");
+            const shot = browserScreenshot(t, html);
+            if (shot === null) {
+                return;
+            }
+            assert.ok(greenPixels(shot) > 10000, `the image is not shown: ${greenPixels(shot)} green pixels`);
+
+            // Control: without the image file, the same page has no green pixel.
+            fs.rmSync(path.join(deck.dir, "img", "dot.png"));
+            const missing = browserScreenshot(t, html);
+            assert.equal(greenPixels(missing), 0);
         }
         finally {
             deck.cleanup();
