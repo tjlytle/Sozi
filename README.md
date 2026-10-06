@@ -88,6 +88,64 @@ gulp all
 After a successful build, you will get a `build/dist` folder that contains the
 generated application archives for each platform.
 
+Command line
+------------
+
+Sozi can run without its editor window to inspect a presentation or to
+build its HTML files, for scripts and continuous integration.
+Each run prints exactly one JSON document on the standard output;
+logs go to the standard error.
+
+```
+sozi --cli inspect [--frame N] deck.svg
+sozi --cli build [--no-json] deck.svg
+```
+
+When running from the source tree, replace `sozi` with
+`node_modules/.bin/electron build/electron` (after `gulp`).
+
+* `--cli inspect` loads `deck.svg` and `deck.sozi.json` and reports the
+  title, the aspect ratio, the layers of the SVG (with `inJson` telling whether
+  the JSON file has properties for each layer) and, for each frame, its
+  properties and, for each layer, the reference element (`referenceMissing` is
+  true when the element is not in the SVG), the outline element, the link
+  flag and the camera. It writes no file.
+* `--frame N` restricts the frames reported by `inspect` to one frame, given by
+  its 0-based index or its frame id.
+* `--cli build` writes `deck.sozi.html`, `deck-presenter.sozi.html` and
+  `deck.sozi.json`, and reports the files written and the number of frames.
+  It warns when the SVG is newer than an existing `deck.sozi.html`.
+* `--no-json` makes `build` leave `deck.sozi.json` untouched (and never
+  create it).
+* `--size WxH` sets the size of the hidden window (default `1280x720`).
+
+The file name must have an extension: the presentation file is the SVG file
+name with its extension replaced by `.sozi.json`.
+
+Exit codes:
+
+| Code | Meaning                                                                                       |
+|:-----|:----------------------------------------------------------------------------------------------|
+| `0`  | Success (`"ok": true`).                                                                       |
+| `1`  | The command failed: missing or invalid file, unparsable JSON, unknown frame, write error.     |
+| `2`  | Usage or environment error: unknown command, missing file argument, bad option, no display.  |
+
+Sozi is an Electron application, so it needs a display even in command-line
+mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.
+On a headless machine, use a virtual X server such as `xvfb-run`.
+`xvfb-run` sends the standard error of the command to its standard output,
+which would mix Chromium messages into the JSON; redirect the standard error
+inside the command:
+
+```
+xvfb-run -a sh -c "sozi --cli build deck.svg 2>/dev/null"
+xvfb-run -a sh -c "sozi --cli inspect deck.svg 2>err.log"
+```
+
+Close the deck in the Sozi editor before running a command on it: the editor
+watches and saves the same files, so it would reload or overwrite what
+`build` writes.
+
 Helping debug Sozi
 ==================
 
