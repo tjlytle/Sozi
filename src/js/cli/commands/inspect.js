@@ -9,6 +9,12 @@
  * @module
  */
 
+/** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
+ *
+ * @type {{[name: string]: boolean}}
+ */
+export const FLAGS = {frame: true};
+
 /** Read the layer ids that the presentation JSON file has properties for.
  *
  * The model has properties for every layer of the SVG, so whether a layer

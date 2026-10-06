@@ -28,28 +28,40 @@ const CHROMIUM_SWITCHES = new Set([
     "--disable-features"
 ]);
 
-/** Flags that never take a value.
+/** The flags that every command accepts.
  *
- * Every boolean flag of every command must be listed here, so that
- * `--flag deck.svg` does not take `deck.svg` as the value of the flag.
- * (`--no-*` flags are also treated as boolean by the parser.)
+ * A flag table maps a flag name to `true` if the flag takes a value,
+ * `false` if it is boolean.
  *
- * @type {Set<string>}
+ * @type {{[name: string]: boolean}}
  */
-const BOOLEAN_FLAGS = new Set(["help", "no-json"]);
+export const GLOBAL_FLAGS = {help: false, size: true, timeout: true};
+
+/** Get the flag table of a command, including the global flags.
+ *
+ * @param {{[command: string]: object}} commandFlags - The flag table of each command.
+ * @param {?string} command - The command name.
+ * @returns {{[name: string]: boolean}} - The flags allowed for this command.
+ */
+function flagsOf(commandFlags, command) {
+    return Object.assign({}, commandFlags[command], GLOBAL_FLAGS);
+}
 
 /** Parse the command line of the Electron main process.
  *
  * Everything up to and including `--cli` is skipped (Electron binary, app
  * path, Chromium switches). After `--cli`, the first non-flag argument is the
  * command; other non-flag arguments are positionals. Flags are
- * `--name=value`, `--name value`, or boolean (`--no-xxx`, `--help`, or a flag
- * with no following value).
+ * `--name=value`, `--name value` for the flags that take a value in the
+ * table of the command, or boolean. Unknown flags are boolean: they are
+ * reported by {@link validateArgs}. A value-taking flag that has no value
+ * is `true`.
  *
  * @param {string[]} argv - The process arguments, e.g. `process.argv`.
+ * @param {{[command: string]: object}} [commandFlags] - The flag table of each command (see {@link GLOBAL_FLAGS}).
  * @returns {{cli: boolean, command: ?string, positionals: string[], flags: object}} - The parsed arguments.
  */
-export function parseArgs(argv) {
+export function parseArgs(argv, commandFlags = {}) {
     const result = {cli: false, command: null, positionals: [], flags: {}};
     const cliIndex = argv.indexOf("--cli");
     if (cliIndex < 0) {
@@ -68,7 +80,7 @@ export function parseArgs(argv) {
             }
             const name = arg.slice(2);
             const next = args[i + 1];
-            if (name.startsWith("no-") || BOOLEAN_FLAGS.has(name) || next === undefined || next.startsWith("--")) {
+            if (!flagsOf(commandFlags, result.command)[name] || next === undefined || next.startsWith("--")) {
                 result.flags[name] = true;
             }
             else {
@@ -84,4 +96,31 @@ export function parseArgs(argv) {
         }
     }
     return result;
+}
+
+/** Check the flags and positionals of a parsed command line.
+ *
+ * The command itself and the presence of the file argument are not checked.
+ *
+ * @param {{command: ?string, positionals: string[], flags: object}} parsed - The result of {@link parseArgs}.
+ * @param {{[command: string]: object}} commandFlags - The flag table of each command.
+ * @returns {?string} - An error message, or `null` if the command line is valid.
+ */
+export function validateArgs(parsed, commandFlags) {
+    const allowed = flagsOf(commandFlags, parsed.command);
+    for (const [name, value] of Object.entries(parsed.flags)) {
+        if (!(name in allowed)) {
+            return `unknown option for ${parsed.command}: --${name}`;
+        }
+        if (allowed[name] && (value === true || value === "")) {
+            return `missing value for --${name}`;
+        }
+        if (!allowed[name] && value !== true) {
+            return `option --${name} does not take a value`;
+        }
+    }
+    if (parsed.positionals.length > 1) {
+        return `unexpected argument: ${parsed.positionals[1]}`;
+    }
+    return null;
 }

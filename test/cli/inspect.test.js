@@ -130,6 +130,22 @@ describe("inspect", () => {
         }
     });
 
+    test("--frame with no value exits 2", () => {
+        const deck = withTempDeck("basic");
+        try {
+            for (const args of [["inspect", "basic.svg", "--frame"], ["inspect", "--frame", "--size", "640x480", "basic.svg"]]) {
+                const {code, json} = runSozi(args, {cwd: deck.dir});
+                assert.equal(code, 2, args.join(" "));
+                assert.equal(json.ok, false);
+                assert.equal(json.error, "missing value for --frame");
+                assert.match(json.usage, /^sozi --cli/);
+            }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("creates and modifies no files", () => {
         const deck = withTempDeck("basic");
         try {

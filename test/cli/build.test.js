@@ -30,10 +30,10 @@ function htmlPaths(deck) {
 }
 
 describe("build", () => {
-    test("writes both HTML files and leaves the JSON untouched with --no-json", () => {
+    test("writes both HTML files and leaves an existing JSON untouched", () => {
         const deck = withTempDeck("basic");
         try {
-            const {code, json, stderr} = build(deck, "--no-json");
+            const {code, json, stderr} = build(deck);
             const {html, presenter} = htmlPaths(deck);
             assert.equal(code, 0, `${JSON.stringify(json)}\n${stderr}`);
             assert.equal(json.ok, true);
@@ -56,29 +56,33 @@ describe("build", () => {
         }
     });
 
-    test("rewrites the JSON without --no-json", () => {
+    test("rewrites the JSON with --write-json", () => {
         const deck = withTempDeck("basic");
         try {
-            const {code, json} = build(deck);
-            assert.equal(code, 0);
-            assert.ok(json.files.includes(deck.json));
-            const data = JSON.parse(fs.readFileSync(deck.json, "utf8"));
-            assert.equal(data.frames.length, 2);
+            // A compact copy of the JSON: the rewrite uses the editor's indentation.
+            const compact = JSON.stringify(JSON.parse(fs.readFileSync(deck.json, "utf8")));
+            fs.writeFileSync(deck.json, compact);
+            const {code, json} = build(deck, "--write-json");
+            assert.equal(code, 0, JSON.stringify(json));
+            assert.deepEqual(json.files, [...Object.values(htmlPaths(deck)), deck.json]);
+            const text = fs.readFileSync(deck.json, "utf8");
+            assert.notEqual(text, compact);
+            assert.equal(JSON.parse(text).frames.length, 2);
         }
         finally {
             deck.cleanup();
         }
     });
 
-    test("does not create a JSON file on load when none exists and --no-json is given", () => {
+    test("creates the JSON when none exists", () => {
         const deck = withTempDeck("basic");
         try {
             fs.rmSync(deck.json);
-            const {code, json} = build(deck, "--no-json");
-            assert.equal(code, 0);
+            const {code, json} = build(deck);
+            assert.equal(code, 0, JSON.stringify(json));
             assert.equal(json.frames, 0);
-            assert.ok(!fs.existsSync(deck.json));
-            assert.deepEqual(json.files, Object.values(htmlPaths(deck)));
+            assert.deepEqual(json.files, [...Object.values(htmlPaths(deck)), deck.json]);
+            assert.equal(JSON.parse(fs.readFileSync(deck.json, "utf8")).frames.length, 0);
         }
         finally {
             deck.cleanup();
@@ -92,7 +96,7 @@ describe("build", () => {
             fs.writeFileSync(html, "old");
             const past = new Date(Date.now() - 3600 * 1000);
             fs.utimesSync(html, past, past);
-            const {code, json} = build(deck, "--no-json");
+            const {code, json} = build(deck);
             assert.equal(code, 0);
             assert.deepEqual(json.warnings, ["svg newer than existing html"]);
             assert.match(fs.readFileSync(html, "utf8"), /soziPresentationData/);
@@ -109,7 +113,7 @@ describe("build", () => {
             fs.writeFileSync(html, "new");
             const future = new Date(Date.now() + 3600 * 1000);
             fs.utimesSync(html, future, future);
-            const {code, json} = build(deck, "--no-json");
+            const {code, json} = build(deck);
             assert.equal(code, 0);
             assert.deepEqual(json.warnings, []);
         }
@@ -122,7 +126,7 @@ describe("build", () => {
         const deck = withTempDeck("basic");
         try {
             fs.writeFileSync(deck.svg, "this is not svg");
-            const {code, json} = build(deck, "--no-json");
+            const {code, json} = build(deck);
             assert.equal(code, 1);
             assert.equal(json.ok, false);
             assert.equal(json.command, "build");
@@ -157,7 +161,7 @@ describe("build", () => {
         const deck = withTempDeck("basic");
         try {
             fs.mkdirSync(htmlPaths(deck).html);
-            const {code, json} = build(deck, "--no-json");
+            const {code, json} = build(deck);
             assert.equal(code, 1);
             assert.equal(json.ok, false);
             assert.match(json.error, /EISDIR/);
@@ -170,7 +174,7 @@ describe("build", () => {
     test("builds the BattleSnake deck with the frames and layers of its JSON", () => {
         const deck = withTempDeck("battlesnake");
         try {
-            const {code, json, stderr} = build(deck, "--no-json");
+            const {code, json, stderr} = build(deck);
             assert.equal(code, 0, `${JSON.stringify(json)}\n${stderr}`);
             assert.equal(json.frames, 32);
             const built = presentationData(htmlPaths(deck).html).frames;
@@ -180,6 +184,22 @@ describe("build", () => {
             built.forEach((frame, i) => {
                 assert.deepEqual(Object.keys(frame.layerProperties).sort(), Object.keys(source[i].layerProperties).sort(), frame.frameId);
             });
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("leaves the BattleSnake JSON byte-identical across two builds", () => {
+        const deck = withTempDeck("battlesnake");
+        try {
+            const original = fs.readFileSync(deck.json);
+            for (const run of [1, 2]) {
+                const {code, json} = build(deck);
+                assert.equal(code, 0, `run ${run}: ${JSON.stringify(json)}`);
+                assert.ok(!json.files.includes(deck.json), `run ${run}`);
+                assert.ok(fs.readFileSync(deck.json).equals(original), `run ${run}: the JSON changed`);
+            }
         }
         finally {
             deck.cleanup();
@@ -200,6 +220,51 @@ describe("runner", () => {
             assert.deepEqual(json.warnings, []);
             assert.deepEqual(json.errors, []);
             assert.ok("svg" in json && "presentation" in json);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    /** Run with bad arguments: exit 2, a usage error, and no file written. */
+    function usageError(deck, args, error) {
+        const before = fs.readdirSync(deck.dir).sort();
+        const {code, stdout, json} = runSozi(args, {cwd: deck.dir});
+        assert.equal(code, 2, stdout);
+        assert.equal(json.ok, false);
+        assert.equal(json.error, error);
+        assert.match(json.usage, /^sozi --cli/);
+        assert.deepEqual(json.warnings, []);
+        assert.deepEqual(json.errors, []);
+        assert.deepEqual(fs.readdirSync(deck.dir).sort(), before);
+    }
+
+    test("an unknown flag exits 2", () => {
+        const deck = withTempDeck("basic");
+        try {
+            usageError(deck, ["build", "--no-jsn", "basic.svg"], "unknown option for build: --no-jsn");
+            usageError(deck, ["build", "--no-json", "basic.svg"], "unknown option for build: --no-json");
+            usageError(deck, ["build", "basic.svg", "--verbose"], "unknown option for build: --verbose");
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("an unknown flag does not consume the file argument", () => {
+        const deck = withTempDeck("basic");
+        try {
+            usageError(deck, ["build", "--dry-run", "basic.svg"], "unknown option for build: --dry-run");
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("extra positional arguments exit 2", () => {
+        const deck = withTempDeck("basic");
+        try {
+            usageError(deck, ["build", "basic.svg", "basic.sozi.json"], "unexpected argument: basic.sozi.json");
         }
         finally {
             deck.cleanup();

@@ -98,7 +98,7 @@ logs go to the standard error.
 
 ```
 sozi --cli inspect [--frame N] deck.svg
-sozi --cli build [--no-json] deck.svg
+sozi --cli build [--write-json] deck.svg
 ```
 
 When running from the source tree, replace `sozi` with
@@ -112,12 +112,16 @@ When running from the source tree, replace `sozi` with
   flag and the camera. It writes no file.
 * `--frame N` restricts the frames reported by `inspect` to one frame, given by
   its 0-based index or its frame id.
-* `--cli build` writes `deck.sozi.html`, `deck-presenter.sozi.html` and
-  `deck.sozi.json`, and reports the files written and the number of frames.
+* `--cli build` writes `deck.sozi.html` and `deck-presenter.sozi.html`, and
+  reports the files written and the number of frames.
   It warns when the SVG is newer than an existing `deck.sozi.html`.
-* `--no-json` makes `build` leave `deck.sozi.json` untouched (and never
-  create it).
+  It writes `deck.sozi.json` only when the file does not exist or when loading
+  changed the presentation, because a load/save round trip is not byte-stable.
+* `--write-json` makes `build` always rewrite `deck.sozi.json`.
 * `--size WxH` sets the size of the hidden window (default `1280x720`).
+
+Options go after the command. An unknown option, an option without its value
+or an extra file argument is a usage error.
 
 The file name must have an extension: the presentation file is the SVG file
 name with its extension replaced by `.sozi.json`.
@@ -128,7 +132,7 @@ Exit codes:
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
 | `1`  | The command failed: missing or invalid file, unparsable JSON, unknown frame, write error.     |
-| `2`  | Usage or environment error: unknown command, missing file argument, bad option, no display.  |
+| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.

@@ -8,11 +8,14 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {parseArgs} = require("../../src/js/cli/args.js");
+const {parseArgs, validateArgs} = require("../../src/js/cli/args.js");
 const {runSozi, withTempDeck} = require("./helpers.js");
 
 const ELECTRON = "/path/to/electron";
 const APP = "/path/to/build/electron";
+
+// The flags of each command, as exported by src/js/cli/commands/*.js.
+const FLAGS = {build: {"write-json": false}, inspect: {frame: true}};
 
 describe("parseArgs", () => {
     test("no --cli means GUI mode", () => {
@@ -39,34 +42,76 @@ describe("parseArgs", () => {
     });
 
     test("--name=value and --name value", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--size=640x480", "--frame", "2", "deck.svg"]);
+        const parsed = parseArgs([ELECTRON, APP, "--cli", "inspect", "--size=640x480", "--frame", "2", "deck.svg"], FLAGS);
         assert.deepEqual(parsed.flags, {size: "640x480", frame: "2"});
         assert.deepEqual(parsed.positionals, ["deck.svg"]);
     });
 
-    test("--no-xxx flags are boolean", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--no-json", "deck.svg"]);
-        assert.deepEqual(parsed.flags, {"no-json": true});
+    test("boolean flags of the command do not take a value", () => {
+        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--write-json", "deck.svg"], FLAGS);
+        assert.deepEqual(parsed.flags, {"write-json": true});
         assert.deepEqual(parsed.positionals, ["deck.svg"]);
     });
 
-    test("trailing flag without value is true", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "deck.svg", "--verbose"]);
-        assert.deepEqual(parsed.flags, {verbose: true});
+    test("unknown flags do not take a value", () => {
+        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--dry-run", "deck.svg"], FLAGS);
+        assert.deepEqual(parsed.flags, {"dry-run": true});
+        assert.deepEqual(parsed.positionals, ["deck.svg"]);
+    });
+
+    test("a value-taking flag with no value is true", () => {
+        assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "inspect", "deck.svg", "--frame"], FLAGS).flags, {frame: true});
+        assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "inspect", "--frame", "--size", "1x1", "deck.svg"], FLAGS).flags, {frame: true, size: "1x1"});
+    });
+
+    test("global flags take a value with any command", () => {
+        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--timeout", "5", "--size", "640x480", "deck.svg"], FLAGS);
+        assert.deepEqual(parsed.flags, {timeout: "5", size: "640x480"});
+        assert.deepEqual(parsed.positionals, ["deck.svg"]);
     });
 
     test("--help is boolean", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "--help", "build"]);
+        const parsed = parseArgs([ELECTRON, APP, "--cli", "--help", "build"], FLAGS);
         assert.equal(parsed.flags.help, true);
         assert.equal(parsed.command, "build");
     });
 
     test("Chromium switches are ignored", () => {
         const parsed = parseArgs([ELECTRON, "--no-sandbox", APP, "--enable-logging", "--cli",
-                                  "build", "--disable-gpu", "deck.svg"]);
+                                  "build", "--disable-gpu", "deck.svg"], FLAGS);
         assert.deepEqual(parsed, {
             cli: true, command: "build", positionals: ["deck.svg"], flags: {}
         });
+    });
+});
+
+describe("validateArgs", () => {
+    const check = (...args) => validateArgs(parseArgs([ELECTRON, APP, "--cli", ...args], FLAGS), FLAGS);
+
+    test("valid command lines", () => {
+        assert.equal(check("build", "deck.svg"), null);
+        assert.equal(check("build", "--write-json", "--size", "640x480", "--timeout=5", "deck.svg"), null);
+        assert.equal(check("inspect", "--frame", "2", "deck.svg"), null);
+        assert.equal(check("inspect"), null, "a missing file is reported by the runner");
+    });
+
+    test("unknown flag", () => {
+        assert.equal(check("build", "--no-jsn", "deck.svg"), "unknown option for build: --no-jsn");
+        assert.equal(check("build", "deck.svg", "--verbose"), "unknown option for build: --verbose");
+        assert.equal(check("build", "--frame", "1", "deck.svg"), "unknown option for build: --frame");
+    });
+
+    test("missing value", () => {
+        assert.equal(check("inspect", "deck.svg", "--frame"), "missing value for --frame");
+        assert.equal(check("inspect", "--frame=", "deck.svg"), "missing value for --frame");
+    });
+
+    test("value given to a boolean flag", () => {
+        assert.equal(check("build", "--write-json=no", "deck.svg"), "option --write-json does not take a value");
+    });
+
+    test("extra positionals", () => {
+        assert.equal(check("build", "deck.svg", "other.svg"), "unexpected argument: other.svg");
     });
 });
 

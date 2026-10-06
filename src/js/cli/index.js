@@ -14,8 +14,9 @@
  * @module
  */
 
-import {build} from "./commands/build";
-import {inspect} from "./commands/inspect";
+import {build, FLAGS as buildFlags} from "./commands/build";
+import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
+import {validateArgs} from "./args";
 
 const CLI_PREFIX = "--sozi-cli=";
 
@@ -29,6 +30,12 @@ const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
  * @type {{[name: string]: Function}}
  */
 const COMMANDS = {build, inspect};
+
+/** The flag table of each command, used to parse and validate the command line.
+ *
+ * @type {{[name: string]: {[flag: string]: boolean}}}
+ */
+export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags};
 
 /** Has a result been sent to the main process?
  *
@@ -127,6 +134,12 @@ export async function runCli(options, {controller, storage, preferences}) {
         const command = COMMANDS[options.command];
         if (!command) {
             reply(2, Object.assign(result, {ok: false, error: `unknown command: ${options.command}`, usage: USAGE}));
+            return;
+        }
+
+        const usageError = validateArgs(options, COMMAND_FLAGS);
+        if (usageError) {
+            reply(2, Object.assign(result, {ok: false, error: usageError, usage: USAGE}));
             return;
         }
 

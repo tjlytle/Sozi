@@ -4,13 +4,24 @@
 
 /** The `build` command of `sozi --cli`.
  *
- * Writes the presentation HTML, the presenter console HTML and, unless
- * `--no-json` is given, the presentation JSON file.
+ * Writes the presentation HTML, the presenter console HTML and, when needed,
+ * the presentation JSON file.
  *
  * @module
  */
 
+/** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
+ *
+ * @type {{[name: string]: boolean}}
+ */
+export const FLAGS = {"write-json": false};
+
 /** Build the HTML files of a presentation that has been loaded.
+ *
+ * The JSON file is written only if it does not exist, if the presentation
+ * was changed while loading (`storage.jsonNeedsSaving`), or with `--write-json`.
+ * Loading and saving a presentation is not byte-stable (camera coordinates
+ * drift slightly), so rewriting it on every build would make spurious changes.
  *
  * @param {object} context - The command context.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
@@ -40,7 +51,7 @@ export function build({storage, svg, presentation, flags, warnings}) {
 
     write(htmlPath, storage.exportHTML());
     write(presenterPath, storage.exportPresenterHTML(path.basename(htmlPath)));
-    if (!flags["no-json"]) {
+    if (!fs.existsSync(presentation) || storage.jsonNeedsSaving || flags["write-json"]) {
         write(presentation, storage.getJSONData());
     }
 

@@ -3,6 +3,7 @@ import {app, BrowserWindow, ipcMain} from "electron";
 import * as remoteMain from "@electron/remote/main";
 import settings from "electron-app-settings";
 import {parseArgs} from "./cli/args";
+import {COMMAND_FLAGS} from "./cli";
 
 remoteMain.initialize();
 
@@ -75,7 +76,7 @@ if (!settings.get("enableHardwareAcceleration")) {
 // Command-line mode: run a command in a hidden window, print one JSON
 // document on stdout and exit. All exits go through app.exit() because
 // Electron ignores process.exitCode.
-const cliArgs = parseArgs(process.argv);
+const cliArgs = parseArgs(process.argv, COMMAND_FLAGS);
 
 function cliExit(code, result) {
     process.stdout.write(JSON.stringify(result) + "\n", () => app.exit(code));
