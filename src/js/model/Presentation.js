@@ -1030,7 +1030,7 @@ export class Presentation extends EventEmitter {
         }
         this.outputDir = "";
         if (typeof storable.outputDir === "string") {
-            this.outputDir = storable.outputDir;
+            this.outputDir = storable.outputDir.trim();
         }
         else if (storable.hasOwnProperty("outputDir")) {
             this.ignoredStorableKeys.push("outputDir");
