@@ -297,6 +297,27 @@ export function findFfmpeg(explicitPath = null) {
  */
 const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** Remove a directory when this process exits before the export ends.
+ *
+ * A command line that times out exits at once: this keeps the captured
+ * images from staying in the temporary directory.
+ *
+ * @param {string} dir - The directory to remove.
+ * @returns {Function} - Call it to cancel the removal.
+ */
+function removeOnExit(dir) {
+    const remove = () => {
+        try {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
+        catch (e) {
+            // Nothing more can be done while exiting.
+        }
+    };
+    process.on("exit", remove);
+    return () => process.removeListener("exit", remove);
+}
+
 /** Run ffmpeg and wait for it to terminate.
  *
  * ffmpeg is killed if it runs longer than `timeoutMs`, and when this process
@@ -454,6 +475,14 @@ export class ExportWindow {
          */
         this.useCDP = this.transparent;
 
+        /** Has the Chrome DevTools Protocol confirmed a uniform `capturePage` image?
+         *
+         * Then later uniform images are believed without checking again.
+         *
+         * @type {boolean}
+         */
+        this.capturePageVerified = false;
+
         /** The capture method of each capture: `capturePage` or `cdp`.
          *
          * @type {Set<string>}
@@ -601,11 +630,13 @@ export class ExportWindow {
                 this.useCDP = true;
                 this.warnings.push(`capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`);
             }
-            else if (isUniform(img) && await this.svgHasContent()) {
+            else if (isUniform(img) && !this.capturePageVerified && await this.svgHasContent()) {
                 // A frame can be all one colour (e.g. inside a filled shape): believe
                 // capturePage if the Chrome DevTools Protocol shows the same colour.
+                // A blank capturePage is a failure of the window, so one confirmation is enough.
                 const cdpPng = await this.captureCDP();
                 if (sameUniformColour(img, nativeImage.createFromBuffer(cdpPng))) {
+                    this.capturePageVerified = true;
                     png = img.toPNG();
                     this.captureMethods.add("capturePage");
                 }
@@ -932,6 +963,7 @@ async function pptxExport(presentation, htmlPath, opts) {
 
     // A temporary directory for the slide images, deleted even if not empty.
     const destDir = tmp.dirSync({unsafeCleanup: true});
+    const cancelRemoval = removeOnExit(destDir.name);
     try {
         const pptxDoc = officegen("pptx");
         pptxDoc.setSlideSize(g.width, g.height, presentation.exportToPPTXSlideSize);
@@ -958,6 +990,7 @@ async function pptxExport(presentation, htmlPath, opts) {
         return {out: outPath, frames: frames.length, warnings, capture};
     }
     finally {
+        cancelRemoval();
         removeTmpDir(destDir);
     }
 }
@@ -1043,6 +1076,7 @@ async function videoExport(presentation, htmlPath, opts) {
         destDir = tmp.dirSync({unsafeCleanup: true});
         destDirName = destDir.name;
     }
+    const cancelRemoval = destDir ? removeOnExit(destDir.name) : () => {};
 
     const files = [];
     try {
@@ -1098,6 +1132,7 @@ async function videoExport(presentation, htmlPath, opts) {
         return result;
     }
     finally {
+        cancelRemoval();
         removeTmpDir(destDir);
     }
 }
@@ -1110,8 +1145,9 @@ async function videoExport(presentation, htmlPath, opts) {
  *
  * @param {object} presentation - The presentation, or a plain object with `frames`.
  * @param {string} htmlPath - The path of the presentation HTML file.
- * @param {object} opts - `{width, height, frames: [{index, file}], hidden, frameNumber, timeoutMs, onProgress}`,
- *  where `index` is the 0-based index of a frame and `file` the path of its image.
+ * @param {object} opts - `{width, height, frames: [{index, file}], tempDir, hidden, frameNumber, timeoutMs, onProgress}`,
+ *  where `index` is the 0-based index of a frame and `file` the path of its image;
+ *  `tempDir`, if given, is a directory of the caller removed if this process exits during the render.
  * @returns {Promise<object>} - `{files, size: {width, height}, warnings, capture}`.
  */
 export function renderFrames(presentation, htmlPath, opts) {
@@ -1143,17 +1179,23 @@ async function frameRender(presentation, htmlPath, opts) {
 
     const files = [];
     const windowOpts = Object.assign({}, opts, {width, height, transparent: false});
-    const {warnings, capture} = await withExportWindow(htmlPath, windowOpts, async ew => {
-        for (const {index, file} of images) {
-            await ew.jumpToFrame(index);
-            const png = await ew.capture();
-            fs.mkdirSync(path.dirname(file), {recursive: true});
-            fs.writeFileSync(file, png);
-            files.push(file);
-            progress(opts, files.length, images.length);
-        }
-    });
-    return {files, size: {width, height}, warnings, capture};
+    const cancelRemoval = opts.tempDir ? removeOnExit(opts.tempDir) : () => {};
+    try {
+        const {warnings, capture} = await withExportWindow(htmlPath, windowOpts, async ew => {
+            for (const {index, file} of images) {
+                await ew.jumpToFrame(index);
+                const png = await ew.capture();
+                fs.mkdirSync(path.dirname(file), {recursive: true});
+                fs.writeFileSync(file, png);
+                files.push(file);
+                progress(opts, files.length, images.length);
+            }
+        });
+        return {files, size: {width, height}, warnings, capture};
+    }
+    finally {
+        cancelRemoval();
+    }
 }
 
 /** The export functions that a renderer can call through {@linkcode module:exporter.runExport|runExport}.

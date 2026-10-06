@@ -38,6 +38,14 @@ const CHROMIUM_SWITCHES = new Set([
  */
 export const GLOBAL_FLAGS = {help: false, size: true, timeout: true};
 
+/** The default time limit of a command, in seconds, as in the `--timeout` flag.
+ *
+ * @readonly
+ * @default
+ * @type {number}
+ */
+export const DEFAULT_TIMEOUT_S = 120;
+
 /** Get the flag table of a command, including the global flags.
  *
  * @param {{[command: string]: object}} commandFlags - The flag table of each command.

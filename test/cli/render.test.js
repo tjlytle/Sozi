@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const {runSozi, withTempDeck, decodePng} = require("./helpers.js");
+const {runSozi, withTempDeck, privateTmp, decodePng, checkPng, checkBasicPng, darkInCorner} = require("./helpers.js");
 
 /** Run a command in the directory of a temp deck and check that it succeeded. */
 function soziOk(deck, args, opts = {}) {
@@ -29,42 +29,6 @@ function soziFails(deck, code, args) {
     assert.equal(run.json.ok, false);
     assert.ok(!("exitCode" in run.json));
     return run;
-}
-
-/** Decode a PNG file and check its size, and that its pixels are not all the same colour.
- *
- * Every fourth row and column is sampled.
- */
-function checkPng(file, width, height) {
-    assert.ok(fs.existsSync(file), `${file} exists`);
-    const png = decodePng(fs.readFileSync(file));
-    assert.deepEqual({width: png.width, height: png.height}, {width, height});
-    const colours = new Set();
-    for (let y = 0; y < height; y += 4) {
-        for (let x = 0; x < width; x += 4) {
-            colours.add(png.pixel(x, y).join(","));
-        }
-    }
-    assert.ok(colours.size > 1, `${file} is uniform: ${[...colours]}`);
-    return {png, colours: colours.size};
-}
-
-/** Decode a PNG file of the basic fixture and check its size, and that it shows the frame.
- *
- * The frames of the basic fixture are filled by the orange rectangle r2 (#cc6633),
- * and the frame number of the player is hidden by default: every sampled pixel is orange.
- */
-function checkBasicPng(file, width, height) {
-    assert.ok(fs.existsSync(file), `${file} exists`);
-    const png = decodePng(fs.readFileSync(file));
-    assert.deepEqual({width: png.width, height: png.height}, {width, height});
-    for (let y = 0; y < height; y += 4) {
-        for (let x = 0; x < width; x += 4) {
-            const [r, g, b] = png.pixel(x, y);
-            assert.ok(Math.abs(r - 0xcc) < 8 && Math.abs(g - 0x66) < 8 && Math.abs(b - 0x33) < 8, `${file} at ${x},${y}: ${[r, g, b]}`);
-        }
-    }
-    return png;
 }
 
 /** The number of pixels of an image that are clearly green. */
@@ -327,8 +291,11 @@ describe("render: carried fixes", () => {
             const html = path.join(deck.dir, "basic.sozi.html");
             fs.writeFileSync(html, "<!doctype html><html><body>not a presentation</body></html>");
             touch(html, 60);
-            const run = runSozi(["render", "--all", "--size", "160x90", "--out", "frames", "--timeout", "4", "basic.svg"], {cwd: deck.dir});
+            const tmp = privateTmp(deck.dir);
+            const run = runSozi(["render", "--all", "--size", "160x90", "--out", "frames", "--timeout", "4", "basic.svg"],
+                {cwd: deck.dir, env: tmp.env});
             assert.equal(run.code, 1, run.stdout);
+            assert.deepEqual(tmp.leftovers(), [], "the temporary directory was removed");
             assert.deepEqual(fs.readdirSync(dir).sort(), ["frame-000.png", "frame-007.png"]);
             assert.equal(fs.readFileSync(path.join(dir, "frame-000.png"), "utf8"), "old 0");
         }
@@ -340,22 +307,10 @@ describe("render: carried fixes", () => {
     test("the frame-number badge is hidden unless --frame-number", () => {
         const deck = withTempDeck("basic");
         try {
-            // The badge is a dark box in the top left corner; the basic frames are orange there.
-            const darkInCorner = file => {
-                const png = decodePng(fs.readFileSync(path.join(deck.dir, file)));
-                let count = 0;
-                for (let y = 0; y < 40; y++) {
-                    for (let x = 0; x < 100; x++) {
-                        const [r, g, b] = png.pixel(x, y);
-                        count += r < 100 && g < 100 && b < 100 ? 1 : 0;
-                    }
-                }
-                return count;
-            };
             soziOk(deck, ["render", "--frame", "0", "--size", "320x180", "--out", "plain.png", "basic.svg"]);
             soziOk(deck, ["render", "--frame", "0", "--size", "320x180", "--out", "badge.png", "--frame-number", "basic.svg"]);
-            assert.equal(darkInCorner("plain.png"), 0, "no badge by default");
-            assert.ok(darkInCorner("badge.png") > 50, "the badge is drawn with --frame-number");
+            assert.equal(darkInCorner(path.join(deck.dir, "plain.png")), 0, "no badge by default");
+            assert.ok(darkInCorner(path.join(deck.dir, "badge.png")) > 50, "the badge is drawn with --frame-number");
         }
         finally {
             deck.cleanup();

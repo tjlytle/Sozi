@@ -2,7 +2,7 @@
 import {app, BrowserWindow, ipcMain} from "electron";
 import * as remoteMain from "@electron/remote/main";
 import settings from "electron-app-settings";
-import {parseArgs} from "./cli/args";
+import {DEFAULT_TIMEOUT_S, parseArgs} from "./cli/args";
 import {COMMAND_FLAGS} from "./cli";
 
 remoteMain.initialize();
@@ -121,7 +121,7 @@ function cliMain() {
         return;
     }
 
-    const timeout = Number(cliArgs.flags.timeout || "120");
+    const timeout = Number(cliArgs.flags.timeout || DEFAULT_TIMEOUT_S);
     if (!(timeout > 0)) {
         cliExit(2, {error: `invalid --timeout: ${cliArgs.flags.timeout}; expected a number of seconds`});
         return;

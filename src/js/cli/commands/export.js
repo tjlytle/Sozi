@@ -16,6 +16,7 @@
  * @module
  */
 
+import {DEFAULT_TIMEOUT_S} from "../args";
 import {buildIfNeeded, presentationHtml} from "../html";
 import {outputDirError} from "../output";
 
@@ -228,6 +229,12 @@ export async function exportPresentation(context) {
     const out = Object.hasOwn(flags, "out") ? path.resolve(cwd, flags.out) : null;
     const isSequence = format === "png";
     if (out) {
+        const ext = path.extname(out).slice(1).toLowerCase();
+        if (!isSequence && ext !== format) {
+            const what  = type === "video" ? "video format" : "export type";
+            const given = ext ? `the extension .${ext}` : "no extension";
+            return Object.assign(fields, {ok: false, error: `--out ${flags.out} has ${given}, which does not match the ${what} ${format}; use a .${format} file`, exitCode: 2});
+        }
         if (!isSequence && fs.existsSync(out) && fs.statSync(out).isDirectory()) {
             return Object.assign(fields, {ok: false, error: `--out ${flags.out}: ${out} is a directory; --out names the ${format} file`, exitCode: 2});
         }
@@ -260,7 +267,7 @@ export async function exportPresentation(context) {
         ffmpegPath:      fields.ffmpeg,
         transparent:     !!flags.transparent,
         frameNumber:     !!flags["frame-number"],
-        ffmpegTimeoutMs: Number(flags.timeout || "120") * 1000
+        ffmpegTimeoutMs: Number(flags.timeout || DEFAULT_TIMEOUT_S) * 1000
     };
     const run = {pdf: exporter.exportToPDF, pptx: exporter.exportToPPTX, video: exporter.exportToVideo}[type];
     let result;

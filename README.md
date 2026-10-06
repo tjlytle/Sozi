@@ -297,7 +297,9 @@ What they have in common:
   at a time, in a hidden window: never by the clock, so the same command gives
   the same images.
 * The frame number that the player shows in the top left corner is hidden;
-  `--frame-number` keeps it.
+  `--frame-number` keeps it (for the frames whose "show frame number"
+  setting is on, as in the player). The *Export* button of the editor keeps
+  it, as before.
 * `--out` is relative to the working directory; missing directories are created.
 * `capture` is `"capturePage"`, or `"cdp"` when the images were captured
   through the Chrome DevTools Protocol (slower: a fallback that comes with a
@@ -350,7 +352,9 @@ What they have in common:
   `--height` and `--bitrate` (bits per second) override the video settings.
   `--transparent` (PNG sequences only) leaves the background transparent.
   `--include` and `--exclude` do not apply to videos.
-* Without `--out`, the output goes beside the HTML file: `deck.sozi.pdf`,
+* The extension of `--out` must match the export: `.pdf`, `.pptx`, or the
+  video format (`.webm`, `.mp4`, `.ogv`); for a PNG sequence, `--out` is a
+  directory. Without `--out`, the output goes beside the HTML file: `deck.sozi.pdf`,
   `deck.sozi.pptx`, `deck.sozi.webm`..., or the directory `deck-sozi-export`
   for a PNG sequence, as in the editor.
 * Videos other than PNG sequences are encoded by ffmpeg, which is not
@@ -358,8 +362,8 @@ What they have in common:
   `--ffmpeg PATH` (relative to the working directory), then `ffmpeg` on the
   `PATH`, then the `ffmpeg` bundled in the resources of a packaged Sozi.
   Without one, the export fails with exit code 1 and the error
-  `ffmpeg not found` before anything is built or captured. ffmpeg is stopped
-  when the command times out, and its standard error ends the error message
+  `ffmpeg not found` before anything is built or captured. ffmpeg is stopped,
+  and the temporary images are removed, when the command times out, and its standard error ends the error message
   when it fails.
 * The result has `type`, `format` (the video format, or `pdf`/`pptx`),
   `out` (the file or directory written), `frames` (the number of frames
@@ -368,7 +372,8 @@ What they have in common:
   sequence `files`.
 * An invalid `--export-type`, `--format`, `--fps`, `--width`, `--height`,
   `--bitrate` or frame list, an option that does not apply to the export type
-  (e.g. `--fps` for a PDF, `--transparent` for a webm video), or an `--out`
+  (e.g. `--fps` for a PDF, `--transparent` for a webm video), an `--out`
+  whose extension does not match, or an `--out`
   that is a directory (for a file) or a file (for a PNG sequence) is a usage
   error, and nothing is written.
 
