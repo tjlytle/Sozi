@@ -1,6 +1,6 @@
 # Sozi CLI Progress
 
-## Status: Phase 1 - Complete, PR #6 ready for review. Phase 2 - Not Started
+## Status: Phases 1-2 complete (PRs #6, #7 ready for review). Phase 3 - Not Started
 
 ## Quick Reference
 - Research: `docs/sozi-cli/RESEARCH.md`
@@ -38,7 +38,19 @@
 - (none)
 
 ### Phase 2: Explicit title (#5) — branch `5-title`
-**Status:** Not Started
+**Status:** Completed (PR #7, stacked on #6)
+#### Tasks Completed
+- Task 1 (c2f4046): `explicitTitle`/`svgTitle` + `title` getter, storables, editor field, empty
+  `<title/>` guard, window title via repaint, 6 tests incl. a headless-Chrome runtime check.
+- Task 2 (5cad92e..ecf4663): `build --title`, table-driven `set`, `inspect` title fields, README,
+  template escaping, script-safe embedded data (every `<` escaped; `<!--<script>` proven in
+  Chrome), carried phase 1 validation fixes. 74 tests.
+- Final review fix wave (0f4a833..554d186): string-only JSON title with warning, trimmed title,
+  "Presentation title" label, upstream-write hook fails closed / case-insensitive / narrowed, 14
+  hook tests. 90 tests.
+#### Decisions Made
+- `--title ""` or whitespace clears the key; non-string JSON titles are ignored with a warning.
+- The guard hook (`.claude/hooks/no-upstream-writes.sh`) ships in this PR though unrelated to #5.
 
 ### Phase 3: Presentation name independent of the SVG (#3) — branch `3-presentation-name`
 **Status:** Not Started
@@ -52,6 +64,10 @@
 ---
 
 ## Session Log
+
+### 2026-10-06 (later)
+- Phase 2 done end to end (2 tasks, 1 pre-review fix, 1 fix round, final review + fix wave).
+  Hand-tested `build --title` on the BattleSnake deck. Phase 3 started.
 
 ### 2026-10-06
 - Task 1 implemented and reviewed (Opus implementer + Opus reviewer). Footer amended.
@@ -87,6 +103,15 @@
 - English is forced for CLI messages, in memory only.
 - Two re-review minors parked into phase 2: non-string `--timeout`/`--size` values; prototype
   names pass flag validation.
+
+## Rulings made while Tim was away (phase 2)
+- The `</script>` concern was fixed before review rather than deferred, then widened to every `<`
+  after the reviewer proved `<!--<script>` in Chrome. HTML bytes change for decks with `<` in
+  notes; values are identical after parsing.
+- Two phase 1 re-review minors (valueless `--timeout`/`--size`, prototype flag names) were fixed
+  here instead of a second phase 1 fix wave.
+- The upstream-write guard hook was committed on this branch so it lands with the next merge.
+- Hook gap carried to phase 3: `gh api ... -f` implicit POST is not matched.
 
 ## Architectural Decisions
 - CLI lives inside the Sozi binary as `--cli`, hidden window, full editor page.
