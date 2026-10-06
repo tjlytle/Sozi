@@ -120,6 +120,12 @@
 
 ## Session Log
 
+### 2026-10-06 (fixture swap)
+- Replaced the BattleSnake fixture with Sozi's own `doc/presentations/Website` deck
+  (`test/fixtures/website/this-is-not-a-slideshow.fast.*`, 9 frames, vector only) on the
+  foundation branch and rebased the stack; the build, inspect and render tests now use it.
+  Tim will squash or rewrite PR #6 at merge time so the BattleSnake blobs never reach master.
+
 ### 2026-10-07
 - Phase 5 done (3 tasks, 3 fix rounds, final review + fix wave + one follow-up). Hand-tested on the
   BattleSnake deck: PDF (5 pages from an include list), PPTX (32 slides), mp4 (187 frames at 5 fps

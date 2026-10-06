@@ -182,23 +182,23 @@ describe("render --all", () => {
         }
     });
 
-    test("a 32-frame deck: the image count equals the frame count", t => {
-        const deck = withTempDeck("battlesnake");
+    test("a nine-frame deck: the image count equals the frame count", t => {
+        const deck = withTempDeck("website");
         try {
             const start = Date.now();
-            const {json} = soziOk(deck, ["render", "--all", "--size", "320x180", "--out", "frames", "hacksnake-edit.svg"], {timeout: 150000});
-            t.diagnostic(`32-frame render --all at 320x180: ${Date.now() - start} ms`);
-            assert.equal(json.files.length, 32);
+            const {json} = soziOk(deck, ["render", "--all", "--size", "320x180", "--out", "frames", "this-is-not-a-slideshow.fast.svg"], {timeout: 150000});
+            t.diagnostic(`nine-frame render --all at 320x180: ${Date.now() - start} ms`);
+            assert.equal(json.files.length, 9);
             // No frame is blank: capturePage is used throughout, without falling back to the slower CDP.
             // The command line renders at device scale 1 on any display (see the scale-factor-2 test),
             // so this holds on a high-density desktop as under xvfb.
             assert.equal(json.capture, "capturePage");
             assert.deepEqual(json.warnings, []);
-            assert.equal(json.frames.length, 32);
+            assert.equal(json.frames.length, 9);
             assert.deepEqual(fs.readdirSync(path.join(deck.dir, "frames")).sort(),
-                Array.from({length: 32}, (_, i) => `frame-${String(i).padStart(3, "0")}.png`));
+                Array.from({length: 9}, (_, i) => `frame-${String(i).padStart(3, "0")}.png`));
             // Real slides: many colours, not just a frame number on a background.
-            for (const file of [json.files[0], json.files[31]]) {
+            for (const file of [json.files[0], json.files[8]]) {
                 const {colours} = checkPng(file, 320, 180);
                 assert.ok(colours > 20, `${file} has ${colours} colours`);
             }
