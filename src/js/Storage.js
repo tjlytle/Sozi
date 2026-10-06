@@ -10,16 +10,7 @@ import nunjucks from "nunjucks";
 import Jed from "jed";
 import {upgradeFromSVG, upgradeFromStorable} from "./upgrade";
 import path from "path";
-
-/** Replace the extension in a file name.
- *
- * @param {string} fileName - The name of a file.
- * @param {string} ext - The new extension.
- * @returns {string} - A file name with the new extension.
- */
-function replaceFileExtWith(fileName, ext) {
-    return fileName.replace(/\.[^/.]+$/, ext);
-}
+import {presentationFiles} from "./naming";
 
 /** File read/write manager. */
 export class Storage {
@@ -223,7 +214,7 @@ export class Storage {
         if (this.document.isValidSVG) {
             this.resolveRelativeURLs(location);
             this.presentation.setSVGDocument(this.document);
-            await this.openJSONFile(replaceFileExtWith(name, ".sozi.json"), location);
+            await this.openJSONFile(presentationFiles(name).presentation, location);
         }
         else {
             this.controller.error(_("Document is not valid SVG."));
@@ -310,12 +301,11 @@ export class Storage {
             return;
         }
 
-        const svgName           = this.backend.getName(this.svgFileDescriptor);
-        const htmlFileName      = replaceFileExtWith(svgName, ".sozi.html");
-        const presenterFileName = replaceFileExtWith(svgName, "-presenter.sozi.html");
+        // The HTML files are named after the presentation file.
+        const files = presentationFiles(this.backend.getName(this.svgFileDescriptor), name);
         // TODO Save only if SVG is more recent than HTML.
-        await this.createHTMLFile(htmlFileName, location);
-        await this.createPresenterHTMLFile(presenterFileName, location, htmlFileName);
+        await this.createHTMLFile(files.html, location);
+        await this.createPresenterHTMLFile(files.presenter, location, path.basename(files.html));
     }
 
     /** Create the presentation HTML file if it does not exist.

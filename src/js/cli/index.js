@@ -18,6 +18,7 @@ import {build, FLAGS as buildFlags} from "./commands/build";
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
 import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
 import {validateArgs} from "./args";
+import {presentationFiles} from "../naming";
 
 const CLI_PREFIX = "--sozi-cli=";
 
@@ -168,7 +169,7 @@ export async function runCli(options, {controller, storage, preferences}) {
         }
 
         result.svg = path.resolve(options.cwd, file);
-        result.presentation = result.svg.replace(/\.[^/.]+$/, ".sozi.json");
+        result.presentation = presentationFiles(result.svg).presentation;
         if (result.presentation === result.svg) {
             reply(2, Object.assign(result, {ok: false, error: `file has no extension: ${result.svg}`}));
             return;
