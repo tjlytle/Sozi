@@ -310,3 +310,23 @@ describe("only .sozi.json files are presentations", () => {
         }
     });
 });
+
+describe("svg key stability", () => {
+    test("a key that resolves to the opened SVG is never rewritten", () => {
+        const deck = withTempDeck("basic");
+        try {
+            for (const [name, key] of [["absolute", deck.svg], ["dotted", "./basic.svg"], ["relative", "basic.svg"]]) {
+                const file = path.join(deck.dir, `${name}.sozi.json`);
+                writePresentation(file, {svg: key});
+                const before = fs.readFileSync(file);
+                const {json} = soziOk(deck, "build", `${name}.sozi.json`);
+                assert.deepEqual(json.files, [htmlOf(file).html, htmlOf(file).presenter], name);
+                assert.deepEqual(fs.readFileSync(file), before, name);
+            }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+});

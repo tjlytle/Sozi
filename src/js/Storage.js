@@ -347,10 +347,12 @@ export class Storage {
     async openJSONFile(name, location) {
         const _ = this.controller.gettext;
 
-        // The SVG and JSON paths, as bare names when they are in the same location.
+        // The SVG and JSON paths: absolute paths when locations are directory
+        // paths (Electron), so that an absolute `svg` key compares equal;
+        // bare names for other backends when both files are in the same location.
         const svgName     = this.backend.getName(this.svgFileDescriptor);
         const svgLocation = this.backend.getLocation(this.svgFileDescriptor);
-        const [svgRef, jsonRef] = location === svgLocation ?
+        const [svgRef, jsonRef] = typeof location !== "string" && location === svgLocation ?
             [svgName, name] :
             [path.join(svgLocation, svgName), path.join(location, name)];
 
