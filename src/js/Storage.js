@@ -418,7 +418,12 @@ export class Storage {
         return nunjucks.render("player.html", {
             svg: this.document.asText,
             pres: this.presentation,
-            json: JSON.stringify(this.presentation.toMinimalStorable()),
+            // Inline script: "</" could close the script element, and U+2028/U+2029
+            // are line terminators in older JavaScript engines.
+            json: JSON.stringify(this.presentation.toMinimalStorable())
+                .replace(/<\//g, "<\\/")
+                .replace(/\u2028/g, "\\u2028")
+                .replace(/\u2029/g, "\\u2029"),
             customCSS: this.readCustomFiles(".css"),
             customJS: this.readCustomFiles(".js")
         });
