@@ -103,6 +103,7 @@ messages are always in English.
 sozi --cli inspect [--frame N] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli build [--write-json] [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli set [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli render (--frame N | --all) --out PATH [--size WxH] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 ```
 
 The file argument may also be a presentation file, e.g.
@@ -130,6 +131,7 @@ When running from the source tree, replace `sozi` with
   It writes `deck.sozi.json` only when the file does not exist or when loading
   or `--title` changed the presentation, because a load/save round trip is not byte-stable.
 * `--write-json` makes `build` always rewrite `deck.sozi.json`.
+* `--cli render` writes PNG images of frames; see [Rendering frames](#rendering-frames).
 * `--cli set` changes properties of the presentation and writes
   `deck.sozi.json` (no HTML file). It reports in `changed` the old and new
   value of each property that changed, e.g.
@@ -141,11 +143,12 @@ When running from the source tree, replace `sozi` with
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
   explicit title. Use `--title=TITLE` for a title that starts with `--`.
-* `--out-dir DIR` (for `build`, `set` and `inspect`) is the directory of the
+* `--out-dir DIR` (for `build`, `set`, `inspect` and `render`) is the directory of the
   HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)
   names the presentation file instead of `deck.sozi.json`; see below.
-* `--size WxH` sets the size of the hidden window (default `1280x720`).
+* `--size WxH` sets the size of the hidden window (default `1280x720`), and
+  the size of the images of `render`.
 * `--timeout S` stops the command after `S` seconds (default `120`) with exit code 1.
 
 Options go after the command. An unknown option, an option without its value
@@ -251,8 +254,50 @@ sozi --cli set --out-dir "" deck.svg                 # back to beside the presen
   use, and `outputSource`: `"flag"` for `--out-dir`, `"json"` for the stored
   key, or `"default"` with `outputDir` `null` (beside the presentation file).
 * An output directory that is (or is inside) an existing file is a usage
-  error (exit code 2) of `build`, `set` and `inspect`, with the same message,
+  error (exit code 2) of `build`, `set`, `inspect` and `render`, with the same message,
   and nothing is written.
+
+### Rendering frames
+
+`render` writes a PNG image of one frame, or of every frame:
+
+```
+sozi --cli render --frame 0 --out slide.png deck.svg            # by 0-based index
+sozi --cli render --frame intro --size 1920x1080 --out intro.png deck.svg   # by frame id
+sozi --cli render --all --out frames deck.svg                   # frames/frame-000.png, frame-001.png...
+```
+
+* Exactly one of `--frame N` (a 0-based index or a frame id, as for
+  `inspect`) or `--all` is required, and so is `--out`: the image file with
+  `--frame`, a directory with `--all`. Paths are relative to the working
+  directory; missing directories are created. With `--all`, the images are
+  named after the 0-based frame index, zero-padded to three digits (more for
+  a presentation of 1000 frames or more), and earlier `frame-NNN.png` images
+  in the directory are removed; other files are kept.
+* The images have exactly the `--size` (default `1280x720`). As in the
+  player, the frame keeps the aspect ratio of the presentation inside that
+  size; the rest of the image shows what lies around the frame.
+* The images are captured from the presentation HTML file at its real path,
+  in the [output directory](#output-directory) if there is one, so linked
+  images and media resolve as they do in a browser. `render` first builds the
+  HTML files, like `build`, when `deck.sozi.html` is missing or older than
+  the SVG or presentation file; `--rebuild` always builds them. Otherwise the
+  existing HTML file is used as it is.
+* Each frame is shown without transition, in a hidden window: rendering the
+  same frame twice gives the same bytes.
+* The result has `files` (the images written), `size` (`{"width", "height"}`),
+  `frames` (`[{"index", "id", "file"}]`), `html` (the HTML file captured),
+  `rebuilt` (whether the HTML files were built by this run) and `capture`
+  (`"capturePage"`, or `"cdp"` when the images were captured through the
+  Chrome DevTools Protocol, which comes with a warning; it is slower).
+* An unknown frame fails with exit code 1 and writes nothing. Missing
+  `--frame`/`--all` or `--out`, both `--frame` and `--all`, a `--size` with a
+  zero dimension, or an `--out` that is a directory (with `--frame`) or a
+  file (with `--all`) is a usage error.
+* A 32-frame deck renders in about 5 s at 1280x720 on a desktop machine, well
+  within the default `--timeout` of 120 s; raise `--timeout` for very large
+  decks or sizes. Each step of the capture (page load, frame change, capture)
+  also fails on its own after 30 s.
 
 ### Exit codes
 
@@ -260,7 +305,7 @@ sozi --cli set --out-dir "" deck.svg                 # back to beside the presen
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
 | `1`  | The command failed: missing or invalid file, unparsable JSON, missing SVG of a presentation file, unknown frame, write error, timeout, crash. |
-| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, output directory that is a file, no display. |
+| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, output directory that is a file, invalid `render` options, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.
