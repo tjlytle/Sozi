@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/** Export a presentation to PDF, PPTX, video or a PNG sequence.
+/** Export a presentation to PDF, PPTX, video or a PNG sequence, or render frames to PNG images.
  *
  * The export functions drive a capture window that loads the generated
  * presentation HTML. They run in the main process, where they create a plain
@@ -1031,9 +1031,63 @@ async function videoExport(presentation, htmlPath, opts) {
     }
 }
 
+/** Render frames of a presentation to PNG images, one image per frame.
+ *
+ * Each frame is shown without transition and captured at exactly the
+ * requested size; the player fits the presentation aspect ratio inside it.
+ * The directories of the image files are created if needed.
+ *
+ * @param {object} presentation - The presentation, or a plain object with `frames`.
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - `{width, height, frames: [{index, file}], hidden, timeoutMs, onProgress}`,
+ *  where `index` is the 0-based index of a frame and `file` the path of its image.
+ * @returns {Promise<object>} - `{files, size: {width, height}, warnings, capture}`.
+ */
+export function renderFrames(presentation, htmlPath, opts) {
+    return dispatch("renderFrames", presentation, htmlPath, opts, frameRender);
+}
+
+/** Implementation of {@linkcode module:exporter.renderFrames|renderFrames} (main process).
+ *
+ * @param {object} presentation - The presentation settings.
+ * @param {string} htmlPath - The path of the presentation HTML file.
+ * @param {object} opts - The render options, with defaults.
+ * @returns {Promise<object>} - The render result.
+ */
+async function frameRender(presentation, htmlPath, opts) {
+    const width  = Number(opts.width);
+    const height = Number(opts.height);
+    if (!(Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0)) {
+        throw new Error(`invalid image size: ${opts.width}x${opts.height}`);
+    }
+    const images = opts.frames || [];
+    if (!images.length) {
+        throw new Error("no frames selected for export");
+    }
+    for (const {index} of images) {
+        if (!(Number.isInteger(index) && index >= 0 && index < presentation.frames.length)) {
+            throw new Error(`frame index out of range: ${index}`);
+        }
+    }
+
+    const files = [];
+    const windowOpts = Object.assign({}, opts, {width, height, transparent: false});
+    const {warnings, capture} = await withExportWindow(htmlPath, windowOpts, async ew => {
+        for (const {index, file} of images) {
+            await ew.jumpToFrame(index);
+            const png = await ew.capture();
+            fs.mkdirSync(path.dirname(file), {recursive: true});
+            fs.writeFileSync(file, png);
+            files.push(file);
+            progress(opts, files.length, images.length);
+        }
+    });
+    return {files, size: {width, height}, warnings, capture};
+}
+
 /** The export functions that a renderer can call through {@linkcode module:exporter.runExport|runExport}.
  *
  * @readonly
  * @type {object.<string, Function>}
  */
-const exportFunctions = {exportToPDF, exportToPPTX, exportToVideo};
+const exportFunctions = {exportToPDF, exportToPPTX, exportToVideo, renderFrames};
