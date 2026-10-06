@@ -15,10 +15,17 @@ import {Preview} from "./view/Preview";
 import {Properties} from "./view/Properties";
 import {Toolbar} from "./view/Toolbar";
 import {Timeline} from "./view/Timeline";
+import {getCliOptions, runCli} from "./cli";
 
 import nunjucks from "nunjucks";
 
 window.addEventListener("load", () => {
+    const cliOptions = getCliOptions();
+    if (cliOptions) {
+        runCli(cliOptions);
+        return;
+    }
+
     nunjucks.configure({watch: false});
 
     const presentation     = new Presentation();
