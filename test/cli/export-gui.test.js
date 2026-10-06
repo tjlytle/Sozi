@@ -15,16 +15,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {PDFDocument} = require("pdf-lib");
 
-const {withTempDeck, decodePng, electronBinary, appDir} = require("./helpers.js");
+const os = require("node:os");
+const zlib = require("node:zlib");
+
+const {withTempDeck, decodePng, electronBinary, appDir, fixturesDir} = require("./helpers.js");
 
 /** Run the editor on a deck with the export test hook.
  *
  * @param {object} deck - A temp deck from withTempDeck.
  * @param {string} type - The export type: pdf, pptx or video.
+ * @param {string[]} [switches] - Chromium switches for Electron.
  * @returns {{code: number|null, output: string}} - The exit code and the console output.
  */
-function guiExport(deck, type) {
-    const result = spawnSync(electronBinary, [appDir, deck.svg], {
+function guiExport(deck, type, switches = []) {
+    const result = spawnSync(electronBinary, [appDir, ...switches, deck.svg], {
         cwd: deck.dir,
         env: Object.assign({}, process.env, {SOZI_TEST_EXPORT: type, ELECTRON_ENABLE_LOGGING: "1"}),
         encoding: "utf8",
@@ -48,26 +52,36 @@ function setExportSettings(deck, settings) {
     fs.writeFileSync(deck.json, JSON.stringify(Object.assign(data, settings)));
 }
 
-/** The names of the entries of a zip file, from its central directory.
+/** The entries of a zip file, from its central directory.
  *
  * @param {Buffer} buf - The content of a zip file.
- * @returns {string[]} - The entry names.
+ * @returns {{name: string, data: Function}[]} - The entries; `data()` gives the uncompressed content.
  */
 function zipEntries(buf) {
     const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
     assert.ok(eocd >= 0, "zip end of central directory");
     const count = buf.readUInt16LE(eocd + 10);
     let o = buf.readUInt32LE(eocd + 16);
-    const names = [];
+    const entries = [];
     for (let i = 0; i < count; i++) {
         assert.equal(buf.readUInt32LE(o), 0x02014b50, "zip central directory entry");
-        const nameLength    = buf.readUInt16LE(o + 28);
-        const extraLength   = buf.readUInt16LE(o + 30);
-        const commentLength = buf.readUInt16LE(o + 32);
-        names.push(buf.toString("utf8", o + 46, o + 46 + nameLength));
+        const method         = buf.readUInt16LE(o + 10);
+        const compressedSize = buf.readUInt32LE(o + 20);
+        const nameLength     = buf.readUInt16LE(o + 28);
+        const extraLength    = buf.readUInt16LE(o + 30);
+        const commentLength  = buf.readUInt16LE(o + 32);
+        const local          = buf.readUInt32LE(o + 42);
+        entries.push({
+            name: buf.toString("utf8", o + 46, o + 46 + nameLength),
+            data() {
+                const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+                const raw = buf.subarray(start, start + compressedSize);
+                return method === 8 ? zlib.inflateRawSync(raw) : raw;
+            }
+        });
         o += 46 + nameLength + extraLength + commentLength;
     }
-    return names;
+    return entries;
 }
 
 /** Find an executable on the PATH.
@@ -103,6 +117,9 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             assert.equal(run.code, 0, run.output);
             const pdf = await PDFDocument.load(fs.readFileSync(path.join(deck.dir, "basic.sozi.pdf")));
             assert.equal(pdf.getPageCount(), 2);
+            // A4 landscape: 297 x 210 mm, in points.
+            const {width, height} = pdf.getPage(0).getSize();
+            assert.ok(Math.abs(width - 842) < 2 && Math.abs(height - 595) < 2, `page size ${width}x${height}`);
         }
         finally {
             deck.cleanup();
@@ -142,8 +159,8 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
         try {
             const run = guiExport(deck, "pptx");
             assert.equal(run.code, 0, run.output);
-            const entries = zipEntries(fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx")));
-            assert.equal(entries.filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length, 2);
+            const names = zipEntries(fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx"))).map(e => e.name);
+            assert.equal(names.filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length, 2);
         }
         finally {
             deck.cleanup();
@@ -162,6 +179,44 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             const first = decodePng(fs.readFileSync(path.join(dir, names[0])));
             assert.equal(first.width, 160);
             assert.equal(first.height, 90);
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("pptx on a display with scale factor 2: slide images keep the slide size in pixels", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const run = guiExport(deck, "pptx", ["--force-device-scale-factor=2"]);
+            assert.equal(run.code, 0, run.output);
+            const media = zipEntries(fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx")))
+                .filter(e => /^ppt\/media\/.*\.png$/.test(e.name));
+            assert.equal(media.length, 2);
+            for (const entry of media) {
+                const png = decodePng(entry.data());
+                // screen4x3 slides are 1440x1080 pixels.
+                assert.deepEqual([png.width, png.height], [1440, 1080], entry.name);
+            }
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
+    test("video png on a display with scale factor 2: images have the requested size", () => {
+        const deck = withTempDeck("basic");
+        try {
+            setExportSettings(deck, Object.assign({exportToVideoFormat: "png"}, VIDEO_SETTINGS));
+            const run = guiExport(deck, "video", ["--force-device-scale-factor=2"]);
+            assert.equal(run.code, 0, run.output);
+            const dir = path.join(deck.dir, "basic-sozi-export");
+            const names = fs.readdirSync(dir).sort();
+            assert.equal(names.length, VIDEO_IMAGES);
+            for (const name of [names[0], names[5]]) {
+                const png = decodePng(fs.readFileSync(path.join(dir, name)));
+                assert.deepEqual([png.width, png.height], [160, 90], name);
+            }
         }
         finally {
             deck.cleanup();
@@ -192,6 +247,51 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
         }
         finally {
             deck.cleanup();
+        }
+    });
+});
+
+/** Run an export function of the built exporter module in the Electron main process.
+ *
+ * @param {object} args - `{fn, presentation, html, opts}`.
+ * @returns {object} - The report of the harness: `{ok, result | error, elapsedMs, windows}`.
+ */
+function mainExport(args) {
+    const harness = path.join(__dirname, "harness", "export-main.js");
+    const exporterModule = path.join(appDir, "src", "js", "exporter", "index.js");
+    const result = spawnSync(electronBinary, [harness, exporterModule, JSON.stringify(args)], {
+        encoding: "utf8",
+        timeout: 60000,
+        killSignal: "SIGKILL"
+    });
+    if (result.error) {
+        throw result.error;
+    }
+    try {
+        return JSON.parse(result.stdout);
+    }
+    catch {
+        assert.fail(`harness output is not JSON: ${result.stdout}\n${result.stderr}`);
+    }
+}
+
+describe("exporter in the main process", () => {
+    test("an HTML file without the Sozi player: the export fails within the time limit and closes its window", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
+        try {
+            const html = path.join(dir, "plain.html");
+            fs.writeFileSync(html, "<!doctype html><html><body><p>Not a presentation</p></body></html>");
+            const presentation = JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8"));
+            const out = path.join(dir, "plain.pdf");
+            const report = mainExport({fn: "exportToPDF", presentation, html, opts: {outPath: out, timeoutMs: 2000}});
+            assert.equal(report.ok, false, JSON.stringify(report));
+            assert.match(report.error, /Sozi player did not start within 2 s/);
+            assert.ok(report.elapsedMs < 10000, `took ${report.elapsedMs} ms`);
+            assert.equal(report.windows, 0);
+            assert.ok(!fs.existsSync(out));
+        }
+        finally {
+            fs.rmSync(dir, {recursive: true, force: true});
         }
     });
 });
