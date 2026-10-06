@@ -1,6 +1,6 @@
 # Sozi CLI Progress
 
-## Status: Phases 1-4 complete (PRs #6, #7, #8, #10 ready for review). Phase 5 - Not Started
+## Status: All five phases complete. PRs #6, #7, #8, #10, #11 ready for review, stacked in that order.
 
 ## Quick Reference
 - Research: `docs/sozi-cli/RESEARCH.md`
@@ -94,11 +94,43 @@
   names the directory on open instead of blocking.
 
 ### Phase 5: Render and export (#2) — branch `2-render-export`
-**Status:** Not Started
+**Status:** Completed (PR #11, stacked on #10)
+#### Tasks Completed
+- Task 1 (1ec8fe8..06fa2b0): exporter driving layer rewritten (`executeJavaScript` instead of the
+  IPC call Electron 28 removed, which made every export hang in source builds); hidden window,
+  device scale 1, every step bounded, capturePage with CDP fallback; ffmpeg status/stderr,
+  zero-padded names, yuv420p, first image on zero-timeout frames, empty selection rejected, PDF
+  backgrounds, transparent sequences; env-gated GUI export tests. Fix round: HiDPI and watchdogs.
+- Task 2 (eae60a2..4454fed): `render --frame | --all` at `--size`, built HTML reused or rebuilt
+  when stale, deterministic captures; 32 frames in about 4 s.
+- Task 3 (e8b4ef7..ae2ddcc): `export` with JSON settings and overrides (`--export-type`, since
+  Chromium owns `--type`), ffmpeg bounded, frame-number badge hidden in CLI captures only, build
+  writes JSON before HTML, `--all` keeps old frames until success, README.
+- Final review fix wave (8d5031a..954230a): scale-1 CLI window and GUI resize (32 frames at scale 2:
+  3.4 s instead of 77 s), ffmpeg bound scaling with image count, temp-then-rename for every export
+  output, `--size` rejected on export, hardlinked hold frames with copy fallback, shared parseSize,
+  navigation guard, exporter-side format check, wmv accepted. 253 tests.
+#### Decisions Made
+- `--type` cannot be used (Chromium process switch); the flag is `--export-type`.
+- CLI renders and exports hide the frame-number badge by default (`--frame-number` keeps it); the
+  editor's own Export keeps the authored per-frame setting as upstream did.
+- ffmpeg stays external: explicit `--ffmpeg`, then PATH, then bundled.
 
 ---
 
 ## Session Log
+
+### 2026-10-06 (fixture swap)
+- Replaced the BattleSnake fixture with Sozi's own `doc/presentations/Website` deck
+  (`test/fixtures/website/this-is-not-a-slideshow.fast.*`, 9 frames, vector only) on the
+  foundation branch and rebased the stack; the build, inspect and render tests now use it.
+  Tim will squash or rewrite PR #6 at merge time so the BattleSnake blobs never reach master.
+
+### 2026-10-07
+- Phase 5 done (3 tasks, 3 fix rounds, final review + fix wave + one follow-up). Hand-tested on the
+  BattleSnake deck: PDF (5 pages from an include list), PPTX (32 slides), mp4 (187 frames at 5 fps
+  in 12 s), per-frame renders, and the agent loop (edit JSON, render, look).
+- Project complete: PRs #6, #7, #8, #10, #11.
 
 ### 2026-10-06 (evening)
 - Phase 4 done (2 tasks, 1 fix round, final review + 5-commit fix wave). Hand-tested a stored key
@@ -172,9 +204,21 @@
 - The manual editor smoke test was performed by the implementer under xvfb with screenshot pixel
   evidence instead of waiting for Tim.
 
+## Rulings made while Tim was away (phase 5)
+- `--export-type` instead of the plan's `--type` (Chromium reserves it).
+- GUI export keeps the authored frame-number setting; CLI hides the badge by default.
+- Explicit `--ffmpeg` wins over PATH and the bundled binary (the plan's wording was the reverse).
+- The last re-review residual (hard-link fallback) was fixed in a targeted follow-up verified by
+  the controller rather than parked.
+
 ## Architectural Decisions
 - CLI lives inside the Sozi binary as `--cli`, hidden window, full editor page.
 - Exit only via `app.exit(code)` after stdout flush; stdout is JSON only, logs to stderr.
 
 ## Lessons Learned
+- For the agent loop (inspect, edit JSON, build, render, look): editing `cameraStates` is silently
+  ignored for layers with a `referenceElementId`; Sozi recomputes the camera from the element and
+  `cameraOffsets` on load. Edit `cameraOffsets` (or clear the reference) instead. Verified on the
+  BattleSnake deck: a `cameraStates.angle` edit left the render byte-identical; a `deltaAngle` edit
+  rotated it and `inspect` reported the effective angle. The sozi-cli skill must say this.
 - `gh` in a fork clone defaults to the parent repo; always `-R tjlytle/Sozi`.

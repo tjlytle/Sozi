@@ -36,3 +36,32 @@ export function exportToVideo(presentation, htmlFileName) {
     console.log("Export to video not supported on this platform.");
     return Promise.resolve();
 }
+
+/** Render frames of a presentation to PNG images.
+ *
+ * @param {module:model/Presentation.Presentation} presentation - The presentation to render.
+ * @param {string} htmlFileName - The name of the presentation HTML file.
+ * @returns {Promise} - A promise that resolves when the operation completes.
+ */
+export function renderFrames(presentation, htmlFileName) {
+    console.log("Rendering frames is not supported on this platform.");
+    return Promise.resolve();
+}
+
+/** Copy the export settings of a presentation (not supported on this platform).
+ *
+ * @param {module:model/Presentation.Presentation} presentation - The presentation.
+ * @returns {object} - An empty object.
+ */
+export function exportSettings(presentation) {
+    return {};
+}
+
+/** Find an ffmpeg executable (not supported on this platform).
+ *
+ * @param {?string} explicitPath - A path given by the user, or `null`.
+ * @returns {null} - Always `null`.
+ */
+export function findFfmpeg(explicitPath) {
+    return null;
+}

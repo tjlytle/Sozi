@@ -108,7 +108,14 @@ export class Electron extends AbstractBackend {
             const fileName = path.resolve(cwd, arg);
             if (fs.existsSync(fileName) && fs.statSync(fileName).isFile()) {
                 // Open the file chooser if the file could not be opened, e.g. a presentation whose SVG file is missing.
-                this.controller.storage.open(fileName, this).then(ok => ok || setTimeout(() => this.openFileChooser(), 100));
+                this.controller.storage.open(fileName, this).then(ok => {
+                    if (process.env.SOZI_TEST_EXPORT) {
+                        this.runTestExport(ok, process.env.SOZI_TEST_EXPORT);
+                    }
+                    else if (!ok) {
+                        setTimeout(() => this.openFileChooser(), 100);
+                    }
+                });
             }
             else {
                 this.controller.error(Jed.sprintf(_("File not found: %s."), fileName));
@@ -119,6 +126,36 @@ export class Electron extends AbstractBackend {
         else {
             this.openFileChooser();
         }
+    }
+
+    /** Test hook: export the opened presentation through the controller and exit.
+     *
+     * Only called when the environment variable `SOZI_TEST_EXPORT` is set
+     * to `pdf`, `pptx` or `video`. The exit code is 0 if the export succeeded.
+     * Nothing is saved on exit: no preferences, no window geometry.
+     *
+     * @param {boolean} opened - Was the presentation opened successfully?
+     * @param {string} type - The export type.
+     */
+    async runTestExport(opened, type) {
+        const method = {pdf: "exportToPDF", pptx: "exportToPPTX", video: "exportToVideo"}[type];
+        let failure = opened ? null : "the presentation could not be opened";
+        if (!method) {
+            failure = `unknown SOZI_TEST_EXPORT type: ${type}`;
+        }
+        if (!failure) {
+            const error = this.controller.error;
+            this.controller.error = msg => {
+                failure = msg;
+                error.call(this.controller, msg);
+            };
+            await this.controller[method]();
+            this.controller.error = error;
+        }
+        if (failure) {
+            console.error(`SOZI_TEST_EXPORT failed: ${failure}`);
+        }
+        remote.app.exit(failure ? 1 : 0);
     }
 
     /** Close the editor window and terminate the application.
