@@ -26,8 +26,9 @@ const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg|file.sozi.json
 
 /** The available commands.
  *
- * A command receives a context `{controller, storage, svg, presentation, svgSource, flags, warnings}`
+ * A command receives a context `{controller, storage, svg, presentation, svgSource, cwd, flags, warnings}`
  * once the presentation is loaded, and returns a result object with an `ok` property.
+ * A failed result may have an `exitCode` (default 1), which is not printed.
  *
  * @type {{[name: string]: Function}}
  */
@@ -267,15 +268,18 @@ export async function runCli(options, {controller, storage, preferences}) {
             svg:          result.svg,
             presentation: result.presentation,
             svgSource:    files.svgSource,
+            cwd:          options.cwd,
             flags:        options.flags,
             warnings
         });
+        const exitCode = commandResult.exitCode || 1;
+        delete commandResult.exitCode;
         Object.assign(result, commandResult);
         if (errors.length) {
             result.ok = false;
             result.error = errors[0];
         }
-        reply(result.ok ? 0 : 1, result);
+        reply(result.ok ? 0 : exitCode, result);
     }
     catch (err) {
         reply(1, Object.assign(result, {ok: false, error: String(err), stack: err && err.stack}));

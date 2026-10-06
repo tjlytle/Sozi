@@ -9,11 +9,13 @@
  * @module
  */
 
+import {presentationFiles} from "../../naming";
+
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
  *
  * @type {{[name: string]: boolean}}
  */
-export const FLAGS = {frame: true, presentation: true};
+export const FLAGS = {frame: true, "out-dir": true, presentation: true};
 
 /** Read the layer ids that the presentation JSON file has properties for.
  *
@@ -106,14 +108,21 @@ function describeFrame(frame, index) {
  * presentation file named it, `"flag"` when `--presentation` named the
  * presentation file, `"default"` otherwise.
  *
+ * The output directory of the HTML files is reported as the absolute path
+ * that `build` would use, with its source: `"flag"` for `--out-dir`, `"json"`
+ * for the `outputDir` key, or `null` with `"default"` (beside the presentation file).
+ *
  * @param {object} context - The command context.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
+ * @param {string} context.svg - The absolute path of the SVG file.
  * @param {string} context.presentation - The absolute path of the JSON file.
  * @param {string} context.svgSource - How the SVG file was found.
+ * @param {string} context.cwd - The working directory.
  * @param {object} context.flags - The command-line flags.
- * @returns {object} - The command result: `{ok, svgSource, title, titleSource, svgTitle, aspect, layers, frames}`, or `{ok: false, error}`.
+ * @returns {object} - The command result: `{ok, svgSource, outputDir, outputSource, title, titleSource, svgTitle, aspect, layers, frames}`, or `{ok: false, error}`.
  */
-export function inspect({storage, presentation: jsonPath, svgSource, flags}) {
+export function inspect({storage, svg, presentation: jsonPath, svgSource, cwd, flags}) {
+    const path = require("path");
     const presentation = storage.presentation;
 
     let frames = presentation.frames.map((frame, index) => ({frame, index}));
@@ -132,9 +141,16 @@ export function inspect({storage, presentation: jsonPath, svgSource, flags}) {
 
     const inJson = jsonLayerIds(jsonPath);
 
+    const outputSource = flags["out-dir"] !== undefined ? "flag" : presentation.outputDir ? "json" : "default";
+    const outputDir = outputSource === "flag" ? path.resolve(cwd, flags["out-dir"]) :
+        outputSource === "json" ? path.resolve(presentationFiles(svg, jsonPath, {outputDir: presentation.outputDir}).outputDir) :
+        null;
+
     return {
         ok:     true,
         svgSource,
+        outputDir,
+        outputSource,
         title:  presentation.title,
         titleSource: presentation.explicitTitle ? "json" : presentation.svgTitle ? "svg" : "default",
         svgTitle:    presentation.svgTitle,
