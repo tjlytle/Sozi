@@ -11,6 +11,7 @@
  */
 
 import {applyOptions, FLAGS as setFlags} from "./set";
+import {presentationFiles} from "../../naming";
 
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
  *
@@ -19,6 +20,8 @@ import {applyOptions, FLAGS as setFlags} from "./set";
 export const FLAGS = {"write-json": false, title: setFlags.title};
 
 /** Build the HTML files of a presentation that has been loaded.
+ *
+ * The HTML files are named after the presentation file and written beside it.
  *
  * The JSON file is written only if it does not exist, if the presentation
  * was changed while loading (`storage.jsonNeedsSaving`), or with `--write-json`.
@@ -41,9 +44,7 @@ export function build({controller, storage, svg, presentation, flags, warnings})
     const fs   = require("fs");
     const path = require("path");
 
-    const base          = svg.replace(/\.[^/.]+$/, "");
-    const htmlPath      = base + ".sozi.html";
-    const presenterPath = base + "-presenter.sozi.html";
+    const {html: htmlPath, presenter: presenterPath} = presentationFiles(svg, presentation);
 
     if (fs.existsSync(htmlPath) && fs.statSync(svg).mtimeMs > fs.statSync(htmlPath).mtimeMs) {
         warnings.push("svg newer than existing html");
