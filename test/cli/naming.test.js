@@ -9,7 +9,7 @@ const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const {presentationFiles, replaceFileExtWith} = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
+const {presentationFiles, replaceFileExtWith, svgOfPresentation, svgKeyOf} = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
 
 describe("replaceFileExtWith", () => {
     test("replaces the last extension", () => {
@@ -71,5 +71,63 @@ describe("presentationFiles", () => {
             html:         "/decks/es/spanish.sozi.html",
             presenter:    "/decks/es/spanish-presenter.sozi.html"
         });
+    });
+
+    test("a presentation that does not end in .sozi.json: outputs from its base name", () => {
+        assert.deepEqual(presentationFiles("/decks/talk.svg", "/decks/talk.json"), {
+            svg:          "/decks/talk.svg",
+            presentation: "/decks/talk.json",
+            html:         "/decks/talk.sozi.html",
+            presenter:    "/decks/talk-presenter.sozi.html"
+        });
+    });
+
+    test("the .sozi.json suffix is matched in any letter case", () => {
+        const files = presentationFiles("/decks/talk.svg", "/decks/Talk-ES.SOZI.JSON");
+        assert.equal(files.html, "/decks/Talk-ES.sozi.html");
+        assert.equal(files.presenter, "/decks/Talk-ES-presenter.sozi.html");
+    });
+});
+
+describe("svgOfPresentation", () => {
+    test("without an svg key: <base>.svg beside the presentation", () => {
+        assert.equal(svgOfPresentation("/decks/talk.sozi.json"), "/decks/talk.svg");
+        assert.equal(svgOfPresentation("/decks/talk.sozi.json", ""), "/decks/talk.svg");
+        assert.equal(svgOfPresentation("/decks/my.talk.SOZI.JSON"), "/decks/my.talk.svg");
+        assert.equal(svgOfPresentation("/decks/talk.json"), "/decks/talk.svg");
+    });
+
+    test("bare names stay bare", () => {
+        assert.equal(svgOfPresentation("talk.sozi.json"), "talk.svg");
+        assert.equal(svgOfPresentation("talk-es.sozi.json", "talk.svg"), "talk.svg");
+    });
+
+    test("an svg key is relative to the directory of the presentation", () => {
+        assert.equal(svgOfPresentation("/decks/talk-es.sozi.json", "talk.svg"), "/decks/talk.svg");
+        assert.equal(svgOfPresentation("/decks/es/spanish.sozi.json", "../talk.svg"), "/decks/talk.svg");
+        assert.equal(svgOfPresentation("/decks/es/spanish.sozi.json", "/art/talk.svg"), "/art/talk.svg");
+    });
+});
+
+describe("svgKeyOf", () => {
+    test("empty when the SVG is the default for the presentation", () => {
+        assert.equal(svgKeyOf("/decks/talk.svg", "/decks/talk.sozi.json"), "");
+        assert.equal(svgKeyOf("talk.svg", "talk.sozi.json"), "");
+    });
+
+    test("a path relative to the directory of the presentation, with forward slashes", () => {
+        assert.equal(svgKeyOf("/decks/talk.svg", "/decks/talk-es.sozi.json"), "talk.svg");
+        assert.equal(svgKeyOf("/decks/talk.svg", "/decks/es/spanish.sozi.json"), "../talk.svg");
+        assert.equal(svgKeyOf("/decks/art/talk.svg", "/decks/talk.sozi.json"), "art/talk.svg");
+    });
+
+    test("round trip with svgOfPresentation", () => {
+        for (const [svg, presentation] of [
+            ["/decks/talk.svg", "/decks/talk.sozi.json"],
+            ["/decks/talk.svg", "/decks/es/spanish.sozi.json"],
+            ["/decks/art/talk.svg", "/decks/talk-es.sozi.json"]
+        ]) {
+            assert.equal(svgOfPresentation(presentation, svgKeyOf(svg, presentation)), svg);
+        }
     });
 });
