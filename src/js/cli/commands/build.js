@@ -10,7 +10,8 @@
  * @module
  */
 
-import {applyOptions, BUILD_OPTIONS, FLAGS as setFlags, outputDirError} from "./set";
+import {applyOptions, BUILD_OPTIONS, FLAGS as setFlags} from "./set";
+import {resolveOutputDir} from "../output";
 import {presentationFiles} from "../../naming";
 
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
@@ -51,17 +52,13 @@ export const FLAGS = {"write-json": false, title: setFlags.title, "out-dir": tru
 export function build(context) {
     const fs   = require("fs");
     const path = require("path");
-    const {controller, storage, svg, presentation, cwd, flags, warnings} = context;
+    const {controller, storage, svg, presentation, flags, warnings} = context;
 
-    const flagDir = flags["out-dir"];
-    const {html: htmlPath, presenter: presenterPath, outputDir} = presentationFiles(svg, presentation, {
-        outputDir: flagDir !== undefined ? path.resolve(cwd, flagDir) : storage.presentation.outputDir
-    });
-    const badDir = outputDirError(path.resolve(outputDir));
-    if (badDir) {
-        const source = flagDir !== undefined ? `--out-dir ${flagDir}` : `outputDir ${storage.presentation.outputDir} of ${presentation}`;
-        return {ok: false, error: `${source}: ${badDir} is not a directory`, exitCode: 2};
+    const {dir: outputDir, error} = resolveOutputDir(context);
+    if (error) {
+        return {ok: false, error, exitCode: 2};
     }
+    const {html: htmlPath, presenter: presenterPath} = presentationFiles(svg, presentation, {outputDir});
 
     if (fs.existsSync(htmlPath) && fs.statSync(svg).mtimeMs > fs.statSync(htmlPath).mtimeMs) {
         warnings.push("svg newer than existing html");

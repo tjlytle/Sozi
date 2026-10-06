@@ -251,7 +251,8 @@ sozi --cli set --out-dir "" deck.svg                 # back to beside the presen
   use, and `outputSource`: `"flag"` for `--out-dir`, `"json"` for the stored
   key, or `"default"` with `outputDir` `null` (beside the presentation file).
 * An output directory that is (or is inside) an existing file is a usage
-  error (exit code 2), and nothing is written.
+  error (exit code 2) of `build`, `set` and `inspect`, with the same message,
+  and nothing is written.
 
 ### Exit codes
 
