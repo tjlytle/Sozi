@@ -105,6 +105,23 @@ describe("rewriteRelativeHrefs", () => {
             "<ns1:audio ns1:src=\"../a.ogg\"/></svg>");
     });
 
+    test("a namespace declared several times: each sozi:src is rebased once", () => {
+        const ns = "xmlns:sozi=\"http://sozi.baierouge.fr\"";
+        const same = `<svg xmlns="http://www.w3.org/2000/svg"><sozi:video ${ns} sozi:src="m/v.webm"/>` +
+            `<sozi:video ${ns} sozi:src="m/w.webm"/></svg>`;
+        assert.equal(rewriteRelativeHrefs(same, "/d", "/d/out"),
+            `<svg xmlns="http://www.w3.org/2000/svg"><sozi:video ${ns} sozi:src="../m/v.webm"/>` +
+            `<sozi:video ${ns} sozi:src="../m/w.webm"/></svg>`);
+
+        const two = "<svg xmlns=\"http://www.w3.org/2000/svg\">" +
+            "<a:video xmlns:a=\"http://sozi.baierouge.fr\" a:src=\"v.webm\"/>" +
+            "<b:audio xmlns:b=\"http://sozi.baierouge.fr\" b:src=\"a.ogg\"/></svg>";
+        assert.equal(rewriteRelativeHrefs(two, "/d", "/d/out"),
+            "<svg xmlns=\"http://www.w3.org/2000/svg\">" +
+            "<a:video xmlns:a=\"http://sozi.baierouge.fr\" a:src=\"../v.webm\"/>" +
+            "<b:audio xmlns:b=\"http://sozi.baierouge.fr\" b:src=\"../a.ogg\"/></svg>");
+    });
+
     test("hrefs of other elements and src of other namespaces are untouched", () => {
         const text = svg("<a xlink:href=\"page.html\"><use xlink:href=\"lib.svg#x\"/></a><foo:x foo:src=\"a.png\"/>");
         assert.equal(rewriteRelativeHrefs(text, "/d", "/d/out"), text);

@@ -442,6 +442,7 @@ export class Storage {
 
         if (!this.htmlFileDescriptor) {
             this.htmlFileDescriptor = fileDescriptor;
+            // The output location is fixed when the presentation is opened.
             this.backend.autosave(fileDescriptor, () => this.htmlNeedsSaving, () => this.exportHTML(location));
         }
     }
