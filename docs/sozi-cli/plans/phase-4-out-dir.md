@@ -70,3 +70,10 @@ Behaviour:
   not (custom CSS urls), and that the JSON stays beside the source.
 - Tests: stored key honoured by `build` without the flag; flag overrides stored key;
   `set --out-dir ""` removes the key; error: `--out-dir` pointing at a file -> exit 2.
+
+## Design guidance carried from the phase 3 review
+
+- Extend the helper to `presentationFiles(svg, presentation, {outputDir} = {})`; html/presenter go to `join(dirname(presentation), outputDir, ...)`; return the resolved output directory.
+- In `openJSONFile`, compute HTML names after `loadJSONData` using `outLocation = outputDir ? join(location, outputDir) : location`; string locations only; ignore `outputDir` with a warning on GoogleDrive/FileReader.
+- Key the href rewrite in `exportHTML` on `dirname(html) !== dirname(svg)`, not on "outputDir set", so a presentation in a subdirectory (phase 3) is fixed too; remove the phase 3 warning once the rewrite exists.
+- `outputDir` stays relative with forward slashes and is written only when set, like `svg`.
