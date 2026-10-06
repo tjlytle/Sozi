@@ -2,50 +2,71 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global sozi */
+/* Page-side helper of the exporter.
+ *
+ * This preload script runs in the export window (with context isolation
+ * disabled) and only installs `window.__soziExport`. The exporter drives it
+ * from the caller with `webContents.executeJavaScript`, one call per step:
+ * there is no IPC and no timer here, so every capture is deterministic.
+ */
 
-import {ipcRenderer} from "electron";
+window.__soziExport = {
+    /** Prepare the transition from the current frame to another frame.
+     *
+     * @param {number} nextIndex - The index of the target frame.
+     * @returns {number} - The duration of the transition, in milliseconds.
+     */
+    setup(nextIndex) {
+        const player = window.sozi.player;
+        player.pause();
+        player.transitions = [];
+        player.targetFrame = window.sozi.presentation.frames[nextIndex];
+        const layerProperties = player.targetFrame.layerProperties;
+        for (const camera of window.sozi.viewport.cameras) {
+            const lp = layerProperties[camera.layer.index];
+            player.setupTransition(camera, lp.transitionTimingFunction, lp.transitionRelativeZoom, lp.transitionPath);
+        }
+        return player.targetFrame.transitionDurationMs;
+    },
 
-ipcRenderer.on("initializeExporter", (evt, {callerId, frameIndex}) => {
-    if (sozi.player.disableMedia) {
-        sozi.player.disableMedia();
+    /** Move the cameras to a given point of the current transition.
+     *
+     * @param {number} progress - The relative time elapsed in the transition (between 0 and 1).
+     */
+    step(progress) {
+        window.sozi.player.onAnimatorStep(progress);
+    },
+
+    /** Start or stop repainting the viewport at each animation frame.
+     *
+     * A hidden window produces no new frame while its content is static, and the
+     * Chrome DevTools Protocol waits for one before it takes a screenshot.
+     * Repainting with the current camera states produces new frames with the same pixels.
+     *
+     * @param {boolean} enable - Start (`true`) or stop (`false`) repainting.
+     */
+    kick(enable) {
+        this.kicking = enable;
+        const loop = () => {
+            if (this.kicking) {
+                window.sozi.viewport.repaint();
+                requestAnimationFrame(loop);
+            }
+        };
+        if (enable) {
+            loop();
+        }
+    },
+
+    /** Terminate the current transition and show its target frame.
+     *
+     * @returns {number} - The index of the frame shown.
+     */
+    finish() {
+        const player = window.sozi.player;
+        const index = player.targetFrame.index;
+        player.transitions = [];
+        player.jumpToFrame(index);
+        return index;
     }
-
-    document.querySelector(".sozi-blank-screen").style.display = "none";
-
-    sozi.player.jumpToFrame(frameIndex);
-    ipcRenderer.sendTo(callerId, "jumpToFrame.done", frameIndex);
-});
-
-ipcRenderer.on("jumpToFrame", (evt, {callerId, frameIndex}) => {
-    sozi.player.jumpToFrame(frameIndex);
-    ipcRenderer.sendTo(callerId, "jumpToFrame.done", frameIndex);
-});
-
-function ipcMessage(name) {
-    return new Promise(resolve => {
-        ipcRenderer.once(name, resolve);
-    });
-}
-
-ipcRenderer.on("moveToNext", async (evt, {callerId, timeStepMs}) => {
-    sozi.player.targetFrame = sozi.player.nextFrame;
-
-    const layerProperties      = sozi.player.targetFrame.layerProperties;
-    const transitionDurationMs = sozi.player.targetFrame.transitionDurationMs;
-    const targetFrameIndex     = sozi.player.targetFrame.index;
-
-    for (let camera of sozi.viewport.cameras) {
-        const lp = layerProperties[camera.layer.index];
-        sozi.player.setupTransition(camera, lp.transitionTimingFunction, lp.transitionRelativeZoom, lp.transitionPath);
-    }
-
-    for (let timeMs = 0; timeMs < transitionDurationMs; timeMs += timeStepMs) {
-        sozi.player.onAnimatorStep(timeMs / transitionDurationMs);
-        ipcRenderer.sendTo(callerId, "moveToNext.step");
-        await ipcMessage("moveToNext.more");
-    }
-
-    sozi.player.jumpToFrame(targetFrameIndex);
-    ipcRenderer.sendTo(callerId, "jumpToFrame.done", targetFrameIndex);
-});
+};
