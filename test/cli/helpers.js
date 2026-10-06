@@ -130,6 +130,74 @@ function decodePng(buf) {
     return {width, height, pixel: (x, y) => [...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)]};
 }
 
+/** Decode a PNG file and check its size, and that its pixels are not all the same colour.
+ *
+ * Every fourth row and column is sampled.
+ */
+function checkPng(file, width, height) {
+    assert.ok(fs.existsSync(file), `${file} exists`);
+    const png = decodePng(fs.readFileSync(file));
+    assert.deepEqual({width: png.width, height: png.height}, {width, height});
+    const colours = new Set();
+    for (let y = 0; y < height; y += 4) {
+        for (let x = 0; x < width; x += 4) {
+            colours.add(png.pixel(x, y).join(","));
+        }
+    }
+    assert.ok(colours.size > 1, `${file} is uniform: ${[...colours]}`);
+    return {png, colours: colours.size};
+}
+
+/** Decode a PNG file of the basic fixture and check its size, and that it shows the frame.
+ *
+ * The frames of the basic fixture are filled by the orange rectangle r2 (#cc6633),
+ * and the frame number of the player is hidden by default: every sampled pixel is orange.
+ */
+function checkBasicPng(file, width, height) {
+    assert.ok(fs.existsSync(file), `${file} exists`);
+    const png = decodePng(fs.readFileSync(file));
+    assert.deepEqual({width: png.width, height: png.height}, {width, height});
+    for (let y = 0; y < height; y += 4) {
+        for (let x = 0; x < width; x += 4) {
+            const [r, g, b] = png.pixel(x, y);
+            assert.ok(Math.abs(r - 0xcc) < 8 && Math.abs(g - 0x66) < 8 && Math.abs(b - 0x33) < 8, `${file} at ${x},${y}: ${[r, g, b]}`);
+        }
+    }
+    return png;
+}
+
+/** The number of dark pixels in the top left corner of a PNG file, where the player draws the frame number.
+ *
+ * The frame number is a dark box; the frames of the basic fixture are orange there.
+ */
+function darkInCorner(file) {
+    const png = decodePng(fs.readFileSync(file));
+    let count = 0;
+    for (let y = 0; y < Math.min(40, png.height); y++) {
+        for (let x = 0; x < Math.min(100, png.width); x++) {
+            const [r, g, b] = png.pixel(x, y);
+            count += r < 100 && g < 100 && b < 100 ? 1 : 0;
+        }
+    }
+    return count;
+}
+
+/** Make a private temporary directory for a run, to pass as TMPDIR.
+ *
+ * @param {string} dir - The directory of a temp deck.
+ * @returns {{env: object, leftovers: Function}} - The environment of the run, and
+ *  `leftovers()`, the entries that the exporter and render left in the directory.
+ */
+function privateTmp(dir) {
+    const tmp = path.join(dir, "tmpdir");
+    fs.mkdirSync(tmp);
+    return {
+        env: Object.assign({}, process.env, {TMPDIR: tmp}),
+        // tmp-* from the exporter (the tmp package), sozi-render-* from render --all.
+        leftovers: () => fs.readdirSync(tmp).filter(name => /^(tmp-|sozi-render-)/.test(name))
+    };
+}
+
 /** Write a fake ffmpeg that records its process id and never finishes.
  *
  * @param {string} dir - The directory of the script.
@@ -217,4 +285,4 @@ function zipEntries(buf) {
     return entries;
 }
 
-module.exports = {runSozi, withTempDeck, decodePng, zipEntries, fakeFfmpeg, isAlive, which, electronBinary, repoDir, appDir, fixturesDir};
+module.exports = {runSozi, withTempDeck, privateTmp, decodePng, checkPng, checkBasicPng, darkInCorner, zipEntries, fakeFfmpeg, isAlive, which, electronBinary, repoDir, appDir, fixturesDir};

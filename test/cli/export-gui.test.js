@@ -17,7 +17,7 @@ const {PDFDocument} = require("pdf-lib");
 
 const os = require("node:os");
 
-const {runSozi, withTempDeck, decodePng, electronBinary, appDir, fixturesDir, fakeFfmpeg, isAlive, which, zipEntries} = require("./helpers.js");
+const {runSozi, withTempDeck, decodePng, darkInCorner, electronBinary, appDir, fixturesDir, fakeFfmpeg, isAlive, which, zipEntries} = require("./helpers.js");
 
 /** Run the editor on a deck with the export test hook.
  *
@@ -127,6 +127,8 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             const first = decodePng(fs.readFileSync(path.join(dir, names[0])));
             assert.equal(first.width, 160);
             assert.equal(first.height, 90);
+            // As upstream, the editor's export shows the frame number (the frames' showFrameNumber setting).
+            assert.ok(darkInCorner(path.join(dir, names[0])) > 20, "the frame number is drawn");
         }
         finally {
             deck.cleanup();

@@ -186,7 +186,8 @@ async function renderAll(exporter, presentation, html, opts, images, dir) {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-render-"));
     try {
         const tmpImages = images.map(({index, file}) => ({index, file: path.join(tmpDir, path.basename(file))}));
-        const result = await exporter.renderFrames(presentation, html, Object.assign({frames: tmpImages}, opts));
+        // The exporter removes the temporary directory if the command times out.
+        const result = await exporter.renderFrames(presentation, html, Object.assign({frames: tmpImages, tempDir: tmpDir}, opts));
 
         fs.mkdirSync(dir, {recursive: true});
         const names = new Set(images.map(({file}) => path.basename(file)));

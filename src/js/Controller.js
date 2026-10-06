@@ -19,6 +19,16 @@ import * as exporter from "./exporter";
  */
 const UNDO_STACK_LIMIT = 100;
 
+/** The options of the exports of the editor.
+ *
+ * The exported pages show the frame number as the player does, following
+ * the "show frame number" setting of each frame, like the upstream exporter.
+ *
+ * @readonly
+ * @type {object}
+ */
+const EXPORT_OPTIONS = {frameNumber: true};
+
 /** Log the warnings of an export result.
  *
  * @param {?object} result - The result of an export function (absent in the browser).
@@ -1787,7 +1797,7 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            const result = await exporter.exportToPDF(this.presentation, this.storage.htmlFileDescriptor);
+            const result = await exporter.exportToPDF(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
             logExportWarnings(result);
             this.info(_("Presentation was exported to PDF."));
         }
@@ -1804,7 +1814,7 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            const result = await exporter.exportToPPTX(this.presentation, this.storage.htmlFileDescriptor);
+            const result = await exporter.exportToPPTX(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
             logExportWarnings(result);
             this.info(_("Presentation was exported to PPTX."));
         }
@@ -1821,7 +1831,7 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            const result = await exporter.exportToVideo(this.presentation, this.storage.htmlFileDescriptor);
+            const result = await exporter.exportToVideo(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
             logExportWarnings(result);
             this.info(_("Presentation was exported to video."));
         }

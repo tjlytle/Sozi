@@ -11,7 +11,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {PDFDocument} = require("pdf-lib");
 
-const {runSozi, withTempDeck, decodePng, zipEntries, fakeFfmpeg, isAlive, which} = require("./helpers.js");
+const {runSozi, withTempDeck, privateTmp, decodePng, darkInCorner, zipEntries, fakeFfmpeg, isAlive, which} = require("./helpers.js");
 
 /** Run a command in the directory of a temp deck and check that it succeeded. */
 function soziOk(deck, args, opts = {}) {
@@ -79,19 +79,6 @@ function framesOf(deck) {
     return JSON.parse(fs.readFileSync(deck.json, "utf8")).frames;
 }
 
-/** The number of dark pixels in the top left corner of a PNG image, where the player draws the frame number. */
-function darkInCorner(file) {
-    const png = decodePng(fs.readFileSync(file));
-    let count = 0;
-    for (let y = 0; y < Math.min(40, png.height); y++) {
-        for (let x = 0; x < Math.min(100, png.width); x++) {
-            const [r, g, b] = png.pixel(x, y);
-            count += r < 100 && g < 100 && b < 100 ? 1 : 0;
-        }
-    }
-    return count;
-}
-
 describe("export pdf", () => {
     test("follows the export settings of the presentation file, building the HTML first", async () => {
         const deck = withTempDeck("basic");
@@ -133,6 +120,8 @@ describe("export pdf", () => {
         [["--include", "2:"], 1],
         [["--include", "1,2"], 2],
         [["--include", ":1"], 1],
+        [["--include", "1:3:9"], 1],
+        [["--include", "1:2:9"], 2],
         [["--exclude", "1"], 1],
         [["--include", "all", "--exclude", "2"], 1]
     ];
@@ -224,6 +213,18 @@ describe("export video", () => {
         }
     });
 
+    test("png with --frame-number: the images show the frame number", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const {json} = soziOk(deck, ["export", "--export-type", "video", "--format", "png", "--fps", "2",
+                "--width", "320", "--height", "180", "--frame-number", "--out", "seq", "basic.svg"]);
+            assert.ok(darkInCorner(json.files[0]) > 50, "the frame number is drawn");
+        }
+        finally {
+            deck.cleanup();
+        }
+    });
+
     test("png: the video settings of the presentation file", () => {
         const deck = withTempDeck("basic");
         try {
@@ -303,11 +304,13 @@ describe("export video", () => {
         const deck = withTempDeck("basic");
         try {
             const ffmpeg = fakeFfmpeg(deck.dir);
+            const tmp = privateTmp(deck.dir);
             const run = soziFails(deck, 1, ["export", "--export-type", "video", "--format", "webm", "--fps", "2",
-                "--width", "160", "--height", "90", "--ffmpeg", ffmpeg.path, "--timeout", "8", "basic.svg"]);
+                "--width", "160", "--height", "90", "--ffmpeg", ffmpeg.path, "--timeout", "8", "basic.svg"], {env: tmp.env});
             assert.match(run.json.error, /timed out after 8 s|ffmpeg did not finish within 8 s/);
             assert.ok(ffmpeg.pid(), "the fake ffmpeg was started");
             assert.equal(isAlive(ffmpeg.pid()), false, "the fake ffmpeg was killed");
+            assert.deepEqual(tmp.leftovers(), [], "the captured images were removed");
         }
         finally {
             deck.cleanup();
@@ -327,6 +330,9 @@ describe("export usage errors", () => {
         [["--format", "png"], /--format applies to video exports/],
         [["--export-type", "video", "--include", "1"], /--include applies to pdf and pptx exports/],
         [["--transparent"], /--transparent applies to png image sequences/],
+        [["--export-type", "video", "--format", "webm", "--out", "x.mp4"], /extension \.mp4, which does not match the video format webm/],
+        [["--export-type", "pptx", "--out", "x.pdf"], /extension \.pdf, which does not match the export type pptx/],
+        [["--out", "handout"], /no extension, which does not match the export type pdf/],
         [["--export-type", "video", "--format", "webm", "--transparent"], /--transparent applies to png image sequences/]
     ];
     for (const [flags, message] of cases) {
@@ -346,9 +352,9 @@ describe("export usage errors", () => {
     test("--out is a directory for a file export, or a file for a png sequence", () => {
         const deck = withTempDeck("basic");
         try {
-            fs.mkdirSync(path.join(deck.dir, "d"));
+            fs.mkdirSync(path.join(deck.dir, "d.pdf"));
             fs.writeFileSync(path.join(deck.dir, "f"), "");
-            assert.match(soziFails(deck, 2, ["export", "--out", "d", "basic.svg"]).json.error, /is a directory/);
+            assert.match(soziFails(deck, 2, ["export", "--out", "d.pdf", "basic.svg"]).json.error, /is a directory/);
             assert.match(soziFails(deck, 2, ["export", "--export-type", "video", "--format", "png", "--out", "f", "basic.svg"]).json.error,
                 /is not a directory/);
         }
