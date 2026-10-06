@@ -1,6 +1,6 @@
 # Sozi CLI Progress
 
-## Status: Phases 1-3 complete (PRs #6, #7, #8 ready for review). Phase 4 - Not Started
+## Status: Phases 1-4 complete (PRs #6, #7, #8, #10 ready for review). Phase 5 - Not Started
 
 ## Quick Reference
 - Research: `docs/sozi-cli/RESEARCH.md`
@@ -75,7 +75,23 @@
   README note deferred.
 
 ### Phase 4: Output directory (#4) — branch `4-out-dir`
-**Status:** Not Started
+**Status:** Completed (PR #10, stacked on #8)
+#### Tasks Completed
+- Task 1 (4c41094..d2e9609): `outputDir` key, `presentationFiles` option, `src/js/hrefs.js` rewriter
+  keyed on "HTML directory differs from SVG directory" (fixes the #8 subdirectory case; its warning
+  removed), editor honours the key on open/autosave, directory created. Fix round: duplicate
+  namespace declarations rebased `sozi:src` twice. 157 tests.
+- Task 2 (8ebf353..64c0289): `build --out-dir` (never stored), `set --out-dir` (`""` or `.` clears),
+  `inspect` `outputDir`/`outputSource`, exit 2 for a file, README, Chrome runtime check. 170 tests.
+- Final review fix wave (e17981e..f5717fd): editor error when the output directory cannot be
+  written, info line naming the directory on open, shared `src/js/cli/output.js` resolver,
+  byte-identity guard, pixel-based screenshot check (dependency-free PNG decoder), image regex,
+  trimmed key. Manual editor smoke test recorded (image pixels present in all three cases). 176 tests.
+#### Decisions Made
+- Rewrite applies to `<image>` hrefs and `sozi:src` only; `<use>`, `<feImage>`, `<a>` and CSS
+  `url()` are out of scope and documented.
+- `..` and absolute output directories are allowed (Tim's own case is `../site/...`); the editor
+  names the directory on open instead of blocking.
 
 ### Phase 5: Render and export (#2) — branch `2-render-export`
 **Status:** Not Started
@@ -83,6 +99,11 @@
 ---
 
 ## Session Log
+
+### 2026-10-06 (evening)
+- Phase 4 done (2 tasks, 1 fix round, final review + 5-commit fix wave). Hand-tested a stored key
+  and the flag on the BattleSnake deck; the watercolor background path is rewritten correctly.
+  Phase 5 started.
 
 ### 2026-10-06 (later still)
 - Phase 3 done (2 tasks, final review + 6-commit fix wave). Hand-tested two presentations from
@@ -143,6 +164,13 @@
   plan already said so, the implementation had widened it.
 - Filed the pre-existing editor behaviour (a corrupt default `deck.sozi.json` is recreated on
   open) as a separate fork issue rather than fixing it in this phase.
+
+## Rulings made while Tim was away (phase 4)
+- The href rewriter lives in its own pure module (`src/js/hrefs.js`) rather than in `naming.js`.
+- A relative `--out-dir` is resolved against the working directory; the stored key is relative to
+  the presentation file. `set --out-dir .` clears the key.
+- The manual editor smoke test was performed by the implementer under xvfb with screenshot pixel
+  evidence instead of waiting for Tim.
 
 ## Architectural Decisions
 - CLI lives inside the Sozi binary as `--cli`, hidden window, full editor page.

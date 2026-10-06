@@ -96,3 +96,7 @@ Behaviour:
   `ppt/slides/slideN.xml` count equal to frames; PNG sequence count equals the stepped
   timeline length for the basic fixture (compute expected from its timings and the fps);
   include/exclude grammar cases through `--include "1:2"` etc.
+
+## Carried from phase 4 (requirements for Task 2, the render command, which reuses the screenshot helper)
+
+- In the Chrome screenshot helper (`test/cli/out-dir.test.js` or wherever it is shared): only a spawn failure (ENOENT/EACCES) skips; a timeout or non-zero exit fails the test. A null control screenshot must skip cleanly, not throw. The EACCES "cannot be created" test skips when running as root (`process.getuid?.() === 0`). Move the helper into `test/cli/helpers.js` if `render` tests need it.
