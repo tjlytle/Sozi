@@ -66,18 +66,16 @@ export function build(context) {
 
     applyOptions(controller, flags, context, BUILD_OPTIONS);
 
-    const files = [];
-    function write(file, data) {
-        fs.writeFileSync(file, data, {encoding: "utf-8"});
-        files.push(file);
+    // The JSON file is written first: the HTML files are then never older than it,
+    // so that `render` and `export` do not take them for stale. It is reported last.
+    const writeJSON = !fs.existsSync(presentation) || storage.jsonNeedsSaving || flags["write-json"];
+    if (writeJSON) {
+        fs.writeFileSync(presentation, storage.getJSONData(), {encoding: "utf-8"});
     }
-
     fs.mkdirSync(outputDir, {recursive: true});
-    write(htmlPath, storage.exportHTML(outputDir));
-    write(presenterPath, storage.exportPresenterHTML(path.basename(htmlPath)));
-    if (!fs.existsSync(presentation) || storage.jsonNeedsSaving || flags["write-json"]) {
-        write(presentation, storage.getJSONData());
-    }
+    fs.writeFileSync(htmlPath, storage.exportHTML(outputDir), {encoding: "utf-8"});
+    fs.writeFileSync(presenterPath, storage.exportPresenterHTML(path.basename(htmlPath)), {encoding: "utf-8"});
 
+    const files = writeJSON ? [htmlPath, presenterPath, presentation] : [htmlPath, presenterPath];
     return {ok: true, files, frames: storage.presentation.frames.length};
 }

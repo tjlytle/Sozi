@@ -2,7 +2,7 @@
 import {app, BrowserWindow, ipcMain} from "electron";
 import * as remoteMain from "@electron/remote/main";
 import settings from "electron-app-settings";
-import {parseArgs} from "./cli/args";
+import {DEFAULT_SIZE, DEFAULT_TIMEOUT_S, parseArgs, parseSize, sizeError} from "./cli/args";
 import {COMMAND_FLAGS} from "./cli";
 
 remoteMain.initialize();
@@ -78,7 +78,7 @@ if (!settings.get("enableHardwareAcceleration")) {
 // app.exit() because Electron ignores process.exitCode.
 const cliArgs = parseArgs(process.argv, COMMAND_FLAGS);
 
-const CLI_USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
+const CLI_USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg>";
 
 let cliExiting = false;
 
@@ -97,6 +97,12 @@ function cliExit(code, result) {
 }
 
 function cliMain() {
+    // The command line never shows a window: render at device scale 1 on any
+    // display, so that capturePage returns images of the requested size in
+    // pixels instead of falling back to the slower Chrome DevTools Protocol.
+    // This overrides a --force-device-scale-factor given on the command line.
+    app.commandLine.appendSwitch("force-device-scale-factor", "1");
+
     if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
         cliExit(2, {error: "no display; run under xvfb-run"});
         return;
@@ -115,13 +121,13 @@ function cliMain() {
         }
     }
 
-    const size = /^(\d+)x(\d+)$/.exec(cliArgs.flags.size || "1280x720");
+    const size = parseSize(cliArgs.flags.size || DEFAULT_SIZE);
     if (!size) {
-        cliExit(2, {error: `invalid --size: ${cliArgs.flags.size}; expected WxH`});
+        cliExit(2, {error: sizeError(cliArgs.flags.size)});
         return;
     }
 
-    const timeout = Number(cliArgs.flags.timeout || "120");
+    const timeout = Number(cliArgs.flags.timeout || DEFAULT_TIMEOUT_S);
     if (!(timeout > 0)) {
         cliExit(2, {error: `invalid --timeout: ${cliArgs.flags.timeout}; expected a number of seconds`});
         return;
@@ -147,8 +153,8 @@ function cliMain() {
         const options = Object.assign({cwd: process.cwd()}, cliArgs);
         mainWindow = new BrowserWindow({
             show: false,
-            width: Number(size[1]),
-            height: Number(size[2]),
+            width: size.width,
+            height: size.height,
             webPreferences: Object.assign({
                 backgroundThrottling: false,
                 additionalArguments: ["--sozi-cli=" + JSON.stringify(options)]

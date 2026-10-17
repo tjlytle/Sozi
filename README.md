@@ -103,6 +103,10 @@ messages are always in English.
 sozi --cli inspect [--frame N] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli build [--write-json] [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli set [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli render (--frame N | --all) --out PATH [--size WxH] [--frame-number] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli export [--export-type pdf|pptx|video] [--format mp4|webm|ogv|png] [--fps N] [--width W] [--height H]
+                  [--bitrate B] [--include LIST] [--exclude LIST] [--ffmpeg PATH] [--out PATH] [--transparent]
+                  [--frame-number] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 ```
 
 The file argument may also be a presentation file, e.g.
@@ -130,6 +134,9 @@ When running from the source tree, replace `sozi` with
   It writes `deck.sozi.json` only when the file does not exist or when loading
   or `--title` changed the presentation, because a load/save round trip is not byte-stable.
 * `--write-json` makes `build` always rewrite `deck.sozi.json`.
+* `--cli render` writes PNG images of frames, and `--cli export` writes a PDF
+  document, a PPTX document, a video or a PNG image sequence; see
+  [Render and export](#render-and-export).
 * `--cli set` changes properties of the presentation and writes
   `deck.sozi.json` (no HTML file). It reports in `changed` the old and new
   value of each property that changed, e.g.
@@ -141,11 +148,14 @@ When running from the source tree, replace `sozi` with
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
   explicit title. Use `--title=TITLE` for a title that starts with `--`.
-* `--out-dir DIR` (for `build`, `set` and `inspect`) is the directory of the
+* `--out-dir DIR` (for `build`, `set`, `inspect`, `render` and `export`) is the directory of the
   HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)
   names the presentation file instead of `deck.sozi.json`; see below.
-* `--size WxH` sets the size of the hidden window (default `1280x720`).
+* `--size WxH` (default `1280x720`) sets the size of the images of `render`,
+  and of the hidden window of the other commands. It does not apply to
+  `export`, where it is a usage error: the export settings give the size, and
+  `--width` and `--height` override it for a video.
 * `--timeout S` stops the command after `S` seconds (default `120`) with exit code 1.
 
 Options go after the command. An unknown option, an option without its value
@@ -251,16 +261,149 @@ sozi --cli set --out-dir "" deck.svg                 # back to beside the presen
   use, and `outputSource`: `"flag"` for `--out-dir`, `"json"` for the stored
   key, or `"default"` with `outputDir` `null` (beside the presentation file).
 * An output directory that is (or is inside) an existing file is a usage
-  error (exit code 2) of `build`, `set` and `inspect`, with the same message,
+  error (exit code 2) of `build`, `set`, `inspect`, `render` and `export`, with the same message,
   and nothing is written.
+
+### Render and export
+
+`render` writes a PNG image of one frame, or of every frame, and `export`
+exports the whole presentation like the *Export* button of the editor:
+
+```
+sozi --cli render --frame 0 --out slide.png deck.svg            # by 0-based index
+sozi --cli render --frame intro --size 1920x1080 --out intro.png deck.svg   # by frame id
+sozi --cli render --all --out frames deck.svg                   # frames/frame-000.png, frame-001.png...
+
+sozi --cli export deck.svg                                      # the export settings of deck.sozi.json
+sozi --cli export --export-type pdf --include 1:5 --out handout.pdf deck.svg
+sozi --cli export --export-type pptx --exclude 2,4 deck.svg     # deck.sozi.pptx
+sozi --cli export --export-type video --format mp4 --fps 25 --width 1920 --height 1080 deck.svg
+sozi --cli export --export-type video --format png --transparent --out seq deck.svg   # seq/img000000.png...
+```
+
+Both commands need a display, like every command: on a headless machine, run
+them under `xvfb-run` (see [Exit codes](#exit-codes)).
+
+What they have in common:
+
+* They capture the presentation HTML file at its real path, in the
+  [output directory](#output-directory) if there is one, so linked images and
+  media resolve as they do in a browser. They first build the HTML files,
+  like `build`, when `deck.sozi.html` is missing or older than the SVG or
+  presentation file; `--rebuild` always builds them. Otherwise the existing
+  HTML file is used as it is. Like `build`, such a rebuild can also write
+  `deck.sozi.json` (when it does not exist yet or loading changed the
+  presentation). The result tells whether the HTML files were built by this
+  run in `rebuilt`, and the HTML file captured in `html`.
+* Frames are shown without transition, and transitions are stepped one image
+  at a time, in a hidden window: never by the clock, so the same command gives
+  the same images.
+* The frame number that the player shows in the top left corner is hidden;
+  `--frame-number` keeps it (for the frames whose "show frame number"
+  setting is on, as in the player). The *Export* button of the editor keeps
+  it, as before.
+* `--out` is relative to the working directory; missing directories are created.
+* `render --all` and `export` keep the previous output until success, and a
+  failed one creates no directory: images are captured in a temporary
+  directory, and a PDF, PPTX or video is written to a partial file beside it
+  (`.talk.partial.webm` for `talk.webm`); they replace the previous output
+  only when the export succeeds. `render --frame` writes the file only after
+  the capture succeeded.
+* `capture` is `"capturePage"`, or `"cdp"` when the images were captured
+  through the Chrome DevTools Protocol (slower: a fallback that comes with a
+  warning, or always with `--transparent`), or `"printToPDF"` for a PDF export.
+  The command line renders at device scale 1 on any display, so the images
+  have the requested size in pixels without the fallback.
+* The whole command is bounded by `--timeout` (default 120 s); raise it for
+  large decks, sizes or videos. Each step of the capture (page load, frame
+  change, capture) also fails on its own after 30 s.
+
+#### `render`
+
+* Exactly one of `--frame N` (a 0-based index or a frame id, as for
+  `inspect`) or `--all` is required, and so is `--out`: the image file with
+  `--frame`, a directory with `--all`. With `--all`, the images are
+  named after the 0-based frame index, zero-padded to three digits (more for
+  a presentation of 1000 frames or more). They are rendered in a temporary
+  directory and moved to `--out` when all are written; then the earlier
+  `frame-NNN.png` images that were not replaced are removed, and other files
+  are kept. A failed render leaves the directory as it was.
+* The images have exactly the `--size` (default `1280x720`). As in the
+  player, the frame keeps the aspect ratio of the presentation inside that
+  size; the rest of the image shows what lies around the frame.
+* The result has `files` (the images written), `size` (`{"width", "height"}`),
+  `frames` (`[{"index", "id", "file"}]`), `html`, `rebuilt` and `capture`.
+* An unknown frame fails with exit code 1 and writes nothing. Missing
+  `--frame`/`--all` or `--out`, both `--frame` and `--all`, a `--size` with a
+  zero dimension, or an `--out` that is a directory (with `--frame`) or a
+  file (with `--all`) is a usage error.
+
+#### `export`
+
+* The export settings come from `deck.sozi.json`, as set in the export panel
+  of the editor: `exportType`, then `exportToPDF*`, `exportToPPTX*` or
+  `exportToVideo*`. The options override them for this run only;
+  `deck.sozi.json` is not changed.
+* `--export-type pdf|pptx|video` chooses the export. It is not `--type`:
+  Chromium reserves `--type` for its own processes: with it, the Sozi binary
+  hangs or crashes before Sozi starts.
+* `--include LIST` and `--exclude LIST` (PDF and PPTX) select the frames, with
+  1-based frame numbers as in the editor: `3`, `2:5` (2 to 5), `1:3:9` (1, 3,
+  5, 7, 9), `4:` (4 to the end), `:3`, several separated by commas, `all` or
+  `none`. An empty `--include` means all frames. Frames are included, then
+  the excluded ones removed; an empty selection fails with exit code 1.
+* A PDF has one page per frame, of the page size and orientation of
+  `deck.sozi.json`; a PPTX has one slide image per frame.
+* A video (`--export-type video`) holds each frame for its timeout (at least one
+  image) and plays each transition, at `--fps` images per second (default
+  `exportToVideoFrameRate`, 50). `--format` is `webm`, `mp4`, `ogv`, `wmv`, or `png`
+  for an image sequence `img000000.png`, `img000001.png`... in the `--out`
+  directory (moved there once all are written; then the earlier images of
+  that pattern that were not replaced are removed, and other files are kept).
+  The images of a frame held for several time steps are hard links of one
+  file where the file system allows it. `--width`,
+  `--height` and `--bitrate` (bits per second) override the video settings.
+  `--transparent` (PNG sequences only) leaves the background transparent.
+  `--include` and `--exclude` do not apply to videos.
+* The extension of `--out` must match the export: `.pdf`, `.pptx`, or the
+  video format (`.webm`, `.mp4`, `.ogv`, `.wmv`); for a PNG sequence, `--out` is a
+  directory. Without `--out`, the output goes beside the HTML file: `deck.sozi.pdf`,
+  `deck.sozi.pptx`, `deck.sozi.webm`..., or the directory `deck-sozi-export`
+  for a PNG sequence, as in the editor.
+* Videos other than PNG sequences are encoded by ffmpeg, which is not
+  part of Sozi's npm dependencies. It is looked up in this order:
+  `--ffmpeg PATH` (relative to the working directory), then `ffmpeg` on the
+  `PATH`, then the `ffmpeg` bundled in the resources of a packaged Sozi.
+  That ffmpeg must have an encoder for the format (e.g. `wmv`).
+  Without one, the export fails with exit code 1 and the error
+  `ffmpeg not found` before anything is built or captured. When the command
+  times out, ffmpeg is stopped and the temporary images are removed. When
+  ffmpeg fails, the end of its standard error ends the error message.
+* The result has `type`, `format` (the video format, or `pdf`/`pptx`),
+  `out` (the file or directory written), `frames` (the number of frames
+  exported), `ffmpeg` (the ffmpeg used, or `null`), `html`, `rebuilt` and
+  `capture`; a video adds `images` (the number of images), and a PNG
+  sequence `files`.
+* `--size`, an invalid `--export-type`, `--format`, `--fps`, `--width`, `--height`,
+  `--bitrate` or frame list, an option that does not apply to the export type
+  (e.g. `--fps` for a PDF, `--transparent` for a webm video), an `--out`
+  whose extension does not match, or an `--out`
+  that is a directory (for a file) or a file (for a PNG sequence) is a usage
+  error, and nothing is written.
+
+The export of the editor (the *Export* button) uses the same exporter, in
+a hidden window. It works again in builds from source (`gulp`, then
+`npm start`), where it used to fail with recent Electron versions. There,
+ffmpeg is stopped after 10 minutes plus 100 ms per image of the video. Set the
+environment variable `SOZI_EXPORT_SHOW=1` to watch the export window.
 
 ### Exit codes
 
 | Code | Meaning                                                                                       |
 |:-----|:----------------------------------------------------------------------------------------------|
 | `0`  | Success (`"ok": true`).                                                                       |
-| `1`  | The command failed: missing or invalid file, unparsable JSON, missing SVG of a presentation file, unknown frame, write error, timeout, crash. |
-| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, output directory that is a file, no display. |
+| `1`  | The command failed: missing or invalid file, unparsable JSON, missing SVG of a presentation file, unknown frame, empty export selection, ffmpeg not found or failed, write error, timeout, crash. |
+| `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, output directory that is a file, invalid `render` or `export` options, no display. |
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.
@@ -274,9 +417,11 @@ xvfb-run -a sh -c "sozi --cli build deck.svg 2>/dev/null"
 xvfb-run -a sh -c "sozi --cli inspect deck.svg 2>err.log"
 ```
 
-Close the deck in the Sozi editor before running a command on it: the editor
-watches and saves the same files, so it would reload or overwrite what
-`build` writes.
+Close the deck in the Sozi editor before running `build`, `set`, `render` or
+`export` on it: the editor watches and saves the same files, so it would
+reload or overwrite the presentation and HTML files that these commands write
+(`set` changes the presentation file; `render` and `export` rebuild the HTML
+file when it is out of date).
 
 Helping debug Sozi
 ==================

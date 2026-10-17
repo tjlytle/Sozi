@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-upstream-writes.sh\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/repo-lock.py\" tjlytle/Sozi",
             "timeout": 10
           }
         ]
