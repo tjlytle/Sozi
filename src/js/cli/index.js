@@ -16,26 +16,35 @@
 
 import {build, FLAGS as buildFlags} from "./commands/build";
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
+import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
 import {validateArgs} from "./args";
 
 const CLI_PREFIX = "--sozi-cli=";
 
-const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
 
 /** The available commands.
  *
- * A command receives a context `{storage, svg, presentation, flags, warnings}`
+ * A command receives a context `{controller, storage, svg, presentation, flags, warnings}`
  * once the presentation is loaded, and returns a result object with an `ok` property.
  *
  * @type {{[name: string]: Function}}
  */
-const COMMANDS = {build, inspect};
+const COMMANDS = {build, inspect, set};
 
 /** The flag table of each command, used to parse and validate the command line.
  *
- * @type {{[name: string]: {[flag: string]: boolean}}}
+ * @type {{[name: string]: {[flag: string]: (boolean|string)}}}
  */
-export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags};
+export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags, set: setFlags};
+
+/** Command-specific checks of the flags, run before the presentation is loaded.
+ *
+ * A check returns an error message for a usage error, or `null`.
+ *
+ * @type {{[name: string]: Function}}
+ */
+const FLAG_CHECKS = {set: checkSetFlags};
 
 /** Has a result been sent to the main process?
  *
@@ -116,11 +125,6 @@ export async function runCli(options, {controller, storage, preferences}) {
     const errors   = [];
     const result   = partialResult = {command: options.command, svg: null, presentation: null, warnings, errors};
 
-    // Test hook: never reply, so that the main process times out.
-    if (process.env.SOZI_CLI_TEST_HANG) {
-        return;
-    }
-
     try {
         // In-memory settings only: preferences are never saved in CLI mode.
         // Messages are in English so that errors and warnings are stable.
@@ -129,6 +133,11 @@ export async function runCli(options, {controller, storage, preferences}) {
         preferences.reloadMode         = "manual";
         preferences.language           = "en";
         controller.applyPreferences({language: true});
+
+        // Test hook: never reply, so that the main process times out.
+        if (process.env.SOZI_CLI_TEST_HANG) {
+            return;
+        }
 
         controller.info = body => {
             warnings.push(body);
@@ -139,13 +148,14 @@ export async function runCli(options, {controller, storage, preferences}) {
             log(`error: ${body}`);
         };
 
-        const command = COMMANDS[options.command];
+        const command = Object.hasOwn(COMMANDS, options.command) ? COMMANDS[options.command] : null;
         if (!command) {
             reply(2, Object.assign(result, {ok: false, error: `unknown command: ${options.command}`, usage: USAGE}));
             return;
         }
 
-        const usageError = validateArgs(options, COMMAND_FLAGS);
+        const usageError = validateArgs(options, COMMAND_FLAGS) ||
+            (Object.hasOwn(FLAG_CHECKS, options.command) ? FLAG_CHECKS[options.command](options.flags) : null);
         if (usageError) {
             reply(2, Object.assign(result, {ok: false, error: usageError, usage: USAGE}));
             return;
@@ -180,8 +190,12 @@ export async function runCli(options, {controller, storage, preferences}) {
             reply(1, Object.assign(result, {ok: false, error: errors[0]}));
             return;
         }
+        for (const key of controller.presentation.ignoredStorableKeys || []) {
+            warnings.push(`ignored non-string ${key} in ${result.presentation}`);
+        }
 
         const commandResult = await command({
+            controller,
             storage,
             svg:          result.svg,
             presentation: result.presentation,

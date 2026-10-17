@@ -78,7 +78,7 @@ if (!settings.get("enableHardwareAcceleration")) {
 // app.exit() because Electron ignores process.exitCode.
 const cliArgs = parseArgs(process.argv, COMMAND_FLAGS);
 
-const CLI_USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+const CLI_USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
 
 let cliExiting = false;
 
@@ -105,6 +105,14 @@ function cliMain() {
     if (cliArgs.command === null || cliArgs.flags.help) {
         cliExit(2, {error: cliArgs.command === null ? "missing command" : "help requested", usage: CLI_USAGE});
         return;
+    }
+
+    // A value-taking flag given without a value is parsed as true.
+    for (const name of ["size", "timeout"]) {
+        if (Object.hasOwn(cliArgs.flags, name) && typeof cliArgs.flags[name] !== "string") {
+            cliExit(2, {error: `missing value for --${name}`});
+            return;
+        }
     }
 
     const size = /^(\d+)x(\d+)$/.exec(cliArgs.flags.size || "1280x720");

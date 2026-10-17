@@ -31,9 +31,10 @@ const CHROMIUM_SWITCHES = new Set([
 /** The flags that every command accepts.
  *
  * A flag table maps a flag name to `true` if the flag takes a value,
+ * `"maybe-empty"` if it takes a value that may be empty,
  * `false` if it is boolean.
  *
- * @type {{[name: string]: boolean}}
+ * @type {{[name: string]: (boolean|string)}}
  */
 export const GLOBAL_FLAGS = {help: false, size: true, timeout: true};
 
@@ -41,10 +42,24 @@ export const GLOBAL_FLAGS = {help: false, size: true, timeout: true};
  *
  * @param {{[command: string]: object}} commandFlags - The flag table of each command.
  * @param {?string} command - The command name.
- * @returns {{[name: string]: boolean}} - The flags allowed for this command.
+ * @returns {{[name: string]: (boolean|string)}} - The flags allowed for this command, in an object without prototype.
  */
 function flagsOf(commandFlags, command) {
-    return Object.assign({}, commandFlags[command], GLOBAL_FLAGS);
+    const own = command !== null && Object.hasOwn(commandFlags, command) ? commandFlags[command] : {};
+    return Object.assign(Object.create(null), own, GLOBAL_FLAGS);
+}
+
+/** Set a flag in a parsed command line.
+ *
+ * The flag is defined as an own property, so that `--__proto__` is kept
+ * (and reported as unknown) instead of changing the prototype of the object.
+ *
+ * @param {object} flags - The parsed flags.
+ * @param {string} name - The flag name.
+ * @param {string|boolean} value - The flag value.
+ */
+function setFlag(flags, name, value) {
+    Object.defineProperty(flags, name, {value, enumerable: true, writable: true, configurable: true});
 }
 
 /** Parse the command line of the Electron main process.
@@ -75,16 +90,16 @@ export function parseArgs(argv, commandFlags = {}) {
         if (arg.startsWith("--")) {
             const eq = arg.indexOf("=");
             if (eq >= 0) {
-                result.flags[arg.slice(2, eq)] = arg.slice(eq + 1);
+                setFlag(result.flags, arg.slice(2, eq), arg.slice(eq + 1));
                 continue;
             }
             const name = arg.slice(2);
             const next = args[i + 1];
             if (!flagsOf(commandFlags, result.command)[name] || next === undefined || next.startsWith("--")) {
-                result.flags[name] = true;
+                setFlag(result.flags, name, true);
             }
             else {
-                result.flags[name] = next;
+                setFlag(result.flags, name, next);
                 i ++;
             }
         }
@@ -109,10 +124,10 @@ export function parseArgs(argv, commandFlags = {}) {
 export function validateArgs(parsed, commandFlags) {
     const allowed = flagsOf(commandFlags, parsed.command);
     for (const [name, value] of Object.entries(parsed.flags)) {
-        if (!(name in allowed)) {
+        if (!Object.hasOwn(allowed, name)) {
             return `unknown option for ${parsed.command}: --${name}`;
         }
-        if (allowed[name] && (value === true || value === "")) {
+        if (allowed[name] && (value === true || (value === "" && allowed[name] !== "maybe-empty"))) {
             return `missing value for --${name}`;
         }
         if (!allowed[name] && value !== true) {

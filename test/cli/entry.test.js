@@ -15,9 +15,9 @@ const ELECTRON = "/path/to/electron";
 const APP = "/path/to/build/electron";
 
 // The flags of each command, as exported by src/js/cli/commands/*.js.
-const FLAGS = {build: {"write-json": false}, inspect: {frame: true}};
+const FLAGS = {build: {"write-json": false, title: "maybe-empty"}, inspect: {frame: true}, set: {title: "maybe-empty"}};
 
-const USAGE = "sozi --cli <inspect|build> [options] <file.svg>";
+const USAGE = "sozi --cli <inspect|build|set> [options] <file.svg>";
 
 /** The fields that every CLI result carries. */
 function assertBaseFields(json) {
@@ -112,6 +112,20 @@ describe("validateArgs", () => {
         assert.equal(check("build", "--frame", "1", "deck.svg"), "unknown option for build: --frame");
     });
 
+    test("names of Object.prototype properties are unknown flags", () => {
+        assert.equal(check("build", "--toString", "deck.svg"), "unknown option for build: --toString");
+        assert.equal(check("build", "--constructor", "deck.svg"), "unknown option for build: --constructor");
+        assert.equal(check("build", "--__proto__", "deck.svg"), "unknown option for build: --__proto__");
+        assert.equal(check("constructor", "--title", "x", "deck.svg"), "unknown option for constructor: --title");
+        assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "build", "--toString", "deck.svg"], FLAGS).positionals, ["deck.svg"]);
+    });
+
+    test("a flag that accepts an empty value", () => {
+        assert.equal(check("set", "--title", "", "deck.svg"), null);
+        assert.equal(check("set", "--title=", "deck.svg"), null);
+        assert.equal(check("set", "deck.svg", "--title"), "missing value for --title");
+    });
+
     test("missing value", () => {
         assert.equal(check("inspect", "deck.svg", "--frame"), "missing value for --frame");
         assert.equal(check("inspect", "--frame=", "deck.svg"), "missing value for --frame");
@@ -161,6 +175,23 @@ describe("electron entry", () => {
             assert.equal(code, 2, value);
             assertBaseFields(json);
             assert.match(json.error, /--timeout/);
+        }
+    });
+
+    test("--timeout or --size without a value exits 2 before the timer is armed", () => {
+        const deck = withTempDeck("basic");
+        try {
+            // The renderer never replies, so only the main process can report the error.
+            const env = {...process.env, SOZI_CLI_TEST_HANG: "1"};
+            for (const flag of ["--timeout", "--size"]) {
+                const {code, json} = runSozi(["inspect", "basic.svg", flag], {cwd: deck.dir, env});
+                assert.equal(code, 2, JSON.stringify(json));
+                assertBaseFields(json);
+                assert.equal(json.error, `missing value for ${flag}`);
+            }
+        }
+        finally {
+            deck.cleanup();
         }
     });
 
