@@ -77,23 +77,34 @@ function presentationBase(presentation) {
  * `.sozi.json`. The HTML and presenter HTML files are named after the
  * presentation file and written beside it, so that in the default case
  * every file is beside the SVG and named after it.
+ * With an output directory, the HTML files are written there instead.
  *
  * The paths can be absolute or bare file names; the results keep the same form.
  *
  * @param {string} svg - The path of the SVG file.
  * @param {?string} [presentation] - The path of the presentation file, if not the default.
- * @returns {{svg: string, presentation: string, html: string, presenter: string}} - The file paths.
+ * @param {object} [options] - Options.
+ * @param {?string} [options.outputDir] - The directory of the HTML files: a path relative to
+ *  the directory of the presentation file, or absolute. Empty or absent: beside the presentation file.
+ * @returns {{svg: string, presentation: string, html: string, presenter: string, outputDir: string}} -
+ *  The file paths, and the directory of the HTML files.
  */
-export function presentationFiles(svg, presentation) {
+export function presentationFiles(svg, presentation, {outputDir} = {}) {
     if (!presentation) {
         presentation = replaceFileExtWith(svg, PRESENTATION_EXT);
     }
-    const base = presentationBase(presentation);
+    let base = presentationBase(presentation);
+    if (outputDir) {
+        const presentationDir = path.dirname(presentation);
+        const dir = path.isAbsolute(outputDir) ? outputDir : path.join(presentationDir, outputDir);
+        base = path.join(dir, path.basename(base));
+    }
     return {
         svg,
         presentation,
         html:      base + ".sozi.html",
-        presenter: base + "-presenter.sozi.html"
+        presenter: base + "-presenter.sozi.html",
+        outputDir: path.dirname(base)
     };
 }
 
