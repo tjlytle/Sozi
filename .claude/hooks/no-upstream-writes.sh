@@ -21,8 +21,10 @@ fi
 
 printf '%s' "$cmd" | grep -qi 'sozi-projects/sozi' || exit 0
 
-# GitHub write subcommands, shared by gh and gh-as.
-writes='(issue[[:space:]]+(create|edit|close|comment|reopen|delete|transfer|pin|lock)|pr[[:space:]]+(create|edit|review|merge|close|ready|comment|reopen)|api[[:space:]].*(-X|--method)[[:space:]=]*(POST|PATCH|PUT|DELETE)|repo[[:space:]]+(edit|delete|rename|archive)|release[[:space:]]+(create|edit|delete))'
+# GitHub write subcommands, shared by gh and gh-as. `gh api` with a field or
+# an input body sends a POST without -X. A short field flag may have its value
+# attached (-ftitle=x).
+writes='(issue[[:space:]]+(create|edit|close|comment|reopen|delete|transfer|pin|lock)|pr[[:space:]]+(create|edit|review|merge|close|ready|comment|reopen)|api[[:space:]].*(-X|--method)[[:space:]=]*(POST|PATCH|PUT|DELETE)|api[[:space:]](.*[[:space:]])?(-[fF][^[:space:]]*|--field|--raw-field|--input)([[:space:]=]|$)|repo[[:space:]]+(edit|delete|rename|archive)|release[[:space:]]+(create|edit|delete))'
 
 if printf '%s' "$cmd" | grep -Eiq "gh[[:space:]].*${writes}|gh-as[[:space:]]+[^[:space:]]+[[:space:]]+(${writes}|--push|--git[[:space:]]+push)|git[[:space:]]+push"; then
     deny "Blocked: this command would write to sozi-projects/Sozi (upstream). This fork only writes to tjlytle/Sozi; pass -R tjlytle/Sozi."

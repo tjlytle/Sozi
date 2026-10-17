@@ -74,3 +74,7 @@ Behaviour:
   presentation in a subdirectory with `svg: "../basic.svg"` builds there; opening by JSON
   positional works for both inspect and build; default decks produce no `svg` key and
   unchanged names; the error cases above; the task-1 and task-2 title tests still pass.
+
+## Carried from phase 2 (requirement for this task)
+
+- `.claude/hooks/no-upstream-writes.sh`: also deny when the upstream slug is present and the command is `gh api`/`gh-as <who> api` with `-f`, `-F`, `--field`, `--raw-field` or `--input` (implicit POST). Add two hook tests (deny with `-f title=x`; allow a plain `gh api repos/<slug>/pulls/759`).

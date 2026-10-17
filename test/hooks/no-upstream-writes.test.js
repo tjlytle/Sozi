@@ -49,7 +49,14 @@ describe("no-upstream-writes hook", () => {
         [`gh pr comment 759 -R ${UPSTREAM.replace("projects", "Projects")} --body x`, "deny"],
         [`gh-as builder api --method PATCH repos/${UPSTREAM}/issues/1`, "deny"],
         [`gh-as builder --git push https://github.com/${UPSTREAM}.git master`, "deny"],
-        [`gh-as builder --push https://github.com/${UPSTREAM}.git master`, "deny"]
+        [`gh-as builder --push https://github.com/${UPSTREAM}.git master`, "deny"],
+        [`gh api repos/${UPSTREAM}/pulls/759`, "allow"],
+        [`gh api repos/${UPSTREAM}/issues -f title=x`, "deny"],
+        [`gh-as builder api repos/${UPSTREAM}/issues/1/comments -F body=x`, "deny"],
+        [`gh api repos/${UPSTREAM}/issues --field=title=x`, "deny"],
+        [`gh api repos/${UPSTREAM}/issues -ftitle=x`, "deny"],
+        [`gh api repos/${UPSTREAM}/issues --raw-field title=x`, "deny"],
+        [`gh api repos/${UPSTREAM}/issues --input body.json`, "deny"]
     ]) {
         test(`${expected === "deny" ? "denies" : "allows"}: ${command}`, () => {
             assert.equal(decideCommand(command), expected);
