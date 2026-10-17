@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "gh-personas@dev-flow": true,
+    "build@initialcommit": true,
+    "superpowers@claude-plugins-official": true
+  }
+}

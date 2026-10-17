@@ -101,6 +101,32 @@ export class Storage {
          */
         this.htmlNeedsSaving = false;
 
+        /** Create or update the JSON and HTML files when a presentation is opened?
+         *
+         * The command-line mode sets it to `false` so that opening a
+         * presentation writes nothing.
+         *
+         * @default
+         * @type {boolean}
+         */
+        this.writeOnOpen = true;
+
+        /** The backend instances created by {@linkcode module:Storage.Storage#activate|activate}.
+         *
+         * @type {module:backend/AbstractBackend.AbstractBackend[]}
+         */
+        this.backends = [];
+
+        /** The error raised when an existing JSON file could not be loaded.
+         *
+         * Set by {@linkcode module:Storage.Storage#openJSONFile|openJSONFile};
+         * `null` if the file was loaded or did not exist.
+         *
+         * @default
+         * @type {?Error}
+         */
+        this.jsonLoadError = null;
+
         // Adjust the template path depending on the target platform.
         // In the web browser, __dirname is set to "/src/js". The leading "/" will result
         // in an incorrect URL if the app is not hosted at the root of its domain.
@@ -137,7 +163,7 @@ export class Storage {
             const listItem = document.createElement("li");
             document.querySelector("#sozi-editor-view-preview ul").appendChild(listItem);
 
-            const backendInstance = new backend(this.controller, listItem);
+            this.backends.push(new backend(this.controller, listItem));
         }
     }
 
@@ -243,6 +269,7 @@ export class Storage {
         const _ = this.controller.gettext;
 
         let fileDescriptor;
+        this.jsonLoadError = null;
         try {
             // Load presentation data and editor state from JSON file.
             fileDescriptor = await this.backend.find(name, location);
@@ -250,6 +277,11 @@ export class Storage {
             this.loadJSONData(data);
         }
         catch (err) {
+            // The file was found but could not be read or parsed.
+            if (fileDescriptor) {
+                this.jsonLoadError = err;
+            }
+
             // If no JSON file is available, attempt to extract
             // presentation data from the SVG document, assuming
             // it has been generated from Sozi 13 or earlier.
@@ -262,22 +294,28 @@ export class Storage {
             }
 
             // Create a JSON file for the presentation data.
-            fileDescriptor = await this.backend.create(name, location, "application/json", this.getJSONData());
+            if (this.writeOnOpen) {
+                fileDescriptor = await this.backend.create(name, location, "application/json", this.getJSONData());
+            }
         }
 
-        if (!this.jsonFileDescriptor) {
+        if (fileDescriptor && !this.jsonFileDescriptor) {
             this.jsonFileDescriptor = fileDescriptor;
             this.backend.autosave(fileDescriptor, () => this.jsonNeedsSaving, () => this.getJSONData());
         }
 
         this.controller.onLoad();
 
+        if (!this.writeOnOpen) {
+            return;
+        }
+
         const svgName           = this.backend.getName(this.svgFileDescriptor);
         const htmlFileName      = replaceFileExtWith(svgName, ".sozi.html");
         const presenterFileName = replaceFileExtWith(svgName, "-presenter.sozi.html");
         // TODO Save only if SVG is more recent than HTML.
-        this.createHTMLFile(htmlFileName, location);
-        this.createPresenterHTMLFile(presenterFileName, location, htmlFileName);
+        await this.createHTMLFile(htmlFileName, location);
+        await this.createPresenterHTMLFile(presenterFileName, location, htmlFileName);
     }
 
     /** Create the presentation HTML file if it does not exist.
@@ -286,15 +324,12 @@ export class Storage {
      * @param {any} location - The location of the file (backend-dependent).
      */
     async createHTMLFile(name, location) {
-        let fileDescriptor;
-        try {
-            fileDescriptor = await this.backend.find(name, location);
-            if (this.controller.preferences.saveMode !== "manual") {
-                this.backend.save(fileDescriptor, this.exportHTML());
-            }
-        }
-        catch (err) {
+        let fileDescriptor = await this.backend.find(name, location).catch(() => null);
+        if (!fileDescriptor) {
             fileDescriptor = await this.backend.create(name, location, "text/html", this.exportHTML());
+        }
+        else if (this.controller.preferences.saveMode !== "manual") {
+            await this.backend.save(fileDescriptor, this.exportHTML());
         }
 
         if (!this.htmlFileDescriptor) {
@@ -310,12 +345,12 @@ export class Storage {
      * @param {string} htmlFileName - The name of the presentation HTML file.
      */
     async createPresenterHTMLFile(name, location, htmlFileName) {
-        try {
-            const fileDescriptor = await this.backend.find(name, location);
-            this.backend.save(fileDescriptor, this.exportPresenterHTML(htmlFileName));
+        const fileDescriptor = await this.backend.find(name, location).catch(() => null);
+        if (fileDescriptor) {
+            await this.backend.save(fileDescriptor, this.exportPresenterHTML(htmlFileName));
         }
-        catch (err) {
-            this.backend.create(name, location, "text/html", this.exportPresenterHTML(htmlFileName));
+        else {
+            await this.backend.create(name, location, "text/html", this.exportPresenterHTML(htmlFileName));
         }
     }
 
