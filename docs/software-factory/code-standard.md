@@ -290,17 +290,30 @@ and nothing else.
 
 ### 2.4 Events: EventEmitter in the model, DOM events in the UI, names in one table
 
-**Choice.** State and model objects extend node's `EventEmitter`, as upstream's
-`Player` does. Each emitter exports a constant table of its event names. UI code uses
-DOM events on elements. No ad hoc event strings.
+**Decided 2026-10-20.** State and model objects extend node's `EventEmitter`, as
+upstream's `Player` does (so do the presentation, the player controller, the animator
+and the editor controller). Each emitter exports a constant table of its event names
+(`export const PlayerEvents = {frameChange: "frameChange", ...}`), and every `on` and
+`emit` uses the table. UI code uses DOM events on elements. No ad hoc event strings.
+
+**Enforced (Tim asked for the lint, 2026-10-20).** `no-restricted-syntax` bans a string
+literal as the first argument of `on`, `once`, `off`, `emit`, `addListener`,
+`removeListener` and `prependListener`. Electron and node glue subscribes to events whose
+names are not ours (`app.on("ready")`, `process.on("exit")`, a file watcher), so it is
+split out by file and exempt: `src/js/**/*-electron.js` and `src/js/backend/Electron.js`.
+Electron and node code goes in those files and nowhere else. A third-party emitter
+elsewhere (today one: `screenfull.on("change")` in the toolbar) gets an
+`eslint-disable-next-line` with the reason on the line. Today the rule finds 88 sites in
+17 files, all in-repo names, for the cleanup. Once an emitter is TypeScript, its `on()`
+also refuses any name not in the table.
 
 **Alternatives.** (a) Callbacks passed in constructors: fine for one listener, ugly for
 several. (b) A custom pub/sub bus: one more thing to learn, and upstream already chose
 EventEmitter. (c) RxJS or signals: powerful, large, foreign to the codebase.
 
 **Why.** Matching upstream means a reader of `Player.js` can read `Workspace.js`. The
-constant table is so a typo in an event name is a type error (1.3), not a listener that
-silently never fires.
+constant table is so a typo in an event name is a lint or type error, not a listener
+that silently never fires: `"frameChange"` is typed by hand in six files today.
 
 ### 2.5 Protocol messages are defined once and validated before they leave
 

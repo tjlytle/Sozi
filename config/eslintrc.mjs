@@ -89,10 +89,12 @@ export default [
             ]
         }
     },
-    // Section 2.3: the published API is the only global. Only the two publishing
-    // modules may assign a window property.
+    // Section 2.4: event names come from the emitter's constant table, never a bare
+    // string. Electron and node glue (the *-electron.js entry points and the Electron
+    // backend) subscribe to events whose names are not ours, and are exempt by file.
+    // A third-party emitter elsewhere gets an eslint-disable-next-line with the reason.
     {
-        ignores: ["src/js/player.js", "src/js/presenter.js"],
+        ignores: ["src/js/**/*-electron.js", "src/js/backend/Electron.js"],
         rules: {
             "no-restricted-syntax": [
                 "error",
@@ -100,6 +102,27 @@ export default [
                     selector: "AssignmentExpression[left.object.name='window']",
                     message:
                         "Only player.js and presenter.js publish on window (code-standard.md 2.3)"
+                },
+                {
+                    selector:
+                        "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
+                    message:
+                        "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
+                }
+            ]
+        }
+    },
+    // Section 2.3: the two publishing modules may assign window.sozi / window.sozi.presenter.
+    {
+        files: ["src/js/player.js", "src/js/presenter.js"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector:
+                        "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
+                    message:
+                        "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
                 }
             ]
         }
