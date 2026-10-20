@@ -66,6 +66,29 @@ export default [
             "jsdoc/tag-lines": ["off"]
         }
     },
+    // Section 2.2: function modules (lowercase files) do not touch the DOM, so they run
+    // under node. Entry points are the exception: they are where the DOM is handed in.
+    {
+        files: ["src/js/**/[a-z]*.js", "src/js/**/[a-z]*.ts"],
+        ignores: [
+            "src/js/editor.js",
+            "src/js/player.js",
+            "src/js/presenter.js",
+            "src/js/index-electron.js",
+            "src/js/cli/index.js",
+            "src/js/exporter/exporter-preload.js"
+        ],
+        rules: {
+            "no-restricted-globals": [
+                "error",
+                ...["window", "document", "navigator"].map(name => ({
+                    name,
+                    message:
+                        "Function modules do not touch the DOM (code-standard.md 2.2); take it as a parameter"
+                }))
+            ]
+        }
+    },
     // Tool config files must export a default: that is the shape ESLint and gulp read.
     {
         files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],

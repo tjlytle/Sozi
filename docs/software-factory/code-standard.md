@@ -225,11 +225,25 @@ single grep and module loading order a non-issue.
 
 ### 2.2 Classes for things with a lifetime, functions for things that compute
 
-**Choice.** Anything with state and a lifetime (a panel, a transport, the workspace,
-the display bridge) is a class: the constructor receives its dependencies, `dispose()`
-removes every listener and timer it added. Anything that is a computation (matching
-notes to frames, choosing a layout preset, encoding a message) is a pure function with
-no DOM access, in a function module.
+**Decided 2026-10-20.** Anything with state and a lifetime (a panel, a transport, the
+workspace, the display bridge) is a class: the constructor receives its dependencies,
+and if it registers a listener or a timer it has a `dispose()` that removes every one it
+added. Anything that is a computation (matching notes to frames, choosing a layout
+preset, encoding a message) is a pure function with no DOM access, in a function module.
+
+**Enforced.** `no-restricted-globals` bans `window`, `document` and `navigator` in
+lowercase (function) files; the entry points, where the DOM is handed in, are listed by
+name in `config/eslintrc.mjs` (`editor.js`, `player.js`, `presenter.js`,
+`index-electron.js`, `cli/index.js`, `exporter/exporter-preload.js`). Today it finds
+five uses in `i18n.js`, which reads the browser language itself; the cleanup makes the
+caller pass the language in. `dispose()` cannot be linted: the class's unit test (6.1)
+creates it with fakes, calls `dispose()`, and checks the fakes have nothing registered.
+
+**What it means for existing code.** Upstream's classes (player, camera, controller)
+already take dependencies through the constructor and stay as they are; none has a
+`dispose()` because the editor and player never tear anything down (61 listeners added,
+7 removed; 15 timers started, 9 cleared). The singleton modules of 2.1 become classes in
+the cleanup, and the presenter rewrite follows this rule from the start.
 
 **Alternatives.** (a) Everything as classes, including the pure logic: testable only by
 instantiating things that need a DOM. (b) Everything as functions and closures: the
@@ -239,8 +253,9 @@ see 2.6.
 
 **Why.** The split is the testing strategy. Pure functions run in node in milliseconds
 with no browser; classes with injected dependencies run with fakes (a fake transport,
-a fake display). It is also the composition rule from the snake: small units with one
-job, assembled in one place.
+a fake display). A class without `dispose()` is the stacked-listener bug waiting: open
+a panel five times and five of them react to every event. It is also the composition
+rule from the snake: small units with one job, assembled in one place.
 
 ### 2.3 Dependencies are passed in; the published API is the only global
 
