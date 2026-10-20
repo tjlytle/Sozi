@@ -44,6 +44,7 @@
         "electron-builder": "^25.1.8",
         "envify": "^4.1.0",
         "eslint": "^9.14.0",
+        "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-jsdoc": "^50.4.3",
         "fancy-log": "^2.0.0",
         "globals": "^15.11.0",

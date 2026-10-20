@@ -185,21 +185,43 @@ in the same PR that clears it, so a check is never required while red.
 
 ### 2.1 ES modules, named exports, one concern per module
 
-**Choice.** Every file is an ES module exporting named things. A module is either a
-class module (PascalCase file, one class, same name as the file) or a function module
-(camelCase file, related pure functions). No module-level mutable state.
+**Decided 2026-10-20.** Every file is an ES module (`import`/`export`), tests included;
+CommonJS `require` is not written in new code and the 15 existing test files convert in
+the cleanup (or move to TypeScript, where the question does not arise). Exports are
+named; `export default` is banned by `import/no-default-export`, with tool configs
+(`config/*.mjs`, `gulpfile.js`) exempt because ESLint and gulp read a default export.
+Import cycles are banned by `import/no-cycle`. Both rules find nothing in the current
+code: 0 default exports, 0 cycles.
+
+A module is either a **class module** (PascalCase file, one class, same name as the file:
+`model/Selection.js` exports `Selection`) or a **function module** (camelCase file,
+related functions with no state between calls: `naming.js` exports six path helpers).
+A file does not export two classes, and does not mix a class with loose functions.
+
+**No module-level mutable state.** A `const` at file level is fine when its value never
+changes (`PRESENTATION_EXT`, a flag table). A `let` at file level, or a `const` array or
+object that code pushes into or assigns to, is a global: there can be one of it, and no
+test can start it fresh. State lives in an instance of a class, or is passed in. Today
+nine files keep `let` at file level (`player/FrameList.js` 8, `player/TouchGestures.js` 7,
+`presenter.js` 3, ...) and two keep registries (`backendList`, `animatorList`); those are
+the "module as singleton" pattern the presenter rewrite replaces with classes.
+
+**Cleanup (Tim, 2026-10-20): old code is brought to the same shape, not left doing
+things differently.** `model/Presentation.js` (4 classes) and `svg/SVGDocumentWrapper.js`
+(2 classes) split into one class per file; the nine singleton modules become classes.
+Filed with the other cleanups (section 1, "Cleanups"), done by the factory.
 
 **Alternatives.** (a) CommonJS `require`: what the tests use because node's test
-runner needed it; the source is already ES modules, and mixing styles is the sort of
-thing models do differently. (b) Default exports: fewer characters, but `import x from`
-lets every file name the same thing differently. (c) Several classes per file: upstream
-does this in places (`Presentation.js` holds `Frame` and `Layer` too); we do not add to
-it.
+runner once needed it; the source is already ES modules, and mixing styles is the sort
+of thing models do differently. (b) Default exports: fewer characters, but `import x
+from` lets every file name the same thing differently. (c) Several classes per file:
+upstream does this in two files; we do not add to it, and the cleanup removes it.
 
 **Why.** The existing presenter keeps `let presWindow` and `let presLength` at file
 scope, and that is why it cannot be tested, reused or have two instances. One module,
 one responsibility, no hidden state means a module can be read alone, tested alone and
-replaced alone.
+replaced alone. Named exports and no cycles are what make "find every use of X" a
+single grep and module loading order a non-issue.
 
 ### 2.2 Classes for things with a lifetime, functions for things that compute
 

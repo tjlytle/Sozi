@@ -4,6 +4,7 @@ import {fileURLToPath} from "node:url";
 import js from "@eslint/js";
 import {FlatCompat} from "@eslint/eslintrc";
 import tseslint from "typescript-eslint";
+import importPlugin from "eslint-plugin-import";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ const bugRules = {
 export default [
     ...compat.extends("eslint:recommended", "plugin:jsdoc/recommended"),
     {
+        plugins: {import: importPlugin},
         languageOptions: {
             globals: {
                 ...globals.browser,
@@ -46,6 +48,9 @@ export default [
         },
         rules: {
             ...bugRules,
+            // Section 2.1: named exports only, and no import cycles.
+            "import/no-default-export": ["error"],
+            "import/no-cycle": ["error"],
             "jsdoc/require-jsdoc": [
                 "error",
                 {
@@ -60,6 +65,11 @@ export default [
             "jsdoc/multiline-blocks": ["error", {noZeroLineText: false}],
             "jsdoc/tag-lines": ["off"]
         }
+    },
+    // Tool config files must export a default: that is the shape ESLint and gulp read.
+    {
+        files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],
+        rules: {"import/no-default-export": "off"}
     },
     // TypeScript files: the types are in the code, so the JSDoc rules do not apply.
     ...tseslint.configs.recommended.map(c => ({...c, files: ["**/*.ts"]})),
