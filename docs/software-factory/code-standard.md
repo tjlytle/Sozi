@@ -259,14 +259,29 @@ rule from the snake: small units with one job, assembled in one place.
 
 ### 2.3 Dependencies are passed in; the published API is the only global
 
-**Choice.** A class gets what it needs through its constructor. `window.sozi.player`
-and `window.sozi.presenter` are each assigned in exactly one module; nothing else reads
-or writes `window` for state. Add-ons use the API, never internals.
+**Decided 2026-10-20.** A class gets what it needs through its constructor. Each entry
+point has one wiring function that creates every object and hands each to the next; in
+the deck that is the load handler of `player.js`, and the presenter gets one of the same
+shape. `window.sozi` (the deck API) and `window.sozi.presenter` are each assigned in
+exactly one module; nothing else reads or writes `window` for state. Add-ons, the
+presenter first among them, use the API and never internals, so the API has to offer
+what they need (the protocol issue, #25, defines that).
+
+**Enforced.** `no-restricted-syntax` bans assigning any `window` property outside
+`player.js` and `presenter.js`. Today it finds one, in `exporter/exporter-preload.js`.
+Reading internals through the API is a review rule.
+
+**Cleanup.** The exporter preload reaches into internals (`viewport.cameras`,
+`player.setupTransition`, `player.onAnimatorStep`) to render video frame by frame. The
+cleanup gives the API the two calls it needs (prepare a transition, step it) and the
+exporter uses those, so the API is a real contract before the presenter builds on it.
+Today `window.sozi` also exposes `viewport` and `playerController`; whether those stay
+public is settled in #25.
 
 **Alternatives.** (a) Modules import a shared singleton (`import {presenter} from
-"./state"`): convenient, untestable, and every model invents a different singleton.
-(b) A DI container: more than this code needs; the dependency graph is a dozen objects
-wired in one `main` function.
+"./state"`): convenient, untestable, and every model invents a different singleton; it
+is the hidden global of 2.1 behind an import. (b) A DI container: more than this code
+needs; the dependency graph is a dozen objects wired in one function.
 
 **Why.** Explicit dependencies are what make the fakes in 2.2 possible, and one
 assignment of the global is what makes the API a contract: if the only way an add-on

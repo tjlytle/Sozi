@@ -89,6 +89,21 @@ export default [
             ]
         }
     },
+    // Section 2.3: the published API is the only global. Only the two publishing
+    // modules may assign a window property.
+    {
+        ignores: ["src/js/player.js", "src/js/presenter.js"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "AssignmentExpression[left.object.name='window']",
+                    message:
+                        "Only player.js and presenter.js publish on window (code-standard.md 2.3)"
+                }
+            ]
+        }
+    },
     // Tool config files must export a default: that is the shape ESLint and gulp read.
     {
         files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],

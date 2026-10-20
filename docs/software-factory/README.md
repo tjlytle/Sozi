@@ -28,8 +28,7 @@ Only after the standard is his does the foundation PR start.
 `config/eslintrc.mjs`, `tsconfig.json` + `tsconfig.checkjs.json`, `config/stylelintrc.json`,
 `bin/check` (= `npm run check`), the edit hook `.claude/hooks/check-file.py` with its test,
 and `.github/workflows/ci.yml`. Every check is red on the existing code by design (see
-"Cleanups" in the standard); the one-time fixes are the factory's first issues. Sections 2.1 (modules) and 2.2 (classes vs functions) are agreed too. Next:
-section 2.3, dependencies passed in. Things Tim asked that the draft did not anticipate: what a lint
+"Cleanups" in the standard); the one-time fixes are the factory's first issues. Sections 2.1 to 2.3 are agreed too. Next: section 2.4, events. Things Tim asked that the draft did not anticipate: what a lint
 rule's name means (decode it word by word, with a PHP example); whether to migrate to
 TypeScript (yes, gradually); "nightly" meant "a build per merge".
 
