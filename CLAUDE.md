@@ -12,6 +12,10 @@ Upstream (`upstream` remote) is maintenance-only; we do not open PRs there.
   `ELECTRON_ENABLE_LOGGING=1` shows renderer console output in the terminal.
 - `gulp` rewrites `locales/messages.pot` (timestamp) and `yarn.lock`; revert both
   before committing (`git checkout -- locales/messages.pot yarn.lock`).
+- `npm run check` runs every CI check (Prettier, ESLint, Stylelint, tsc); `bin/check --fix
+  <file>` applies the mechanical fixes to one file. The standard is
+  `docs/software-factory/code-standard.md`. Existing code is red by design until the
+  cleanup issues land.
 - Test decks: copy an `.svg` + `.sozi.json` pair into a scratch dir first. Opening a
   deck writes `*.sozi.html` and `*-presenter.sozi.html` next to it.
 
