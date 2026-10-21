@@ -430,21 +430,53 @@ promise, read top to bottom, and `Promise.all` is still how parallel work is exp
 
 ### 2.8 Size, documentation, text, accessibility
 
-**Choice.** 400 lines per file, 50 per function, ten public methods per class; beyond
-that, split. JSDoc with types on every export and public member. User-visible strings
-through `_()` from `i18n.js`. Controls are `<button>` elements, keyboard reachable and
-labelled; panels manage focus; animation honours `prefers-reduced-motion`. The
-protocol and API docs are updated in the same PR as the change.
+**Decided 2026-10-21.**
 
-**Alternatives.** Upstream's `Controller.js` is 1,900 lines and `Presentation.js` is
-1,160; both are the files nobody wants to touch. Skipping `_()` means the next
-translation pass misses the presenter. Divs with click handlers instead of buttons
-mean the keyboard shortcuts rule in the workspace cannot be met.
+**Size is a judgment call with a prompt, not a limit.** The guidelines are 400 lines per
+file, 50 lines of code per function, ten public methods per class. Nothing fails on
+them (Tim: "what if the file is 403 lines, arbitrarily split it?"). Instead the edit
+hook (`.claude/hooks/check-file.py`) measures the file a model just wrote and, when a
+guideline is passed, hands the model a note asking it to consider whether the file
+holds more than one concern, whether part of the function is a separate function,
+whether the class has more than one job. The note names the number and the guideline
+and says it is a judgment call. People get the same notes with
+`python3 .claude/hooks/check-file.py --advise FILE`. Today ten files and twelve classes
+are past the guidelines; the hook will say so whenever one is edited, and the cleanup
+epics decide.
+
+**Documentation: a summary sentence on every export, kept honest by the hook.** JSDoc
+with types on every export and public member in JavaScript (upstream's rule, enforced);
+in TypeScript the types are in the code and `jsdoc/require-jsdoc` still requires the
+sentence above every exported function, class and method, because the sentence says
+what the thing is for, which is what a model reads before calling it. The same edit
+hook compares the diff of the file: when the body of a documented declaration changed
+and its comment did not, the model gets a note to consider whether the comment still
+describes it. Protocol and API docs change in the same PR as the code (6.3).
+
+**Text: every user-visible string through `_()` from `i18n.js`.** That is gettext:
+`jspot` extracts the strings into `locales/messages.pot`, Weblate volunteers translate
+them (37 languages in `locales/`), the build compiles them back. A string outside `_()`
+never reaches a translator. The editor does this 184 times; the presenter 0 times, its
+"Previous"/"Next" tooltips hard-coded in the template. A JSX literal-text lint is added
+with the first Preact surface.
+
+**Accessibility: controls are buttons, labelled and keyboard reachable; panels manage
+focus; animation honours `prefers-reduced-motion`.** Enforced on surfaces by
+`eslint-plugin-jsx-a11y` (recommended set) on every `.tsx`/`.jsx` file; reduced motion
+is a browser scenario (6.2). Today the presenter has two `<input type="button">`
+controls (keyboard reachable), no accessible labels beyond tooltips, no ARIA roles, and
+three CSS transitions that ignore reduced motion.
+
+**Alternatives.** Hard size limits as lint (declined: 403 lines is not a defect; a
+ratchet list of exempt files was offered and declined for the same reason). No comment
+on TypeScript exports: the types say the shape, not the purpose. Skipping `_()`: the
+next translation pass misses the presenter. Divs with click handlers instead of
+buttons: the keyboard-shortcuts rule of the workspace cannot be met.
 
 **Why.** Each is cheap at write time and expensive to retrofit, and each is a place
-where models differ by default unless told.
-
----
+where models differ by default unless told. The hook is stronger than a conventions
+document (the model is asked at the moment it matters) and weaker than a limit (it
+may answer no).
 
 ## 3. CSS
 

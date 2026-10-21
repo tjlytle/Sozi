@@ -24,7 +24,7 @@ run() {
     fi
 }
 
-PRETTIER_PATHS=("src/js/**/*.{js,ts}" "src/css/**/*.css" "test/**/*.{js,ts}" "config/**/*" ".github/**/*.yml" "*.json")
+PRETTIER_PATHS=("src/js/**/*.{js,ts,tsx}" "src/css/**/*.css" "test/**/*.{js,ts,tsx}" "config/**/*" ".github/**/*.yml" "*.json")
 STYLE_PATHS=("src/css/**/*.css")
 
 if [ $# -eq 0 ]; then
@@ -40,7 +40,7 @@ js=() css=() all=()
 for f in "$@"; do
     [ -f "$f" ] || continue
     case "$f" in
-        *.js|*.mjs|*.cjs|*.ts) js+=("$f"); all+=("$f") ;;
+        *.js|*.mjs|*.cjs|*.ts|*.tsx) js+=("$f"); all+=("$f") ;;
         *.css)                 css+=("$f"); all+=("$f") ;;
         *.json|*.yml|*.yaml) all+=("$f") ;;
     esac

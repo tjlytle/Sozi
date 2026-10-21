@@ -49,6 +49,79 @@ function withScratch(name, content) {
     }
 }
 
+/** Run the hook in advise mode on a file and return its notes.
+ *
+ * @param {string} file - The file to advise on.
+ * @param {string} [diffFile] - A unified diff of the file to use instead of the one against HEAD.
+ * @returns {string[]} - One note per line.
+ */
+function advise(file, diffFile) {
+    const args = [hook, "--advise", file, ...(diffFile ? ["--diff", diffFile] : [])];
+    const result = spawnSync("python3", args, {encoding: "utf8", timeout: 120000});
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.split("\n").filter(Boolean);
+}
+
+describe("edit hook: advice, not failure (code-standard.md 2.8)", () => {
+    test("a file over the size guideline gets a note, in the hook output too", () => {
+        const body =
+            Array.from({length: 420}, (_, i) => `export const v${i} = ${i};`).join("\n") + "\n";
+        const file = path.join(root, "src", "js", "zz-big.js");
+        fs.writeFileSync(file, body);
+        try {
+            const notes = advise(file);
+            assert.ok(
+                notes.some(n => /420 lines; the guideline is 400/.test(n)),
+                notes.join("\n")
+            );
+            const r = run(file);
+            assert.equal(r.status, 0, r.stderr);
+        } finally {
+            fs.unlinkSync(file);
+        }
+    });
+    test("a class with many public methods gets a note", () => {
+        const methods = Array.from(
+            {length: 12},
+            (_, i) => `    /** Method ${i}. */\n    m${i}() {\n        return ${i};\n    }`
+        ).join("\n\n");
+        const file = path.join(root, "src", "js", "ZzWide.js");
+        fs.writeFileSync(file, `/** A wide class. */\nexport class ZzWide {\n${methods}\n}\n`);
+        try {
+            assert.ok(advise(file).some(n => /class `ZzWide` has 12 public methods/.test(n)));
+        } finally {
+            fs.unlinkSync(file);
+        }
+    });
+    test("code changed under an unchanged summary comment gets a note; a changed comment does not", () => {
+        const file = path.join(root, "src", "js", "zz-stale.js");
+        const diff = path.join(root, "src", "js", "zz-stale.diff");
+        fs.writeFileSync(
+            file,
+            "/** Adds one.\n *\n * @param {number} n - A number.\n * @returns {number} - n plus one.\n */\nexport function addOne(n) {\n    return n + 1;\n}\n"
+        );
+        try {
+            fs.writeFileSync(
+                diff,
+                "--- a\n+++ b\n@@ -7,1 +7,1 @@\n-    return n + 2;\n+    return n + 1;\n"
+            );
+            assert.ok(
+                advise(file, diff).some(n =>
+                    /code of `addOne` changed but the summary comment above it \(line 1\)/.test(n)
+                )
+            );
+            fs.writeFileSync(
+                diff,
+                "--- a\n+++ b\n@@ -1,1 +1,1 @@\n-x\n+y\n@@ -7,1 +7,1 @@\n-x\n+y\n"
+            );
+            assert.ok(!advise(file, diff).some(n => /summary comment/.test(n)));
+        } finally {
+            fs.unlinkSync(file);
+            fs.unlinkSync(diff);
+        }
+    });
+});
+
 describe("edit hook", () => {
     test("ignores files it does not check", () => {
         assert.equal(run(path.join(root, "README.md")).status, 0);

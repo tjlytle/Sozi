@@ -5,6 +5,7 @@ import js from "@eslint/js";
 import {FlatCompat} from "@eslint/eslintrc";
 import tseslint from "typescript-eslint";
 import importPlugin from "eslint-plugin-import";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -186,10 +187,11 @@ export default [
         files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],
         rules: {"import/no-default-export": "off"}
     },
-    // TypeScript files: the types are in the code, so the JSDoc rules do not apply.
-    ...tseslint.configs.recommended.map(c => ({...c, files: ["**/*.ts"]})),
+    // TypeScript files: the types are in the code, so the JSDoc type rules do not apply;
+    // the description sentence on every export still does (2.8).
+    ...tseslint.configs.recommended.map(c => ({...c, files: ["**/*.ts", "**/*.tsx"]})),
     {
-        files: ["**/*.ts"],
+        files: ["**/*.ts", "**/*.tsx"],
         languageOptions: {
             parserOptions: {projectService: true, tsconfigRootDir: path.join(__dirname, "..")}
         },
@@ -199,9 +201,29 @@ export default [
             "@typescript-eslint/no-floating-promises": ["error"],
             "no-unused-vars": "off",
             "@typescript-eslint/no-unused-vars": ["error"],
-            "jsdoc/require-jsdoc": "off",
+            "jsdoc/require-jsdoc": [
+                "error",
+                {
+                    publicOnly: true,
+                    require: {
+                        FunctionDeclaration: true,
+                        ClassDeclaration: true,
+                        MethodDefinition: true
+                    }
+                }
+            ],
+            "jsdoc/require-param": "off",
             "jsdoc/require-param-type": "off",
+            "jsdoc/require-returns": "off",
             "jsdoc/require-returns-type": "off"
         }
+    },
+    // 2.8: surfaces are accessible; jsx-a11y checks labels, roles and keyboard handlers
+    // on every JSX element.
+    {
+        files: ["**/*.tsx", "**/*.jsx"],
+        plugins: {"jsx-a11y": jsxA11y},
+        languageOptions: {parserOptions: {ecmaFeatures: {jsx: true}}},
+        rules: {...jsxA11y.flatConfigs.recommended.rules}
     }
 ];

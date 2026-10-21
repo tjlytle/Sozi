@@ -12,8 +12,10 @@
         "skipLibCheck": true,
         "resolveJsonModule": true,
         "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true
+        "allowSyntheticDefaultImports": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "preact"
     },
-    "include": ["src/js/**/*.ts", "test/**/*.ts"],
+    "include": ["src/js/**/*.ts", "src/js/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
     "exclude": ["node_modules", "build", "dist", "test/fixtures"]
 }
