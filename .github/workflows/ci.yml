@@ -21,8 +21,55 @@ jobs:
             - run: npm ci
             - run: npm run check
 
+    pr-shape:
+        name: PR shape (code-standard.md 5)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+            - run: node bin/check-pr.js --base "origin/${{ github.base_ref }}" --branch "${{ github.head_ref }}"
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+
+    coverage:
+        name: Tests cover the change (code-standard.md 6.2)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+            - run: node bin/check-coverage.js --base "origin/${{ github.base_ref }}"
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+
+    deps:
+        name: Dependencies (code-standard.md 4)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - run: node bin/check-deps.js --base "origin/${{ github.base_ref }}"
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+
     build:
-        name: Build and test
+        name: Build, test, scenarios
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -34,6 +81,15 @@ jobs:
             - run: npx gulp
             - run: sudo apt-get update && sudo apt-get install -y xvfb
             - run: npm test
+            - run: npx playwright install --with-deps chromium
+            - run: xvfb-run -a npm run test:features
+            - name: Keep the scenario report and screenshots
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: features-${{ github.sha }}
+                  path: build/features
+                  retention-days: 30
             - name: Keep the Electron build of this commit
               if: github.event_name == 'push'
               uses: actions/upload-artifact@v4

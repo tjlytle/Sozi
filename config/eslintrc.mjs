@@ -149,21 +149,6 @@ export default [
                     ]
                 }
             ],
-            // 2.6: HTML from data is parsed only in the sanitizer module.
-            "no-restricted-properties": [
-                "error",
-                ...["innerHTML", "outerHTML", "insertAdjacentHTML"].map(property => ({
-                    property,
-                    message:
-                        "Only src/js/html/ parses HTML from data; use textContent or a <template> (code-standard.md 2.6)"
-                })),
-                {
-                    object: "document",
-                    property: "write",
-                    message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
-                }
-            ],
-            ...syntax(ALL_BANS),
             "no-restricted-globals": ["error", ...DIALOGS],
             "jsdoc/require-jsdoc": [
                 "error",
@@ -178,6 +163,28 @@ export default [
             ],
             "jsdoc/multiline-blocks": ["error", {noZeroLineText: false}],
             "jsdoc/tag-lines": ["off"]
+        }
+    },
+    // Sections 2.3 to 3.3 shape the product code. Tests and scripts drive third-party
+    // APIs (page.on, locator.innerHTML()) and are not held to these bans.
+    {
+        files: ["src/**"],
+        rules: {
+            // 2.6: HTML from data is parsed only in the sanitizer module.
+            "no-restricted-properties": [
+                "error",
+                ...["innerHTML", "outerHTML", "insertAdjacentHTML"].map(property => ({
+                    property,
+                    message:
+                        "Only src/js/html/ parses HTML from data; use textContent or a <template> (code-standard.md 2.6)"
+                })),
+                {
+                    object: "document",
+                    property: "write",
+                    message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
+                }
+            ],
+            ...syntax(ALL_BANS)
         }
     },
     // 2.2: function modules (lowercase files) do not touch the DOM, so they run under

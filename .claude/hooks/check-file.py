@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 CHECKED_DIRS = ("src", "test", "bin", "config", ".github")
-CHECKED_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".css", ".json", ".yml", ".yaml")
+CHECKED_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".css", ".json", ".yml", ".yaml", ".html", ".feature")
 CODE_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".html", ".feature")
 
 # code-standard.md 2.8: guidelines, not limits.
@@ -197,11 +197,11 @@ def advice(root, rel, diff_text=None):
     with open(path, encoding="utf-8", errors="replace") as fh:
         lines = fh.read().splitlines()
     notes = []
-    if len(lines) > MAX_FILE_LINES:
+    if not rel.endswith((".html", ".feature")) and len(lines) > MAX_FILE_LINES:
         notes.append(f"{rel} is {len(lines)} lines; the guideline is {MAX_FILE_LINES} "
                      f"(code-standard.md 2.8). Consider whether it holds more than one concern "
                      f"and should be split. This is a judgment call, not a rule.")
-    for name, n in long_functions(root, rel):
+    for name, n in long_functions(root, rel) if not rel.endswith((".html", ".feature")) else []:
         notes.append(f"{rel}: `{name}` is {n} lines of code; the guideline is {MAX_FUNCTION_LINES} "
                      f"(code-standard.md 2.8). Consider whether part of it is a separate function.")
     for cls, n in public_methods(lines):
