@@ -267,7 +267,16 @@ exactly one module; nothing else reads or writes `window` for state. Add-ons, th
 presenter first among them, use the API and never internals, so the API has to offer
 what they need (the protocol issue, #25, defines that).
 
-**Enforced.** `no-restricted-syntax` bans assigning any `window` property outside
+**The deck never depends on a surface (Tim, 2026-10-21).** The slides expose an API,
+reachable locally (same page, `postMessage`) or remotely (the relay, with auth), and
+everything else is a separate thing that talks to that API. Any number of surfaces may
+exist at once, built any way: a lightweight presenter with no framework and a full one on
+a framework are both fine, neither touches the deck, and neither blocks the other. Deck
+code (`player/`, `player.js`, `model/`, `svg/`) never imports a surface; a surface never
+imports deck internals; `protocol/` is the only module both sides share.
+
+**Enforced.** `import/no-restricted-paths` bans those imports in both directions.
+`no-restricted-syntax` bans assigning any `window` property outside
 `player.js` and `presenter.js`. Today it finds one, in `exporter/exporter-preload.js`.
 Reading internals through the API is a review rule.
 
@@ -352,24 +361,39 @@ only way they stay in agreement, and validating at the sender turns a wrong mess
 into a stack trace at the cause instead of a silent no-op at the receiver. The JSON
 Schema is what makes the contract readable outside this codebase.
 
-### 2.6 DOM: no framework in the player or presenter, no HTML from strings
+### 2.6 DOM: the player has no framework; presenter surfaces use Preact; no HTML from strings
 
-**Choice.** The player and presenter build their DOM with `<template>` elements in the
-nunjucks templates and a small `h()` helper, and set text with `textContent`. HTML
-from data is never assigned with `innerHTML`; the one exception is the Markdown
-renderer, whose output passes through DOMPurify. Inferno stays in the editor, where it
-already is.
+**Decided 2026-10-21.** The **player** (inlined into every deck, 211 KB today) builds its
+DOM with `<template>` elements in the nunjucks templates and a small `h()` helper, sets
+text with `textContent`, and carries no framework. **Presenter surfaces** (the generated
+presenter page, the PWA shell, anything in the channel repo) may use **Preact** with
+TypeScript and JSX (11 KB minified); a surface that wants no framework is equally fine
+(2.3). **Inferno stays in the editor**, which is upstream code outside the backlog; that
+is the one deliberate case of two UI libraries in the repo, and it is not a cleanup.
+HTML from data is parsed in exactly one module, `src/js/html/` (the Markdown renderer
+of #24, whose output passes through DOMPurify); everywhere else it is a lint error.
 
-**Alternatives.** (a) Inferno in the presenter too: upstream uses it in the editor, but
-the player and presenter are inlined into every exported deck, and a view library in
-every deck is weight the deck carries forever. (b) Lit or Preact: same objection, plus
-a third way of building UI in one repo. (c) Template strings and `innerHTML`: the
-current presenter does `innerHTML = title`, which is an injection waiting for a frame
-titled `<img onerror=…>`.
+**Enforced.** `no-restricted-properties` bans `innerHTML`, `outerHTML`,
+`insertAdjacentHTML` and `document.write` outside `src/js/html/`; `no-restricted-syntax`
+bans `dangerouslySetInnerHTML` there too. Today 11 sites in 6 files, four of them in
+`presenter.js`, which assigns the frame title and the notes to `innerHTML`: a frame
+titled `<img src=x onerror=…>` runs script in the presenter window. The cleanup moves
+text to `textContent`; the presenter rewrite replaces the rest.
 
-**Why.** Size and safety. A deck is a file people keep for years; what the player
-carries, it carries forever. And a presenter that renders your notes as HTML has to be
-told exactly where HTML is allowed, once.
+**Measured 2026-10-21 (minified, latest release).** Preact 11 KB (Oct 2026), Inferno
+26 KB (Oct 2026), Lit 16 KB (May 2026). Neither template has a `<template>` element yet.
+
+**Alternatives.** (a) Inferno in the presenter too: one library in the repo and the
+editor views to copy from, but a hyperscript style models rarely write, and 26 KB.
+(b) Lit: a third style, no example in the repo. (c) No framework in the presenter: the
+panel workspace of #24 (move, resize, tab, minimise, per-device layouts) is UI rendered
+from a layout state, which is exactly what a framework's render loop does. (d) Template
+strings and `innerHTML`: the current presenter.
+
+**Why.** Size and safety for the deck, which is a file people keep for years; fluency for
+the surfaces, where Preact's React-shaped API is the dialect every model writes with the
+fewest mistakes. And a presenter that renders notes as HTML has to be told exactly where
+HTML is allowed, once.
 
 ### 2.7 Asynchrony and errors
 

@@ -14,8 +14,10 @@ const compat = new FlatCompat({
     allConfig: js.configs.all
 });
 
-// See docs/software-factory/code-standard.md, section 1.2. Zero warnings: every rule
-// here is an error, and the check script runs with --max-warnings 0.
+// See docs/software-factory/code-standard.md. Zero warnings: every rule here is an
+// error, and the check script runs with --max-warnings 0.
+
+// Section 1.2: rules that catch bugs.
 const bugRules = {
     "no-unused-vars": ["error"],
     "no-prototype-builtins": ["error"],
@@ -26,6 +28,58 @@ const bugRules = {
     "no-implicit-globals": ["error"],
     "no-param-reassign": ["error"]
 };
+
+// Where things live. A surface is anything that talks to the deck through the API.
+const DECK = ["src/js/player/**", "src/js/player.{js,ts}", "src/js/model/**", "src/js/svg/**"];
+const SURFACES = ["src/js/presenter/**", "src/js/presenter.{js,ts}", "src/js/surfaces/**"];
+const PUBLISHERS = [
+    "src/js/player.js",
+    "src/js/player.ts",
+    "src/js/presenter.js",
+    "src/js/presenter.ts"
+];
+const ENTRY_POINTS = [
+    "src/js/editor.js",
+    "src/js/player.js",
+    "src/js/presenter.js",
+    "src/js/index-electron.js",
+    "src/js/cli/index.js",
+    "src/js/exporter/exporter-preload.js"
+];
+const ELECTRON_GLUE = ["src/js/**/*-electron.js", "src/js/backend/Electron.js"];
+const PROTOCOL = ["src/js/protocol/**"];
+const SANITIZER = ["src/js/html/**"];
+
+// Syntax bans, one per section, composed per scope below. ESLint flat config replaces a
+// rule's whole configuration when a later block sets it again, so every scope that
+// needs `no-restricted-syntax` lists the full set it wants.
+const BAN = {
+    // 2.3: the published API is the only global; only the publishers assign window.*
+    windowAssign: {
+        selector: "AssignmentExpression[left.object.name='window']",
+        message: "Only player.js and presenter.js publish on window (code-standard.md 2.3)"
+    },
+    // 2.4: event names come from the emitter's exported table, never a bare string.
+    eventString: {
+        selector:
+            "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
+        message:
+            "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
+    },
+    // 2.5: the protocol module is the one place that sends messages.
+    postMessage: {
+        selector: "CallExpression[callee.property.name='postMessage']",
+        message: "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
+    },
+    // 2.6: HTML from data is parsed only in the sanitizer module.
+    jsxHtml: {
+        selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+        message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
+    }
+};
+const ALL_BANS = [BAN.windowAssign, BAN.eventString, BAN.postMessage, BAN.jsxHtml];
+const syntax = bans => ({"no-restricted-syntax": ["error", ...bans]});
+const without = (...omit) => ALL_BANS.filter(b => !omit.includes(b));
 
 export default [
     ...compat.extends("eslint:recommended", "plugin:jsdoc/recommended"),
@@ -48,9 +102,44 @@ export default [
         },
         rules: {
             ...bugRules,
-            // Section 2.1: named exports only, and no import cycles.
+            // 2.1: named exports only, no import cycles.
             "import/no-default-export": ["error"],
             "import/no-cycle": ["error"],
+            // 2.3: the deck never depends on a surface, and a surface never imports deck
+            // internals; the protocol module is the only thing both sides share.
+            "import/no-restricted-paths": [
+                "error",
+                {
+                    zones: [
+                        {
+                            target: DECK,
+                            from: SURFACES,
+                            message: "The deck never depends on a surface (code-standard.md 2.3)"
+                        },
+                        {
+                            target: SURFACES,
+                            from: DECK,
+                            message:
+                                "A surface reaches the deck only through the API and the protocol (code-standard.md 2.3)"
+                        }
+                    ]
+                }
+            ],
+            // 2.6: HTML from data is parsed only in the sanitizer module.
+            "no-restricted-properties": [
+                "error",
+                ...["innerHTML", "outerHTML", "insertAdjacentHTML"].map(property => ({
+                    property,
+                    message:
+                        "Only src/js/html/ parses HTML from data; use textContent or a <template> (code-standard.md 2.6)"
+                })),
+                {
+                    object: "document",
+                    property: "write",
+                    message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
+                }
+            ],
+            ...syntax(ALL_BANS),
             "jsdoc/require-jsdoc": [
                 "error",
                 {
@@ -66,18 +155,11 @@ export default [
             "jsdoc/tag-lines": ["off"]
         }
     },
-    // Section 2.2: function modules (lowercase files) do not touch the DOM, so they run
-    // under node. Entry points are the exception: they are where the DOM is handed in.
+    // 2.2: function modules (lowercase files) do not touch the DOM, so they run under
+    // node. Entry points are the exception: they are where the DOM is handed in.
     {
         files: ["src/js/**/[a-z]*.js", "src/js/**/[a-z]*.ts"],
-        ignores: [
-            "src/js/editor.js",
-            "src/js/player.js",
-            "src/js/presenter.js",
-            "src/js/index-electron.js",
-            "src/js/cli/index.js",
-            "src/js/exporter/exporter-preload.js"
-        ],
+        ignores: ENTRY_POINTS,
         rules: {
             "no-restricted-globals": [
                 "error",
@@ -89,59 +171,14 @@ export default [
             ]
         }
     },
-    // Section 2.4: event names come from the emitter's constant table, never a bare
-    // string. Electron and node glue (the *-electron.js entry points and the Electron
-    // backend) subscribe to events whose names are not ours, and are exempt by file.
-    // A third-party emitter elsewhere gets an eslint-disable-next-line with the reason.
-    {
-        ignores: ["src/js/**/*-electron.js", "src/js/backend/Electron.js"],
-        rules: {
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector: "AssignmentExpression[left.object.name='window']",
-                    message:
-                        "Only player.js and presenter.js publish on window (code-standard.md 2.3)"
-                },
-                {
-                    selector:
-                        "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
-                    message:
-                        "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
-                },
-                {
-                    selector: "CallExpression[callee.property.name='postMessage']",
-                    message:
-                        "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
-                }
-            ]
-        }
-    },
-    // Section 2.3: the two publishing modules may assign window.sozi / window.sozi.presenter.
-    {
-        files: ["src/js/player.js", "src/js/presenter.js"],
-        rules: {
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector:
-                        "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
-                    message:
-                        "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
-                },
-                {
-                    selector: "CallExpression[callee.property.name='postMessage']",
-                    message:
-                        "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
-                }
-            ]
-        }
-    },
-    // Section 2.5: the protocol directory is the one place that sends messages.
-    {
-        files: ["src/js/protocol/**"],
-        rules: {"no-restricted-syntax": "off"}
-    },
+    // 2.3: the two publishing modules may assign window.sozi / window.sozi.presenter.
+    {files: PUBLISHERS, rules: syntax(without(BAN.windowAssign))},
+    // 2.4: Electron and node glue subscribes to events whose names are not ours.
+    {files: ELECTRON_GLUE, rules: syntax(without(BAN.eventString))},
+    // 2.5: the protocol module is the one place that may call postMessage.
+    {files: PROTOCOL, rules: syntax(without(BAN.postMessage))},
+    // 2.6: the sanitizer module is the one place that may parse HTML.
+    {files: SANITIZER, rules: {"no-restricted-properties": "off", ...syntax(without(BAN.jsxHtml))}},
     // Tool config files must export a default: that is the shape ESLint and gulp read.
     {
         files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],
