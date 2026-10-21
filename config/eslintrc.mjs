@@ -108,6 +108,11 @@ export default [
                         "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
                     message:
                         "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
+                },
+                {
+                    selector: "CallExpression[callee.property.name='postMessage']",
+                    message:
+                        "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
                 }
             ]
         }
@@ -123,9 +128,19 @@ export default [
                         "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
                     message:
                         "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
+                },
+                {
+                    selector: "CallExpression[callee.property.name='postMessage']",
+                    message:
+                        "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
                 }
             ]
         }
+    },
+    // Section 2.5: the protocol directory is the one place that sends messages.
+    {
+        files: ["src/js/protocol/**"],
+        rules: {"no-restricted-syntax": "off"}
     },
     // Tool config files must export a default: that is the shape ESLint and gulp read.
     {

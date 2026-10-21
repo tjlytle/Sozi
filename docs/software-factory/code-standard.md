@@ -317,19 +317,40 @@ that silently never fires: `"frameChange"` is typed by hand in six files today.
 
 ### 2.5 Protocol messages are defined once and validated before they leave
 
-**Choice.** `src/js/protocol/` holds every message the display and surfaces exchange:
-its name, its fields, an encoder and a validator. Nothing else constructs a raw
-message object; it calls the protocol module, which refuses a malformed message.
+**Decided 2026-10-21.** `src/js/protocol/` holds every message the display and surfaces
+exchange: its name, its fields as a TypeScript type, a builder and a validator. Nothing
+else constructs or posts a raw message; it calls the protocol module, which refuses a
+malformed message. The build also emits a JSON Schema file from the types, published
+from the protocol module: that is the language-neutral contract any later consumer
+(another language, another team) validates against. Protocol Buffers is the upgrade
+path if a non-JavaScript consumer with real traffic appears; a `.proto` is then
+generated from the same definitions.
 
-**Alternatives.** (a) Post plain objects wherever needed, as today's `player.js` and
-`presenter.js` do: fourteen message names scattered across two files with no list
-anywhere. (b) A schema language (JSON Schema, zod): a validator we would write anyway,
-plus a dependency the inlined player would carry.
+**Enforced.** `no-restricted-syntax` bans `postMessage` outside `src/js/protocol/`. Today
+it finds 19 sites (16 in `presenter.js`, 3 in `player.js`), all replaced by the presenter
+rewrite.
+
+**Requirements for the protocol issue (#25), recorded 2026-10-21.** The receiver checks
+the sender (origin for `postMessage`; the relay's own auth for the Worker) and dispatches
+only from an explicit table of message names. Today the deck accepts a message from any
+origin, posts to `"*"`, and its default branch calls whatever method the message names.
+
+**Measured 2026-10-21.** 15 message names, built by hand in 19 places, listed nowhere, 0
+origin checks. Minified runtime a validator library would add to the inlined player:
+hand-written about 0.1 KB, `@bufbuild/protobuf` 26 KB, `protobufjs` 44 KB, `ajv` 125 KB.
+
+**Alternatives.** (a) Post plain objects wherever needed, as today: fourteen message
+names scattered across two files with no list anywhere. (b) Protocol Buffers now: a
+`.proto`, Buf code generation in the gulp build, 26 KB in every deck, a binary encoding
+that every hop (two windows, a JSON relay, an MCP server) decodes straight back into an
+object; cross-language for consumers that do not exist yet. (c) A schema library (zod,
+ajv) in the deck: a validator we would write anyway, plus the bytes.
 
 **Why.** The protocol is the contract between the display, two transports, the PWA
 shell, the relay Worker and the MCP server. Five consumers of one definition is the
 only way they stay in agreement, and validating at the sender turns a wrong message
-into a stack trace at the cause instead of a silent no-op at the receiver.
+into a stack trace at the cause instead of a silent no-op at the receiver. The JSON
+Schema is what makes the contract readable outside this codebase.
 
 ### 2.6 DOM: no framework in the player or presenter, no HTML from strings
 
