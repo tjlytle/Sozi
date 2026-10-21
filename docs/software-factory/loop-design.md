@@ -147,13 +147,30 @@ prompt run as `claude -p`. The container's only shared state with the host is th
 volume (read) and the log directory (write).
 
 Credentials reach the container as environment variables, never as mounted home
-directories: the Claude Code token (`claude setup-token` on the host, stored once), and
-for GitHub either a short-lived bot token the host mints per persona before launch, or
-`GH_MINT_URL`/`GH_MINT_KEY` so the container mints its own through the worker. The second
-is the cloud shape and the default; the first is the fallback when the worker is down.
+directories. The Claude Code token comes from `claude setup-token` on the host, stored
+once. GitHub tokens: the host loop mints them (Tim, 2026-10-21: "the factory script
+launching the container should mint the right token for that process and pass it in").
+`gh-as` has exactly two ways to get a bot token, the local App keys or the mint worker
+(`GH_MINT_URL`/`GH_MINT_KEY`), and the keys never enter a container. So the loop speaks
+the worker's protocol itself: before each pass it mints one token per persona with
+`bot-token` on the host and serves them from a small local endpoint (bound to the Docker
+bridge, keyed by a per-run secret), and the container gets `GH_MINT_URL` pointing at it.
+No change to the plugin, and the container uses the same path a cloud session uses
+against the real worker. When Tim deploys the per-persona worker, the same containers
+work unchanged with its URL instead.
 
-Several stages run at once (default two; `PIPELINE_PARALLEL`). A build and QA stage are
-heavy (an Electron build, Chromium); the default is sized for a laptop.
+**Ceilings** (Tim: limits per agent and per machine, and the loop throttles near a usage
+limit). A fixed number of containers at a time (`PIPELINE_PARALLEL`, default two; a build
+or QA stage runs an Electron build and Chromium, so the default is sized for a laptop).
+Each session has a wall-clock cap (`PIPELINE_SESSION_MINUTES`, default 45; the container
+is stopped and the run counts as a failed try) and, on an API key, `--max-budget-usd` per
+session. The loop reads every session's result line (tokens and cost from the stream)
+and keeps a running total per run: past a soft limit it drops to one container, past a
+hard limit it starts nothing more until the morning, and a rate-limit result backs the
+loop off for fifteen minutes. The limits are per-run settings (`PIPELINE_SOFT_TOKENS`,
+`PIPELINE_HARD_TOKENS`, or USD on an API key); a subscription's own usage window cannot
+be queried, so the totals are the loop's own count. Self-started issues are not capped
+separately: the container count and the limits bound them.
 
 ### Merge and the morning
 
@@ -164,8 +181,12 @@ reviewer) and the jobs that are green; each cleanup PR that turns a job green al
 it required (code-standard section 1, "Cleanups"). QA's approval is its evidence comment
 (6.3), not a PR review: the qa App cannot submit reviews. QA merges as builder, the PR
 author, which protection allows and the snake does too. The foundation PR itself Tim
-merges by hand after his review; the loop starts on master after that. CI on master builds the Electron app and the scenario report and keeps
-them as artifacts; the loop records the artifact link of the newest master build.
+merges by hand after his review; the loop starts on master after that. CI on master builds the scenario report, the presenter page of the fixture deck, and a
+Linux AppImage of the editor (electron-builder on the Ubuntu runner, a few minutes; the
+Windows and macOS targets stay out of CI) and keeps them as artifacts; the presenter page
+is also published where a browser can open it. Both links sit at the top of the night's
+checklist: the presenter page is what the backlog changes night to night, the AppImage
+is there for editor changes.
 
 **Screenshots** are stored where both GitHub and Notion can show them: QA writes each one
 to the fork's `evidence` branch (an orphan branch, `<pr>/<name>.png`, through the contents
@@ -253,6 +274,8 @@ secrets; the board sync running from the same routine.
 - The exact Dockerfile and the mirror-volume mechanics; whether `npm ci` is cached in the
   image or run per stage.
 - The Notion page layout and the `bin/digest` script's API calls.
+- The local mint endpoint (a few dozen lines; it answers the worker's request shape).
+- Where the presenter page is published (GitHub Pages from the artifact, or an R2 bucket).
 - The wording of the four prompts, within the rules above.
 - The board column names beyond the stage mapping.
 - Verification of the plugin-loading question in "Cloud path" item 1, and its answer
@@ -266,3 +289,6 @@ secrets; the board sync running from the same routine.
 - Two parallel stages by default.
 - The mint-worker token path as the default inside containers.
 - One Notion page per run, created at start, written by a script rather than an MCP.
+- The local mint endpoint as the way host-minted tokens reach containers.
+- A wall-clock cap per session, since this CLI version has no turn limit flag.
+- A Linux AppImage per merge and no other platform in CI.
