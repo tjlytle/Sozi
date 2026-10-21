@@ -77,6 +77,16 @@ const BAN = {
         message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
     }
 };
+// 2.7: a blocking dialog freezes the page mid-talk; failures go to the notice panel.
+const DIALOGS = ["alert", "confirm", "prompt"].map(name => ({
+    name,
+    message: "No blocking dialogs; report through the notice panel (code-standard.md 2.7)"
+}));
+// 2.2: function modules take the DOM as a parameter instead of reaching for it.
+const DOM_GLOBALS = ["window", "document", "navigator"].map(name => ({
+    name,
+    message: "Function modules do not touch the DOM (code-standard.md 2.2); take it as a parameter"
+}));
 const ALL_BANS = [BAN.windowAssign, BAN.eventString, BAN.postMessage, BAN.jsxHtml];
 const syntax = bans => ({"no-restricted-syntax": ["error", ...bans]});
 const without = (...omit) => ALL_BANS.filter(b => !omit.includes(b));
@@ -140,6 +150,7 @@ export default [
                 }
             ],
             ...syntax(ALL_BANS),
+            "no-restricted-globals": ["error", ...DIALOGS],
             "jsdoc/require-jsdoc": [
                 "error",
                 {
@@ -160,16 +171,7 @@ export default [
     {
         files: ["src/js/**/[a-z]*.js", "src/js/**/[a-z]*.ts"],
         ignores: ENTRY_POINTS,
-        rules: {
-            "no-restricted-globals": [
-                "error",
-                ...["window", "document", "navigator"].map(name => ({
-                    name,
-                    message:
-                        "Function modules do not touch the DOM (code-standard.md 2.2); take it as a parameter"
-                }))
-            ]
-        }
+        rules: {"no-restricted-globals": ["error", ...DIALOGS, ...DOM_GLOBALS]}
     },
     // 2.3: the two publishing modules may assign window.sozi / window.sozi.presenter.
     {files: PUBLISHERS, rules: syntax(without(BAN.windowAssign))},
@@ -188,8 +190,13 @@ export default [
     ...tseslint.configs.recommended.map(c => ({...c, files: ["**/*.ts"]})),
     {
         files: ["**/*.ts"],
+        languageOptions: {
+            parserOptions: {projectService: true, tsconfigRootDir: path.join(__dirname, "..")}
+        },
         rules: {
             ...bugRules,
+            // 2.7: a promise nobody awaits or catches is a failure nobody sees.
+            "@typescript-eslint/no-floating-promises": ["error"],
             "no-unused-vars": "off",
             "@typescript-eslint/no-unused-vars": ["error"],
             "jsdoc/require-jsdoc": "off",

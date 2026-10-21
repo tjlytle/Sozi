@@ -397,21 +397,36 @@ HTML is allowed, once.
 
 ### 2.7 Asynchrony and errors
 
-**Choice.** `async`/`await` and promises; callbacks only where the DOM demands them.
-Every timer and listener belongs to something with a `dispose()`. Programmer errors
-throw an `Error` subclass from `src/js/errors.js`. Failures a presenter can act on
-(lost connection, bad pairing code) go through the status API to a notice panel, never
-`alert()`. `console` only inside the logger module, silent in production except for
-errors.
+**Decided 2026-10-21.** `async`/`await` everywhere; a promise is awaited or its failure
+caught, never left floating; callbacks only where the DOM hands one over (an event
+listener). Every timer and listener belongs to something with a `dispose()` (2.2).
+Programmer errors throw a named `Error` subclass from `src/js/errors.ts`, never a bare
+`new Error("…")`. Failures a presenter can act on (lost connection, bad pairing code) go
+through the status API to a notice panel, never a blocking dialog. Logging is free (the
+section 1 decision stands), but a `catch` whose only action is to log is a defect: the
+failure is reported through the panel or rethrown.
+
+**Enforced.** `no-restricted-globals` bans `alert`, `confirm` and `prompt` everywhere
+(one site today, the presenter's popup warning). `@typescript-eslint/no-floating-promises`
+(type-aware) makes an unawaited promise an error in `.ts` files. `no-empty` (recommended
+set) already bans an empty `catch`. The error classes and the catch-that-only-logs rule
+are prose; the notice panel is a deliverable of #24.
+
+**Measured 2026-10-21.** 37 async functions and 85 awaits against 2 `.then` chains (both
+without `.catch`) and 1 callback-style call: upstream is already most of the way there.
+12 `throw new Error(string)`, 0 `Error` subclasses, 3 catches in the editor controller
+that only `console.log`.
 
 **Alternatives.** (a) Callback style throughout, as parts of `Storage.js` are: nesting,
-and errors that go nowhere. (b) `alert()` for failures, as the presenter does today:
-blocks the page during a talk. (c) `console.log` debugging left in: every model does
-it, and it is what the rule exists to stop.
+and errors that go nowhere. (b) Promises with `.then` chains: the same thing `await`
+does, with more ways to forget the `.catch`. (c) `alert()` for failures, as the
+presenter does today: blocks the page during a talk. (d) `console` only in a logger
+module: dropped in section 1; the defect is the swallowed error, not the log line.
 
 **Why.** A presenter runs for an hour on a stage. Leaks (listeners never removed),
 blocking dialogs, and errors swallowed into the console are the three ways it fails in
-the room rather than in the test.
+the room rather than in the test. `await` loses nothing over promises: it is the same
+promise, read top to bottom, and `Promise.all` is still how parallel work is expressed.
 
 ### 2.8 Size, documentation, text, accessibility
 

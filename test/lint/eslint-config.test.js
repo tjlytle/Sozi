@@ -9,6 +9,7 @@
 
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import {ESLint} from "eslint";
 
@@ -45,6 +46,37 @@ describe("2.2 function modules do not touch the DOM", () => {
     test("fires in a lowercase module", () => fires("src/js/layout.js", code, "2.2"));
     test("quiet in a class module", () => quiet("src/js/Layout.js", code, "2.2"));
     test("quiet in an entry point", () => quiet("src/js/presenter.js", code, "2.2"));
+});
+
+describe("2.7 no blocking dialogs, no floating promises", () => {
+    const code = 'export function f() { alert("x"); }\n';
+    test("alert fires in a class module", () => fires("src/js/Panel.js", code, "2.7"));
+    test("alert fires in a function module, alongside the DOM ban", async () => {
+        const messages = await standardMessages(
+            "src/js/layout.js",
+            "export function f() { alert(window.name); }\n"
+        );
+        assert.ok(
+            messages.some(m => m.includes("2.7")) && messages.some(m => m.includes("2.2")),
+            messages.join("\n")
+        );
+    });
+    test("an unawaited promise fires in a TypeScript file", async () => {
+        const file = path.join(root, "src", "js", "zz-floating.ts");
+        fs.writeFileSync(
+            file,
+            "export async function f(): Promise<void> {}\nexport function g(): void { f(); }\n"
+        );
+        try {
+            const [result] = await eslint.lintFiles([file]);
+            assert.ok(
+                result.messages.some(m => m.ruleId === "@typescript-eslint/no-floating-promises"),
+                JSON.stringify(result.messages)
+            );
+        } finally {
+            fs.unlinkSync(file);
+        }
+    });
 });
 
 describe("2.3 only the publishers assign window properties", () => {
