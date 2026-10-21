@@ -102,6 +102,27 @@ describe("2.5 only the protocol module posts messages", () => {
     test("quiet in the protocol module", () => quiet("src/js/protocol/messages.js", code, "2.5"));
 });
 
+describe("3.3 inline styles only for computed geometry", () => {
+    test("an appearance property fires", () =>
+        fires(
+            "src/js/presenter/Panel.js",
+            'export function f(el) { el.style.color = "red"; }\n',
+            "3.3"
+        ));
+    test("a geometry property is quiet", () =>
+        quiet(
+            "src/js/presenter/Panel.js",
+            'export function f(el, w) { el.style.width = w + "px"; }\n',
+            "3.3"
+        ));
+    test("quiet in Electron glue too? no: it applies everywhere", () =>
+        fires(
+            "src/js/index-electron.js",
+            'export function f(el) { el.style.background = "x"; }\n',
+            "3.3"
+        ));
+});
+
 describe("2.6 only the sanitizer parses HTML", () => {
     const code = "export function f(el, s) { el.innerHTML = s; }\n";
     test("fires in a surface", () => fires("src/js/presenter.js", code, "2.6"));

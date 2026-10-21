@@ -28,7 +28,7 @@ Only after the standard is his does the foundation PR start.
 `config/eslintrc.mjs`, `tsconfig.json` + `tsconfig.checkjs.json`, `config/stylelintrc.json`,
 `bin/check` (= `npm run check`), the edit hook `.claude/hooks/check-file.py` with its test,
 and `.github/workflows/ci.yml`. Every check is red on the existing code by design (see
-"Cleanups" in the standard); the one-time fixes are the factory's first issues. Sections 2.1 to 2.6 are agreed too (2.5 and 2.6 on 2026-10-21; 2.6 added the rule that the deck never depends on a surface). 2.7 and 2.8 agreed 2026-10-21; section 2 is complete. 2.8 turned the size limits and the comment rule into advisory notes from the edit hook (`--advise`). Next: section 3, CSS. Things Tim asked that the draft did not anticipate: what a lint
+"Cleanups" in the standard); the one-time fixes are the factory's first issues. Sections 2.1 to 2.6 are agreed too (2.5 and 2.6 on 2026-10-21; 2.6 added the rule that the deck never depends on a surface). 2.7 and 2.8 agreed 2026-10-21; section 2 is complete. 2.8 turned the size limits and the comment rule into advisory notes from the edit hook (`--advise`). Section 3 (CSS) agreed 2026-10-21 with three more lints. Next: section 4, dependencies. Things Tim asked that the draft did not anticipate: what a lint
 rule's name means (decode it word by word, with a PHP example); whether to migrate to
 TypeScript (yes, gradually); "nightly" meant "a build per merge".
 

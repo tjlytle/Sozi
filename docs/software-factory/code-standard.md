@@ -480,43 +480,71 @@ may answer no).
 
 ## 3. CSS
 
+Decided 2026-10-21, all three enforced by Stylelint (`config/stylelintrc.json`) and
+one ESLint rule. Today the editor CSS (five files, 631 lines) and the presenter (a
+69-line `<style>` block inside its template) meet none of it; that is the CSS cleanup.
+
 ### 3.1 One file per component, classes in block-element-modifier form, `sozi-` prefix
 
-**Choice.** `presenter/panels/Notes.css` styles the notes panel and nothing else.
+**Decided.** `presenter/panels/Notes.css` styles the notes panel and nothing else.
 Classes are `sozi-notes`, `sozi-notes__section`, `sozi-notes__section--current`. No
 ids for styling (ids remain for scripting hooks where upstream uses them).
+
+**Enforced.** `selector-class-pattern` requires every class to match
+`sozi-block__element--modifier`; `selector-max-id: 0` (1.4). Today: 162 class
+selectors fail the pattern (the editor uses `.active`, `.group`, `.btn-group`, ...),
+9 id selectors.
 
 **Alternatives.** (a) Upstream's style: one file per editor view, ids and descendant
 selectors (`#sozi-editor-view-timeline > div`); works for one fixed layout, breaks when
 a panel can appear twice or anywhere. (b) Utility classes (Tailwind): a build step,
-a dependency, and HTML that carries its styling, which the nunjucks templates and
-add-on panels would have to share. (c) CSS modules or CSS-in-JS: both need the
-bundler to do something browserify does not.
+a dependency, and HTML that carries its styling, which the templates and add-on panels
+would have to share. (c) CSS modules or CSS-in-JS: both need the bundler to do
+something browserify does not.
 
 **Why.** Dockable panels are components that move; their styles must travel with them
-and not depend on where they sit. The naming form makes a selector's scope visible in
-its name and keeps specificity flat, which is what lets the ceiling in 1.4 hold.
+and not depend on where they sit. The naming form (the most widely used CSS convention,
+in use since about 2013) makes a selector's scope visible in its name and keeps
+specificity flat, which is what lets the ceiling in 1.4 hold. The prefix is namespacing:
+our classes share a page with a deck and with add-ons.
 
-### 3.2 Theme through custom properties, dark by default, `rem` units
+### 3.2 Theme through custom properties (design tokens), dark by default, `rem` units
 
-**Choice.** `presenter/theme.css` declares every colour, spacing step and font size as
-a custom property (`--sozi-bg`, `--sozi-accent`, `--sozi-space-2`). Components use only
-those. The presenter is dark by default. Sizes in `rem`. dockview's own variables are
-mapped from ours in one place.
+**Decided.** `presenter/theme.css` declares every colour, spacing step and font size as
+a custom property (`--sozi-bg`, `--sozi-accent`, `--sozi-space-2`); these are the design
+tokens, and components use only them. The presenter is dark by default. Sizes in `rem`
+(a multiple of the root font size, so a larger phone text size scales the layout);
+`px` only for borders, outlines and shadows, which are hairlines. If a docking library
+is adopted (section 4), its variables are mapped from ours in one place.
+
+**Enforced.** Colours and spacing only through `var(--…)` (1.4,
+`declaration-strict-value`); `unit-disallowed-list` bans `px` except on `border*`,
+`outline*`, `box-shadow`, `text-shadow`, `stroke-width`. Today: 53 colour literals, 0
+custom properties, 11 `px` sizes outside the exceptions.
 
 **Alternatives.** (a) Literal values in each file: the current CSS has `rgb(80, 80, 80)`
 inline; a theme change is then a search and replace that misses one. (b) A
 preprocessor (Sass) for variables: a build step for something CSS now does natively.
-(c) Light by default: the presenter is read in a dark room next to a bright projector.
+(c) A JSON token file generating the CSS: right for a design system shared with native
+apps; can be added later without touching a component. (d) Light by default: the
+presenter is read in a dark room next to a bright projector.
 
 **Why.** One file defines the look; a hundred files obey it. That is also what makes a
 light theme or a high-contrast theme a one-file change later.
 
 ### 3.3 Layout with flex and grid; inline styles only for computed geometry
 
-**Choice.** Flex and grid for layout, never absolute positioning for panel internals.
-JavaScript sets inline styles only for values it computes (a letterboxed preview's
-width and height), never for appearance.
+**Decided.** Flex (one direction: a toolbar row, a panel column) and grid (rows and
+columns: the workspace) for layout, never absolute positioning for panel internals.
+JavaScript sets an inline style only for a value it computed (a letterboxed preview's
+width and height, an offset, a transform), never for appearance; showing and hiding is
+a class toggle, not `style.display`.
+
+**Enforced.** `no-restricted-syntax` bans assigning any `style.*` property other than
+width, height, min/max sizes, top/left/right/bottom/inset, transform, translate, scale
+and rotate. Today 27 sites in 9 files: `display` 11, `cursor` 9, `visibility` 7,
+`opacity` 2, `fontSize` 1; all become class toggles in the cleanup. Absolute positioning
+inside panels is a review rule.
 
 **Why.** The workspace resizes panels continuously; absolute layouts need JavaScript to
 keep up, flex and grid do not. Keeping appearance out of JavaScript is what lets the

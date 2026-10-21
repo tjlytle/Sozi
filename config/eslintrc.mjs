@@ -72,6 +72,13 @@ const BAN = {
         selector: "CallExpression[callee.property.name='postMessage']",
         message: "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
     },
+    // 3.3: JavaScript writes inline styles only for geometry it computed, never appearance.
+    styleAppearance: {
+        selector:
+            "AssignmentExpression[left.object.property.name='style'][left.property.name!=/^(width|height|minWidth|minHeight|maxWidth|maxHeight|top|left|right|bottom|inset|transform|translate|scale|rotate)$/]",
+        message:
+            "Inline styles only for computed geometry (width, height, offsets, transform); appearance lives in CSS (code-standard.md 3.3)"
+    },
     // 2.6: HTML from data is parsed only in the sanitizer module.
     jsxHtml: {
         selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
@@ -88,7 +95,13 @@ const DOM_GLOBALS = ["window", "document", "navigator"].map(name => ({
     name,
     message: "Function modules do not touch the DOM (code-standard.md 2.2); take it as a parameter"
 }));
-const ALL_BANS = [BAN.windowAssign, BAN.eventString, BAN.postMessage, BAN.jsxHtml];
+const ALL_BANS = [
+    BAN.windowAssign,
+    BAN.eventString,
+    BAN.postMessage,
+    BAN.jsxHtml,
+    BAN.styleAppearance
+];
 const syntax = bans => ({"no-restricted-syntax": ["error", ...bans]});
 const without = (...omit) => ALL_BANS.filter(b => !omit.includes(b));
 
