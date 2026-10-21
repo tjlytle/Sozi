@@ -188,12 +188,12 @@ is also published where a browser can open it. Both links sit at the top of the 
 checklist: the presenter page is what the backlog changes night to night, the AppImage
 is there for editor changes.
 
-**Screenshots** are stored where both GitHub and Notion can show them: QA writes each one
-to the fork's `evidence` branch (an orphan branch, `<pr>/<name>.png`, through the contents
-API as qa, no checkout needed), and the PR comment and the Notion entry both embed the
-raw URL. The fork is public, so the URL needs no login; the CI artifact zip stays as the
-full report. This keeps screenshots out of the PR branch, so `check:pr` and
-`check:coverage` never see them.
+**Screenshots** are hosted where both GitHub and Notion can show them, and never on a
+branch of the repo (Tim, 2026-10-21): an R2 bucket on Tim's Cloudflare account
+(`PIPELINE_EVIDENCE_BUCKET`), written by `bin/evidence put <file>` with the S3 API and a
+per-run token, returning the public URL that the PR comment and the Notion entry both
+embed. The alternative, assets on a rolling GitHub release, needs no bucket but a persona
+with contents write. The CI artifact zip stays as the full report.
 
 After each merge, QA adds an entry to the night's **Notion test checklist**: one line per
 merged issue, written for a person ("Open the presenter, press Next twice; the notes
@@ -203,9 +203,44 @@ Tim names (`PIPELINE_NOTION_PARENT`); the writer is a small script (`bin/digest`
 talks to the Notion API with an integration token, so a stage inside a container can call
 it and the host can call it too. The audit trail stays on GitHub; Notion only points at it.
 
+### Harnesses: the loop runs any agent, and can switch per stage
+
+The loop never calls an agent CLI directly. A stage runs through a harness adapter,
+`pipeline/harness/<name>` (`claude`, `codex`, `opencode`, and whatever comes next), one
+small script each with the same contract: in, the prompt file, the model, the allow list
+and the checkout path; out, an exit status, one usage line (tokens, cost when known) and
+the log stream. The harness is chosen per stage and per run (`PIPELINE_HARNESS`,
+`PIPELINE_HARNESS_PLAN` and so on), so Tim can switch mid-backlog or run one stage on a
+different agent to compare. The container image carries every supported harness.
+
+Constraint that follows: nothing that matters may depend on a Claude Code hook, because
+the other harnesses have none. The repo lock and the edit hook stay as the fast path when
+the harness is Claude; the container is the isolation and CI with the `bin/` scripts is
+the check, and both are harness-neutral. The allow list is translated by each adapter
+into that harness's own permission setting; a harness that cannot express it runs with the
+container as its only boundary, which the adapter says in its log.
+
+### A session can ask the loop for things
+
+Each stage gets an outbox directory mounted from the host (`var/pipeline/out-<#>/`). A
+session that wants something it cannot or should not do itself writes a request file
+there, plain JSON, one per request, and the loop acts on them when the session ends:
+
+- `{"spawn": {"persona": "advocate", "prompt": "...", "issue": 25, "harness": "claude"}}`:
+  start a session as that persona with that prompt (Tim's example: a builder hands the
+  advocate a prompt to file an issue). `issue` and `harness` are optional.
+- `{"label": {"issue": 25, "add": ["triage"], "remove": ["stage:todo"]}}`.
+- `{"note": "..."}`: a line for the loop's log and the morning digest.
+
+Requests are harness-neutral by construction (any agent can write a file) and are the
+one way personas hand work to each other without the loop knowing why. A spawned session
+gets its own outbox, so chains are possible; the per-run ceilings bound them.
+
 ### The loop itself
 
-`bin/pipeline`, ported from the snake, on the host:
+`bin/pipeline`, ported from the snake, on the host, written so the pass logic
+(`pipeline/pass.sh` or similar) is a function the watch loop, `--once`, and a future cloud
+routine all call:
 
 - `bin/pipeline` watches; `--once` one pass; `<#>` one issue in the foreground;
   `--status`; `--digest` writes the Notion page from what merged since the run started.
@@ -275,7 +310,10 @@ secrets; the board sync running from the same routine.
   image or run per stage.
 - The Notion page layout and the `bin/digest` script's API calls.
 - The local mint endpoint (a few dozen lines; it answers the worker's request shape).
-- Where the presenter page is published (GitHub Pages from the artifact, or an R2 bucket).
+- Where the presenter page is published (the same R2 bucket, or GitHub Pages).
+- The harness adapters beyond `claude`; the first version ships `claude` working and the
+  adapter contract documented, with `codex` and `opencode` stubs that fail clearly.
+- The request vocabulary's exact schema and validation.
 - The wording of the four prompts, within the rules above.
 - The board column names beyond the stage mapping.
 - Verification of the plugin-loading question in "Cloud path" item 1, and its answer
@@ -292,3 +330,5 @@ secrets; the board sync running from the same routine.
 - The local mint endpoint as the way host-minted tokens reach containers.
 - A wall-clock cap per session, since this CLI version has no turn limit flag.
 - A Linux AppImage per merge and no other platform in CI.
+- R2 as the evidence host (Tim ruled out a branch; the release-asset alternative is noted).
+- The harness adapter contract and the three request kinds.
