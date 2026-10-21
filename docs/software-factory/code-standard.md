@@ -593,22 +593,34 @@ you read per issue, and the CI step makes the rest a fact rather than a review c
 
 ## 5. Change discipline
 
-**Choice.** One issue, one branch, one PR, matching the Implementation Plan, with any
-departure explained in the PR body and anything useful seen along the way filed as an
-`idea` issue. Upstream files edited only as far as the issue needs: no drive-by
-refactors, renames, reformatting or deletions; deprecate with a note instead. Commit
-subject imperative, the why in the body; `locales/messages.pot` and `yarn.lock`
-reverted before committing. A bug fix starts with a failing test. A protocol or API
-change stays backwards compatible for one release.
+**Decided 2026-10-21.** One issue, one branch named `<issue>-<slug>`, one PR that closes
+the issue and matches the Implementation Plan, with any departure explained in the PR
+body and anything useful seen along the way filed as an `idea` issue. A PR touches
+files only as far as its issue needs: no drive-by refactors, renames, reformatting or
+deletions. The cleanup epics (section 1, "Cleanups") are the sanctioned exception, each
+scoped by its own issue. Commit subject imperative, the why in the body;
+`locales/messages.pot` and `yarn.lock` (rewritten by every gulp run) reverted before
+committing. A bug fix starts with a failing test. A protocol or API change stays
+backwards compatible for one release (2.5).
+
+**Enforced.** `bin/check-pr.js` (`npm run check:pr`), run by CI on every pull request:
+the branch is `<number>-<slug>`, the body closes that number, the diff holds no build
+noise. `.github/PULL_REQUEST_TEMPLATE.md` gives the body its sections (what changed,
+plan, dependencies, ideas filed, QA). The failing-test-first rule and "matches the
+plan" are the reviewer's.
+
+**Already true.** Every fork PR so far is on a `<issue>-<slug>` branch
+(`2-render-export`, `4-out-dir`, ...) and the last twelve commit subjects on master are
+imperative.
 
 **Alternatives.** Letting a builder "clean up while here" is how a 40-line PR becomes a
-900-line one that nobody can review and that conflicts with the next upstream merge.
-Deleting upstream behaviour the fork does not use saves nothing and costs every future
-merge.
+900-line one that nobody can review. The draft's other reason, keeping upstream
+mergeable, no longer applies (1.1): upstream is dormant and Tim does not plan to merge
+from it.
 
-**Why.** The fork's value is that it stays a fork: close enough to upstream that their
-fixes still apply. Everything in this section protects that, and the one-issue-one-PR
-rule is what makes the QA evidence in part 6 meaningful.
+**Why.** The one-issue-one-PR rule is what makes the QA evidence in part 6 meaningful:
+the scenarios in the PR are the acceptance criteria of exactly one issue, and a reviewer
+can hold the whole diff in their head.
 
 ---
 
