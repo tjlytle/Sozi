@@ -1,7 +1,8 @@
 # Sozi fork: code standard
 
-Status: draft for Tim's approval (2026-10-20). Becomes binding when the foundation
-PR lands and `CLAUDE.md` points here.
+Status: agreed section by section with Tim on 2026-10-20 and 2026-10-21; every rule
+below says so and names what enforces it. Binding once the `software-factory` branch
+merges (`CLAUDE.md` already points here).
 
 Applies to the fork (`src/js`, `src/css`, `src/templates`, `test`) and to sozi-channel
 (`worker/src`, `deck`). Written so that any model produces the same code. Each rule says
@@ -628,8 +629,12 @@ can hold the whole diff in their head.
 
 ### 6.1 Unit tests in node for every pure module and every class that takes fakes
 
-**Choice.** Node's built-in test runner, as the CLI tests already use, in `test/unit/`.
-No browser. Transports, protocol, notes matching, layout matching, timers.
+**Decided 2026-10-21.** Node's built-in test runner, as the CLI tests already use. No
+browser. Transports, protocol, notes matching, layout matching, timers. New tests are
+ES modules (2.1); the twelve CommonJS CLI tests convert in the cleanup. Tests live under
+`test/` by kind (`cli/`, `hooks/`, `lint/`, `deps/`, `pr/`, `coverage/`, `features/`,
+and `unit/` for the presenter modules), and a unit test is named after the module it
+covers (`naming.test.js` covers `naming.js`), which is how 6.2's coverage check finds it.
 
 **Alternatives.** Jest or Mocha: features node's runner now has, plus a dependency and
 a config. Vitest: needs a bundler we do not use.
@@ -639,51 +644,89 @@ something to test without a browser.
 
 ### 6.2 Scenarios in Gherkin, run by Cucumber with Playwright in Chromium
 
-**Choice.** `test/features/<issue>.feature` holds the issue's acceptance criteria as
-Given/When/Then scenarios; step definitions drive the built presenter and display in
-Chromium through Playwright. One feature file per issue.
+**Decided 2026-10-21.** Acceptance criteria are Given/When/Then scenarios in
+`test/features/`, run by Cucumber with Playwright driving the built presenter and
+display in Chromium. Installed and pinned; `npm run test:features` runs them, CI runs
+them after the build and keeps the report and screenshots as an artifact.
+
+**The feature file is the human-readable test plan** (Tim, 2026-10-21). It opens with
+prose, the user-acceptance narrative of what a person expects, then the scenarios that
+prove it. The step definitions are the stored, deterministic test: when a scenario
+sentence has no step, Cucumber reports it and prints the stub, and the model writes
+the step once; it is checked in and rerun by CI, never regenerated. (The variant where
+a model re-drives the browser from prose each time was considered and rejected: it is
+not deterministic, which is the point of CI.)
+
+**Files are organised by what they describe, not by issue.** `presenter/previews.feature`,
+`presenter/notes.feature`, `display/api.feature`. An issue may add scenarios to an
+existing file or create several (a feature with a display side and a presenter side
+gets one in each). Each scenario is tagged with its issue (`@issue-25`) so coverage is
+traceable from either direction.
+
+**Coverage is annotated, and the hooks ask.** The first line of a feature file is
+`# covers: <paths>`, files or directories; a unit test covers by name (6.1).
+`bin/check-coverage.js` (`npm run check:coverage`) reads both. The edit hook runs it on
+every file a model writes and hands back a note when a source file has no covering
+test ("add a scenario or a unit test, or say why not"), and when a test and the code it
+covers are changing together ("was the behaviour meant to change? then the feature
+file changed first; and which other test still covers the related behaviour
+unchanged?"). CI runs the same check on the PR: a changed source file with no covering
+test fails unless the PR body waives it with `No test: <path> - <reason>`, which the
+reviewer then sees. The check's pure parts have tests (`test/coverage/`).
+
+**The template.** `test/features/presenter/previews.feature` is the model to copy: the
+prose, the `# covers:` line, a Background that builds the `basic` fixture with the real
+CLI and opens the presenter, three scenarios (open, next, previous) that read the frame
+counter, the notes title and the audience window, and a step that saves a named
+screenshot for QA. Support code in `test/features/support/world.js` (one Chromium per
+run, one context per scenario, a screenshot on failure) and steps in
+`test/features/steps/`.
 
 ```gherkin
-Scenario: Notes stay put when the next frame has none
-  Given a deck where frames 3, 4 and 5 share the notes written on frame 3
-  And the presenter is on frame 3 with the notes panel open
-  When the display moves to frame 4
-  Then the notes panel has not scrolled
-  And the sticky heading still says "Frame 3"
+Scenario: Next moves the audience window and the presenter together
+  When the next button is pressed
+  Then the frame counter reads "2 / 2"
+  And the notes title is "Two"
+  And the audience window is on frame "Two"
 ```
 
-**Alternatives.** (a) Playwright's own test runner with descriptive test names: good
-tests, but the test is code, and you said the scenario is what you read. (b) Behat-style
-scenarios without a browser, driving classes with fakes: those are the unit tests; they
-cannot prove a panel scrolled. (c) No browser tests, screenshots only: a picture proves
-one moment, a scenario proves a behaviour on every run.
+**Alternatives.** (a) Playwright's own test runner: good tests, but the test is code,
+and the scenario is what Tim reads. (b) Scenarios without a browser, driving classes
+with fakes: those are the unit tests; they cannot prove a panel scrolled. (c)
+Screenshots only: a picture proves one moment, a scenario proves a behaviour on every
+run. (d) One feature file per issue: declined, too static (an issue that changes an
+existing feature, a feature with two sides).
 
-**Why.** This is the snake's Behat boards for a UI: the acceptance criteria written in
-the issue are the scenarios that run, so the plan, the test and the evidence are the same
-sentences. Playwright is the only browser driver with first-class Chromium, screenshot
-and video support that Cucumber plugs into without ceremony.
+**Why.** The acceptance criteria written in the issue are the scenarios that run, so
+the plan, the test and the evidence are the same sentences. The coverage annotation
+is what lets a hook ask "is this covered?" at the moment a file changes, which is
+stronger than a conventions document and still leaves the answer to judgment.
 
 ### 6.3 What QA posts on the PR
 
-**Choice.** One comment: the CI link with every check green; the scenarios that ran, by
-name; for any PR touching a panel or CSS, two screenshots from the scenario run at
-laptop and phone width; for a protocol or API change, the doc diff. A PR without that
-comment is not ready.
+**Decided 2026-10-21 (Tim: at least a comment, screenshots when visual).** QA posts a
+comment on every PR: the CI link, the scenarios that ran, by name, and, when the change
+is visual (a panel, a template, CSS), a screenshot from the scenario run; a phone-width
+one too when the change affects the narrow layout. When nothing is visual, an approving
+review comment is the evidence. For a protocol or API change, the doc diff. A PR
+without a QA comment is not ready.
 
-**Why.** It is the thing you read instead of the JavaScript. Screenshots on every UI PR,
-not at QA's discretion, because "is this visible?" is a judgment that varies by model.
+**Why.** It is the thing you read instead of the JavaScript. "Visual" is QA's judgment;
+"at least a comment" is not.
 
 ### 6.4 CI is the gate, master is the branch, the loop stops only for a real question
 
-**Choice.** A green PR merges into `master` automatically, as builder, with no nightly
-branch in between. CI builds the Electron app and the hosted shell on every merge and
-publishes them as the current build, with the merged PR in the release notes, so there
-is always a build to click through that is exactly master. The pipeline parks an issue
-for a person in two cases only: a question whose answer is not in the issue, the plan
-or this standard; or an architectural decision this standard and the repo's
-conventions do not settle (a new dependency not named in the plan, a new transport, a
-change to the protocol or the published API). Everything else is decided by the
-standard and checked by CI.
+**Decided (interview; CI makes the call, Tim 2026-10-21).** A green PR with the required
+checks and the review and QA approvals merges into `master` automatically, as builder,
+with no nightly branch in between. CI builds the Electron app and the scenario report
+on every merge and keeps them as artifacts, so there is always a build to click through
+that is exactly master. The pipeline parks an issue for a person in two cases only: a
+question whose answer is not in the issue, the plan or this standard; or an
+architectural decision this standard and the repo's conventions do not settle (a new
+dependency not named in the plan, a new transport, a change to the protocol or the
+published API). Everything else is decided by the standard and checked by CI. Later,
+a decision model may sit in front of the merge; for now the required checks are the
+judgment.
 
 **Alternatives.** (a) A nightly branch promoted by hand: a second branch to keep in
 step, and a day's delay between a merge and a build, for a safety net CI already
@@ -697,19 +740,19 @@ decide.
 
 ### 6.5 Bias toward merging: a PR is held only for a defect, everything else is a new issue
 
-**Choice.** Review and QA send a PR back for three things only: it does not meet an
-acceptance criterion in the issue; it breaks this standard in a way CI cannot catch (a
-dependency not named in the plan, data put through `innerHTML`, a second global, a
-protocol change outside `src/js/protocol/`); or it introduces a security or data-loss
-problem. A simple nit is fixed in the same PR and does not block it: a name, a typo, a
-missing JSDoc line, a comment that lies, a one-line edge case inside the acceptance
-criteria. Anything larger than that, however good the idea, becomes its own issue:
-a cleaner shape, a refactor, an edge case the issue did not ask for, a performance
-improvement, coverage that would be nice to have. The reviewer or QA files it with
-the `idea` label and no stage label, as themselves, with a body that starts "Seen
-while reviewing #<pr>:" and says what they saw and why it would be better. The PR
-merges on its own merits. QA applies the same split: a failing scenario is a defect
-and goes back; something noticed outside the scenarios is an issue.
+**Decided (interview).** Review and QA send a PR back for three things only: it does
+not meet an acceptance criterion in the issue; it breaks this standard in a way CI
+cannot catch (a dependency not named in the plan, data put through `innerHTML`, a
+second global, a protocol change outside `src/js/protocol/`); or it introduces a
+security or data-loss problem. A simple nit is fixed in the same PR and does not block
+it: a name, a typo, a missing JSDoc line, a comment that lies, a one-line edge case
+inside the acceptance criteria. Anything larger than that, however good the idea,
+becomes its own issue: a cleaner shape, a refactor, an edge case the issue did not ask
+for, a performance improvement, coverage that would be nice to have. The reviewer or
+QA files it with the `idea` label and no stage label, as themselves, with a body that
+starts "Seen while reviewing #<pr>:" and says what they saw and why it would be
+better. The PR merges on its own merits. QA applies the same split: a failing scenario
+is a defect and goes back; something noticed outside the scenarios is an issue.
 
 **Alternatives.** (a) The reviewer asks for the improvement in the PR: the PR grows past
 its issue, the builder re-plans mid-flight, and the QA evidence no longer matches the
@@ -721,10 +764,9 @@ pipeline reads approval comments again.
 it: the plan, the scenarios, the evidence. An improvement raised inside a PR has none
 of that, so it gets built without a plan and checked without a scenario, which is the
 thing the standard exists to prevent. Filing it as an issue costs one command and gives
-the idea the same path as every other change: you decide whether it is worth doing,
-and if it is, it gets planned, built, reviewed and tested like the rest. The merge bias
-also keeps the loop moving: a PR that waits on a judgment call is a PR you end up
-merging by hand during a talk.
+the idea the same path as every other change. The merge bias also keeps the loop
+moving: a PR that waits on a judgment call is a PR you end up merging by hand during
+a talk.
 
 ---
 

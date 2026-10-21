@@ -16,7 +16,9 @@ Upstream (`upstream` remote) is maintenance-only; we do not open PRs there.
   <file>` applies the mechanical fixes to one file; `python3 .claude/hooks/check-file.py --advise
   <file>` prints the size and stale-comment notes the edit hook gives a model;
   `npm run check:deps` checks any dependency added since master the way CI does;
-  `npm run check:pr` checks the branch name, the Closes line and build noise. The standard is
+  `npm run check:pr` checks the branch name, the Closes line and build noise;
+  `npm run check:coverage` lists which test covers each changed source file;
+  `npm run test:features` runs the browser scenarios (needs a build and a display). The standard is
   `docs/software-factory/code-standard.md`. Existing code is red by design until the
   cleanup issues land.
 - Test decks: copy an `.svg` + `.sozi.json` pair into a scratch dir first. Opening a

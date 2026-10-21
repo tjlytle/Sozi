@@ -1,0 +1,9 @@
+{
+    "default": {
+        "paths": ["test/features/**/*.feature"],
+        "import": ["test/features/support/**/*.js", "test/features/steps/**/*.js"],
+        "format": ["progress", "html:build/features/report.html"],
+        "formatOptions": {"snippetInterface": "async-await"},
+        "publish": false
+    }
+}

@@ -31,7 +31,7 @@ import sys
 
 CHECKED_DIRS = ("src", "test", "bin", "config", ".github")
 CHECKED_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".css", ".json", ".yml", ".yaml")
-CODE_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx")
+CODE_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".html", ".feature")
 
 # code-standard.md 2.8: guidelines, not limits.
 MAX_FILE_LINES = 400
@@ -163,6 +163,32 @@ def long_functions(root, rel):
     return out
 
 
+def coverage_notes(root, rel):
+    """Notes from bin/check-coverage.js: an edited source file with no covering test,
+    or a test and the code it covers changing together (code-standard.md 6.2)."""
+    if not (rel.startswith("src/") or rel.startswith("test/")):
+        return []
+    r = run(["node", "bin/check-coverage.js", "--json", "--files", rel], root)
+    try:
+        report = json.loads(r.stdout or "{}")
+    except json.JSONDecodeError:
+        return []
+    notes = []
+    for s in report.get("sources", []):
+        if s["path"] == rel and not s["covered"] and not s["waived"]:
+            notes.append(f"No unit test or feature file covers {rel}. Add a scenario to a feature file "
+                         f"(tag it with the issue and list {rel} in its '# covers:' line) or a unit test "
+                         f"named after it; if the change needs no test, say why in the PR body as "
+                         f"'No test: {rel} - <reason>' (code-standard.md 6.2).")
+    for t in report.get("together", []):
+        if rel == t["test"] or rel in t["sources"]:
+            other = ", ".join(t["sources"]) if rel == t["test"] else t["test"]
+            notes.append(f"{rel} and {other} are changing together. Was the behaviour meant to change? "
+                         f"If so the feature file should have changed first; and which other test still "
+                         f"covers the related behaviour unchanged? (code-standard.md 6.2)")
+    return notes
+
+
 def advice(root, rel, diff_text=None):
     """The notes for one file: size guidelines and stale summary comments."""
     path = os.path.join(root, rel)
@@ -186,6 +212,7 @@ def advice(root, rel, diff_text=None):
     if diff_text is None:
         tracked = run(["git", "ls-files", "--error-unmatch", rel], root).returncode == 0
         diff_text = run(["git", "diff", "-U0", "HEAD", "--", rel], root).stdout if tracked else ""
+    notes.extend(coverage_notes(root, rel))
     for name, doc_line in stale_comments(lines, diff_text):
         notes.append(f"{rel}: the code of `{name}` changed but the summary comment above it "
                      f"(line {doc_line}) did not. Consider whether the comment still describes "
