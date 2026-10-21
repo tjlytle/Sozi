@@ -554,21 +554,40 @@ theme file be the theme.
 
 ## 4. Dependencies
 
-**Choice.** Adding an npm package requires, in the PR body: it is named in the issue's
-Implementation Plan (the architect decides, not the builder); licence MIT, BSD, Apache
-2 or MPL 2; vanilla JavaScript, no framework; a release within the last year; its
-minified size; pinned to an exact version with the lockfile committed; nothing loaded
-from a CDN at run time. If about a hundred lines of our own code would do, write them.
-Expected additions: dockview-core, marked, DOMPurify, a QR encoder.
+**Decided 2026-10-21.** Adding an npm package requires: it is named in the issue's
+Implementation Plan (the architect decides, not the builder); licence MIT, BSD, ISC,
+Apache 2, MPL 2 (or OFL for a font); for a runtime package, a release within the last
+year; its minified size stated in the PR; pinned to an exact version with the lockfile
+committed; nothing loaded from a CDN at run time; no framework in the deck (surfaces
+may use Preact, 2.6). If about a hundred lines of our own code would do, write them.
+Expected additions: preact, marked, DOMPurify, a QR encoder, possibly dockview-core.
+
+**Enforced.** `bin/check-deps.js` (`npm run check:deps`), run by CI on every pull
+request against the base branch: for each package added or changed in `package.json`
+it checks the exact pin, the lockfile, the licence (from the registry), the release
+age (runtime packages only: a dev tool does not ship in a deck, and the two standard
+ESLint plugins last released 2024 and 2025), and that the PR body names the package;
+it prints the minified size so the body can state it; and it fails if any file under
+`src/` loads a script or stylesheet from a URL at run time (comments ignored). "Named
+in the plan" is the reviewer's check. The script's pure parts have tests
+(`test/deps/`).
+
+**Measured 2026-10-21.** Thirteen runtime packages, all with allowed licences; six
+last released more than a year ago (the editor's export and settings libraries, which
+the factory does not touch); none loaded from a CDN; the inlined player pulls in none of
+them except node's `events`. None was pinned exactly; with `npm ci` and the committed
+lockfile that is documentation rather than a float, so existing ranges stay and
+additions are pinned. The packages this branch added are pinned.
 
 **Alternatives.** (a) Let the builder add what it likes: each model has favourites, and
 a presenter inlined into decks ends up carrying three date libraries. (b) No new
 dependencies at all: hand-rolling a docking window manager is the months-long trap the
-engine decision avoided.
+engine decision avoided. (c) Any OSI licence: copyleft (GPL) would bind every exported
+deck.
 
 **Why.** Decks must work offline forever, so a dependency is a permanent passenger and a
 CDN load is a dead deck. Putting the decision in the plan puts it in the one document
-you read per issue.
+you read per issue, and the CI step makes the rest a fact rather than a review comment.
 
 ---
 

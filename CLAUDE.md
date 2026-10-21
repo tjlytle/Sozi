@@ -14,7 +14,8 @@ Upstream (`upstream` remote) is maintenance-only; we do not open PRs there.
   before committing (`git checkout -- locales/messages.pot yarn.lock`).
 - `npm run check` runs every CI check (Prettier, ESLint, Stylelint, tsc); `bin/check --fix
   <file>` applies the mechanical fixes to one file; `python3 .claude/hooks/check-file.py --advise
-  <file>` prints the size and stale-comment notes the edit hook gives a model. The standard is
+  <file>` prints the size and stale-comment notes the edit hook gives a model;
+  `npm run check:deps` checks any dependency added since master the way CI does. The standard is
   `docs/software-factory/code-standard.md`. Existing code is red by design until the
   cleanup issues land.
 - Test decks: copy an `.svg` + `.sozi.json` pair into a scratch dir first. Opening a
