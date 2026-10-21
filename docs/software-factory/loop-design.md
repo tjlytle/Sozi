@@ -216,7 +216,12 @@ different agent to compare. The container image carries every supported harness.
 Constraint that follows: nothing that matters may depend on a Claude Code hook, because
 the other harnesses have none. The repo lock and the edit hook stay as the fast path when
 the harness is Claude; the container is the isolation and CI with the `bin/` scripts is
-the check, and both are harness-neutral. The allow list is translated by each adapter
+the check, and both are harness-neutral. Each adapter also brings the equivalent of
+the two Claude Code hooks (the repo lock and the edit hook) in whatever form its harness
+has: a real hook where the harness offers one, otherwise a skill or standing instruction
+that tells the agent to run `bin/check` and `check-file.py --advise` on every file it
+writes. A harness with real hooks will do better, since an instruction can be skipped
+and a hook cannot; CI holds the line either way. The allow list is translated by each adapter
 into that harness's own permission setting; a harness that cannot express it runs with the
 container as its only boundary, which the adapter says in its log.
 
@@ -303,6 +308,14 @@ secrets; the board sync running from the same routine.
 - Day-one checks the builder verifies and writes back here: whether headless `claude -p`
   installs the marketplaces named in `.claude/settings.json`; whether the Mobbin MCP is
   reachable inside the container.
+
+## Future
+
+- A judgment model that reads an issue and picks the harness and the model for each of
+  its stages (build on X, review on Y), building on the per-stage harness setting the
+  first version has. Nothing in the first version depends on it.
+- A decision model in front of the merge, as the code standard's 6.4 anticipates.
+- The cloud path above.
 
 ## What is left to the builder
 
