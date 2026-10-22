@@ -243,7 +243,7 @@ export class Electron extends AbstractBackend {
                                     this.controller.onFileChange(fileDescriptor);
                                 }, 100);
                             });
-                        } catch (err) {
+                        } catch {
                             const _ = this.controller.gettext;
                             this.controller.error(
                                 Jed.sprintf(
@@ -263,7 +263,7 @@ export class Electron extends AbstractBackend {
     loadSync(fileDescriptor) {
         try {
             return fs.readFileSync(fileDescriptor, {encoding: "utf8"});
-        } catch (e) {
+        } catch {
             const _ = this.controller.gettext;
             this.controller.error(Jed.sprintf(_("Could not read file %s."), fileDescriptor));
             return "";

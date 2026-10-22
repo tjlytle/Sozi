@@ -88,7 +88,8 @@ async function jspotTask() {
             keyword: "_",
             parserOptions: {
                 sourceType: "module",
-                ecmaVersion: 9
+                // acorn 5.7 in jspot: 10 is the highest it parses; no ES2020 syntax in src/ until jspot is replaced
+                ecmaVersion: 10
             },
             source: files,
             target: "locales"
