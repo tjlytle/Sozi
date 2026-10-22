@@ -50,7 +50,7 @@ function logExportResult(result) {
  * @returns {string} - The error message.
  */
 function exportErrorMessage(err) {
-    return String(err && err.message || err);
+    return String((err && err.message) || err);
 }
 
 /** Signals that the presentation data has changed.
@@ -86,7 +86,6 @@ function exportErrorMessage(err) {
  * @extends EventEmitter
  */
 export class Controller extends EventEmitter {
-
     /** Initialize a new Sozi editor UI controller.
      *
      * @param {module:model/Preferences.Preferences} preferences - The object that holds the user settings of the editor.
@@ -233,7 +232,7 @@ export class Controller extends EventEmitter {
         this.editableLayers = [];
 
         if ("editableLayers" in storable) {
-            for (let groupId of storable.editableLayers) {
+            for (const groupId of storable.editableLayers) {
                 const layer = this.presentation.getLayerWithId(groupId);
                 if (layer && this.editableLayers.indexOf(layer) < 0) {
                     this.editableLayers.push(layer);
@@ -259,16 +258,16 @@ export class Controller extends EventEmitter {
         const msg = document.getElementById("message");
         if (this.notificationTimeout === null) {
             msg.querySelector(".body").innerHTML = "";
-        }
-        else {
+        } else {
             clearTimeout(this.notificationTimeout);
         }
 
         msg.querySelector(".title").innerHTML =
-            severity === "error" ? _('<i class="fa fa-exclamation-triangle"></i> Error')
-                                 : _('<i class="fa fa-info-circle"></i> Information');
+            severity === "error"
+                ? _('<i class="fa fa-exclamation-triangle"></i> Error')
+                : _('<i class="fa fa-info-circle"></i> Information');
 
-        msg.querySelector(".body").innerHTML  += `<div>${body}</div>`;
+        msg.querySelector(".body").innerHTML += `<div>${body}</div>`;
         msg.classList.add("visible", severity);
         this.notificationTimeout = setTimeout(() => this.hideNotification(), 5000);
     }
@@ -286,7 +285,7 @@ export class Controller extends EventEmitter {
      * @param {string} body - The message to display.
      * @param {boolean} force - Ignore the user preferences for notifications.
      */
-    info(body, force=false) {
+    info(body, force = false) {
         if (this.preferences.enableNotifications || force) {
             this.showNotification("info", body);
         }
@@ -310,11 +309,14 @@ export class Controller extends EventEmitter {
      * @listens module:Controller.repaint
      */
     onRepaint() {
-        if (this.selection.currentFrame && (this.selection.currentFrame !== this.player.currentFrame || this.player.animator.running)) {
+        if (
+            this.selection.currentFrame &&
+            (this.selection.currentFrame !== this.player.currentFrame ||
+                this.player.animator.running)
+        ) {
             if (this.preferences.animateTransitions) {
                 this.player.moveToFrame(this.selection.currentFrame);
-            }
-            else {
+            } else {
                 this.player.jumpToFrame(this.selection.currentFrame);
             }
         }
@@ -326,7 +328,7 @@ export class Controller extends EventEmitter {
      */
     onFrameChange() {
         let changed = false;
-        for (let layer of this.presentation.layers) {
+        for (const layer of this.presentation.layers) {
             const layerProperties = this.selection.currentFrame.layerProperties[layer.index];
             if (layer.isVisible) {
                 // Update the reference SVG element if applicable.
@@ -371,7 +373,7 @@ export class Controller extends EventEmitter {
         // Collect all layers that are not in the editable set
         // into the "default" layer set.
         this.defaultLayers = [];
-        for (let layer of this.presentation.layers) {
+        for (const layer of this.presentation.layers) {
             if (this.editableLayers.indexOf(layer) < 0) {
                 this.defaultLayers.push(layer);
             }
@@ -396,16 +398,18 @@ export class Controller extends EventEmitter {
 
         if (this.storage.backend.sameFile(fileDescriptor, this.storage.svgFileDescriptor)) {
             switch (this.getPreference("reloadMode")) {
-                case "auto": doReload(); break;
+                case "auto":
+                    doReload();
+                    break;
                 case "onfocus":
                     if (this.hasFocus) {
                         doReload();
-                    }
-                    else {
+                    } else {
                         this.once("focus", doReload);
                     }
                     break;
-                default: this.info(_("Document was changed."));
+                default:
+                    this.info(_("Document was changed."));
             }
         }
     }
@@ -505,8 +509,7 @@ export class Controller extends EventEmitter {
             // If a frame is selected, insert the new frame after.
             frame = new Frame(this.selection.currentFrame);
             frameIndex = this.selection.currentFrame.index + 1;
-        }
-        else {
+        } else {
             // If no frame is selected, copy the state of the current viewport
             // and add the new frame at the end of the presentation.
             frame = new Frame(this.presentation);
@@ -516,7 +519,7 @@ export class Controller extends EventEmitter {
 
         // Set the 'link' flag to all layers in the new frame.
         if (frameIndex > 0) {
-            for (let layer of frame.layerProperties) {
+            for (const layer of frame.layerProperties) {
                 layer.link = true;
             }
         }
@@ -546,14 +549,16 @@ export class Controller extends EventEmitter {
      */
     deleteFrames() {
         // Sort the selected frames by presentation order.
-        const framesByIndex = this.selection.selectedFrames.map(f => [f, f.index]).sort((a, b) => a[1] - b[1]);
+        const framesByIndex = this.selection.selectedFrames
+            .map(f => [f, f.index])
+            .sort((a, b) => a[1] - b[1]);
 
         this.perform(
             function onDo() {
                 // Remove the selected frames and clear the selection.
                 // We don't use the saved index here because the actual index
                 // will change as frames are deleted.
-                for (let [frame, index] of framesByIndex) {
+                for (const [frame, index] of framesByIndex) {
                     this.presentation.frames.splice(frame.index, 1);
                 }
                 this.selection.selectedFrames = [];
@@ -561,7 +566,7 @@ export class Controller extends EventEmitter {
             },
             function onUndo() {
                 // Restore the deleted frames to their original locations.
-                for (let [frame, index] of framesByIndex) {
+                for (const [frame, index] of framesByIndex) {
                     this.presentation.frames.splice(index, 0, frame);
                 }
                 this.presentation.updateLinkedLayers();
@@ -583,13 +588,15 @@ export class Controller extends EventEmitter {
      */
     moveFrames(toFrameIndex) {
         // Sort the selected frames by presentation order.
-        const framesByIndex = this.selection.selectedFrames.slice().sort((a, b) => a.index - b.index);
+        const framesByIndex = this.selection.selectedFrames
+            .slice()
+            .sort((a, b) => a.index - b.index);
         const frameIndices = framesByIndex.map(frame => frame.index);
 
         // Compute the new target frame index after the selection has been removed.
-        for (let frame of framesByIndex) {
+        for (const frame of framesByIndex) {
             if (frame.index < toFrameIndex) {
-                toFrameIndex --;
+                toFrameIndex--;
             }
         }
 
@@ -598,28 +605,33 @@ export class Controller extends EventEmitter {
 
         // Create a new frame list by removing the selected frames
         // and inserting them at the target frame index.
-        const reorderedFrames = this.presentation.frames.filter(frame => !this.selection.hasFrames([frame]));
+        const reorderedFrames = this.presentation.frames.filter(
+            frame => !this.selection.hasFrames([frame])
+        );
         Array.prototype.splice.apply(reorderedFrames, [toFrameIndex, 0].concat(framesByIndex));
 
         // Identify the frames and layers that must be unlinked after the move operation.
         // If a linked frame is moved after a frame to which it was not previously linked,
         // then it will be unlinked.
         const unlink = reorderedFrames.flatMap((frame, frameIndex) =>
-            frame.layerProperties.filter((layer, layerIndex) =>
-                layer.link && (frameIndex === 0 || !frame.isLinkedTo(reorderedFrames[frameIndex - 1], layerIndex))
+            frame.layerProperties.filter(
+                (layer, layerIndex) =>
+                    layer.link &&
+                    (frameIndex === 0 ||
+                        !frame.isLinkedTo(reorderedFrames[frameIndex - 1], layerIndex))
             )
         );
 
         this.perform(
             function onDo() {
                 this.presentation.frames = reorderedFrames;
-                for (let layer of unlink) {
+                for (const layer of unlink) {
                     layer.link = false;
                 }
                 this.presentation.updateLinkedLayers();
             },
             function onUndo() {
-                for (let layer of unlink) {
+                for (const layer of unlink) {
                     layer.link = true;
                 }
                 this.presentation.frames = savedFrames;
@@ -636,7 +648,7 @@ export class Controller extends EventEmitter {
      * the corresponding camera in the current viewport.
      */
     updateCameraSelection() {
-        for (let camera of this.viewport.cameras) {
+        for (const camera of this.viewport.cameras) {
             camera.selected = this.selection.hasLayers([camera.layer]);
         }
     }
@@ -685,7 +697,7 @@ export class Controller extends EventEmitter {
      * @fires module:Controller.repaint
      */
     addAllLayers() {
-        for (let layer of this.defaultLayers.slice()) {
+        for (const layer of this.defaultLayers.slice()) {
             if (layer.auto) {
                 continue;
             }
@@ -725,11 +737,9 @@ export class Controller extends EventEmitter {
 
         if (this.defaultLayersAreSelected) {
             this.addLayerToSelection(layer);
-        }
-        else if (this.selection.selectedLayers.length > 1) {
+        } else if (this.selection.selectedLayers.length > 1) {
             this.removeLayerFromSelection(layer);
-        }
-        else {
+        } else {
             this.selectLayers(this.defaultLayers);
         }
 
@@ -750,9 +760,7 @@ export class Controller extends EventEmitter {
      * @returns {module:model/Presentation.Layer[]} The layer(s) at the given index.
      */
     getLayersAtIndex(layerIndex) {
-        return layerIndex >= 0 ?
-            [this.presentation.layers[layerIndex]] :
-            this.defaultLayers;
+        return layerIndex >= 0 ? [this.presentation.layers[layerIndex]] : this.defaultLayers;
     }
 
     /** `true` if all layers in the "default" set are selected.
@@ -770,8 +778,10 @@ export class Controller extends EventEmitter {
      * @type {boolean}
      */
     get hasDefaultLayer() {
-        return this.defaultLayers.length > 1 ||
-               this.defaultLayers.length > 0 && this.defaultLayers[0].svgNodes.length;
+        return (
+            this.defaultLayers.length > 1 ||
+            (this.defaultLayers.length > 0 && this.defaultLayers[0].svgNodes.length)
+        );
     }
 
     /** Select the given layers.
@@ -873,8 +883,13 @@ export class Controller extends EventEmitter {
         if (this.selection.currentFrame) {
             const lastIndex = this.presentation.frames.length - 1;
             let targetIndex = this.selection.currentFrame.index + relativeIndex;
-            targetIndex = targetIndex < 0 ? 0 : (targetIndex > lastIndex ? lastIndex : targetIndex);
-            this.updateLayerAndFrameSelection(false, false, this.selection.selectedLayers, targetIndex);
+            targetIndex = targetIndex < 0 ? 0 : targetIndex > lastIndex ? lastIndex : targetIndex;
+            this.updateLayerAndFrameSelection(
+                false,
+                false,
+                this.selection.selectedLayers,
+                targetIndex
+            );
         }
     }
 
@@ -895,20 +910,21 @@ export class Controller extends EventEmitter {
         const frame = this.presentation.frames[frameIndex];
         if (single) {
             this.selection.toggleFrameSelection(frame);
-        }
-        else if (sequence) {
+        } else if (sequence) {
             if (!this.selection.selectedFrames.length) {
                 this.selection.addFrame(frame);
-            }
-            else {
+            } else {
                 const startIndex = this.selection.currentFrame.index;
                 const inc = startIndex <= frameIndex ? 1 : -1;
-                for (let i = startIndex + inc; startIndex <= frameIndex ? i <= frameIndex : i >= frameIndex; i += inc) {
+                for (
+                    let i = startIndex + inc;
+                    startIndex <= frameIndex ? i <= frameIndex : i >= frameIndex;
+                    i += inc
+                ) {
                     this.selection.toggleFrameSelection(this.presentation.frames[i]);
                 }
             }
-        }
-        else {
+        } else {
             this.selection.selectedLayers = this.presentation.layers.slice();
             this.selection.selectedFrames = [frame];
             this.updateCameraSelection();
@@ -935,14 +951,12 @@ export class Controller extends EventEmitter {
      */
     updateLayerSelection(single, sequence, layers) {
         if (single) {
-            for (let layer of layers) {
+            for (const layer of layers) {
                 this.selection.toggleLayerSelection(layer);
             }
-        }
-        else if (sequence) {
+        } else if (sequence) {
             // TODO toggle from last selected layer to current
-        }
-        else {
+        } else {
             this.selection.selectedLayers = layers.slice();
             this.selection.selectedFrames = this.presentation.frames.slice();
         }
@@ -973,32 +987,32 @@ export class Controller extends EventEmitter {
         const frame = this.presentation.frames[frameIndex];
         if (single) {
             if (this.selection.hasLayers(layers) && this.selection.hasFrames([frame])) {
-                for (let layer of layers) {
+                for (const layer of layers) {
                     this.selection.removeLayer(layer);
                 }
                 this.selection.removeFrame(frame);
-            }
-            else {
-                for (let layer of layers) {
+            } else {
+                for (const layer of layers) {
                     this.selection.addLayer(layer);
                 }
                 this.selection.addFrame(frame);
             }
-        }
-        else if (sequence) {
+        } else if (sequence) {
             if (!this.selection.selectedFrames.length) {
                 this.selection.addFrame(frame);
-            }
-            else {
+            } else {
                 const startIndex = this.selection.currentFrame.index;
                 const inc = startIndex <= frameIndex ? 1 : -1;
-                for (let i = startIndex + inc; startIndex <= frameIndex ? i <= frameIndex : i >= frameIndex; i += inc) {
+                for (
+                    let i = startIndex + inc;
+                    startIndex <= frameIndex ? i <= frameIndex : i >= frameIndex;
+                    i += inc
+                ) {
                     this.selection.toggleFrameSelection(this.presentation.frames[i]);
                 }
             }
             // TODO toggle from last selected layer to current
-        }
-        else {
+        } else {
             this.selection.selectedLayers = layers.slice();
             this.selection.selectedFrames = [frame];
         }
@@ -1020,12 +1034,11 @@ export class Controller extends EventEmitter {
      * @fires module:Controller.repaint
      */
     updateLayerVisibility(layers) {
-        for (let layer of layers) {
+        for (const layer of layers) {
             layer.isVisible = !layer.isVisible;
             if (layer.isVisible) {
                 this.selection.addLayer(layer);
-            }
-            else {
+            } else {
                 this.selection.removeLayer(layer);
             }
         }
@@ -1050,24 +1063,20 @@ export class Controller extends EventEmitter {
         const selectedFrames = this.selection.selectedFrames.slice();
         const selectedLayers = this.selection.selectedLayers.slice();
 
-        const savedValues = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => ({
-                    link: frame.layerProperties[layer.index].link
-                })
-            )
+        const savedValues = selectedFrames.map(frame =>
+            selectedLayers.map(layer => ({
+                link: frame.layerProperties[layer.index].link
+            }))
         );
 
-        const savedCameraStates = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => new CameraState(frame.cameraStates[layer.index])
-            )
+        const savedCameraStates = selectedFrames.map(frame =>
+            selectedLayers.map(layer => new CameraState(frame.cameraStates[layer.index]))
         );
 
         this.perform(
             function onDo() {
-                for (let frame of selectedFrames) {
-                    for (let layer of selectedLayers) {
+                for (const frame of selectedFrames) {
+                    for (const layer of selectedLayers) {
                         frame.cameraStates[layer.index].copy(this.presentation.initialCameraState);
                         frame.layerProperties[layer.index].link = false;
                     }
@@ -1078,8 +1087,11 @@ export class Controller extends EventEmitter {
             function onUndo() {
                 selectedFrames.forEach((frame, frameIndex) => {
                     selectedLayers.forEach((layer, layerIndex) => {
-                        frame.cameraStates[layer.index].copy(savedCameraStates[frameIndex][layerIndex]);
-                        frame.layerProperties[layer.index].link = savedValues[frameIndex][layerIndex].link;
+                        frame.cameraStates[layer.index].copy(
+                            savedCameraStates[frameIndex][layerIndex]
+                        );
+                        frame.layerProperties[layer.index].link =
+                            savedValues[frameIndex][layerIndex].link;
                     });
 
                     this.presentation.updateLinkedLayers();
@@ -1106,37 +1118,43 @@ export class Controller extends EventEmitter {
     copyLayer(groupId) {
         const selectedFrames = this.selection.selectedFrames.slice();
         const selectedLayers = this.selection.selectedLayers.slice();
-        const savedValues = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => new LayerProperties(frame.layerProperties[layer.index])
-            )
+        const savedValues = selectedFrames.map(frame =>
+            selectedLayers.map(layer => new LayerProperties(frame.layerProperties[layer.index]))
         );
 
-        const savedCameraStates = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => new CameraState(frame.cameraStates[layer.index])
-            )
+        const savedCameraStates = selectedFrames.map(frame =>
+            selectedLayers.map(layer => new CameraState(frame.cameraStates[layer.index]))
         );
 
         // Find the layer to copy.
         // If the given group id corresponds to the "default" layer set,
         // choose the first layer that contains an SVG element.
         // Otherwise, choose the layer with the given id.
-        const layerToCopy = groupId == "__default__" ?
-            this.defaultLayers.filter(layer => layer.svgNodes.length > 0)[0] :
-            this.presentation.getLayerWithId(groupId);
+        const layerToCopy =
+            groupId == "__default__"
+                ? this.defaultLayers.filter(layer => layer.svgNodes.length > 0)[0]
+                : this.presentation.getLayerWithId(groupId);
         if (!layerToCopy || !layerToCopy.svgNodes.length) {
             return;
         }
 
         this.perform(
             function onDo() {
-                for (let frame of selectedFrames) {
-                    for (let layer of selectedLayers) {
+                for (const frame of selectedFrames) {
+                    for (const layer of selectedLayers) {
                         if (layer != layerToCopy) {
-                            frame.layerProperties[layer.index].copy(frame.layerProperties[layerToCopy.index]);
-                            frame.cameraStates[layer.index].copy(frame.cameraStates[layerToCopy.index]);
-                            if (frame.index === 0 || !this.selection.hasFrames([this.presentation.frames[frame.index - 1]])) {
+                            frame.layerProperties[layer.index].copy(
+                                frame.layerProperties[layerToCopy.index]
+                            );
+                            frame.cameraStates[layer.index].copy(
+                                frame.cameraStates[layerToCopy.index]
+                            );
+                            if (
+                                frame.index === 0 ||
+                                !this.selection.hasFrames([
+                                    this.presentation.frames[frame.index - 1]
+                                ])
+                            ) {
                                 frame.layerProperties[layer.index].link = false;
                             }
                         }
@@ -1147,8 +1165,12 @@ export class Controller extends EventEmitter {
             function onUndo() {
                 selectedFrames.forEach((frame, frameIndex) => {
                     selectedLayers.forEach((layer, layerIndex) => {
-                        frame.layerProperties[layer.index].copy(savedValues[frameIndex][layerIndex]);
-                        frame.cameraStates[layer.index].copy(savedCameraStates[frameIndex][layerIndex]);
+                        frame.layerProperties[layer.index].copy(
+                            savedValues[frameIndex][layerIndex]
+                        );
+                        frame.cameraStates[layer.index].copy(
+                            savedCameraStates[frameIndex][layerIndex]
+                        );
                     });
                 });
                 this.presentation.updateLinkedLayers();
@@ -1166,13 +1188,16 @@ export class Controller extends EventEmitter {
      * @type {boolean}
      */
     get canFitElement() {
-        return this.selection.selectedFrames.length === 1 &&
-               this.selection.selectedLayers.length >= 1 &&
-               this.selection.selectedLayers.every(layer => {
-                   const id = this.selection.currentFrame.layerProperties[layer.index].outlineElementId;
-                   const elt = this.presentation.document.root.getElementById(id);
-                   return elt && this.selection.selectedLayers.some(l => l.contains(elt));
-               });
+        return (
+            this.selection.selectedFrames.length === 1 &&
+            this.selection.selectedLayers.length >= 1 &&
+            this.selection.selectedLayers.every(layer => {
+                const id =
+                    this.selection.currentFrame.layerProperties[layer.index].outlineElementId;
+                const elt = this.presentation.document.root.getElementById(id);
+                return elt && this.selection.selectedLayers.some(l => l.contains(elt));
+            })
+        );
     }
 
     /** Find and assign an outline element to the current frame in the selected layers.
@@ -1186,12 +1211,14 @@ export class Controller extends EventEmitter {
             return;
         }
 
-        let outlineElt = null, outlineScore = null;
+        let outlineElt = null,
+            outlineScore = null;
 
-        for (let layer of this.selection.selectedLayers) {
-            const {element, score} = this.viewport.cameras[layer.index].getCandidateReferenceElement();
+        for (const layer of this.selection.selectedLayers) {
+            const {element, score} =
+                this.viewport.cameras[layer.index].getCandidateReferenceElement();
             if (element && (outlineScore === null || score < outlineScore)) {
-                outlineElt   = element;
+                outlineElt = element;
                 outlineScore = score;
             }
         }
@@ -1265,7 +1292,7 @@ export class Controller extends EventEmitter {
     getFrameProperty(property) {
         const values = [];
 
-        for (let frame of this.selection.selectedFrames) {
+        for (const frame of this.selection.selectedFrames) {
             const current = frame[property];
             if (values.indexOf(current) < 0) {
                 values.push(current);
@@ -1293,12 +1320,12 @@ export class Controller extends EventEmitter {
 
         this.perform(
             function onDo() {
-                for (let [frame, value] of savedValues) {
+                for (const [frame, value] of savedValues) {
                     frame[property] = newValue;
                 }
             },
             function onUndo() {
-                for (let [frame, value] of savedValues) {
+                for (const [frame, value] of savedValues) {
                     frame[property] = value;
                 }
             },
@@ -1318,8 +1345,8 @@ export class Controller extends EventEmitter {
     getLayerProperty(property) {
         const values = [];
 
-        for (let frame of this.selection.selectedFrames) {
-            for (let layer of this.selection.selectedLayers) {
+        for (const frame of this.selection.selectedFrames) {
+            for (const layer of this.selection.selectedLayers) {
                 const current = frame.layerProperties[layer.index][property];
                 if (values.indexOf(current) < 0) {
                     values.push(current);
@@ -1354,24 +1381,20 @@ export class Controller extends EventEmitter {
 
         const selectedFrames = this.selection.selectedFrames.slice();
         const selectedLayers = this.selection.selectedLayers.slice();
-        const savedValues = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => frame.layerProperties[layer.index][property]
-            )
+        const savedValues = selectedFrames.map(frame =>
+            selectedLayers.map(layer => frame.layerProperties[layer.index][property])
         );
 
         const link = property === "link" && newValue;
 
-        const savedCameraStates = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => new CameraState(frame.cameraStates[layer.index])
-            )
+        const savedCameraStates = selectedFrames.map(frame =>
+            selectedLayers.map(layer => new CameraState(frame.cameraStates[layer.index]))
         );
 
         this.perform(
             function onDo() {
-                for (let frame of selectedFrames) {
-                    for (let layer of selectedLayers) {
+                for (const frame of selectedFrames) {
+                    for (const layer of selectedLayers) {
                         frame.layerProperties[layer.index][property] = newValue;
                     }
                 }
@@ -1381,9 +1404,12 @@ export class Controller extends EventEmitter {
             function onUndo() {
                 selectedFrames.forEach((frame, frameIndex) => {
                     selectedLayers.forEach((layer, layerIndex) => {
-                        frame.layerProperties[layer.index][property] = savedValues[frameIndex][layerIndex];
+                        frame.layerProperties[layer.index][property] =
+                            savedValues[frameIndex][layerIndex];
                         if (link) {
-                            frame.cameraStates[layer.index].copy(savedCameraStates[frameIndex][layerIndex]);
+                            frame.cameraStates[layer.index].copy(
+                                savedCameraStates[frameIndex][layerIndex]
+                            );
                         }
                     });
                 });
@@ -1406,8 +1432,8 @@ export class Controller extends EventEmitter {
     getCameraProperty(property) {
         const values = [];
 
-        for (let frame of this.selection.selectedFrames) {
-            for (let layer of this.selection.selectedLayers) {
+        for (const frame of this.selection.selectedFrames) {
+            for (const layer of this.selection.selectedLayers) {
                 const current = frame.cameraStates[layer.index][property];
                 if (values.indexOf(current) < 0) {
                     values.push(current);
@@ -1435,19 +1461,17 @@ export class Controller extends EventEmitter {
         const selectedFrames = this.selection.selectedFrames.slice();
         const selectedLayers = this.selection.selectedLayers.slice();
 
-        const savedValues = selectedFrames.map(
-            frame => selectedLayers.map(
-                layer => ({
-                    prop: frame.cameraStates[layer.index][property],
-                    link: frame.layerProperties[layer.index].link
-                })
-            )
+        const savedValues = selectedFrames.map(frame =>
+            selectedLayers.map(layer => ({
+                prop: frame.cameraStates[layer.index][property],
+                link: frame.layerProperties[layer.index].link
+            }))
         );
 
         this.perform(
             function onDo() {
-                for (let frame of selectedFrames) {
-                    for (let layer of selectedLayers) {
+                for (const frame of selectedFrames) {
+                    for (const layer of selectedLayers) {
                         frame.cameraStates[layer.index][property] = newValue;
                         frame.layerProperties[layer.index].link = false;
                     }
@@ -1458,8 +1482,10 @@ export class Controller extends EventEmitter {
             function onUndo() {
                 selectedFrames.forEach((frame, frameIndex) => {
                     selectedLayers.forEach((layer, layerIndex) => {
-                        frame.cameraStates[layer.index][property] = savedValues[frameIndex][layerIndex].prop;
-                        frame.layerProperties[layer.index].link = savedValues[frameIndex][layerIndex].link;
+                        frame.cameraStates[layer.index][property] =
+                            savedValues[frameIndex][layerIndex].prop;
+                        frame.layerProperties[layer.index].link =
+                            savedValues[frameIndex][layerIndex].link;
                     });
                 });
 
@@ -1487,10 +1513,10 @@ export class Controller extends EventEmitter {
             return;
         }
 
-        const savedFrame    = new Frame(currentFrame);
+        const savedFrame = new Frame(currentFrame);
         const modifiedFrame = new Frame(currentFrame);
 
-        for (let layer of this.selection.selectedLayers) {
+        for (const layer of this.selection.selectedLayers) {
             const camera = this.viewport.cameras[layer.index];
 
             // Update the camera states of the current frame
@@ -1539,12 +1565,14 @@ export class Controller extends EventEmitter {
             return;
         }
 
-        const savedFrame    = new Frame(currentFrame);
+        const savedFrame = new Frame(currentFrame);
         const modifiedFrame = new Frame(currentFrame);
 
         // Find the layer that contains the given element
         let outlineLayerGroup = outlineElement;
-        while (outlineLayerGroup.parentNode.parentNode.parentNode !== this.presentation.document.root) {
+        while (
+            outlineLayerGroup.parentNode.parentNode.parentNode !== this.presentation.document.root
+        ) {
             outlineLayerGroup = outlineLayerGroup.parentNode;
         }
         const outlineLayer = this.presentation.getLayerWithId(outlineLayerGroup.id);
@@ -1552,39 +1580,38 @@ export class Controller extends EventEmitter {
         // Compute the offset in that layer.
         const outlineState = currentFrame.cameraStates[outlineLayer.index];
         const outlineAngle = outlineState.angle;
-        const offset       = outlineState.offsetFromElement(outlineElement);
+        const offset = outlineState.offsetFromElement(outlineElement);
 
         // Compute the scaling factor to apply.
-        const outlineCam   = this.viewport.cameras[outlineLayer.index];
+        const outlineCam = this.viewport.cameras[outlineLayer.index];
         const outlineScale = outlineCam.scale;
         outlineCam.applyOffset(offset);
         const scalingFactor = outlineCam.scale / outlineScale;
 
-        for (let layer of this.selection.selectedLayers) {
+        for (const layer of this.selection.selectedLayers) {
             const cameraState = modifiedFrame.cameraStates[layer.index];
 
             if (layer === outlineLayer) {
                 cameraState.applyOffset(offset);
-            }
-            else {
-                const camera   = this.viewport.cameras[layer.index];
-                const angleRad = (cameraState.angle - outlineAngle) * Math.PI / 180;
-                const si       = Math.sin(angleRad) * outlineScale / camera.scale;
-                const co       = Math.cos(angleRad) * outlineScale / camera.scale;
+            } else {
+                const camera = this.viewport.cameras[layer.index];
+                const angleRad = ((cameraState.angle - outlineAngle) * Math.PI) / 180;
+                const si = (Math.sin(angleRad) * outlineScale) / camera.scale;
+                const co = (Math.cos(angleRad) * outlineScale) / camera.scale;
 
                 cameraState.applyOffset({
-                    deltaX:       offset.deltaX * co - offset.deltaY * si,
-                    deltaY:       offset.deltaX * si + offset.deltaY * co,
-                    widthFactor:  scalingFactor,
+                    deltaX: offset.deltaX * co - offset.deltaY * si,
+                    deltaY: offset.deltaX * si + offset.deltaY * co,
+                    widthFactor: scalingFactor,
                     heightFactor: scalingFactor,
-                    deltaAngle:   offset.deltaAngle
+                    deltaAngle: offset.deltaAngle
                 });
             }
 
             cameraState.resetClipping();
 
-            const layerProperties            = modifiedFrame.layerProperties[layer.index];
-            layerProperties.link             = false;
+            const layerProperties = modifiedFrame.layerProperties[layer.index];
+            layerProperties.link = false;
             layerProperties.outlineElementId = outlineElement.getAttribute("id");
         }
 
@@ -1743,9 +1770,9 @@ export class Controller extends EventEmitter {
      */
     setShortcut(action, newValue) {
         // Find occurrences of modifier keys in the given value.
-        let ctrl  = /\bCtrl\s*\+/i.test(newValue);
-        let alt   = /\bAlt\s*\+/i.test(newValue);
-        let shift = /\bShift\s*\+/i.test(newValue);
+        const ctrl = /\bCtrl\s*\+/i.test(newValue);
+        const alt = /\bAlt\s*\+/i.test(newValue);
+        const shift = /\bShift\s*\+/i.test(newValue);
 
         // Remove all occurrences of modifier keys and spaces in the given value.
         newValue = newValue.replace(/\bCtrl\s*\+\s*/gi, "");
@@ -1775,7 +1802,7 @@ export class Controller extends EventEmitter {
      *
      * @fires module:Controller.repaint
      */
-    applyPreferences(changed="all") {
+    applyPreferences(changed = "all") {
         if ((changed === "all" || changed.fontSize) && this.preferences.fontSize > 0) {
             document.body.style.fontSize = this.preferences.fontSize + "pt";
         }
@@ -1800,11 +1827,14 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            const result = await exporter.exportToPDF(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
+            const result = await exporter.exportToPDF(
+                this.presentation,
+                this.storage.htmlFileDescriptor,
+                EXPORT_OPTIONS
+            );
             logExportResult(result);
             this.info(_("Presentation was exported to PDF."));
-        }
-        catch (e) {
+        } catch (e) {
             this.error(_("Failed to write PDF file.") + " " + exportErrorMessage(e));
             console.log(e);
         }
@@ -1817,11 +1847,14 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            const result = await exporter.exportToPPTX(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
+            const result = await exporter.exportToPPTX(
+                this.presentation,
+                this.storage.htmlFileDescriptor,
+                EXPORT_OPTIONS
+            );
             logExportResult(result);
             this.info(_("Presentation was exported to PPTX."));
-        }
-        catch (e) {
+        } catch (e) {
             this.error(_("Failed to write PPTX file.") + " " + exportErrorMessage(e));
             console.log(e);
         }
@@ -1834,11 +1867,14 @@ export class Controller extends EventEmitter {
         this.toggleExportState();
         await this.save();
         try {
-            const result = await exporter.exportToVideo(this.presentation, this.storage.htmlFileDescriptor, EXPORT_OPTIONS);
+            const result = await exporter.exportToVideo(
+                this.presentation,
+                this.storage.htmlFileDescriptor,
+                EXPORT_OPTIONS
+            );
             logExportResult(result);
             this.info(_("Presentation was exported to video."));
-        }
-        catch (e) {
+        } catch (e) {
             this.error(_("Failed to write video file.") + " " + exportErrorMessage(e));
             console.log(e);
         }
@@ -1864,11 +1900,11 @@ export class Controller extends EventEmitter {
         }
         this.undoStack.push(action);
         while (this.undoStack.length > UNDO_STACK_LIMIT) {
-          this.undoStack.shift();
+            this.undoStack.shift();
         }
         this.redoStack = [];
         onDo.call(this);
-        for (let evt of events) {
+        for (const evt of events) {
             this.emit(evt);
         }
     }
@@ -1891,7 +1927,7 @@ export class Controller extends EventEmitter {
             this.selection.selectedFrames = action.selectedFrames.slice();
             this.selection.selectedLayers = action.selectedLayers.slice();
         }
-        for (let evt of action.events) {
+        for (const evt of action.events) {
             this.emit(evt);
         }
     }
@@ -1910,7 +1946,7 @@ export class Controller extends EventEmitter {
         const action = this.redoStack.pop();
         this.undoStack.push(action);
         action.onDo.call(this);
-        for (let evt of action.events) {
+        for (const evt of action.events) {
             this.emit(evt);
         }
     }

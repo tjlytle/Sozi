@@ -69,15 +69,17 @@ function describeFrame(frame, index) {
         const cs = frame.cameraStates[layerIndex];
         layers[layer.groupId] = {
             referenceElementId: lp.referenceElementId,
-            referenceMissing:   Boolean(lp.referenceElementId) && root.getElementById(lp.referenceElementId) === null,
-            outlineElementId:   lp.outlineElementId,
-            link:               lp.link,
+            referenceMissing:
+                Boolean(lp.referenceElementId) &&
+                root.getElementById(lp.referenceElementId) === null,
+            outlineElementId: lp.outlineElementId,
+            link: lp.link,
             camera: {
-                cx:      cs.cx,
-                cy:      cs.cy,
-                width:   cs.width,
-                height:  cs.height,
-                angle:   cs.angle,
+                cx: cs.cx,
+                cy: cs.cy,
+                width: cs.width,
+                height: cs.height,
+                angle: cs.angle,
                 opacity: cs.opacity,
                 clipped: cs.clipped
             }
@@ -86,12 +88,12 @@ function describeFrame(frame, index) {
 
     return {
         index,
-        id:                   frame.frameId,
-        title:                frame.title,
-        timeoutMs:            frame.timeoutMs,
-        timeoutEnable:        frame.timeoutEnable,
+        id: frame.frameId,
+        title: frame.title,
+        timeoutMs: frame.timeoutMs,
+        timeoutEnable: frame.timeoutEnable,
         transitionDurationMs: frame.transitionDurationMs,
-        showInFrameList:      frame.showInFrameList,
+        showInFrameList: frame.showInFrameList,
         layers
     };
 }
@@ -147,21 +149,25 @@ export function inspect({storage, svg, presentation: jsonPath, svgSource, cwd, f
         return {ok: false, error: output.error, exitCode: 2};
     }
     const outputSource = output.source;
-    const outputDir    = outputSource === "default" ? null : output.dir;
+    const outputDir = outputSource === "default" ? null : output.dir;
 
     return {
-        ok:     true,
+        ok: true,
         svgSource,
         outputDir,
         outputSource,
-        title:  presentation.title,
-        titleSource: presentation.explicitTitle ? "json" : presentation.svgTitle ? "svg" : "default",
-        svgTitle:    presentation.svgTitle,
+        title: presentation.title,
+        titleSource: presentation.explicitTitle
+            ? "json"
+            : presentation.svgTitle
+              ? "svg"
+              : "default",
+        svgTitle: presentation.svgTitle,
         aspect: {width: presentation.aspectWidth, height: presentation.aspectHeight},
         layers: svgLayers(presentation).map(layer => ({
-            id:     layer.groupId,
-            label:  layer.label,
-            index:  layer.index,
+            id: layer.groupId,
+            label: layer.label,
+            index: layer.index,
             inJson: inJson.has(layer.groupId)
         })),
         frames: frames.map(({frame, index}) => describeFrame(frame, index))

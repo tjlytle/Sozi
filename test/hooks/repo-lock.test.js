@@ -24,11 +24,17 @@ const OTHER = "tjlytle/sozi-channel";
  *
  * @param {string} command - The Bash command under test.
  * @param {object} [opts] - `cwd` for the payload, `lock` for the locked repositories.
+ * @param opts.cwd
+ * @param opts.lock
  * @returns {{decision: "allow"|"deny", reason: string}} - What the hook decided.
  */
 function decide(command, {cwd = root, lock = [FORK, OTHER]} = {}) {
     const payload = JSON.stringify({tool_name: "Bash", cwd, tool_input: {command}});
-    const result = spawnSync("python3", [hook, ...lock], {input: payload, encoding: "utf8", timeout: 10000});
+    const result = spawnSync("python3", [hook, ...lock], {
+        input: payload,
+        encoding: "utf8",
+        timeout: 10000
+    });
     assert.equal(result.status, 0, result.stderr);
     if (result.stdout.trim() === "") {
         return {decision: "allow", reason: ""};
@@ -91,12 +97,20 @@ describe("repo lock: gh api", () => {
     });
     test("graphql is checked for owner and name", () => {
         allow("gh api graphql -f query='{ viewer { login } }'");
-        allow(`gh api graphql -f query='query { repository(owner:"tjlytle", name:"Sozi") { id } }'`);
-        deny(`gh api graphql -f query='query { repository(owner:"sozi-projects", name:"Sozi") { id } }'`);
-        deny(`gh api graphql -f query='query($o:String!,$n:String!){repository(owner:$o,name:$n){id}}' -f o=x -f owner=sozi-projects -f name=Sozi`);
+        allow(
+            `gh api graphql -f query='query { repository(owner:"tjlytle", name:"Sozi") { id } }'`
+        );
+        deny(
+            `gh api graphql -f query='query { repository(owner:"sozi-projects", name:"Sozi") { id } }'`
+        );
+        deny(
+            `gh api graphql -f query='query($o:String!,$n:String!){repository(owner:$o,name:$n){id}}' -f o=x -f owner=sozi-projects -f name=Sozi`
+        );
     });
     test("a mutation that names no repository is denied", () => {
-        deny(`gh api graphql -f query='mutation { addComment(input:{subjectId:"x", body:"y"}) { clientMutationId } }'`);
+        deny(
+            `gh api graphql -f query='mutation { addComment(input:{subjectId:"x", body:"y"}) { clientMutationId } }'`
+        );
     });
 });
 

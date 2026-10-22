@@ -161,7 +161,7 @@ const WHEEL_TIMEOUT_MS = 200;
  *
  * @extends EventEmitter
  */
-export class PlayerController extends EventEmitter{
+export class PlayerController extends EventEmitter {
     /** Initialize a new Sozi player controller.
      *
      * If the presentation is opened in edit mode, the controller will disable
@@ -229,29 +229,43 @@ export class PlayerController extends EventEmitter{
         }
     }
 
+    /**
+     *
+     */
     get viewport() {
         return this.player.viewport;
     }
 
+    /**
+     *
+     */
     get presentation() {
         return this.player.presentation;
     }
 
+    /**
+     *
+     */
     get editMode() {
         return this.player.viewport.editMode;
     }
 
+    /**
+     *
+     */
     onLoad() {
         const svgRoot = this.viewport.svgRoot;
 
-        svgRoot.addEventListener("mousedown",   evt => this.onMouseDown(evt),   false);
-        svgRoot.addEventListener("mousemove",   evt => this.onMouseMove(evt),   false);
+        svgRoot.addEventListener("mousedown", evt => this.onMouseDown(evt), false);
+        svgRoot.addEventListener("mousemove", evt => this.onMouseMove(evt), false);
         svgRoot.addEventListener("contextmenu", evt => this.onContextMenu(evt), false);
 
         const wheelEvent =
-            "onwheel" in document.createElement("div") ? "wheel" :  // Modern browsers support "wheel"
-            document.onmousewheel !== undefined ? "mousewheel" :    // Webkit and IE support at least "mousewheel"
-            "DOMMouseScroll";                                       // Firefox < 17
+            "onwheel" in document.createElement("div")
+                ? "wheel" // Modern browsers support "wheel"
+                : document.onmousewheel !== undefined
+                  ? "mousewheel" // Webkit and IE support at least "mousewheel"
+                  : "DOMMouseScroll"; // Firefox < 17
         svgRoot.addEventListener(wheelEvent, evt => this.onWheel(evt), false);
     }
 
@@ -262,7 +276,7 @@ export class PlayerController extends EventEmitter{
      * @listens mousemove
      */
     onMouseMove(evt) {
-        this.viewport.updateClipCursor(evt.clientX,evt.clientY);
+        this.viewport.updateClipCursor(evt.clientX, evt.clientY);
     }
 
     /** Process a mouse down event in this viewport.
@@ -307,7 +321,7 @@ export class PlayerController extends EventEmitter{
         evt.stopPropagation();
         const xFromCenter = evt.clientX - this.viewport.x - this.viewport.width / 2;
         const yFromCenter = evt.clientY - this.viewport.y - this.viewport.height / 2;
-        let angle = 180 * Math.atan2(yFromCenter, xFromCenter) / Math.PI;
+        let angle = (180 * Math.atan2(yFromCenter, xFromCenter)) / Math.PI;
         let translateX = evt.clientX;
         let translateY = evt.clientY;
         const zoom = Math.sqrt(xFromCenter * xFromCenter + yFromCenter * yFromCenter);
@@ -316,8 +330,10 @@ export class PlayerController extends EventEmitter{
 
         // The drag action is confirmed when one of the mouse coordinates
         // has moved past the threshold
-        if (!this.mouseDragged && (Math.abs(deltaX) > DRAG_THRESHOLD_PX ||
-                                   Math.abs(deltaY) > DRAG_THRESHOLD_PX)) {
+        if (
+            !this.mouseDragged &&
+            (Math.abs(deltaX) > DRAG_THRESHOLD_PX || Math.abs(deltaY) > DRAG_THRESHOLD_PX)
+        ) {
             this.mouseDragged = true;
 
             this.rotateStart = this.rotatePrev = angle;
@@ -337,8 +353,7 @@ export class PlayerController extends EventEmitter{
             if (mode == "translate") {
                 if (evt.altKey) {
                     mode = "scale";
-                }
-                else if (evt.shiftKey) {
+                } else if (evt.shiftKey) {
                     mode = "rotate";
                 }
             }
@@ -347,7 +362,11 @@ export class PlayerController extends EventEmitter{
                 case "scale":
                     if (this.editMode || this.presentation.enableMouseZoom) {
                         if (this.zoomPrev !== 0) {
-                            this.zoom(zoom / this.zoomPrev, this.viewport.width / 2, this.viewport.height / 2);
+                            this.zoom(
+                                zoom / this.zoomPrev,
+                                this.viewport.width / 2,
+                                this.viewport.height / 2
+                            );
                             this.mouseDragChangedState = true;
                         }
                         this.zoomPrev = zoom;
@@ -357,7 +376,8 @@ export class PlayerController extends EventEmitter{
                 case "rotate":
                     if (this.editMode || this.presentation.enableMouseRotation) {
                         if (evt.ctrlKey) {
-                            angle = 10 * Math.round((angle - this.rotateStart) / 10) + this.rotateStart;
+                            angle =
+                                10 * Math.round((angle - this.rotateStart) / 10) + this.rotateStart;
                         }
                         this.rotate(this.rotatePrev - angle);
                         this.mouseDragChangedState = true;
@@ -366,9 +386,14 @@ export class PlayerController extends EventEmitter{
                     break;
 
                 case "clip":
-                    this.viewport.clipByMode(this.mouseDragStartX - this.viewport.x, this.mouseDragStartY - this.viewport.y,
-                                             this.mouseDragX      - this.viewport.x, this.mouseDragY      - this.viewport.y,
-                                             deltaX, deltaY);
+                    this.viewport.clipByMode(
+                        this.mouseDragStartX - this.viewport.x,
+                        this.mouseDragStartY - this.viewport.y,
+                        this.mouseDragX - this.viewport.x,
+                        this.mouseDragY - this.viewport.y,
+                        deltaX,
+                        deltaY
+                    );
 
                     this.mouseDragChangedState = true;
                     break;
@@ -376,14 +401,19 @@ export class PlayerController extends EventEmitter{
                 default: // case "translate":
                     if (this.editMode || this.presentation.enableMouseTranslation) {
                         if (evt.ctrlKey) {
-                            if (Math.abs(translateX - this.translateStartX) >= Math.abs(translateY - this.translateStartY)) {
+                            if (
+                                Math.abs(translateX - this.translateStartX) >=
+                                Math.abs(translateY - this.translateStartY)
+                            ) {
                                 translateY = this.translateStartY;
-                            }
-                            else {
+                            } else {
                                 translateX = this.translateStartX;
                             }
                         }
-                        this.translate(translateX - this.translateXPrev, translateY - this.translateYPrev);
+                        this.translate(
+                            translateX - this.translateXPrev,
+                            translateY - this.translateYPrev
+                        );
                         this.mouseDragChangedState = true;
                         this.translateXPrev = translateX;
                         this.translateYPrev = translateY;
@@ -417,15 +447,13 @@ export class PlayerController extends EventEmitter{
                 if (this.mouseDragChangedState) {
                     this.emit("localViewportChange");
                 }
-            }
-            else {
+            } else {
                 this.onClick(evt);
             }
 
             document.documentElement.removeEventListener("mousemove", this.dragHandler, false);
             document.documentElement.removeEventListener("mouseup", this.dragEndHandler, false);
-        }
-        else {
+        } else {
             this.onClick(evt);
         }
     }
@@ -442,8 +470,12 @@ export class PlayerController extends EventEmitter{
     onClick(evt) {
         if (!this.editMode && this.presentation.enableMouseNavigation) {
             switch (evt.button) {
-                case 0: this.moveToNext(); break;
-                case 2: this.moveToPrevious(); break;
+                case 0:
+                    this.moveToNext();
+                    break;
+                case 2:
+                    this.moveToPrevious();
+                    break;
             }
         }
         this.emit("click", evt);
@@ -469,13 +501,14 @@ export class PlayerController extends EventEmitter{
         evt.preventDefault();
 
         let delta = 0;
-        if (evt.wheelDelta) {   // "mousewheel" event
+        if (evt.wheelDelta) {
+            // "mousewheel" event
             delta = evt.wheelDelta;
-        }
-        else if (evt.detail) {  // "DOMMouseScroll" event
+        } else if (evt.detail) {
+            // "DOMMouseScroll" event
             delta = -evt.detail;
-        }
-        else {                  // "wheel" event
+        } else {
+            // "wheel" event
             delta = -evt.deltaY;
         }
 
@@ -488,10 +521,13 @@ export class PlayerController extends EventEmitter{
                     this.rotate(delta > 0 ? ROTATE_STEP : -ROTATE_STEP);
                     changed = true;
                 }
-            }
-            else {
+            } else {
                 if (this.editMode || this.presentation.enableMouseZoom) {
-                    this.zoom(delta > 0 ? SCALE_FACTOR : 1/SCALE_FACTOR, evt.clientX - this.viewport.x, evt.clientY - this.viewport.y);
+                    this.zoom(
+                        delta > 0 ? SCALE_FACTOR : 1 / SCALE_FACTOR,
+                        evt.clientX - this.viewport.x,
+                        evt.clientY - this.viewport.y
+                    );
                     changed = true;
                 }
             }
@@ -538,7 +574,7 @@ export class PlayerController extends EventEmitter{
      *
      * @fires module:player/PlayerController.translate
      */
-     translate(deltaX, deltaY) {
+    translate(deltaX, deltaY) {
         this.viewport.translate(deltaX, deltaY);
         this.emit("translate", {deltaX, deltaY});
     }
@@ -580,8 +616,7 @@ export class PlayerController extends EventEmitter{
                 if (this.presentation.enableKeyboardNavigation) {
                     if (evt.shiftKey) {
                         this.jumpToFirst();
-                    }
-                    else {
+                    } else {
                         this.moveToFirst();
                     }
                 }
@@ -591,8 +626,7 @@ export class PlayerController extends EventEmitter{
                 if (this.presentation.enableKeyboardNavigation) {
                     if (evt.shiftKey) {
                         this.jumpToLast();
-                    }
-                    else {
+                    } else {
                         this.moveToLast();
                     }
                 }
@@ -604,8 +638,7 @@ export class PlayerController extends EventEmitter{
                 if (this.presentation.enableKeyboardNavigation) {
                     if (evt.shiftKey) {
                         this.jumpToPrevious();
-                    }
-                    else {
+                    } else {
                         this.moveToPrevious();
                     }
                 }
@@ -619,8 +652,7 @@ export class PlayerController extends EventEmitter{
                 if (this.presentation.enableKeyboardNavigation) {
                     if (evt.shiftKey) {
                         this.jumpToNext();
-                    }
-                    else {
+                    } else {
                         this.moveToNext();
                     }
                 }
@@ -813,11 +845,14 @@ export class PlayerController extends EventEmitter{
      * @fires module:player/Player.stateChange
      */
     previewFrame(frame) {
-        let f = this.player.findFrame(frame);
+        const f = this.player.findFrame(frame);
         this.emit("previewFrame", f);
         this.player.previewFrame(f);
     }
 
+    /**
+     *
+     */
     viewAll() {
         this.emit("viewAll");
         this.player.viewAll();
@@ -832,7 +867,7 @@ export class PlayerController extends EventEmitter{
      * @fires module:player/Player.stateChange
      */
     jumpToFrame(frame) {
-        let f = this.player.findFrame(frame);
+        const f = this.player.findFrame(frame);
         this.emit("jumpToFrame", f);
         this.player.jumpToFrame(f);
     }
@@ -846,7 +881,7 @@ export class PlayerController extends EventEmitter{
      * @fires module:player/Player.stateChange
      */
     moveToFrame(frame) {
-        let f = this.player.findFrame(frame);
+        const f = this.player.findFrame(frame);
         this.emit("moveToFrame", f);
         this.player.moveToFrame(f);
     }
@@ -861,8 +896,7 @@ export class PlayerController extends EventEmitter{
         if (this.player.playing) {
             this.emit("pause");
             this.player.pause();
-        }
-        else {
+        } else {
             this.moveToFrame(this.player.currentFrame);
         }
     }
@@ -874,8 +908,7 @@ export class PlayerController extends EventEmitter{
     toggleBlankScreen() {
         if (this.player.blankScreenIsVisible) {
             this.player.disableBlankScreen();
-        }
-        else {
+        } else {
             this.player.enableBlankScreen();
         }
         this.emit("toggleBlankScreen", this.player.blankScreenIsVisible);

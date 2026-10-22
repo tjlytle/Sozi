@@ -75,12 +75,12 @@ function onFrameChange() {
     }
     const frameId = player.currentFrame.frameId;
     if (frameId in mediaToStartByFrameId) {
-        for (let m of mediaToStartByFrameId[frameId]) {
+        for (const m of mediaToStartByFrameId[frameId]) {
             m.play();
         }
     }
     if (frameId in mediaToStopByFrameId) {
-        for (let m of mediaToStopByFrameId[frameId]) {
+        for (const m of mediaToStopByFrameId[frameId]) {
             m.pause();
         }
     }
@@ -108,7 +108,7 @@ export function init(p) {
     const svgRoot = player.presentation.document.root;
     const svgAttributes = svgRoot.attributes;
     let soziPrefix;
-    for (let attrIndex = 0; attrIndex < svgAttributes.length; attrIndex ++) {
+    for (let attrIndex = 0; attrIndex < svgAttributes.length; attrIndex++) {
         if (svgAttributes[attrIndex].value === soziNs) {
             soziPrefix = svgAttributes[attrIndex].name.slice(6);
             break;
@@ -125,14 +125,14 @@ export function init(p) {
 
     // Replace them with HTML5 audio and video elements
     const mediaList = [];
-    for (let source of videoSources.concat(audioSources)) {
+    for (const source of videoSources.concat(audioSources)) {
         const rect = source.parentNode;
         const tagName = source.localName.slice(soziPrefix.length + 1);
 
         // Create HTML media source element
         const htmlSource = document.createElementNS(xhtmlNs, "source");
         htmlSource.setAttribute("type", source.getAttribute(soziPrefix + ":type"));
-        htmlSource.setAttribute("src",  source.getAttribute(soziPrefix + ":src"));
+        htmlSource.setAttribute("src", source.getAttribute(soziPrefix + ":src"));
 
         let j;
         for (j = 0; j < mediaList.length; j += 1) {
@@ -144,7 +144,7 @@ export function init(p) {
         if (j === mediaList.length) {
             rect.setAttribute("visibility", "hidden");
 
-            const width  = rect.getAttribute("width");
+            const width = rect.getAttribute("width");
             const height = rect.getAttribute("height");
 
             // Create HTML media element
@@ -215,7 +215,7 @@ export function disable() {
 
     const frameId = player.currentFrame.frameId;
     if (frameId in mediaToStartByFrameId) {
-        for (let m of mediaToStartByFrameId[frameId]) {
+        for (const m of mediaToStartByFrameId[frameId]) {
             m.pause();
         }
     }

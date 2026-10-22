@@ -13,18 +13,14 @@
         ],
         "default": {
             "staticFiles": {
-                "include": [
-                    "doc/sozi-logo-bg.png"
-                ]
+                "include": ["doc/sozi-logo-bg.png"]
             }
         }
     },
     "tags": {
         "allowUnknownTags": ["category"]
     },
-    "plugins": [
-        "plugins/markdown"
-    ],
+    "plugins": ["plugins/markdown"],
     "opts": {
         "destination": "build/api",
         "readme": "README.jsdoc.md"

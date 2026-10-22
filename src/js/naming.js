@@ -47,12 +47,11 @@ export function presentationDataError(text) {
     let data;
     try {
         data = JSON.parse(text);
-    }
-    catch (err) {
+    } catch (err) {
         return err.message;
     }
     if (data === null || typeof data !== "object" || !Array.isArray(data.frames)) {
-        return "no \"frames\" array";
+        return 'no "frames" array';
     }
     return null;
 }
@@ -66,9 +65,9 @@ export function presentationDataError(text) {
  * @returns {string} - The path without its extension.
  */
 function presentationBase(presentation) {
-    return isPresentationFile(presentation) ?
-        presentation.slice(0, -PRESENTATION_EXT.length) :
-        replaceFileExtWith(presentation, "");
+    return isPresentationFile(presentation)
+        ? presentation.slice(0, -PRESENTATION_EXT.length)
+        : replaceFileExtWith(presentation, "");
 }
 
 /** The file set of a presentation.
@@ -102,7 +101,7 @@ export function presentationFiles(svg, presentation, {outputDir} = {}) {
     return {
         svg,
         presentation,
-        html:      base + ".sozi.html",
+        html: base + ".sozi.html",
         presenter: base + "-presenter.sozi.html",
         outputDir: path.dirname(base)
     };
@@ -119,7 +118,9 @@ export function svgOfPresentation(presentation, svgKey) {
     if (!svgKey) {
         return presentationBase(presentation) + ".svg";
     }
-    return path.isAbsolute(svgKey) ? path.normalize(svgKey) : path.join(path.dirname(presentation), svgKey);
+    return path.isAbsolute(svgKey)
+        ? path.normalize(svgKey)
+        : path.join(path.dirname(presentation), svgKey);
 }
 
 /** The `svg` key to store in a presentation file.

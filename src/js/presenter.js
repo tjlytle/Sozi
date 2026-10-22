@@ -1,9 +1,4 @@
-
-let previews = [
-    { index:  0 },
-    { index: -1 },
-    { index:  1 }
-];
+const previews = [{index: 0}, {index: -1}, {index: 1}];
 
 let presWindow;
 let presLength = 0;
@@ -11,8 +6,7 @@ let presLength = 0;
 function updatePreview(p) {
     if (p.index >= 0 && p.index < presLength) {
         p.window.postMessage({name: "jumpToFrame", args: [p.index]}, "*");
-    }
-    else {
+    } else {
         p.window.postMessage({name: "enableBlankScreen"}, "*");
     }
 }
@@ -32,12 +26,14 @@ window.addEventListener("message", evt => {
             presLength = evt.data.length;
             if (evt.source === presWindow) {
                 evt.source.postMessage({name: "notifyOnFrameChange"}, "*");
-            }
-            else {
-                evt.source.postMessage({
-                    name: "setPresenterMode",
-                    isCurrent: evt.source === previews[0].window
-                }, "*");
+            } else {
+                evt.source.postMessage(
+                    {
+                        name: "setPresenterMode",
+                        isCurrent: evt.source === previews[0].window
+                    },
+                    "*"
+                );
             }
             break;
 
@@ -55,38 +51,55 @@ window.addEventListener("message", evt => {
     }
 });
 
-window.addEventListener("load", () => {
-    const iframes = document.querySelectorAll("iframe");
+window.addEventListener(
+    "load",
+    () => {
+        const iframes = document.querySelectorAll("iframe");
 
-    // Initialize the iframes that show the previous, current, and next frames.
-    previews.forEach((p, i) => {
-        p.window = iframes[i].contentWindow;
-    });
+        // Initialize the iframes that show the previous, current, and next frames.
+        previews.forEach((p, i) => {
+            p.window = iframes[i].contentWindow;
+        });
 
-    // Prevent the notes pane to change size when its content is updated.
-    const preview = document.querySelector(".sozi-frame-preview");
-    const notes = document.querySelector(".sozi-notes");
-    new ResizeObserver(() => {
-        notes.style.width = `calc(100vw - ${preview.offsetWidth}px`;
-    }).observe(preview);
+        // Prevent the notes pane to change size when its content is updated.
+        const preview = document.querySelector(".sozi-frame-preview");
+        const notes = document.querySelector(".sozi-notes");
+        new ResizeObserver(() => {
+            notes.style.width = `calc(100vw - ${preview.offsetWidth}px`;
+        }).observe(preview);
 
-    // Open a new window for the main presentation view.
-    presWindow = window.open(iframes[0].src, "sozi-presentation", "width=600, height=400, scrollbars=yes, toolbar=yes");
-    try {
-        presWindow.focus();
+        // Open a new window for the main presentation view.
+        presWindow = window.open(
+            iframes[0].src,
+            "sozi-presentation",
+            "width=600, height=400, scrollbars=yes, toolbar=yes"
+        );
+        try {
+            presWindow.focus();
 
-        document.getElementById("sozi-previous-btn").addEventListener("click", () => {
-            presWindow.postMessage({name: "moveToPrevious"}, "*");
-        }, false);
+            document.getElementById("sozi-previous-btn").addEventListener(
+                "click",
+                () => {
+                    presWindow.postMessage({name: "moveToPrevious"}, "*");
+                },
+                false
+            );
 
-        document.getElementById("sozi-next-btn").addEventListener("click", () => {
-            presWindow.postMessage({name: "moveToNext"}, "*");
-        }, false);
-    }
-    catch (e) {
-        alert("Could not open presentation window. Please allow popups for this site and refresh this page.");
-    }
-}, false);
+            document.getElementById("sozi-next-btn").addEventListener(
+                "click",
+                () => {
+                    presWindow.postMessage({name: "moveToNext"}, "*");
+                },
+                false
+            );
+        } catch (e) {
+            alert(
+                "Could not open presentation window. Please allow popups for this site and refresh this page."
+            );
+        }
+    },
+    false
+);
 
 window.addEventListener("keydown", evt => {
     // Keys with Alt/Ctrl/Meta modifiers are ignored
@@ -98,8 +111,7 @@ window.addEventListener("keydown", evt => {
         case 36: // Home
             if (evt.shiftKey) {
                 presWindow.postMessage({name: "jumpToFirst"}, "*");
-            }
-            else {
+            } else {
                 presWindow.postMessage({name: "moveToFirst"}, "*");
             }
             break;
@@ -107,8 +119,7 @@ window.addEventListener("keydown", evt => {
         case 35: // End
             if (evt.shiftKey) {
                 presWindow.postMessage({name: "jumpToLast"}, "*");
-            }
-            else {
+            } else {
                 presWindow.postMessage({name: "moveToLast"}, "*");
             }
             break;
@@ -118,8 +129,7 @@ window.addEventListener("keydown", evt => {
         case 37: // Arrow left
             if (evt.shiftKey) {
                 presWindow.postMessage({name: "jumpToPrevious"}, "*");
-            }
-            else {
+            } else {
                 presWindow.postMessage({name: "moveToPrevious"}, "*");
             }
             break;
@@ -131,8 +141,7 @@ window.addEventListener("keydown", evt => {
         case 32: // Space
             if (evt.shiftKey) {
                 presWindow.postMessage({name: "jumpToNext"}, "*");
-            }
-            else {
+            } else {
                 presWindow.postMessage({name: "moveToNext"}, "*");
             }
             break;

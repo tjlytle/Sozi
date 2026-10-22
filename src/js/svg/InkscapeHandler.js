@@ -27,7 +27,6 @@ const SODIPODI_NS = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd";
  * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
  */
 export class InkscapeHandler extends DefaultSVGHandler {
-
     /** @inheritdoc */
     static matches(svgRoot) {
         return svgRoot.getAttribute("xmlns:inkscape") === INKSCAPE_NS;
@@ -40,7 +39,7 @@ export class InkscapeHandler extends DefaultSVGHandler {
 
         // Get page color and opacity from Inkscape document properties
         const namedViews = svgRoot.getElementsByTagNameNS(SODIPODI_NS, "namedview");
-        for (let i = 0; i < namedViews.length; i ++) {
+        for (let i = 0; i < namedViews.length; i++) {
             if (namedViews[i].hasAttribute("pagecolor")) {
                 pageColor = namedViews[i].getAttribute("pagecolor");
                 if (namedViews[i].hasAttributeNS(INKSCAPE_NS, "pageopacity")) {

@@ -9,7 +9,14 @@ const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const {presentationFiles, replaceFileExtWith, svgOfPresentation, svgKeyOf, isPresentationFile, presentationDataError} = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
+const {
+    presentationFiles,
+    replaceFileExtWith,
+    svgOfPresentation,
+    svgKeyOf,
+    isPresentationFile,
+    presentationDataError
+} = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
 
 describe("replaceFileExtWith", () => {
     test("replaces the last extension", () => {
@@ -25,66 +32,72 @@ describe("replaceFileExtWith", () => {
 describe("presentationFiles", () => {
     test("default: every file beside the SVG, named after it", () => {
         assert.deepEqual(presentationFiles("/decks/talk.svg"), {
-            svg:          "/decks/talk.svg",
+            svg: "/decks/talk.svg",
             presentation: "/decks/talk.sozi.json",
-            html:         "/decks/talk.sozi.html",
-            presenter:    "/decks/talk-presenter.sozi.html",
-            outputDir:    "/decks"
+            html: "/decks/talk.sozi.html",
+            presenter: "/decks/talk-presenter.sozi.html",
+            outputDir: "/decks"
         });
     });
 
     test("default: names with several dots keep today's names", () => {
         assert.deepEqual(presentationFiles("/decks/v1.2/my.talk.svg"), {
-            svg:          "/decks/v1.2/my.talk.svg",
+            svg: "/decks/v1.2/my.talk.svg",
             presentation: "/decks/v1.2/my.talk.sozi.json",
-            html:         "/decks/v1.2/my.talk.sozi.html",
-            presenter:    "/decks/v1.2/my.talk-presenter.sozi.html",
-            outputDir:    "/decks/v1.2"
+            html: "/decks/v1.2/my.talk.sozi.html",
+            presenter: "/decks/v1.2/my.talk-presenter.sozi.html",
+            outputDir: "/decks/v1.2"
         });
     });
 
     test("default: bare file names stay bare (backend name and location)", () => {
         assert.deepEqual(presentationFiles("talk.svg"), {
-            svg:          "talk.svg",
+            svg: "talk.svg",
             presentation: "talk.sozi.json",
-            html:         "talk.sozi.html",
-            presenter:    "talk-presenter.sozi.html",
-            outputDir:    "."
+            html: "talk.sozi.html",
+            presenter: "talk-presenter.sozi.html",
+            outputDir: "."
         });
     });
 
     test("an undefined or null presentation means the default", () => {
-        assert.deepEqual(presentationFiles("/decks/talk.svg", undefined), presentationFiles("/decks/talk.svg"));
-        assert.deepEqual(presentationFiles("/decks/talk.svg", null), presentationFiles("/decks/talk.svg"));
+        assert.deepEqual(
+            presentationFiles("/decks/talk.svg", undefined),
+            presentationFiles("/decks/talk.svg")
+        );
+        assert.deepEqual(
+            presentationFiles("/decks/talk.svg", null),
+            presentationFiles("/decks/talk.svg")
+        );
     });
 
     test("explicit presentation beside the SVG: outputs follow the presentation", () => {
         assert.deepEqual(presentationFiles("/decks/talk.svg", "/decks/talk-es.sozi.json"), {
-            svg:          "/decks/talk.svg",
+            svg: "/decks/talk.svg",
             presentation: "/decks/talk-es.sozi.json",
-            html:         "/decks/talk-es.sozi.html",
-            presenter:    "/decks/talk-es-presenter.sozi.html",
-            outputDir:    "/decks"
+            html: "/decks/talk-es.sozi.html",
+            presenter: "/decks/talk-es-presenter.sozi.html",
+            outputDir: "/decks"
         });
     });
 
     test("explicit presentation in another directory: outputs beside it", () => {
         assert.deepEqual(presentationFiles("/decks/talk.svg", "/decks/es/spanish.sozi.json"), {
-            svg:          "/decks/talk.svg",
+            svg: "/decks/talk.svg",
             presentation: "/decks/es/spanish.sozi.json",
-            html:         "/decks/es/spanish.sozi.html",
-            presenter:    "/decks/es/spanish-presenter.sozi.html",
-            outputDir:    "/decks/es"
+            html: "/decks/es/spanish.sozi.html",
+            presenter: "/decks/es/spanish-presenter.sozi.html",
+            outputDir: "/decks/es"
         });
     });
 
     test("a presentation that does not end in .sozi.json: outputs from its base name", () => {
         assert.deepEqual(presentationFiles("/decks/talk.svg", "/decks/talk.json"), {
-            svg:          "/decks/talk.svg",
+            svg: "/decks/talk.svg",
             presentation: "/decks/talk.json",
-            html:         "/decks/talk.sozi.html",
-            presenter:    "/decks/talk-presenter.sozi.html",
-            outputDir:    "/decks"
+            html: "/decks/talk.sozi.html",
+            presenter: "/decks/talk-presenter.sozi.html",
+            outputDir: "/decks"
         });
     });
 
@@ -96,13 +109,15 @@ describe("presentationFiles", () => {
 
     test("an output directory: the HTML files go there, relative to the presentation directory", () => {
         assert.deepEqual(presentationFiles("/decks/talk.svg", null, {outputDir: "site/talk"}), {
-            svg:          "/decks/talk.svg",
+            svg: "/decks/talk.svg",
             presentation: "/decks/talk.sozi.json",
-            html:         "/decks/site/talk/talk.sozi.html",
-            presenter:    "/decks/site/talk/talk-presenter.sozi.html",
-            outputDir:    "/decks/site/talk"
+            html: "/decks/site/talk/talk.sozi.html",
+            presenter: "/decks/site/talk/talk-presenter.sozi.html",
+            outputDir: "/decks/site/talk"
         });
-        const es = presentationFiles("/decks/talk.svg", "/decks/es/spanish.sozi.json", {outputDir: "../site"});
+        const es = presentationFiles("/decks/talk.svg", "/decks/es/spanish.sozi.json", {
+            outputDir: "../site"
+        });
         assert.equal(es.html, "/decks/site/spanish.sozi.html");
         assert.equal(es.presenter, "/decks/site/spanish-presenter.sozi.html");
         assert.equal(es.outputDir, "/decks/site");
@@ -123,9 +138,15 @@ describe("presentationFiles", () => {
 
     test("an empty or absent output directory means beside the presentation", () => {
         for (const options of [{}, {outputDir: ""}, {outputDir: null}, undefined]) {
-            assert.deepEqual(presentationFiles("/decks/talk.svg", null, options), presentationFiles("/decks/talk.svg"));
+            assert.deepEqual(
+                presentationFiles("/decks/talk.svg", null, options),
+                presentationFiles("/decks/talk.svg")
+            );
         }
-        assert.equal(presentationFiles("/decks/talk.svg", null, {outputDir: "."}).html, "/decks/talk.sozi.html");
+        assert.equal(
+            presentationFiles("/decks/talk.svg", null, {outputDir: "."}).html,
+            "/decks/talk.sozi.html"
+        );
     });
 });
 
@@ -144,8 +165,14 @@ describe("svgOfPresentation", () => {
 
     test("an svg key is relative to the directory of the presentation", () => {
         assert.equal(svgOfPresentation("/decks/talk-es.sozi.json", "talk.svg"), "/decks/talk.svg");
-        assert.equal(svgOfPresentation("/decks/es/spanish.sozi.json", "../talk.svg"), "/decks/talk.svg");
-        assert.equal(svgOfPresentation("/decks/es/spanish.sozi.json", "/art/talk.svg"), "/art/talk.svg");
+        assert.equal(
+            svgOfPresentation("/decks/es/spanish.sozi.json", "../talk.svg"),
+            "/decks/talk.svg"
+        );
+        assert.equal(
+            svgOfPresentation("/decks/es/spanish.sozi.json", "/art/talk.svg"),
+            "/art/talk.svg"
+        );
     });
 });
 
@@ -190,9 +217,9 @@ describe("presentationDataError", () => {
 
     test("a reason for unparsable text or data without a frames array", () => {
         assert.match(presentationDataError("{ not json"), /.+/);
-        assert.equal(presentationDataError("{}"), "no \"frames\" array");
-        assert.equal(presentationDataError(JSON.stringify({frames: {}})), "no \"frames\" array");
-        assert.equal(presentationDataError("null"), "no \"frames\" array");
-        assert.equal(presentationDataError("[1, 2]"), "no \"frames\" array");
+        assert.equal(presentationDataError("{}"), 'no "frames" array');
+        assert.equal(presentationDataError(JSON.stringify({frames: {}})), 'no "frames" array');
+        assert.equal(presentationDataError("null"), 'no "frames" array');
+        assert.equal(presentationDataError("[1, 2]"), 'no "frames" array');
     });
 });

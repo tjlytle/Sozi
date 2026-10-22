@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
- /** Internationalization support in the presentation editor.
-  *
-  * @module
-  */
+/** Internationalization support in the presentation editor.
+ *
+ * @module
+ */
 
 import Jed from "jed";
 import locales from "./locales";
@@ -27,11 +27,12 @@ function normalize(tag) {
  * @param {string} lang - A language tag to use, or `"auto"`.
  * @returns {Jed} - An instance of `Jed` that provides the `gettext` function.
  */
-export function init(lang="auto") {
+export function init(lang = "auto") {
     if (lang === "auto") {
-        lang = window.navigator.languages && window.navigator.languages.length ?
-            window.navigator.languages[0] :
-            (window.navigator.language || window.navigator.userLanguage || "en");
+        lang =
+            window.navigator.languages && window.navigator.languages.length
+                ? window.navigator.languages[0]
+                : window.navigator.language || window.navigator.userLanguage || "en";
     }
 
     // Normalize the given language tag and extract the language code alone

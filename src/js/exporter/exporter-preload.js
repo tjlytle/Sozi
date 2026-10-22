@@ -24,7 +24,12 @@ window.__soziExport = {
         const layerProperties = player.targetFrame.layerProperties;
         for (const camera of window.sozi.viewport.cameras) {
             const lp = layerProperties[camera.layer.index];
-            player.setupTransition(camera, lp.transitionTimingFunction, lp.transitionRelativeZoom, lp.transitionPath);
+            player.setupTransition(
+                camera,
+                lp.transitionTimingFunction,
+                lp.transitionRelativeZoom,
+                lp.transitionPath
+            );
         }
         return player.targetFrame.transitionDurationMs;
     },

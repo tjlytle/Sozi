@@ -72,8 +72,12 @@ function bezierSlope(t, a, b, c) {
  * @returns {Function} - A function that takes a coordinates X and computes the Y coordinate of the corresponding point of the Bézier curve.
  */
 export function makeBezier(x1, y1, x2, y2) {
-    const ax = A(x1, x2), bx = B(x1, x2), cx = C(x1);
-    const ay = A(y1, y2), by = B(y1, y2), cy = C(y1);
+    const ax = A(x1, x2),
+        bx = B(x1, x2),
+        cx = C(x1);
+    const ay = A(y1, y2),
+        by = B(y1, y2),
+        cy = C(y1);
 
     if (x1 === y1 && x2 === y2) {
         // Linear
@@ -82,7 +86,7 @@ export function makeBezier(x1, y1, x2, y2) {
         };
     }
 
-    return function(x) {
+    return function (x) {
         // Newton raphson iteration
         let t = x;
         for (let i = 0; i < 4; i++) {
@@ -115,7 +119,7 @@ export function makeSteps(n, start) {
  * @param {number} t - The current time, between 0 and 1.
  * @returns {number} - The actual progress, between 0 and 1.
  */
-export const linear = makeBezier(0.0,  0.0, 1.0,  1.0);
+export const linear = makeBezier(0.0, 0.0, 1.0, 1.0);
 linear.reverse = linear;
 
 /** An easing timing function.
@@ -131,14 +135,14 @@ ease.reverse = ease;
  * @param {number} t - The current time, between 0 and 1.
  * @returns {number} - The actual progress, between 0 and 1.
  */
-export const easeIn = makeBezier(0.42, 0.0, 1.0,  1.0);
+export const easeIn = makeBezier(0.42, 0.0, 1.0, 1.0);
 
 /** An ease-out timing function.
  *
  * @param {number} t - The current time, between 0 and 1.
  * @returns {number} - The actual progress, between 0 and 1.
  */
-export const easeOut = makeBezier(0.0,  0.0, 0.58, 1.0);
+export const easeOut = makeBezier(0.0, 0.0, 0.58, 1.0);
 
 easeIn.reverse = easeOut;
 easeOut.reverse = easeIn;

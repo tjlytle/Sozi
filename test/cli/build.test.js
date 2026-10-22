@@ -9,15 +9,26 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck, fixturesDir} = require("./helpers.js");
 
-/** Run `build` on a temp deck and check the output is a single JSON line. */
+/**
+ * Run `build` on a temp deck and check the output is a single JSON line.
+ * @param deck
+ * @param {...any} flags
+ */
 function build(deck, ...flags) {
     const run = runSozi(["build", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
-    assert.equal(run.stdout.trim().split("\n").length, 1, `stdout: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.equal(
+        run.stdout.trim().split("\n").length,
+        1,
+        `stdout: ${run.stdout}\nstderr: ${run.stderr}`
+    );
     assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
     return run;
 }
 
-/** The `soziPresentationData` object embedded in a presentation HTML file. */
+/**
+ * The `soziPresentationData` object embedded in a presentation HTML file.
+ * @param file
+ */
 function presentationData(file) {
     const match = /var soziPresentationData = (.*);<\/script>/.exec(fs.readFileSync(file, "utf8"));
     assert.ok(match, `no soziPresentationData in ${file}`);
@@ -49,9 +60,11 @@ describe("build", () => {
             }
             assert.match(fs.readFileSync(html, "utf8"), /soziPresentationData/);
             assert.match(fs.readFileSync(presenter, "utf8"), /basic\.sozi\.html/);
-            assert.deepEqual(fs.readFileSync(deck.json), fs.readFileSync(path.join(fixturesDir, "basic.sozi.json")));
-        }
-        finally {
+            assert.deepEqual(
+                fs.readFileSync(deck.json),
+                fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"))
+            );
+        } finally {
             deck.cleanup();
         }
     });
@@ -68,8 +81,7 @@ describe("build", () => {
             const text = fs.readFileSync(deck.json, "utf8");
             assert.notEqual(text, compact);
             assert.equal(JSON.parse(text).frames.length, 2);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -83,8 +95,7 @@ describe("build", () => {
             assert.equal(json.frames, 0);
             assert.deepEqual(json.files, [...Object.values(htmlPaths(deck)), deck.json]);
             assert.equal(JSON.parse(fs.readFileSync(deck.json, "utf8")).frames.length, 0);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -100,8 +111,7 @@ describe("build", () => {
             assert.equal(code, 0);
             assert.deepEqual(json.warnings, ["svg newer than existing html"]);
             assert.match(fs.readFileSync(html, "utf8"), /soziPresentationData/);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -116,8 +126,7 @@ describe("build", () => {
             const {code, json} = build(deck);
             assert.equal(code, 0);
             assert.deepEqual(json.warnings, []);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -132,8 +141,7 @@ describe("build", () => {
             assert.equal(json.command, "build");
             assert.match(json.error, /not valid SVG/);
             assert.ok(!fs.existsSync(htmlPaths(deck).html));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -146,13 +154,17 @@ describe("build", () => {
             const {code, json} = build(deck);
             assert.equal(code, 1);
             assert.equal(json.ok, false);
-            assert.match(json.error, new RegExp(`^presentation JSON could not be parsed: ${deck.json.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: .+`));
+            assert.match(
+                json.error,
+                new RegExp(
+                    `^presentation JSON could not be parsed: ${deck.json.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: .+`
+                )
+            );
             assert.deepEqual(fs.readFileSync(deck.json), before);
             for (const file of Object.values(htmlPaths(deck))) {
                 assert.ok(!fs.existsSync(file), file);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -165,8 +177,7 @@ describe("build", () => {
             assert.equal(code, 1);
             assert.equal(json.ok, false);
             assert.match(json.error, /EISDIR/);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -180,12 +191,18 @@ describe("build", () => {
             const built = presentationData(htmlPaths(deck).html).frames;
             const source = JSON.parse(fs.readFileSync(deck.json, "utf8")).frames;
             assert.equal(built.length, source.length);
-            assert.deepEqual(built.map(f => f.frameId), source.map(f => f.frameId));
+            assert.deepEqual(
+                built.map(f => f.frameId),
+                source.map(f => f.frameId)
+            );
             built.forEach((frame, i) => {
-                assert.deepEqual(Object.keys(frame.layerProperties).sort(), Object.keys(source[i].layerProperties).sort(), frame.frameId);
+                assert.deepEqual(
+                    Object.keys(frame.layerProperties).sort(),
+                    Object.keys(source[i].layerProperties).sort(),
+                    frame.frameId
+                );
             });
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -198,10 +215,12 @@ describe("build", () => {
                 const {code, json} = build(deck);
                 assert.equal(code, 0, `run ${run}: ${JSON.stringify(json)}`);
                 assert.ok(!json.files.includes(deck.json), `run ${run}`);
-                assert.ok(fs.readFileSync(deck.json).equals(original), `run ${run}: the JSON changed`);
+                assert.ok(
+                    fs.readFileSync(deck.json).equals(original),
+                    `run ${run}: the JSON changed`
+                );
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -220,13 +239,17 @@ describe("runner", () => {
             assert.deepEqual(json.warnings, []);
             assert.deepEqual(json.errors, []);
             assert.ok("svg" in json && "presentation" in json);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
 
-    /** Run with bad arguments: exit 2, a usage error, and no file written. */
+    /**
+     * Run with bad arguments: exit 2, a usage error, and no file written.
+     * @param deck
+     * @param args
+     * @param error
+     */
     function usageError(deck, args, error) {
         const before = fs.readdirSync(deck.dir).sort();
         const {code, stdout, json} = runSozi(args, {cwd: deck.dir});
@@ -242,11 +265,22 @@ describe("runner", () => {
     test("an unknown flag exits 2", () => {
         const deck = withTempDeck("basic");
         try {
-            usageError(deck, ["build", "--no-jsn", "basic.svg"], "unknown option for build: --no-jsn");
-            usageError(deck, ["build", "--no-json", "basic.svg"], "unknown option for build: --no-json");
-            usageError(deck, ["build", "basic.svg", "--verbose"], "unknown option for build: --verbose");
-        }
-        finally {
+            usageError(
+                deck,
+                ["build", "--no-jsn", "basic.svg"],
+                "unknown option for build: --no-jsn"
+            );
+            usageError(
+                deck,
+                ["build", "--no-json", "basic.svg"],
+                "unknown option for build: --no-json"
+            );
+            usageError(
+                deck,
+                ["build", "basic.svg", "--verbose"],
+                "unknown option for build: --verbose"
+            );
+        } finally {
             deck.cleanup();
         }
     });
@@ -254,9 +288,12 @@ describe("runner", () => {
     test("an unknown flag does not consume the file argument", () => {
         const deck = withTempDeck("basic");
         try {
-            usageError(deck, ["build", "--dry-run", "basic.svg"], "unknown option for build: --dry-run");
-        }
-        finally {
+            usageError(
+                deck,
+                ["build", "--dry-run", "basic.svg"],
+                "unknown option for build: --dry-run"
+            );
+        } finally {
             deck.cleanup();
         }
     });
@@ -264,9 +301,12 @@ describe("runner", () => {
     test("extra positional arguments exit 2", () => {
         const deck = withTempDeck("basic");
         try {
-            usageError(deck, ["build", "basic.svg", "basic.sozi.json"], "unexpected argument: basic.sozi.json");
-        }
-        finally {
+            usageError(
+                deck,
+                ["build", "basic.svg", "basic.sozi.json"],
+                "unexpected argument: basic.sozi.json"
+            );
+        } finally {
             deck.cleanup();
         }
     });

@@ -21,7 +21,7 @@ import {presentationFiles} from "../naming";
  * @returns {?string} - The path that is not a directory, or `null` if the directory is usable.
  */
 export function outputDirError(dir) {
-    const fs   = require("fs");
+    const fs = require("fs");
     const path = require("path");
 
     for (let p = dir; ; p = path.dirname(p)) {
@@ -54,22 +54,20 @@ export function resolveOutputDir({storage, svg, presentation, cwd, flags}) {
     const path = require("path");
 
     const flag = flags["out-dir"];
-    const key  = storage.presentation.outputDir;
+    const key = storage.presentation.outputDir;
     let dir, source, label;
     if (flag !== undefined) {
-        dir    = path.resolve(cwd, flag);
+        dir = path.resolve(cwd, flag);
         source = "flag";
-        label  = `--out-dir ${flag}`;
-    }
-    else if (key) {
-        dir    = path.resolve(presentationFiles(svg, presentation, {outputDir: key}).outputDir);
+        label = `--out-dir ${flag}`;
+    } else if (key) {
+        dir = path.resolve(presentationFiles(svg, presentation, {outputDir: key}).outputDir);
         source = "json";
-        label  = `outputDir ${key} of ${presentation}`;
-    }
-    else {
-        dir    = path.dirname(presentation);
+        label = `outputDir ${key} of ${presentation}`;
+    } else {
+        dir = path.dirname(presentation);
         source = "default";
-        label  = presentation;
+        label = presentation;
     }
     const bad = outputDirError(dir);
     return {dir, source, error: bad ? `${label}: ${bad} is not a directory` : null};

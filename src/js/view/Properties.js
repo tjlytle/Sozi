@@ -35,7 +35,6 @@ function asArray(v) {
  * @extends module:view/VirtualDOMView.VirtualDOMView
  */
 export class Properties extends VirtualDOMView {
-
     /** Initialize a new properties view.
      *
      * @param {HTMLElement} container - The HTML element that will contain this preview area.
@@ -76,9 +75,12 @@ export class Properties extends VirtualDOMView {
     /** @inheritdoc */
     render() {
         switch (this.mode) {
-            case "preferences": return this.renderPreferences();
-            case "export":      return this.renderExportTool();
-            default:            return this.renderPresentationProperties();
+            case "preferences":
+                return this.renderPreferences();
+            case "export":
+                return this.renderExportTool();
+            default:
+                return this.renderPresentationProperties();
         }
     }
 
@@ -92,42 +94,75 @@ export class Properties extends VirtualDOMView {
 
         const ACTION_LABELS = {
             autoselectOutlineElement: _("Autoselect outline element"),
-            resetLayer              : _("Reset layer geometry"),
-            addFrame                : _("Create a new frame"),
-            save                    : _("Save the presentation"),
-            redo                    : _("Redo"),
-            undo                    : _("Undo"),
-            focusTitleField         : _("Focus the frame title"),
-            reload                  : _("Reload the SVG document"),
-            toggleFullscreen        : _("Toggle full-screen mode"),
-            toggleDevTools          : _("Toggle the developer tools")
+            resetLayer: _("Reset layer geometry"),
+            addFrame: _("Create a new frame"),
+            save: _("Save the presentation"),
+            redo: _("Redo"),
+            undo: _("Undo"),
+            focusTitleField: _("Focus the frame title"),
+            reload: _("Reload the SVG document"),
+            toggleFullscreen: _("Toggle full-screen mode"),
+            toggleDevTools: _("Toggle the developer tools")
         };
 
-        let shortcuts = [];
-        for (let action in ACTION_LABELS) {
+        const shortcuts = [];
+        for (const action in ACTION_LABELS) {
             shortcuts.push(h("label", {for: `field-${action}`}, ACTION_LABELS[action]));
-            shortcuts.push(this.renderTextField(action, false, controller.getShortcut, controller.setShortcut, true));
+            shortcuts.push(
+                this.renderTextField(
+                    action,
+                    false,
+                    controller.getShortcut,
+                    controller.setShortcut,
+                    true
+                )
+            );
         }
 
         const toDefaultMode = () => this.toggleMode("default");
 
         return h("div.properties", [
-            h("div.back", {
-                title: _("Back to presentation properties"),
-                onClick() { toDefaultMode(); }
-            }, h("i.fa.fa-arrow-left", )),
+            h(
+                "div.back",
+                {
+                    title: _("Back to presentation properties"),
+                    onClick() {
+                        toDefaultMode();
+                    }
+                },
+                h("i.fa.fa-arrow-left")
+            ),
 
             h("h1", _("User interface")),
 
             h("label", {for: "field-language"}, _("Language")),
-            this.renderSelectField("language", controller.getPreference, controller.setPreference, getLanguages(_)),
+            this.renderSelectField(
+                "language",
+                controller.getPreference,
+                controller.setPreference,
+                getLanguages(_)
+            ),
 
             h("label", {for: "field-fontSize"}, _("Font size")),
-            this.renderNumberField("fontSize", false, controller.getPreference, controller.setPreference, false, 1, 1),
+            this.renderNumberField(
+                "fontSize",
+                false,
+                controller.getPreference,
+                controller.setPreference,
+                false,
+                1,
+                1
+            ),
 
             h("label.side-by-side", {for: "field-enableNotifications"}, [
                 _("Enable notifications on save and reload"),
-                this.renderToggleField(h("i.fa.fa-info"), _("Enable notifications"), "enableNotifications", controller.getPreference, controller.setPreference)
+                this.renderToggleField(
+                    h("i.fa.fa-info"),
+                    _("Enable notifications"),
+                    "enableNotifications",
+                    controller.getPreference,
+                    controller.setPreference
+                )
             ]),
 
             h("label", {for: "field-saveMode"}, _("Save the presentation")),
@@ -137,17 +172,28 @@ export class Properties extends VirtualDOMView {
             }),
 
             h("label", {for: "field-reloadMode"}, _("Reload the SVG document")),
-            this.renderSelectField("reloadMode", controller.getPreference, controller.setPreference, {
-                auto:    _("Automatically"),
-                onfocus: _("When Sozi gets the focus"),
-                manual:  _("Manually")
-            }),
+            this.renderSelectField(
+                "reloadMode",
+                controller.getPreference,
+                controller.setPreference,
+                {
+                    auto: _("Automatically"),
+                    onfocus: _("When Sozi gets the focus"),
+                    manual: _("Manually")
+                }
+            ),
 
             h("h1", _("Behavior")),
 
             h("label.side-by-side", {for: "field-animateTransitions"}, [
                 _("Preview transition animations"),
-                this.renderToggleField(h("i.fa.fa-film"), _("Enable animated transitions"), "animateTransitions", controller.getPreference, controller.setPreference)
+                this.renderToggleField(
+                    h("i.fa.fa-film"),
+                    _("Enable animated transitions"),
+                    "animateTransitions",
+                    controller.getPreference,
+                    controller.setPreference
+                )
             ]),
 
             h("h1", _("Keyboard shortcuts")),
@@ -158,14 +204,27 @@ export class Properties extends VirtualDOMView {
 
             h("label.side-by-side", {for: "field-enableHardwareAcceleration"}, [
                 _("Hardware acceleration"),
-                this.renderToggleField(h("i.fa.fa-microchip"), _("Enable hardware acceleration (effective after restarting the application)"), "enableHardwareAcceleration", controller.getAppSetting, controller.setAppSetting)
+                this.renderToggleField(
+                    h("i.fa.fa-microchip"),
+                    _("Enable hardware acceleration (effective after restarting the application)"),
+                    "enableHardwareAcceleration",
+                    controller.getAppSetting,
+                    controller.setAppSetting
+                )
             ]),
 
             h("label.side-by-side", {for: "field-enableColorCorrectRendering"}, [
                 _("Color correct rendering"),
-                this.renderToggleField(h("i.fa.fa-paint-brush"), _("Enable color correct rendering (effective after restarting the application)"), "enableColorCorrectRendering", controller.getAppSetting, controller.setAppSetting)
-            ]),
-
+                this.renderToggleField(
+                    h("i.fa.fa-paint-brush"),
+                    _(
+                        "Enable color correct rendering (effective after restarting the application)"
+                    ),
+                    "enableColorCorrectRendering",
+                    controller.getAppSetting,
+                    controller.setAppSetting
+                )
+            ])
         ]);
     }
 
@@ -190,11 +249,15 @@ export class Properties extends VirtualDOMView {
             _("Ctrl+L: List"),
             _("Ctrl+N: Numbered list"),
             _("Ctrl+>: Indent list entry"),
-            _("Ctrl+<: Outdent list entry"),
+            _("Ctrl+<: Outdent list entry")
         ].join("<br>");
 
-        const timeoutMsDisabled = controller.getFrameProperty("timeoutEnable").every(value => !value);
-        const showInFrameListDisabled = controller.getFrameProperty("showInFrameList").every(value => !value);
+        const timeoutMsDisabled = controller
+            .getFrameProperty("timeoutEnable")
+            .every(value => !value);
+        const showInFrameListDisabled = controller
+            .getFrameProperty("showInFrameList")
+            .every(value => !value);
 
         const layersToCopy = {
             __select_a_layer__: _("Select a layer to copy")
@@ -202,7 +265,7 @@ export class Properties extends VirtualDOMView {
         if (this.controller.hasDefaultLayer) {
             layersToCopy.__default__ = _("Default");
         }
-        for (let layer of this.controller.editableLayers) {
+        for (const layer of this.controller.editableLayers) {
             layersToCopy[layer.groupId] = layer.label;
         }
 
@@ -210,90 +273,239 @@ export class Properties extends VirtualDOMView {
             h("h1", _("Frame")),
 
             h("div.btn-group", [
-                    this.renderToggleField(h("i.fa.fa-list"), _("Show in frame list"), "showInFrameList", controller.getFrameProperty, controller.setFrameProperty),
-                    this.renderToggleField(h("i.fa.fa-hashtag"), _("Show frame number"), "showFrameNumber", controller.getFrameProperty, controller.setFrameProperty)
+                this.renderToggleField(
+                    h("i.fa.fa-list"),
+                    _("Show in frame list"),
+                    "showInFrameList",
+                    controller.getFrameProperty,
+                    controller.setFrameProperty
+                ),
+                this.renderToggleField(
+                    h("i.fa.fa-hashtag"),
+                    _("Show frame number"),
+                    "showFrameNumber",
+                    controller.getFrameProperty,
+                    controller.setFrameProperty
+                )
             ]),
 
             h("label", {for: "field-title"}, _("Title")),
-            this.renderTextField("title", false, controller.getFrameProperty, controller.setFrameProperty, true),
+            this.renderTextField(
+                "title",
+                false,
+                controller.getFrameProperty,
+                controller.setFrameProperty,
+                true
+            ),
 
             h("label", {for: "field-titleLevel"}, _("Title level in frame list")),
-            this.renderRangeField("titleLevel", showInFrameListDisabled, controller.getFrameProperty, controller.setFrameProperty, 0, 4, 1),
+            this.renderRangeField(
+                "titleLevel",
+                showInFrameListDisabled,
+                controller.getFrameProperty,
+                controller.setFrameProperty,
+                0,
+                4,
+                1
+            ),
 
             h("label", {for: "field-frameId"}, _("Id")),
-            this.renderTextField("frameId", false, controller.getFrameProperty, controller.setFrameProperty, false),
+            this.renderTextField(
+                "frameId",
+                false,
+                controller.getFrameProperty,
+                controller.setFrameProperty,
+                false
+            ),
 
             h("label.side-by-side", {for: "field-timeoutMs"}, [
                 _("Timeout (seconds)"),
-                this.renderToggleField(h("i.fa.fa-clock-o"), _("Timeout enable"), "timeoutEnable", controller.getFrameProperty, controller.setFrameProperty)
+                this.renderToggleField(
+                    h("i.fa.fa-clock-o"),
+                    _("Timeout enable"),
+                    "timeoutEnable",
+                    controller.getFrameProperty,
+                    controller.setFrameProperty
+                )
             ]),
-            this.renderNumberField("timeoutMs", timeoutMsDisabled, controller.getFrameProperty, controller.setFrameProperty, false, 0.1, 1000),
+            this.renderNumberField(
+                "timeoutMs",
+                timeoutMsDisabled,
+                controller.getFrameProperty,
+                controller.setFrameProperty,
+                false,
+                0.1,
+                1000
+            ),
 
             h("h1", _("Layer")),
 
             h("div.btn-group", [
-                this.renderToggleField(h("i.fa.fa-link"), _("Link to previous frame"), "link", controller.getLayerProperty, controller.setLayerProperty),
-                this.renderToggleField(h("i.fa.fa-crop"), _("Clip"), "clipped", controller.getCameraProperty, controller.setCameraProperty),
-                h("button", {
-                    title: _("Reset layer geometry"),
-                    onclick() { controller.resetLayer(); }
-                }, h("i.fa.fa-eraser"))
+                this.renderToggleField(
+                    h("i.fa.fa-link"),
+                    _("Link to previous frame"),
+                    "link",
+                    controller.getLayerProperty,
+                    controller.setLayerProperty
+                ),
+                this.renderToggleField(
+                    h("i.fa.fa-crop"),
+                    _("Clip"),
+                    "clipped",
+                    controller.getCameraProperty,
+                    controller.setCameraProperty
+                ),
+                h(
+                    "button",
+                    {
+                        title: _("Reset layer geometry"),
+                        onclick() {
+                            controller.resetLayer();
+                        }
+                    },
+                    h("i.fa.fa-eraser")
+                )
             ]),
 
             h("label", {for: "field-layerToCopy"}, _("Copy layer")),
-            this.renderSelectField("layerToCopy", () => "__select_a_layer__", (prop, groupId) => {
-                controller.copyLayer(groupId);
-                document.getElementById("field-layerToCopy").firstChild.selected = true;
-            }, layersToCopy),
+            this.renderSelectField(
+                "layerToCopy",
+                () => "__select_a_layer__",
+                (prop, groupId) => {
+                    controller.copyLayer(groupId);
+                    document.getElementById("field-layerToCopy").firstChild.selected = true;
+                },
+                layersToCopy
+            ),
 
             h("label.side-by-side", {for: "field-outlineElementId"}, [
                 _("Outline element Id"),
                 h("span.btn-group", [
-                    h("button", {
-                        title: _("Autoselect element"),
-                        onclick() { controller.autoselectOutlineElement(); }
-                    }, h("i.fa.fa-magic")),
-                    this.renderToggleField(h("i.fa.fa-eye-slash"), _("Hide element"), "outlineElementHide", controller.getLayerProperty, controller.setLayerProperty),
-                    h("button", {
-                        title: _("Fit to element"),
-                        onclick() { controller.fitElement(); }
-                    }, h("i.fa.fa-arrows-alt")),
+                    h(
+                        "button",
+                        {
+                            title: _("Autoselect element"),
+                            onclick() {
+                                controller.autoselectOutlineElement();
+                            }
+                        },
+                        h("i.fa.fa-magic")
+                    ),
+                    this.renderToggleField(
+                        h("i.fa.fa-eye-slash"),
+                        _("Hide element"),
+                        "outlineElementHide",
+                        controller.getLayerProperty,
+                        controller.setLayerProperty
+                    ),
+                    h(
+                        "button",
+                        {
+                            title: _("Fit to element"),
+                            onclick() {
+                                controller.fitElement();
+                            }
+                        },
+                        h("i.fa.fa-arrows-alt")
+                    )
                 ])
             ]),
-            this.renderTextField("outlineElementId", false, controller.getLayerProperty, controller.setLayerProperty, true),
+            this.renderTextField(
+                "outlineElementId",
+                false,
+                controller.getLayerProperty,
+                controller.setLayerProperty,
+                true
+            ),
 
             h("label", {for: "field-opacity"}, _("Layer opacity")),
-            this.renderRangeField("opacity", false, controller.getCameraProperty, controller.setCameraProperty, 0, 1, 0.1),
+            this.renderRangeField(
+                "opacity",
+                false,
+                controller.getCameraProperty,
+                controller.setCameraProperty,
+                0,
+                1,
+                0.1
+            ),
 
-            h("h1", [_("Transition"), this.renderHelp(_("Configure the animation when moving to the selected frames."))]),
+            h("h1", [
+                _("Transition"),
+                this.renderHelp(_("Configure the animation when moving to the selected frames."))
+            ]),
 
             h("label", {for: "field-transitionDurationMs"}, _("Duration (seconds)")),
-            this.renderNumberField("transitionDurationMs", false, controller.getFrameProperty, controller.setFrameProperty, false, 0.1, 1000),
+            this.renderNumberField(
+                "transitionDurationMs",
+                false,
+                controller.getFrameProperty,
+                controller.setFrameProperty,
+                false,
+                0.1,
+                1000
+            ),
 
             h("label", {for: "field-transitionTimingFunction"}, _("Timing function")),
-            this.renderSelectField("transitionTimingFunction", controller.getLayerProperty, controller.setLayerProperty, {
-                "linear":     _("Linear"),
-                "ease":       _("Ease"),
-                "easeIn":     _("Ease in"),
-                "easeOut":    _("Ease out"),
-                "easeInOut":  _("Ease in-out"),
-                "stepStart":  _("Step start"),
-                "stepEnd":    _("Step end"),
-                "stepMiddle": _("Step middle")
-            }),
+            this.renderSelectField(
+                "transitionTimingFunction",
+                controller.getLayerProperty,
+                controller.setLayerProperty,
+                {
+                    linear: _("Linear"),
+                    ease: _("Ease"),
+                    easeIn: _("Ease in"),
+                    easeOut: _("Ease out"),
+                    easeInOut: _("Ease in-out"),
+                    stepStart: _("Step start"),
+                    stepEnd: _("Step end"),
+                    stepMiddle: _("Step middle")
+                }
+            ),
 
             h("label", {for: "field-transitionRelativeZoom"}, _("Relative zoom (%)")),
-            this.renderNumberField("transitionRelativeZoom", false, controller.getLayerProperty, controller.setLayerProperty, true, 1, 0.01),
+            this.renderNumberField(
+                "transitionRelativeZoom",
+                false,
+                controller.getLayerProperty,
+                controller.setLayerProperty,
+                true,
+                1,
+                0.01
+            ),
 
             h("label.side-by-side", {for: "field-transitionPathId"}, [
                 _("Path Id"),
-                this.renderToggleField(h("i.fa.fa-eye-slash"), _("Hide path"), "transitionPathHide", controller.getLayerProperty, controller.setLayerProperty)
+                this.renderToggleField(
+                    h("i.fa.fa-eye-slash"),
+                    _("Hide path"),
+                    "transitionPathHide",
+                    controller.getLayerProperty,
+                    controller.setLayerProperty
+                )
             ]),
-            this.renderTextField("transitionPathId", false, controller.getLayerProperty, controller.setLayerProperty, true),
+            this.renderTextField(
+                "transitionPathId",
+                false,
+                controller.getLayerProperty,
+                controller.setLayerProperty,
+                true
+            ),
 
-            h("h1", [_("Notes"), this.renderHelp(_("Edit presenter notes. Click here to show the list of formatting shortcuts."), NOTES_HELP)]),
+            h("h1", [
+                _("Notes"),
+                this.renderHelp(
+                    _("Edit presenter notes. Click here to show the list of formatting shortcuts."),
+                    NOTES_HELP
+                )
+            ]),
 
-            this.renderRichTextField("notes", false, controller.getFrameProperty, controller.setFrameProperty, true),
+            this.renderRichTextField(
+                "notes",
+                false,
+                controller.getFrameProperty,
+                controller.setFrameProperty,
+                true
+            ),
 
             h("h1", _("Custom stylesheets and scripts")),
 
@@ -308,25 +520,42 @@ export class Properties extends VirtualDOMView {
             }),
             h("table.custom-css-js", [
                 h("tr", [
-                    h("th", controller.getCustomFiles().length ? _("CSS or JS file names") : _("Add CSS or JS files")),
+                    h(
+                        "th",
+                        controller.getCustomFiles().length
+                            ? _("CSS or JS file names")
+                            : _("Add CSS or JS files")
+                    ),
                     h("td", [
-                        h("button", {
-                            title: _("Add a file"),
-                            onClick() {
-                                // Open the file chooser.
-                                document.querySelector(".properties input.custom-css-js").dispatchEvent(new MouseEvent("click"));
-                            }
-                        }, h("i.fa.fa-plus"))
+                        h(
+                            "button",
+                            {
+                                title: _("Add a file"),
+                                onClick() {
+                                    // Open the file chooser.
+                                    document
+                                        .querySelector(".properties input.custom-css-js")
+                                        .dispatchEvent(new MouseEvent("click"));
+                                }
+                            },
+                            h("i.fa.fa-plus")
+                        )
                     ])
                 ]),
                 controller.getCustomFiles().map((name, index) =>
                     h("tr", [
                         h("td", name),
                         h("td", [
-                            h("button", {
-                                title: _("Remove this file"),
-                                onClick() { controller.removeCustomFile(index); }
-                            }, h("i.fa.fa-trash"))
+                            h(
+                                "button",
+                                {
+                                    title: _("Remove this file"),
+                                    onClick() {
+                                        controller.removeCustomFile(index);
+                                    }
+                                },
+                                h("i.fa.fa-trash")
+                            )
                         ])
                     ])
                 )
@@ -335,41 +564,96 @@ export class Properties extends VirtualDOMView {
             h("h1", _("Player")),
 
             h("label", {for: "field-explicitTitle"}, _("Presentation title")),
-            this.renderTextField("explicitTitle", false, controller.getPresentationProperty,
-                (property, value) => controller.setPresentationProperty(property, value.trim()), true,
-                controller.presentation.svgTitle || "Untitled"),
+            this.renderTextField(
+                "explicitTitle",
+                false,
+                controller.getPresentationProperty,
+                (property, value) => controller.setPresentationProperty(property, value.trim()),
+                true,
+                controller.presentation.svgTitle || "Untitled"
+            ),
 
             h("div.side-by-side", [
-                _("Support the browser's \"Back\" button to move to the previous frame"),
-                this.renderToggleField(h("i.fa.fa-arrow-circle-left"), _("Moving from one frame to another will change the content of the location bar automatically."), "updateURLOnFrameChange", controller.getPresentationProperty, controller.setPresentationProperty)
+                _('Support the browser\'s "Back" button to move to the previous frame'),
+                this.renderToggleField(
+                    h("i.fa.fa-arrow-circle-left"),
+                    _(
+                        "Moving from one frame to another will change the content of the location bar automatically."
+                    ),
+                    "updateURLOnFrameChange",
+                    controller.getPresentationProperty,
+                    controller.setPresentationProperty
+                )
             ]),
 
             h("div.side-by-side", [
                 _("Allow to control the presentation"),
                 h("span.btn-group", [
-                    this.renderToggleField(h("i.fa.fa-mouse-pointer"), _("using the mouse"), "enableMouseNavigation", controller.getPresentationProperty, controller.setPresentationProperty),
-                    this.renderToggleField(h("i.fa.fa-keyboard-o"), _("using the keyboard"), "enableKeyboardNavigation", controller.getPresentationProperty, controller.setPresentationProperty)
+                    this.renderToggleField(
+                        h("i.fa.fa-mouse-pointer"),
+                        _("using the mouse"),
+                        "enableMouseNavigation",
+                        controller.getPresentationProperty,
+                        controller.setPresentationProperty
+                    ),
+                    this.renderToggleField(
+                        h("i.fa.fa-keyboard-o"),
+                        _("using the keyboard"),
+                        "enableKeyboardNavigation",
+                        controller.getPresentationProperty,
+                        controller.setPresentationProperty
+                    )
                 ])
             ]),
 
             h("div.side-by-side", [
                 _("Allow to move the camera"),
-                this.renderToggleField(h("i.fa.fa-mouse-pointer"), _("using the mouse"), "enableMouseTranslation", controller.getPresentationProperty, controller.setPresentationProperty)
+                this.renderToggleField(
+                    h("i.fa.fa-mouse-pointer"),
+                    _("using the mouse"),
+                    "enableMouseTranslation",
+                    controller.getPresentationProperty,
+                    controller.setPresentationProperty
+                )
             ]),
 
             h("div.side-by-side", [
                 _("Allow to rotate the camera"),
                 h("span.btn-group", [
-                    this.renderToggleField(h("i.fa.fa-mouse-pointer"), _("using the mouse"), "enableMouseRotation", controller.getPresentationProperty, controller.setPresentationProperty),
-                    this.renderToggleField(h("i.fa.fa-keyboard-o"), _("using the keyboard"), "enableKeyboardRotation", controller.getPresentationProperty, controller.setPresentationProperty)
+                    this.renderToggleField(
+                        h("i.fa.fa-mouse-pointer"),
+                        _("using the mouse"),
+                        "enableMouseRotation",
+                        controller.getPresentationProperty,
+                        controller.setPresentationProperty
+                    ),
+                    this.renderToggleField(
+                        h("i.fa.fa-keyboard-o"),
+                        _("using the keyboard"),
+                        "enableKeyboardRotation",
+                        controller.getPresentationProperty,
+                        controller.setPresentationProperty
+                    )
                 ])
             ]),
 
             h("div.side-by-side", [
                 _("Allow to zoom"),
                 h("span.btn-group", [
-                    this.renderToggleField(h("i.fa.fa-mouse-pointer"), _("using the mouse"), "enableMouseZoom", controller.getPresentationProperty, controller.setPresentationProperty),
-                    this.renderToggleField(h("i.fa.fa-keyboard-o"), _("using the keyboard"), "enableKeyboardZoom", controller.getPresentationProperty, controller.setPresentationProperty)
+                    this.renderToggleField(
+                        h("i.fa.fa-mouse-pointer"),
+                        _("using the mouse"),
+                        "enableMouseZoom",
+                        controller.getPresentationProperty,
+                        controller.setPresentationProperty
+                    ),
+                    this.renderToggleField(
+                        h("i.fa.fa-keyboard-o"),
+                        _("using the keyboard"),
+                        "enableKeyboardZoom",
+                        controller.getPresentationProperty,
+                        controller.setPresentationProperty
+                    )
                 ])
             ])
         ]);
@@ -385,10 +669,10 @@ export class Properties extends VirtualDOMView {
         return [
             _("Examples of frame lists to include/exclude in export"),
             "",
-            _("Select frames 2, 5, and 12: \"2, 5, 12\""),
-            _("Select frames 5 to 8: \"5:8\""),
-            _("Select frames 5, 8, 11, 14, and 17: \"5:8:17\""),
-            _("Select frames 2, 5, and 10 to 15: \"2, 5, 10:15\"")
+            _('Select frames 2, 5, and 12: "2, 5, 12"'),
+            _('Select frames 5 to 8: "5:8"'),
+            _('Select frames 5, 8, 11, 14, and 17: "5:8:17"'),
+            _('Select frames 2, 5, and 10 to 15: "2, 5, 10:15"')
         ].join("<br>");
     }
 
@@ -404,46 +688,63 @@ export class Properties extends VirtualDOMView {
         switch (controller.presentation.exportType) {
             case "pdf":
                 exportFields = this.renderPDFExportFields();
-                exportFn     = controller.exportToPDF;
+                exportFn = controller.exportToPDF;
                 break;
             case "pptx":
                 exportFields = this.renderPPTXExportFields();
-                exportFn     = controller.exportToPPTX;
+                exportFn = controller.exportToPPTX;
                 break;
             case "video":
                 exportFields = this.renderVideoExportFields();
-                exportFn     = controller.exportToVideo;
+                exportFn = controller.exportToVideo;
                 break;
             default:
                 exportFields = [];
-                exportFn     = () => {}
+                exportFn = () => {};
         }
 
         const toDefaultMode = () => this.toggleMode("default");
 
         return h("div.properties", [
-            h("div.back", {
-                title: _("Back to presentation properties"),
-                onClick() { toDefaultMode(); }
-            }, h("i.fa.fa-arrow-left", )),
+            h(
+                "div.back",
+                {
+                    title: _("Back to presentation properties"),
+                    onClick() {
+                        toDefaultMode();
+                    }
+                },
+                h("i.fa.fa-arrow-left")
+            ),
 
             h("h1", _("Export")),
 
             h("label", {for: "field-exportType"}, _("Document type")),
-            this.renderSelectField("exportType", controller.getPresentationProperty, controller.setPresentationProperty, {
-                pdf: _("Portable Document Format (PDF)"),
-                pptx: _("Microsoft PowerPoint (PPTX)"),
-                video: _("Video")
-            }),
+            this.renderSelectField(
+                "exportType",
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                {
+                    pdf: _("Portable Document Format (PDF)"),
+                    pptx: _("Microsoft PowerPoint (PPTX)"),
+                    video: _("Video")
+                }
+            ),
 
             exportFields,
 
             h("div.btn-group", [
-                h("button", {
-                    title: _("Export the presentation"),
-                    disabled: controller.exporting,
-                    onClick() { exportFn.call(controller); }
-                }, [_("Export"), controller.exporting ? h("span.spinner") : null])
+                h(
+                    "button",
+                    {
+                        title: _("Export the presentation"),
+                        disabled: controller.exporting,
+                        onClick() {
+                            exportFn.call(controller);
+                        }
+                    },
+                    [_("Export"), controller.exporting ? h("span.spinner") : null]
+                )
             ])
         ]);
     }
@@ -458,32 +759,60 @@ export class Properties extends VirtualDOMView {
 
         return [
             h("label", {for: "field-exportToPDFPageSize"}, _("Page size")),
-            this.renderSelectField("exportToPDFPageSize", controller.getPresentationProperty, controller.setPresentationProperty, {
-                A3     : _("A3"),
-                A4     : _("A4"),
-                A5     : _("A5"),
-                Legal  : _("Legal"),
-                Letter : _("Letter"),
-                Tabloid: _("Tabloid")
-            }),
+            this.renderSelectField(
+                "exportToPDFPageSize",
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                {
+                    A3: _("A3"),
+                    A4: _("A4"),
+                    A5: _("A5"),
+                    Legal: _("Legal"),
+                    Letter: _("Letter"),
+                    Tabloid: _("Tabloid")
+                }
+            ),
 
             h("label", {for: "field-exportToPDFPageOrientation"}, _("Page orientation")),
-            this.renderSelectField("exportToPDFPageOrientation", controller.getPresentationProperty, controller.setPresentationProperty, {
-                landscape: _("Landscape"),
-                portrait: _("Portrait")
-            }),
+            this.renderSelectField(
+                "exportToPDFPageOrientation",
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                {
+                    landscape: _("Landscape"),
+                    portrait: _("Portrait")
+                }
+            ),
 
             h("label.side-by-side", {for: "field-exportToPDFInclude"}, [
                 _("List of frames to include"),
-                this.renderHelp(_("Click here to see the syntax for this field"), this.exportListHelp)
+                this.renderHelp(
+                    _("Click here to see the syntax for this field"),
+                    this.exportListHelp
+                )
             ]),
-            this.renderTextField("exportToPDFInclude", false, controller.getPresentationProperty, controller.setPresentationProperty, true),
+            this.renderTextField(
+                "exportToPDFInclude",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                true
+            ),
 
             h("label.side-by-side", {for: "field-exportToPDFExclude"}, [
                 _("List of frames to exclude"),
-                this.renderHelp(_("Click here to see the syntax for this field"), this.exportListHelp)
+                this.renderHelp(
+                    _("Click here to see the syntax for this field"),
+                    this.exportListHelp
+                )
             ]),
-            this.renderTextField("exportToPDFExclude", false, controller.getPresentationProperty, controller.setPresentationProperty, true)
+            this.renderTextField(
+                "exportToPDFExclude",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                true
+            )
         ];
     }
 
@@ -496,35 +825,58 @@ export class Properties extends VirtualDOMView {
         const _ = controller.gettext;
         return [
             h("label", {for: "field-exportToPPTXSlideSize"}, _("Slide size")),
-            this.renderSelectField("exportToPPTXSlideSize", controller.getPresentationProperty, controller.setPresentationProperty, {
-                "35mm"     : _("35 mm"),
-                A3         : _("A3"),
-                A4         : _("A4"),
-                B4ISO      : _("B4 (ISO)"),
-                B4JIS      : _("B4 (JIS)"),
-                B5ISO      : _("B5 (ISO)"),
-                B5JIS      : _("B5 (JIS)"),
-                banner     : _("Banner"),
-                hagakiCard : _("Hagaki Card"),
-                ledger     : _("Tabloid"),
-                letter     : _("Letter"),
-                overhead   : _("Overhead"),
-                screen16x10: _("Screen 16:10"),
-                screen16x9 : _("Screen 16:9"),
-                screen4x3  : _("Screen 4:3")
-            }),
+            this.renderSelectField(
+                "exportToPPTXSlideSize",
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                {
+                    "35mm": _("35 mm"),
+                    A3: _("A3"),
+                    A4: _("A4"),
+                    B4ISO: _("B4 (ISO)"),
+                    B4JIS: _("B4 (JIS)"),
+                    B5ISO: _("B5 (ISO)"),
+                    B5JIS: _("B5 (JIS)"),
+                    banner: _("Banner"),
+                    hagakiCard: _("Hagaki Card"),
+                    ledger: _("Tabloid"),
+                    letter: _("Letter"),
+                    overhead: _("Overhead"),
+                    screen16x10: _("Screen 16:10"),
+                    screen16x9: _("Screen 16:9"),
+                    screen4x3: _("Screen 4:3")
+                }
+            ),
 
             h("label.side-by-side", {for: "field-exportToPPTXInclude"}, [
                 _("List of frames to include"),
-                this.renderHelp(_("Click here to see the syntax for this field"), this.exportListHelp)
+                this.renderHelp(
+                    _("Click here to see the syntax for this field"),
+                    this.exportListHelp
+                )
             ]),
-            this.renderTextField("exportToPPTXInclude", false, controller.getPresentationProperty, controller.setPresentationProperty, true),
+            this.renderTextField(
+                "exportToPPTXInclude",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                true
+            ),
 
             h("label.side-by-side", {for: "field-exportToPPTXExclude"}, [
                 _("List of frames to exclude"),
-                this.renderHelp(_("Click here to see the syntax for this field"), this.exportListHelp)
+                this.renderHelp(
+                    _("Click here to see the syntax for this field"),
+                    this.exportListHelp
+                )
             ]),
-            this.renderTextField("exportToPPTXExclude", false, controller.getPresentationProperty, controller.setPresentationProperty, true)
+            this.renderTextField(
+                "exportToPPTXExclude",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                true
+            )
         ];
     }
 
@@ -538,25 +890,62 @@ export class Properties extends VirtualDOMView {
 
         return [
             h("label", {for: "field-exportToVideoFormat"}, _("Format")),
-            this.renderSelectField("exportToVideoFormat", controller.getPresentationProperty, controller.setPresentationProperty, {
-                mp4  : _("MPEG-4 (.mp4)"),
-                ogv  : _("Ogg Vorbis (.ogv)"),
-                webm : _("WebM (.webm)"),
-                wmv  : _("Windows Media Video (.wmv)"),
-                png  : _("Image sequence (.png)")
-            }),
+            this.renderSelectField(
+                "exportToVideoFormat",
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                {
+                    mp4: _("MPEG-4 (.mp4)"),
+                    ogv: _("Ogg Vorbis (.ogv)"),
+                    webm: _("WebM (.webm)"),
+                    wmv: _("Windows Media Video (.wmv)"),
+                    png: _("Image sequence (.png)")
+                }
+            ),
 
             h("label", {for: "field-exportToVideoWidth"}, _("Width (pixels)")),
-            this.renderNumberField("exportToVideoWidth", false, controller.getPresentationProperty, controller.setPresentationProperty, false, 1, 1),
+            this.renderNumberField(
+                "exportToVideoWidth",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                false,
+                1,
+                1
+            ),
 
             h("label", {for: "field-exportToVideoHeight"}, _("Height (pixels)")),
-            this.renderNumberField("exportToVideoHeight", false, controller.getPresentationProperty, controller.setPresentationProperty, false, 1, 1),
+            this.renderNumberField(
+                "exportToVideoHeight",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                false,
+                1,
+                1
+            ),
 
             h("label", {for: "field-exportToVideoFrameRate"}, _("Frame rate (frames/sec)")),
-            this.renderNumberField("exportToVideoFrameRate", false, controller.getPresentationProperty, controller.setPresentationProperty, false, 1, 1),
+            this.renderNumberField(
+                "exportToVideoFrameRate",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                false,
+                1,
+                1
+            ),
 
             h("label", {for: "field-exportToVideoBitRate"}, _("Bit rate (kbits/sec)")),
-            this.renderNumberField("exportToVideoBitRate", false, controller.getPresentationProperty, controller.setPresentationProperty, false, 1, 1000),
+            this.renderNumberField(
+                "exportToVideoBitRate",
+                false,
+                controller.getPresentationProperty,
+                controller.setPresentationProperty,
+                false,
+                1,
+                1000
+            )
         ];
     }
 
@@ -567,10 +956,12 @@ export class Properties extends VirtualDOMView {
      * @returns {VNode} - A virtual DOM tree.
      */
     renderHelp(text, info) {
-        const onclick = info && (() => {
-            this.controller.hideNotification();
-            this.controller.info(info, true)
-        });
+        const onclick =
+            info &&
+            (() => {
+                this.controller.hideNotification();
+                this.controller.info(info, true);
+            });
         return h("span.help", {title: text, onclick}, h("i.fa.fa-question-circle"));
     }
 
@@ -640,7 +1031,7 @@ export class Properties extends VirtualDOMView {
             },
             onkeydown(evt) {
                 if (evt.ctrlKey) {
-                    switch(evt.keyCode) {
+                    switch (evt.keyCode) {
                         case 48: // Ctrl+0
                             document.execCommand("formatBlock", false, "<P>");
                             break;
@@ -729,7 +1120,9 @@ export class Properties extends VirtualDOMView {
 
         const values = asArray(getter.call(controller, property));
         const className = values.length > 1 ? "multiple" : undefined;
-        this.state[property] = {value: values.length >= 1 ? values[values.length - 1] : (min + max) / 2}; // TODO use default value
+        this.state[property] = {
+            value: values.length >= 1 ? values[values.length - 1] : (min + max) / 2
+        }; // TODO use default value
 
         return h("input", {
             id: "field-" + property,
@@ -768,13 +1161,17 @@ export class Properties extends VirtualDOMView {
             className += " active";
         }
 
-        return h("button", {
-            className,
-            title,
-            onclick() {
-                setter.call(controller, property, !value);
-            }
-        }, label);
+        return h(
+            "button",
+            {
+                className,
+                title,
+                onclick() {
+                    setter.call(controller, property, !value);
+                }
+            },
+            label
+        );
     }
 
     /** Create a drop-down list.
@@ -792,16 +1189,24 @@ export class Properties extends VirtualDOMView {
         const className = values.length > 1 ? "multiple" : undefined;
         const value = values.length >= 1 ? values[values.length - 1] : options[0];
 
-        return h("select", {
+        return h(
+            "select",
+            {
                 id: "field-" + property,
                 className,
                 onchange() {
                     setter.call(controller, property, this.value);
                 }
-            }, Object.keys(options).map(optionValue => h("option", {
-                    value: optionValue,
-                    selected: value === optionValue
-                }, options[optionValue])
+            },
+            Object.keys(options).map(optionValue =>
+                h(
+                    "option",
+                    {
+                        value: optionValue,
+                        selected: value === optionValue
+                    },
+                    options[optionValue]
+                )
             )
         );
     }

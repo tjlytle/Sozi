@@ -15,12 +15,21 @@
  */
 
 import {build, FLAGS as buildFlags} from "./commands/build";
-import {exportPresentation, FLAGS as exportFlags, checkFlags as checkExportFlags} from "./commands/export";
+import {
+    exportPresentation,
+    FLAGS as exportFlags,
+    checkFlags as checkExportFlags
+} from "./commands/export";
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
 import {render, FLAGS as renderFlags, checkFlags as checkRenderFlags} from "./commands/render";
 import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
 import {validateArgs} from "./args";
-import {isPresentationFile, presentationDataError, presentationFiles, svgOfPresentation} from "../naming";
+import {
+    isPresentationFile,
+    presentationDataError,
+    presentationFiles,
+    svgOfPresentation
+} from "../naming";
 
 const CLI_PREFIX = "--sozi-cli=";
 
@@ -40,7 +49,13 @@ const COMMANDS = {build, inspect, set, render, export: exportPresentation};
  *
  * @type {{[name: string]: {[flag: string]: (boolean|string)}}}
  */
-export const COMMAND_FLAGS = {build: buildFlags, inspect: inspectFlags, set: setFlags, render: renderFlags, export: exportFlags};
+export const COMMAND_FLAGS = {
+    build: buildFlags,
+    inspect: inspectFlags,
+    set: setFlags,
+    render: renderFlags,
+    export: exportFlags
+};
 
 /** Command-specific checks of the flags, run before the presentation is loaded.
  *
@@ -106,8 +121,22 @@ function log(line) {
  */
 export function catchCliErrors() {
     const options = getCliOptions();
-    partialResult = {command: options ? options.command : null, svg: null, presentation: null, warnings: [], errors: []};
-    const fail = err => reply(1, Object.assign({}, partialResult, {ok: false, error: String(err), stack: err && err.stack}));
+    partialResult = {
+        command: options ? options.command : null,
+        svg: null,
+        presentation: null,
+        warnings: [],
+        errors: []
+    };
+    const fail = err =>
+        reply(
+            1,
+            Object.assign({}, partialResult, {
+                ok: false,
+                error: String(err),
+                stack: err && err.stack
+            })
+        );
     window.addEventListener("error", evt => fail(evt.error || evt.message));
     window.addEventListener("unhandledrejection", evt => fail(evt.reason));
 }
@@ -126,12 +155,12 @@ export function catchCliErrors() {
  *  and an exit code with an error message, or code 0.
  */
 function resolveFiles(file, options) {
-    const fs   = require("fs");
+    const fs = require("fs");
     const path = require("path");
 
-    const flag   = options.flags.presentation;
+    const flag = options.flags.presentation;
     const result = {svg: null, presentation: null};
-    const fail   = (code, error) => ({result, svgSource: null, code, error});
+    const fail = (code, error) => ({result, svgSource: null, code, error});
 
     if (/\.json$/i.test(file) && !isPresentationFile(file)) {
         return fail(1, `not a presentation file: ${file}: the name does not end in .sozi.json`);
@@ -140,12 +169,15 @@ function resolveFiles(file, options) {
     if (isPresentationFile(file)) {
         result.presentation = file;
         if (flag !== undefined) {
-            return fail(2, `--presentation needs an SVG file argument, not a presentation file: ${file}`);
+            return fail(
+                2,
+                `--presentation needs an SVG file argument, not a presentation file: ${file}`
+            );
         }
         if (!fs.existsSync(file)) {
             return fail(1, `file not found: ${file}`);
         }
-        const text   = fs.readFileSync(file, {encoding: "utf-8"});
+        const text = fs.readFileSync(file, {encoding: "utf-8"});
         const reason = presentationDataError(text);
         if (reason) {
             return fail(1, `not a presentation file: ${file}: ${reason}`);
@@ -155,8 +187,13 @@ function resolveFiles(file, options) {
         svgKey = typeof svgKey === "string" ? svgKey : "";
         result.svg = svgOfPresentation(file, svgKey);
         if (!fs.existsSync(result.svg)) {
-            return fail(1, `SVG file not found: ${result.svg} (` +
-                (svgKey ? `from the "svg" key of ${file})` : `${file} has no "svg" key; add one to name the SVG file)`));
+            return fail(
+                1,
+                `SVG file not found: ${result.svg} (` +
+                    (svgKey
+                        ? `from the "svg" key of ${file})`
+                        : `${file} has no "svg" key; add one to name the SVG file)`)
+            );
         }
         return {result, svgSource: svgKey ? "json" : "default", code: 0, error: null};
     }
@@ -165,13 +202,15 @@ function resolveFiles(file, options) {
     if (flag !== undefined) {
         result.presentation = path.resolve(options.cwd, flag);
         if (!isPresentationFile(result.presentation)) {
-            return fail(2, `--presentation must name a .sozi.json file, e.g. talk.sozi.json: ${result.presentation}`);
+            return fail(
+                2,
+                `--presentation must name a .sozi.json file, e.g. talk.sozi.json: ${result.presentation}`
+            );
         }
         if (fs.existsSync(result.presentation) && fs.statSync(result.presentation).isDirectory()) {
             return fail(2, `--presentation is a directory: ${result.presentation}`);
         }
-    }
-    else {
+    } else {
         result.presentation = presentationFiles(file).presentation;
         if (result.presentation === file) {
             return fail(2, `file has no extension: ${file}`);
@@ -196,16 +235,22 @@ export async function runCli(options, {controller, storage, preferences}) {
     const path = require("path");
 
     const warnings = [];
-    const errors   = [];
-    const result   = partialResult = {command: options.command, svg: null, presentation: null, warnings, errors};
+    const errors = [];
+    const result = (partialResult = {
+        command: options.command,
+        svg: null,
+        presentation: null,
+        warnings,
+        errors
+    });
 
     try {
         // In-memory settings only: preferences are never saved in CLI mode.
         // Messages are in English so that errors and warnings are stable.
         preferences.animateTransitions = false;
-        preferences.saveMode           = "manual";
-        preferences.reloadMode         = "manual";
-        preferences.language           = "en";
+        preferences.saveMode = "manual";
+        preferences.reloadMode = "manual";
+        preferences.language = "en";
         controller.applyPreferences({language: true});
 
         // Test hook: never reply, so that the main process times out.
@@ -224,12 +269,22 @@ export async function runCli(options, {controller, storage, preferences}) {
 
         const command = Object.hasOwn(COMMANDS, options.command) ? COMMANDS[options.command] : null;
         if (!command) {
-            reply(2, Object.assign(result, {ok: false, error: `unknown command: ${options.command}`, usage: USAGE}));
+            reply(
+                2,
+                Object.assign(result, {
+                    ok: false,
+                    error: `unknown command: ${options.command}`,
+                    usage: USAGE
+                })
+            );
             return;
         }
 
-        const usageError = validateArgs(options, COMMAND_FLAGS) ||
-            (Object.hasOwn(FLAG_CHECKS, options.command) ? FLAG_CHECKS[options.command](options.flags) : null);
+        const usageError =
+            validateArgs(options, COMMAND_FLAGS) ||
+            (Object.hasOwn(FLAG_CHECKS, options.command)
+                ? FLAG_CHECKS[options.command](options.flags)
+                : null);
         if (usageError) {
             reply(2, Object.assign(result, {ok: false, error: usageError, usage: USAGE}));
             return;
@@ -250,10 +305,19 @@ export async function runCli(options, {controller, storage, preferences}) {
 
         const backend = storage.backends.find(b => b.constructor.name === "Electron");
         storage.writeOnOpen = false;
-        await storage.setSVGFile(result.svg, backend, {name: path.basename(result.presentation), location: path.dirname(result.presentation)});
+        await storage.setSVGFile(result.svg, backend, {
+            name: path.basename(result.presentation),
+            location: path.dirname(result.presentation)
+        });
         if (storage.jsonLoadError) {
             const message = storage.jsonLoadError.message || String(storage.jsonLoadError);
-            reply(1, Object.assign(result, {ok: false, error: `presentation JSON could not be parsed: ${result.presentation}: ${message}`}));
+            reply(
+                1,
+                Object.assign(result, {
+                    ok: false,
+                    error: `presentation JSON could not be parsed: ${result.presentation}: ${message}`
+                })
+            );
             return;
         }
         if (errors.length) {
@@ -267,11 +331,11 @@ export async function runCli(options, {controller, storage, preferences}) {
         const commandResult = await command({
             controller,
             storage,
-            svg:          result.svg,
+            svg: result.svg,
             presentation: result.presentation,
-            svgSource:    files.svgSource,
-            cwd:          options.cwd,
-            flags:        options.flags,
+            svgSource: files.svgSource,
+            cwd: options.cwd,
+            flags: options.flags,
             warnings
         });
         const exitCode = commandResult.exitCode || 1;
@@ -282,8 +346,7 @@ export async function runCli(options, {controller, storage, preferences}) {
             result.error = errors[0];
         }
         reply(result.ok ? 0 : exitCode, result);
-    }
-    catch (err) {
+    } catch (err) {
         reply(1, Object.assign(result, {ok: false, error: String(err), stack: err && err.stack}));
     }
 }

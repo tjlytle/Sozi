@@ -13,7 +13,6 @@ import {AbstractBackend, addBackend} from "./AbstractBackend";
  * @extends module:backend/AbstractBackend.AbstractBackend
  */
 export class GoogleDrive extends AbstractBackend {
-
     /** Initialize a Sozi  backend based on the Google Drive API.
      *
      * @param {module:Controller.Controller} controller - A controller instance.
@@ -22,7 +21,12 @@ export class GoogleDrive extends AbstractBackend {
     constructor(controller, container) {
         const _ = controller.gettext;
 
-        super(controller, container, "sozi-editor-backend-GoogleDrive-input", _("Open an SVG file from Google Drive"));
+        super(
+            controller,
+            container,
+            "sozi-editor-backend-GoogleDrive-input",
+            _("Open an SVG file from Google Drive")
+        );
 
         this.clickToAuth = () => this.authorize(false);
 
@@ -41,11 +45,14 @@ export class GoogleDrive extends AbstractBackend {
      * @param {boolean} onInit - `true` if this is the first authorization request in this session.
      */
     authorize(onInit) {
-        gapi.auth.authorize({
-            client_id: GoogleDrive.clientId,
-            scope: "https://www.googleapis.com/auth/drive",
-            immediate: onInit
-        }, authResult => this.onAuthResult(onInit, authResult));
+        gapi.auth.authorize(
+            {
+                client_id: GoogleDrive.clientId,
+                scope: "https://www.googleapis.com/auth/drive",
+                immediate: onInit
+            },
+            authResult => this.onAuthResult(onInit, authResult)
+        );
     }
 
     /** Process a Google Drive API authorization result.
@@ -73,8 +80,7 @@ export class GoogleDrive extends AbstractBackend {
                     }
                 }
             });
-        }
-        else {
+        } else {
             // No access token could be retrieved, show the button to start the authorization flow.
             inputButton.addEventListener("click", this.clickToAuth);
         }
@@ -88,22 +94,21 @@ export class GoogleDrive extends AbstractBackend {
         const view = new google.picker.View(google.picker.ViewId.DOCS);
         view.setMimeTypes("image/svg+xml");
 
-        this.picker = new google.picker.PickerBuilder().
-            addView(view).
-            setOAuthToken(this.accessToken).
-            setCallback(data => {
+        this.picker = new google.picker.PickerBuilder()
+            .addView(view)
+            .setOAuthToken(this.accessToken)
+            .setCallback(data => {
                 if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
                     gapi.client.drive.files.get({fileId: data.docs[0].id}).execute(response => {
                         if (!response.error) {
                             this.controller.storage.setSVGFile(response, this);
-                        }
-                        else {
+                        } else {
                             console.log(response.error.message);
                         }
                     });
                 }
-            }).
-            build();
+            })
+            .build();
     }
 
     /** @inheritdoc */
@@ -125,20 +130,19 @@ export class GoogleDrive extends AbstractBackend {
     find(name, location) {
         return new Promise((resolve, reject) => {
             function findInParent(index) {
-                gapi.client.drive.files.list({
-                    q: "title = '" + name + "' and " +
-                       "'" + location[index].id + "' in parents"
-                }).execute(response => {
-                    if (response.items && response.items.length) {
-                        resolve(response.items[0]);
-                    }
-                    else if (index < location.length - 1) {
-                        findInParent(index + 1);
-                    }
-                    else {
-                        reject("Not found");
-                    }
-                });
+                gapi.client.drive.files
+                    .list({
+                        q: "title = '" + name + "' and " + "'" + location[index].id + "' in parents"
+                    })
+                    .execute(response => {
+                        if (response.items && response.items.length) {
+                            resolve(response.items[0]);
+                        } else if (index < location.length - 1) {
+                            findInParent(index + 1);
+                        } else {
+                            reject("Not found");
+                        }
+                    });
             }
             findInParent(0);
         });
@@ -158,8 +162,7 @@ export class GoogleDrive extends AbstractBackend {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
                         resolve(xhr.responseText);
-                    }
-                    else {
+                    } else {
                         reject(xhr.status);
                     }
                 }
@@ -182,32 +185,36 @@ export class GoogleDrive extends AbstractBackend {
 
         const multipartRequestBody =
             delimiter +
-            "Content-Type: application/json\r\n\r\n" + JSON.stringify(metadata) +
+            "Content-Type: application/json\r\n\r\n" +
+            JSON.stringify(metadata) +
             delimiter +
-            "Content-Type: " + mimeType + "\r\n" +
+            "Content-Type: " +
+            mimeType +
+            "\r\n" +
             "Content-Transfer-Encoding: base64\r\n\r\n" +
             toBase64(data) + // Force UTF-8 encoding
             closeDelimiter;
 
         return new Promise((resolve, reject) => {
-            gapi.client.request({
-                path: "/upload/drive/v2/files",
-                method: "POST",
-                params: {
-                    uploadType: "multipart"
-                },
-                headers: {
-                  "Content-Type": 'multipart/mixed; boundary="' + boundary + '"'
-                },
-                body: multipartRequestBody
-            }).execute(response => {
-                if (response.error) {
-                    reject(response.error.message);
-                }
-                else {
-                    resolve(response);
-                }
-            });
+            gapi.client
+                .request({
+                    path: "/upload/drive/v2/files",
+                    method: "POST",
+                    params: {
+                        uploadType: "multipart"
+                    },
+                    headers: {
+                        "Content-Type": 'multipart/mixed; boundary="' + boundary + '"'
+                    },
+                    body: multipartRequestBody
+                })
+                .execute(response => {
+                    if (response.error) {
+                        reject(response.error.message);
+                    } else {
+                        resolve(response);
+                    }
+                });
         });
     }
 
@@ -215,27 +222,28 @@ export class GoogleDrive extends AbstractBackend {
     save(fileDescriptor, data) {
         const base64Data = toBase64(data); // Force UTF-8 encoding
         return new Promise((resolve, reject) => {
-            gapi.client.request({
-                path: "/upload/drive/v2/files/" + fileDescriptor.id,
-                method: "PUT",
-                params: {
-                    uploadType: "media"
-                },
-                headers: {
-                    "Content-Type": fileDescriptor.mimeType,
-                    "Content-Length": base64Data.length,
-                    "Content-Encoding": "base64"
-                },
-                body: base64Data
-            }).execute(response => {
-                if (response.error) {
-                    reject(response.error.message);
-                }
-                else {
-                    this.controller.storage.onSave(fileDescriptor);
-                    resolve(fileDescriptor);
-                }
-            });
+            gapi.client
+                .request({
+                    path: "/upload/drive/v2/files/" + fileDescriptor.id,
+                    method: "PUT",
+                    params: {
+                        uploadType: "media"
+                    },
+                    headers: {
+                        "Content-Type": fileDescriptor.mimeType,
+                        "Content-Length": base64Data.length,
+                        "Content-Encoding": "base64"
+                    },
+                    body: base64Data
+                })
+                .execute(response => {
+                    if (response.error) {
+                        reject(response.error.message);
+                    } else {
+                        this.controller.storage.onSave(fileDescriptor);
+                        resolve(fileDescriptor);
+                    }
+                });
         });
     }
 }

@@ -17,7 +17,19 @@ const {PDFDocument} = require("pdf-lib");
 
 const os = require("node:os");
 
-const {runSozi, withTempDeck, decodePng, darkInCorner, electronBinary, appDir, fixturesDir, fakeFfmpeg, isAlive, which, zipEntries} = require("./helpers.js");
+const {
+    runSozi,
+    withTempDeck,
+    decodePng,
+    darkInCorner,
+    electronBinary,
+    appDir,
+    fixturesDir,
+    fakeFfmpeg,
+    isAlive,
+    which,
+    zipEntries
+} = require("./helpers.js");
 
 /** Run the editor on a deck with the export test hook.
  *
@@ -54,7 +66,11 @@ function setExportSettings(deck, settings) {
 // The basic fixture: 2 frames, timeouts 0 (disabled), transitions 1000 ms.
 // At 10 fps a video holds frame 1 (1 image), plays the transition (10 images)
 // and holds frame 2 (1 image): 12 images.
-const VIDEO_SETTINGS = {exportToVideoWidth: 160, exportToVideoHeight: 90, exportToVideoFrameRate: 10};
+const VIDEO_SETTINGS = {
+    exportToVideoWidth: 160,
+    exportToVideoHeight: 90,
+    exportToVideoFrameRate: 10
+};
 const VIDEO_IMAGES = 12;
 
 describe("GUI export (SOZI_TEST_EXPORT)", () => {
@@ -63,13 +79,17 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
         try {
             const run = guiExport(deck, "pdf");
             assert.equal(run.code, 0, run.output);
-            const pdf = await PDFDocument.load(fs.readFileSync(path.join(deck.dir, "basic.sozi.pdf")));
+            const pdf = await PDFDocument.load(
+                fs.readFileSync(path.join(deck.dir, "basic.sozi.pdf"))
+            );
             assert.equal(pdf.getPageCount(), 2);
             // A4 landscape: 297 x 210 mm, in points.
             const {width, height} = pdf.getPage(0).getSize();
-            assert.ok(Math.abs(width - 842) < 2 && Math.abs(height - 595) < 2, `page size ${width}x${height}`);
-        }
-        finally {
+            assert.ok(
+                Math.abs(width - 842) < 2 && Math.abs(height - 595) < 2,
+                `page size ${width}x${height}`
+            );
+        } finally {
             deck.cleanup();
         }
     });
@@ -80,10 +100,11 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             setExportSettings(deck, {exportToPDFInclude: "2"});
             const run = guiExport(deck, "pdf");
             assert.equal(run.code, 0, run.output);
-            const pdf = await PDFDocument.load(fs.readFileSync(path.join(deck.dir, "basic.sozi.pdf")));
+            const pdf = await PDFDocument.load(
+                fs.readFileSync(path.join(deck.dir, "basic.sozi.pdf"))
+            );
             assert.equal(pdf.getPageCount(), 1);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -96,8 +117,7 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             assert.equal(run.code, 1, run.output);
             assert.match(run.output, /no frames selected/);
             assert.ok(!fs.existsSync(path.join(deck.dir, "basic.sozi.pdf")));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -107,10 +127,11 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
         try {
             const run = guiExport(deck, "pptx");
             assert.equal(run.code, 0, run.output);
-            const names = zipEntries(fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx"))).map(e => e.name);
+            const names = zipEntries(fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx"))).map(
+                e => e.name
+            );
             assert.equal(names.filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length, 2);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -123,14 +144,16 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             assert.equal(run.code, 0, run.output);
             const dir = path.join(deck.dir, "basic-sozi-export");
             const names = fs.readdirSync(dir).sort();
-            assert.deepEqual(names, Array.from({length: VIDEO_IMAGES}, (_, i) => `img${String(i).padStart(6, "0")}.png`));
+            assert.deepEqual(
+                names,
+                Array.from({length: VIDEO_IMAGES}, (_, i) => `img${String(i).padStart(6, "0")}.png`)
+            );
             const first = decodePng(fs.readFileSync(path.join(dir, names[0])));
             assert.equal(first.width, 160);
             assert.equal(first.height, 90);
             // As upstream, the editor's export shows the frame number (the frames' showFrameNumber setting).
             assert.ok(darkInCorner(path.join(dir, names[0])) > 20, "the frame number is drawn");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -140,16 +163,16 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
         try {
             const run = guiExport(deck, "pptx", ["--force-device-scale-factor=2"]);
             assert.equal(run.code, 0, run.output);
-            const media = zipEntries(fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx")))
-                .filter(e => /^ppt\/media\/.*\.png$/.test(e.name));
+            const media = zipEntries(
+                fs.readFileSync(path.join(deck.dir, "basic.sozi.pptx"))
+            ).filter(e => /^ppt\/media\/.*\.png$/.test(e.name));
             assert.equal(media.length, 2);
             for (const entry of media) {
                 const png = decodePng(entry.data());
                 // screen4x3 slides are 1440x1080 pixels.
                 assert.deepEqual([png.width, png.height], [1440, 1080], entry.name);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -170,8 +193,7 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
                 const png = decodePng(fs.readFileSync(path.join(dir, name)));
                 assert.deepEqual([png.width, png.height], [160, 90], name);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -189,16 +211,29 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             const video = path.join(deck.dir, "basic.sozi.webm");
             assert.ok(fs.statSync(video).size > 0);
             if (which("ffprobe")) {
-                const probe = spawnSync("ffprobe", ["-v", "error", "-count_frames", "-select_streams", "v:0",
-                    "-show_entries", "stream=nb_read_frames,width,height", "-of", "json", video], {encoding: "utf8"});
+                const probe = spawnSync(
+                    "ffprobe",
+                    [
+                        "-v",
+                        "error",
+                        "-count_frames",
+                        "-select_streams",
+                        "v:0",
+                        "-show_entries",
+                        "stream=nb_read_frames,width,height",
+                        "-of",
+                        "json",
+                        video
+                    ],
+                    {encoding: "utf8"}
+                );
                 assert.equal(probe.status, 0, probe.stderr);
                 const stream = JSON.parse(probe.stdout).streams[0];
                 assert.equal(stream.width, 160);
                 assert.equal(stream.height, 90);
                 assert.equal(Number(stream.nb_read_frames), VIDEO_IMAGES);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -222,8 +257,7 @@ function mainExport(args) {
     }
     try {
         return JSON.parse(result.stdout);
-    }
-    catch {
+    } catch {
         assert.fail(`harness output is not JSON: ${result.stdout}\n${result.stderr}`);
     }
 }
@@ -233,23 +267,36 @@ describe("exporter in the main process", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
         try {
             const html = path.join(dir, "plain.html");
-            fs.writeFileSync(html, "<!doctype html><html><body><p>Not a presentation</p></body></html>");
-            const presentation = JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8"));
+            fs.writeFileSync(
+                html,
+                "<!doctype html><html><body><p>Not a presentation</p></body></html>"
+            );
+            const presentation = JSON.parse(
+                fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")
+            );
             const out = path.join(dir, "plain.pdf");
-            const report = mainExport({fn: "exportToPDF", presentation, html, opts: {outPath: out, timeoutMs: 2000}});
+            const report = mainExport({
+                fn: "exportToPDF",
+                presentation,
+                html,
+                opts: {outPath: out, timeoutMs: 2000}
+            });
             assert.equal(report.ok, false, JSON.stringify(report));
             assert.match(report.error, /Sozi player did not start within 2 s/);
             assert.ok(report.elapsedMs < 10000, `took ${report.elapsedMs} ms`);
             assert.equal(report.windows, 0);
             assert.ok(!fs.existsSync(out));
-        }
-        finally {
+        } finally {
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
 
     test("the default ffmpeg time limit is 10 minutes plus 100 ms per image", () => {
-        for (const [images, ms] of [[0, 600000], [12, 601200], [30000, 3600000]]) {
+        for (const [images, ms] of [
+            [0, 600000],
+            [12, 601200],
+            [30000, 3600000]
+        ]) {
             const report = mainExport({fn: "defaultFfmpegTimeoutMs", presentation: images});
             assert.equal(report.ok, true, JSON.stringify(report));
             assert.equal(report.result, ms, `${images} images`);
@@ -260,22 +307,44 @@ describe("exporter in the main process", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
         try {
             const html = path.join(dir, "plain.html");
-            fs.writeFileSync(html, "<!doctype html><html><body><p>Not a presentation</p></body></html>");
-            const presentation = Object.assign(JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")),
-                {exportToVideoFormat: "png", exportToVideoWidth: 160, exportToVideoHeight: 90, exportToVideoFrameRate: 2});
+            fs.writeFileSync(
+                html,
+                "<!doctype html><html><body><p>Not a presentation</p></body></html>"
+            );
+            const presentation = Object.assign(
+                JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")),
+                {
+                    exportToVideoFormat: "png",
+                    exportToVideoWidth: 160,
+                    exportToVideoHeight: 90,
+                    exportToVideoFrameRate: 2
+                }
+            );
             const seq = path.join(dir, "seq");
             fs.mkdirSync(seq);
             fs.writeFileSync(path.join(seq, "img000000.png"), "previous");
-            const failed = mainExport({fn: "exportToVideo", presentation, html, opts: {outPath: seq, timeoutMs: 2000}});
+            const failed = mainExport({
+                fn: "exportToVideo",
+                presentation,
+                html,
+                opts: {outPath: seq, timeoutMs: 2000}
+            });
             assert.equal(failed.ok, false, JSON.stringify(failed));
             assert.deepEqual(fs.readdirSync(seq), ["img000000.png"]);
             assert.equal(fs.readFileSync(path.join(seq, "img000000.png"), "utf8"), "previous");
 
             const fresh = path.join(dir, "new", "seq");
-            assert.equal(mainExport({fn: "exportToVideo", presentation, html, opts: {outPath: fresh, timeoutMs: 2000}}).ok, false);
+            assert.equal(
+                mainExport({
+                    fn: "exportToVideo",
+                    presentation,
+                    html,
+                    opts: {outPath: fresh, timeoutMs: 2000}
+                }).ok,
+                false
+            );
             assert.ok(!fs.existsSync(path.join(dir, "new")));
-        }
-        finally {
+        } finally {
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
@@ -283,14 +352,20 @@ describe("exporter in the main process", () => {
     test("an unknown video format fails before anything is captured", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
         try {
-            const presentation = Object.assign(JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")),
-                {exportToVideoFormat: "../evil"});
-            const report = mainExport({fn: "exportToVideo", presentation, html: path.join(dir, "deck.sozi.html"), opts: {}});
+            const presentation = Object.assign(
+                JSON.parse(fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")),
+                {exportToVideoFormat: "../evil"}
+            );
+            const report = mainExport({
+                fn: "exportToVideo",
+                presentation,
+                html: path.join(dir, "deck.sozi.html"),
+                opts: {}
+            });
             assert.equal(report.ok, false, JSON.stringify(report));
             assert.match(report.error, /unknown video format: \.\.\/evil/);
             assert.deepEqual(fs.readdirSync(dir), []);
-        }
-        finally {
+        } finally {
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
@@ -300,18 +375,30 @@ describe("exporter in the main process", () => {
         try {
             assert.equal(runSozi(["build", "basic.svg"], {cwd: deck.dir}).code, 0);
             const ffmpeg = fakeFfmpeg(deck.dir);
-            const presentation = Object.assign(JSON.parse(fs.readFileSync(deck.json, "utf8")),
-                {exportToVideoFormat: "webm", exportToVideoWidth: 160, exportToVideoHeight: 90, exportToVideoFrameRate: 2});
+            const presentation = Object.assign(JSON.parse(fs.readFileSync(deck.json, "utf8")), {
+                exportToVideoFormat: "webm",
+                exportToVideoWidth: 160,
+                exportToVideoHeight: 90,
+                exportToVideoFrameRate: 2
+            });
             const out = path.join(deck.dir, "stuck.webm");
-            const report = mainExport({fn: "exportToVideo", presentation, html: path.join(deck.dir, "basic.sozi.html"),
-                opts: {outPath: out, ffmpegPath: ffmpeg.path, ffmpegTimeoutMs: 1000}});
+            const report = mainExport({
+                fn: "exportToVideo",
+                presentation,
+                html: path.join(deck.dir, "basic.sozi.html"),
+                opts: {outPath: out, ffmpegPath: ffmpeg.path, ffmpegTimeoutMs: 1000}
+            });
             assert.equal(report.ok, false, JSON.stringify(report));
             assert.match(report.error, /ffmpeg did not finish within 1 s/);
             assert.ok(report.elapsedMs < 20000, `took ${report.elapsedMs} ms`);
             assert.equal(isAlive(ffmpeg.pid()), false, "the ffmpeg process was killed");
-            assert.deepEqual(fs.readdirSync(deck.dir).filter(name => name.includes("partial") || name.endsWith(".webm")), []);
-        }
-        finally {
+            assert.deepEqual(
+                fs
+                    .readdirSync(deck.dir)
+                    .filter(name => name.includes("partial") || name.endsWith(".webm")),
+                []
+            );
+        } finally {
             deck.cleanup();
         }
     });

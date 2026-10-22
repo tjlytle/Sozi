@@ -61,7 +61,7 @@ export const DEFAULT_SIZE = "1280x720";
  */
 export function parseSize(text) {
     const match = typeof text === "string" && /^(\d+)x(\d+)$/.exec(text);
-    const size  = match && {width: Number(match[1]), height: Number(match[2])};
+    const size = match && {width: Number(match[1]), height: Number(match[2])};
     return size && size.width > 0 && size.height > 0 ? size : null;
 }
 
@@ -81,7 +81,8 @@ export function sizeError(text) {
  * @returns {{[name: string]: (boolean|string)}} - The flags allowed for this command, in an object without prototype.
  */
 function flagsOf(commandFlags, command) {
-    const own = command !== null && Object.hasOwn(commandFlags, command) ? commandFlags[command] : {};
+    const own =
+        command !== null && Object.hasOwn(commandFlags, command) ? commandFlags[command] : {};
     return Object.assign(Object.create(null), own, GLOBAL_FLAGS);
 }
 
@@ -95,7 +96,12 @@ function flagsOf(commandFlags, command) {
  * @param {string|boolean} value - The flag value.
  */
 function setFlag(flags, name, value) {
-    Object.defineProperty(flags, name, {value, enumerable: true, writable: true, configurable: true});
+    Object.defineProperty(flags, name, {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true
+    });
 }
 
 /** Parse the command line of the Electron main process.
@@ -121,7 +127,7 @@ export function parseArgs(argv, commandFlags = {}) {
     result.cli = true;
 
     const args = argv.slice(cliIndex + 1).filter(arg => !CHROMIUM_SWITCHES.has(arg.split("=")[0]));
-    for (let i = 0; i < args.length; i ++) {
+    for (let i = 0; i < args.length; i++) {
         const arg = args[i];
         if (arg.startsWith("--")) {
             const eq = arg.indexOf("=");
@@ -131,18 +137,19 @@ export function parseArgs(argv, commandFlags = {}) {
             }
             const name = arg.slice(2);
             const next = args[i + 1];
-            if (!flagsOf(commandFlags, result.command)[name] || next === undefined || next.startsWith("--")) {
+            if (
+                !flagsOf(commandFlags, result.command)[name] ||
+                next === undefined ||
+                next.startsWith("--")
+            ) {
                 setFlag(result.flags, name, true);
-            }
-            else {
+            } else {
                 setFlag(result.flags, name, next);
-                i ++;
+                i++;
             }
-        }
-        else if (result.command === null) {
+        } else if (result.command === null) {
             result.command = arg;
-        }
-        else {
+        } else {
             result.positionals.push(arg);
         }
     }
@@ -163,7 +170,10 @@ export function validateArgs(parsed, commandFlags) {
         if (!Object.hasOwn(allowed, name)) {
             return `unknown option for ${parsed.command}: --${name}`;
         }
-        if (allowed[name] && (value === true || (value === "" && allowed[name] !== "maybe-empty"))) {
+        if (
+            allowed[name] &&
+            (value === true || (value === "" && allowed[name] !== "maybe-empty"))
+        ) {
             return `missing value for --${name}`;
         }
         if (!allowed[name] && value !== true) {

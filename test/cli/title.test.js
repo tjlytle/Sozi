@@ -13,7 +13,11 @@ const {runSozi, withTempDeck} = require("./helpers.js");
 
 const CHROME = "/usr/bin/google-chrome";
 
-/** Run `build` on a temp deck and check that it succeeded. */
+/**
+ * Run `build` on a temp deck and check that it succeeded.
+ * @param deck
+ * @param {...any} flags
+ */
 function build(deck, ...flags) {
     const run = runSozi(["build", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
     assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
@@ -26,39 +30,56 @@ function htmlPaths(deck) {
     return {html: base + ".sozi.html", presenter: base + "-presenter.sozi.html"};
 }
 
-/** The text of the `<title>` element in the head of an HTML file. */
+/**
+ * The text of the `<title>` element in the head of an HTML file.
+ * @param file
+ */
 function htmlTitle(file) {
     const match = /<head>[\s\S]*?<title>([^<]*)<\/title>/.exec(fs.readFileSync(file, "utf8"));
     assert.ok(match, `no <title> in ${file}`);
     return match[1];
 }
 
-/** The `soziPresentationData` object embedded in a presentation HTML file. */
+/**
+ * The `soziPresentationData` object embedded in a presentation HTML file.
+ * @param file
+ */
 function presentationData(file) {
     const match = /var soziPresentationData = (.*);<\/script>/.exec(fs.readFileSync(file, "utf8"));
     assert.ok(match, `no soziPresentationData in ${file}`);
     return JSON.parse(match[1]);
 }
 
-/** Add an explicit title to the JSON of a temp deck, keeping the editor's formatting. */
+/**
+ * Add an explicit title to the JSON of a temp deck, keeping the editor's formatting.
+ * @param deck
+ * @param title
+ */
 function setJsonTitle(deck, title) {
     const data = {title, ...JSON.parse(fs.readFileSync(deck.json, "utf8"))};
     fs.writeFileSync(deck.json, JSON.stringify(data, null, "  "));
 }
 
 /** A title with characters that HTML must escape. */
-const TRICKY = "<b>&\"";
+const TRICKY = '<b>&"';
 
-/** Decode the character references that the HTML serializer emits in text. */
+/**
+ * Decode the character references that the HTML serializer emits in text.
+ * @param text
+ */
 function decodeHtml(text) {
-    return text.replace(/&(lt|gt|quot|#39|nbsp|amp);/g, (m, name) =>
-        ({lt: "<", gt: ">", quot: "\"", "#39": "'", nbsp: "\u00a0", amp: "&"})[name]);
+    return text.replace(
+        /&(lt|gt|quot|#39|nbsp|amp);/g,
+        (m, name) => ({lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: "\u00a0", amp: "&"})[name]
+    );
 }
 
 /** The document title of an HTML file after its scripts ran in headless Chrome.
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
  * a Chrome run that fails is a test failure.
+ * @param t
+ * @param file
  */
 function browserTitle(t, file) {
     if (!fs.existsSync(CHROME)) {
@@ -67,11 +88,18 @@ function browserTitle(t, file) {
     }
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
     try {
-        const result = spawnSync(CHROME, [
-            "--headless=new", "--disable-gpu", "--no-sandbox",
-            `--user-data-dir=${profile}`,
-            "--dump-dom", "file://" + file
-        ], {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024});
+        const result = spawnSync(
+            CHROME,
+            [
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                `--user-data-dir=${profile}`,
+                "--dump-dom",
+                "file://" + file
+            ],
+            {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024}
+        );
         if (result.error) {
             t.skip(`headless Chrome could not be run: ${result.error}`);
             return null;
@@ -80,13 +108,17 @@ function browserTitle(t, file) {
         const match = /<title>([^<]*)<\/title>/.exec(result.stdout);
         assert.ok(match, "no <title> in the dumped DOM");
         return decodeHtml(match[1]);
-    }
-    finally {
+    } finally {
         fs.rmSync(profile, {recursive: true, force: true});
     }
 }
 
-/** Run a command on a temp deck; return the result without checking it. */
+/**
+ * Run a command on a temp deck; return the result without checking it.
+ * @param deck
+ * @param command
+ * @param {...any} flags
+ */
 function run(deck, command, ...flags) {
     const result = runSozi([command, ...flags, path.basename(deck.svg)], {cwd: deck.dir});
     assert.ok(result.json, `stdout is not JSON: ${result.stdout}\nstderr: ${result.stderr}`);
@@ -107,8 +139,7 @@ describe("presentation title", () => {
             assert.equal(htmlTitle(presenter), "Basic");
             assert.equal("title" in JSON.parse(fs.readFileSync(deck.json, "utf8")), false);
             assert.equal("title" in presentationData(html), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -125,8 +156,7 @@ describe("presentation title", () => {
             assert.match(fs.readFileSync(html, "utf8"), /"title":"My Talk"/);
             assert.equal(presentationData(html).title, "My Talk");
             assert.deepEqual(fs.readFileSync(deck.json), original);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -143,8 +173,7 @@ describe("presentation title", () => {
             const {title, ...rest} = JSON.parse(fs.readFileSync(titled.json, "utf8"));
             assert.equal(title, "My Talk");
             assert.deepEqual(rest, JSON.parse(fs.readFileSync(plain.json, "utf8")));
-        }
-        finally {
+        } finally {
             plain.cleanup();
             titled.cleanup();
         }
@@ -159,8 +188,7 @@ describe("presentation title", () => {
             assert.equal(htmlTitle(presenter), "Untitled");
             assert.equal("title" in JSON.parse(fs.readFileSync(deck.json, "utf8")), false);
             assert.equal("title" in presentationData(html), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -173,13 +201,12 @@ describe("presentation title", () => {
             fs.writeFileSync(deck.svg, svg.replace("<title>Basic</title>", "<title/>"));
             build(deck);
             assert.equal(htmlTitle(htmlPaths(deck).html), "Untitled");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
 
-    test("is the document title at runtime in a browser", (t) => {
+    test("is the document title at runtime in a browser", t => {
         const deck = withTempDeck("basic");
         try {
             setJsonTitle(deck, "My Talk");
@@ -188,13 +215,12 @@ describe("presentation title", () => {
             if (title !== null) {
                 assert.match(title, /My Talk/);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
 
-    test("is HTML-escaped in the generated files", (t) => {
+    test("is HTML-escaped in the generated files", t => {
         const deck = withTempDeck("basic");
         try {
             build(deck, "--title", TRICKY);
@@ -206,15 +232,14 @@ describe("presentation title", () => {
             if (title !== null) {
                 assert.ok(title.startsWith(TRICKY), title);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
 });
 
 describe("build --title", () => {
-    test("cannot break out of the embedded presentation data", (t) => {
+    test("cannot break out of the embedded presentation data", t => {
         const deck = withTempDeck("basic");
         try {
             const title = "</script><b>x<!--<script>\u2028y";
@@ -231,8 +256,7 @@ describe("build --title", () => {
                 // The player ran: it appends the title of the current frame.
                 assert.equal(shown, `${title} \u2014 One`);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -247,8 +271,7 @@ describe("build --title", () => {
             assert.equal(presentationData(html).title, "Talk X");
             assert.equal(readJson(deck).title, "Talk X");
             assert.ok(json.files.includes(deck.json), JSON.stringify(json.files));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -262,8 +285,7 @@ describe("build --title", () => {
             assert.equal(htmlTitle(html), "Basic");
             assert.equal("title" in readJson(deck), false);
             assert.equal("title" in presentationData(html), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -288,8 +310,7 @@ describe("set", () => {
 
             build(deck);
             assert.equal(htmlTitle(html), "Talk X");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -302,8 +323,7 @@ describe("set", () => {
             assert.equal(code, 0, JSON.stringify(json));
             assert.deepEqual(json.changed, {title: {from: "My Talk", to: ""}});
             assert.equal("title" in readJson(deck), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -316,8 +336,7 @@ describe("set", () => {
             assert.equal(code, 0, JSON.stringify(json));
             assert.deepEqual(json.changed, {title: {from: "My Talk", to: ""}});
             assert.equal("title" in readJson(deck), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -332,8 +351,7 @@ describe("set", () => {
             assert.deepEqual(json.changed, {});
             assert.deepEqual(json.files, []);
             assert.deepEqual(fs.readFileSync(deck.json), original);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -349,8 +367,7 @@ describe("set", () => {
             assert.match(json.error, /no property to set/);
             assert.match(json.usage, /set/);
             assert.deepEqual(fs.readFileSync(deck.json), original);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -358,11 +375,12 @@ describe("set", () => {
     test("--title without a value is a usage error", () => {
         const deck = withTempDeck("basic");
         try {
-            const {code, json} = runSozi(["set", path.basename(deck.svg), "--title"], {cwd: deck.dir});
+            const {code, json} = runSozi(["set", path.basename(deck.svg), "--title"], {
+                cwd: deck.dir
+            });
             assert.equal(code, 2, JSON.stringify(json));
             assert.equal(json.error, "missing value for --title");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -382,9 +400,11 @@ describe("inspect title fields", () => {
                 }
                 const {code, json} = run(deck, "inspect");
                 assert.equal(code, 0, JSON.stringify(json));
-                assert.deepEqual({title: json.title, titleSource: json.titleSource, svgTitle: json.svgTitle}, expected);
-            }
-            finally {
+                assert.deepEqual(
+                    {title: json.title, titleSource: json.titleSource, svgTitle: json.svgTitle},
+                    expected
+                );
+            } finally {
                 deck.cleanup();
             }
         });
@@ -396,10 +416,15 @@ describe("inspect title fields", () => {
             setJsonTitle(deck, 42);
             const {code, json} = run(deck, "inspect");
             assert.equal(code, 0, JSON.stringify(json));
-            assert.deepEqual({title: json.title, titleSource: json.titleSource}, {title: "Basic", titleSource: "svg"});
-            assert.ok(json.warnings.includes(`ignored non-string title in ${deck.json}`), JSON.stringify(json.warnings));
-        }
-        finally {
+            assert.deepEqual(
+                {title: json.title, titleSource: json.titleSource},
+                {title: "Basic", titleSource: "svg"}
+            );
+            assert.ok(
+                json.warnings.includes(`ignored non-string title in ${deck.json}`),
+                JSON.stringify(json.warnings)
+            );
+        } finally {
             deck.cleanup();
         }
     });

@@ -43,27 +43,31 @@ function setPresenterMode(mainWindow, isCurrent) {
     sozi.player.pause();
 
     sozi.presentation.enableMouseTranslation =
-    sozi.presentation.enableMouseNavigation =
-    sozi.presentation.enableKeyboardZoom =
-    sozi.presentation.enableKeyboardRotation =
-    sozi.presentation.enableKeyboardNavigation = false;
+        sozi.presentation.enableMouseNavigation =
+        sozi.presentation.enableKeyboardZoom =
+        sozi.presentation.enableKeyboardRotation =
+        sozi.presentation.enableKeyboardNavigation =
+            false;
 
-    for (let frame of sozi.presentation.frames) {
+    for (const frame of sozi.presentation.frames) {
         frame.showFrameNumber = false;
     }
 
     if (isCurrent) {
         // Forward hyperlink clicks to the main presentation window.
-        for (let link of sozi.presentation.document.root.getElementsByTagName("a")) {
-            link.addEventListener("click", evt => {
-                if (link.id) {
-                    mainWindow.postMessage({name: "click", id: link.id}, "*");
-                }
-                evt.preventDefault();
-            }, false);
+        for (const link of sozi.presentation.document.root.getElementsByTagName("a")) {
+            link.addEventListener(
+                "click",
+                evt => {
+                    if (link.id) {
+                        mainWindow.postMessage({name: "click", id: link.id}, "*");
+                    }
+                    evt.preventDefault();
+                },
+                false
+            );
         }
-    }
-    else {
+    } else {
         sozi.presentation.document.disableHyperlinks(true);
     }
 }
@@ -79,12 +83,15 @@ function setPresenterMode(mainWindow, isCurrent) {
  * @listens module:player/Player.frameChange
  */
 function onFrameChange(presenterWindow) {
-    presenterWindow.postMessage({
-        name : "frameChange",
-        index: sozi.player.currentFrame.index,
-        title: sozi.player.currentFrame.title,
-        notes: sozi.player.currentFrame.notes
-    }, "*");
+    presenterWindow.postMessage(
+        {
+            name: "frameChange",
+            index: sozi.player.currentFrame.index,
+            title: sozi.player.currentFrame.title,
+            notes: sozi.player.currentFrame.notes
+        },
+        "*"
+    );
 }
 
 /** Setup an event handler to forward the frame change event to the presenter window.
@@ -130,12 +137,11 @@ window.addEventListener("message", evt => {
             // Interpret a message as a method call to the current Sozi player.
             // The message must be of the form: {name: string, args: any[]}.
             const receiver = isPresenterMode ? sozi.player : sozi.playerController;
-            const method   = receiver[evt.data.name];
-            const args     = evt.data.args || [];
+            const method = receiver[evt.data.name];
+            const args = evt.data.args || [];
             if (typeof method === "function") {
                 method.apply(receiver, args);
-            }
-            else {
+            } else {
                 console.log(`Unsupported message: ${evt.data.name}`);
             }
         }
@@ -182,15 +188,14 @@ window.addEventListener("load", () => {
             return player;
         },
         get playerController() {
-            return playerController
+            return playerController;
         }
     };
 
     player.on("stateChange", () => {
         if (player.playing) {
             document.title = presentation.title;
-        }
-        else {
+        } else {
             document.title = presentation.title + " (Paused)";
         }
     });
@@ -224,12 +229,14 @@ const opener = window.opener || window.parent;
  */
 function checkSozi() {
     if (window.sozi) {
-        opener.postMessage({
-            name: "loaded",
-            length: sozi.presentation.frames.length,
-        }, "*");
-    }
-    else {
+        opener.postMessage(
+            {
+                name: "loaded",
+                length: sozi.presentation.frames.length
+            },
+            "*"
+        );
+    } else {
         setTimeout(checkSozi, 1);
     }
 }

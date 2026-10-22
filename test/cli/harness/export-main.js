@@ -21,14 +21,15 @@ app.on("ready", async () => {
     const start = Date.now();
     let report;
     try {
-        const json = argsJSON.startsWith("@") ? require("fs").readFileSync(argsJSON.slice(1), "utf8") : argsJSON;
+        const json = argsJSON.startsWith("@")
+            ? require("fs").readFileSync(argsJSON.slice(1), "utf8")
+            : argsJSON;
         const {fn, presentation, html, opts} = JSON.parse(json);
         const exporter = require(modulePath);
         const result = await exporter[fn](presentation, html, opts);
         report = {ok: true, result};
-    }
-    catch (err) {
-        report = {ok: false, error: String(err && err.message || err)};
+    } catch (err) {
+        report = {ok: false, error: String((err && err.message) || err)};
     }
     report.elapsedMs = Date.now() - start;
     report.windows = BrowserWindow.getAllWindows().length;

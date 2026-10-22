@@ -39,7 +39,6 @@ const cwd = process.env.PWD;
  * @extends module:backend/AbstractBackend.AbstractBackend
  */
 export class Electron extends AbstractBackend {
-
     /** Initialize a Sozi  backend based on Electron.
      *
      * @param {module:Controller.Controller} controller - A controller instance.
@@ -48,7 +47,12 @@ export class Electron extends AbstractBackend {
     constructor(controller, container) {
         const _ = controller.gettext;
 
-        super(controller, container, "sozi-editor-backend-Electron-input", _("Open an SVG file from your computer"));
+        super(
+            controller,
+            container,
+            "sozi-editor-backend-Electron-input",
+            _("Open an SVG file from your computer")
+        );
 
         /** A dictionary of file watchers.
          *
@@ -66,7 +70,9 @@ export class Electron extends AbstractBackend {
 
         this.loadConfiguration();
 
-        document.getElementById("sozi-editor-backend-Electron-input").addEventListener("click", () => this.openFileChooser());
+        document
+            .getElementById("sozi-editor-backend-Electron-input")
+            .addEventListener("click", () => this.openFileChooser());
 
         // Save files when closing the window
         let closing = false;
@@ -93,8 +99,7 @@ export class Electron extends AbstractBackend {
                     cancelId: 1
                 });
                 this.quit(res.response === 0);
-            }
-            else {
+            } else {
                 window.setTimeout(() => this.quit(true));
             }
         });
@@ -111,19 +116,16 @@ export class Electron extends AbstractBackend {
                 this.controller.storage.open(fileName, this).then(ok => {
                     if (process.env.SOZI_TEST_EXPORT) {
                         this.runTestExport(ok, process.env.SOZI_TEST_EXPORT);
-                    }
-                    else if (!ok) {
+                    } else if (!ok) {
                         setTimeout(() => this.openFileChooser(), 100);
                     }
                 });
-            }
-            else {
+            } else {
                 this.controller.error(Jed.sprintf(_("File not found: %s."), fileName));
                 // Force the error notification to appear before the file chooser.
                 setTimeout(() => this.openFileChooser(), 100);
             }
-        }
-        else {
+        } else {
             this.openFileChooser();
         }
     }
@@ -187,7 +189,9 @@ export class Electron extends AbstractBackend {
         this.controller.hideNotification();
         if (files) {
             // Reopen the file chooser if the file could not be opened, as for a file on the command line.
-            this.controller.storage.open(files[0], this).then(ok => ok || setTimeout(() => this.openFileChooser(), 100));
+            this.controller.storage
+                .open(files[0], this)
+                .then(ok => ok || setTimeout(() => this.openFileChooser(), 100));
         }
     }
 
@@ -208,8 +212,7 @@ export class Electron extends AbstractBackend {
             fs.access(fileName, err => {
                 if (err) {
                     reject(err);
-                }
-                else {
+                } else {
                     resolve(fileName);
                 }
             });
@@ -219,18 +222,18 @@ export class Electron extends AbstractBackend {
     /** @inheritdoc */
     load(fileDescriptor) {
         return new Promise((resolve, reject) => {
-            fs.readFile(fileDescriptor, { encoding: "utf8" }, (err, data) => {
+            fs.readFile(fileDescriptor, {encoding: "utf8"}, (err, data) => {
                 if (err) {
                     reject(err);
-                }
-                else {
+                } else {
                     // Watch for changes in the loaded file.
                     // This includes a debouncing mechanism to ensure the file is in a stable
                     // state when the storage is notified.
                     // In command-line mode, files are read once: no watcher.
                     if (!getCliOptions() && !(fileDescriptor in this.watchers)) {
                         try {
-                            const watcher = this.watchers[fileDescriptor] = fs.watch(fileDescriptor);
+                            const watcher = (this.watchers[fileDescriptor] =
+                                fs.watch(fileDescriptor));
                             let timer;
                             watcher.on("change", () => {
                                 if (timer) {
@@ -241,10 +244,14 @@ export class Electron extends AbstractBackend {
                                     this.controller.onFileChange(fileDescriptor);
                                 }, 100);
                             });
-                        }
-                        catch (err) {
+                        } catch (err) {
                             const _ = this.controller.gettext;
-                            this.controller.error(Jed.sprintf(_("This file will not be reloaded on change: %s."), fileDescriptor));
+                            this.controller.error(
+                                Jed.sprintf(
+                                    _("This file will not be reloaded on change: %s."),
+                                    fileDescriptor
+                                )
+                            );
                         }
                     }
                     resolve(data);
@@ -256,9 +263,8 @@ export class Electron extends AbstractBackend {
     /** @inheritdoc */
     loadSync(fileDescriptor) {
         try {
-            return fs.readFileSync(fileDescriptor, {encoding: "utf8" });
-        }
-        catch (e) {
+            return fs.readFileSync(fileDescriptor, {encoding: "utf8"});
+        } catch (e) {
             const _ = this.controller.gettext;
             this.controller.error(Jed.sprintf(_("Could not read file %s."), fileDescriptor));
             return "";
@@ -275,11 +281,10 @@ export class Electron extends AbstractBackend {
                     reject(err);
                     return;
                 }
-                fs.writeFile(fileName, data, { encoding: "utf-8" }, err => {
+                fs.writeFile(fileName, data, {encoding: "utf-8"}, err => {
                     if (err) {
                         reject(err);
-                    }
-                    else {
+                    } else {
                         resolve(fileName);
                     }
                 });
@@ -290,11 +295,10 @@ export class Electron extends AbstractBackend {
     /** @inheritdoc */
     save(fileDescriptor, data) {
         return new Promise((resolve, reject) => {
-            fs.writeFile(fileDescriptor, data, { encoding: "utf-8" }, err => {
+            fs.writeFile(fileDescriptor, data, {encoding: "utf-8"}, err => {
                 if (err) {
                     reject(err);
-                }
-                else {
+                } else {
                     this.controller.storage.onSave(fileDescriptor);
                     resolve(fileDescriptor);
                 }

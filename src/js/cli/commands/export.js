@@ -76,7 +76,10 @@ const INTERVAL = /^\s*\d*\s*(:\s*\d*\s*){0,2}$/;
  * @returns {boolean} - `true` if the expression is valid.
  */
 function isFrameList(expr) {
-    return /^\s*(all|none)\s*$/.test(expr) || expr.split(",").every(interval => INTERVAL.test(interval));
+    return (
+        /^\s*(all|none)\s*$/.test(expr) ||
+        expr.split(",").every(interval => INTERVAL.test(interval))
+    );
 }
 
 /** Check the value of the numeric flags.
@@ -90,7 +93,10 @@ function checkValues(flags) {
             return `invalid --${name}: ${flags[name]}; expected a whole number greater than 0`;
         }
     }
-    if (Object.hasOwn(flags, "fps") && !(/^\d+(\.\d+)?$/.test(flags.fps) && Number(flags.fps) > 0)) {
+    if (
+        Object.hasOwn(flags, "fps") &&
+        !(/^\d+(\.\d+)?$/.test(flags.fps) && Number(flags.fps) > 0)
+    ) {
         return `invalid --fps: ${flags.fps}; expected a number of images per second greater than 0`;
     }
     for (const name of ["include", "exclude"]) {
@@ -165,17 +171,15 @@ function exportSettings(exporter, presentation, type, format, flags) {
     if (type === "pdf") {
         set("include", "exportToPDFInclude");
         set("exclude", "exportToPDFExclude");
-    }
-    else if (type === "pptx") {
+    } else if (type === "pptx") {
         set("include", "exportToPPTXInclude");
         set("exclude", "exportToPPTXExclude");
-    }
-    else {
+    } else {
         settings.exportToVideoFormat = format;
-        set("fps",     "exportToVideoFrameRate", Number);
-        set("width",   "exportToVideoWidth",     Number);
-        set("height",  "exportToVideoHeight",    Number);
-        set("bitrate", "exportToVideoBitRate",   Number);
+        set("fps", "exportToVideoFrameRate", Number);
+        set("width", "exportToVideoWidth", Number);
+        set("height", "exportToVideoHeight", Number);
+        set("bitrate", "exportToVideoBitRate", Number);
     }
     return settings;
 }
@@ -205,19 +209,26 @@ function exportSettings(exporter, presentation, type, format, flags) {
  *  (2 for a usage error or an unusable output path, 1 for other failures).
  */
 export async function exportPresentation(context) {
-    const fs       = require("fs");
-    const path     = require("path");
+    const fs = require("fs");
+    const path = require("path");
     const exporter = require("../../exporter");
     const {controller, cwd, flags, warnings} = context;
     const presentation = controller.presentation;
 
     const type = flags["export-type"] || presentation.exportType || "pdf";
     if (!TYPES.includes(type)) {
-        return {ok: false, error: `invalid exportType in the presentation file: ${type}; expected ${TYPES.join(", ")}`};
+        return {
+            ok: false,
+            error: `invalid exportType in the presentation file: ${type}; expected ${TYPES.join(", ")}`
+        };
     }
     const format = type === "video" ? flags.format || presentation.exportToVideoFormat : type;
     if (type === "video" && !FORMATS.includes(format)) {
-        return {ok: false, type, error: `invalid exportToVideoFormat in the presentation file: ${format}; expected ${FORMATS.join(", ")}`};
+        return {
+            ok: false,
+            type,
+            error: `invalid exportToVideoFormat in the presentation file: ${format}; expected ${FORMATS.join(", ")}`
+        };
     }
     const fields = {type, format, ffmpeg: null};
     const usage = checkApplicable(flags, type, format);
@@ -236,16 +247,28 @@ export async function exportPresentation(context) {
     if (out) {
         const ext = path.extname(out).slice(1).toLowerCase();
         if (!isSequence && ext !== format) {
-            const what  = type === "video" ? "video format" : "export type";
+            const what = type === "video" ? "video format" : "export type";
             const given = ext ? `the extension .${ext}` : "no extension";
-            return Object.assign(fields, {ok: false, error: `--out ${flags.out} has ${given}, which does not match the ${what} ${format}; use a .${format} file`, exitCode: 2});
+            return Object.assign(fields, {
+                ok: false,
+                error: `--out ${flags.out} has ${given}, which does not match the ${what} ${format}; use a .${format} file`,
+                exitCode: 2
+            });
         }
         if (!isSequence && fs.existsSync(out) && fs.statSync(out).isDirectory()) {
-            return Object.assign(fields, {ok: false, error: `--out ${flags.out}: ${out} is a directory; --out names the ${format} file`, exitCode: 2});
+            return Object.assign(fields, {
+                ok: false,
+                error: `--out ${flags.out}: ${out} is a directory; --out names the ${format} file`,
+                exitCode: 2
+            });
         }
         const bad = outputDirError(isSequence ? out : path.dirname(out));
         if (bad) {
-            return Object.assign(fields, {ok: false, error: `--out ${flags.out}: ${bad} is not a directory`, exitCode: 2});
+            return Object.assign(fields, {
+                ok: false,
+                error: `--out ${flags.out}: ${bad} is not a directory`,
+                exitCode: 2
+            });
         }
     }
 
@@ -254,7 +277,10 @@ export async function exportPresentation(context) {
         const explicit = Object.hasOwn(flags, "ffmpeg") ? path.resolve(cwd, flags.ffmpeg) : null;
         fields.ffmpeg = exporter.findFfmpeg(explicit);
         if (!fields.ffmpeg) {
-            return Object.assign(fields, {ok: false, error: explicit ? `ffmpeg not found: ${explicit}` : "ffmpeg not found"});
+            return Object.assign(fields, {
+                ok: false,
+                error: explicit ? `ffmpeg not found: ${explicit}` : "ffmpeg not found"
+            });
         }
     }
 
@@ -265,26 +291,34 @@ export async function exportPresentation(context) {
     // The exporter creates the missing directories of --out once the export succeeds.
     const settings = exportSettings(exporter, presentation, type, format, flags);
     const opts = {
-        outPath:         out,
-        ffmpegPath:      fields.ffmpeg,
-        transparent:     !!flags.transparent,
-        frameNumber:     !!flags["frame-number"],
+        outPath: out,
+        ffmpegPath: fields.ffmpeg,
+        transparent: !!flags.transparent,
+        frameNumber: !!flags["frame-number"],
         ffmpegTimeoutMs: Number(flags.timeout || DEFAULT_TIMEOUT_S) * 1000
     };
-    const run = {pdf: exporter.exportToPDF, pptx: exporter.exportToPPTX, video: exporter.exportToVideo}[type];
+    const run = {
+        pdf: exporter.exportToPDF,
+        pptx: exporter.exportToPPTX,
+        video: exporter.exportToVideo
+    }[type];
     let result;
     try {
         result = await run(settings, html, opts);
-    }
-    catch (err) {
-        return Object.assign(fields, {ok: false, error: err && err.message || String(err), html, rebuilt: built.rebuilt});
+    } catch (err) {
+        return Object.assign(fields, {
+            ok: false,
+            error: (err && err.message) || String(err),
+            html,
+            rebuilt: built.rebuilt
+        });
     }
     warnings.push(...result.warnings);
 
     const commandResult = Object.assign(fields, {
-        ok:      true,
-        out:     result.out,
-        frames:  result.frames,
+        ok: true,
+        out: result.out,
+        frames: result.frames,
         html,
         rebuilt: built.rebuilt,
         capture: result.capture

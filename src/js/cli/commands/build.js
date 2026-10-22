@@ -18,7 +18,12 @@ import {presentationFiles} from "../../naming";
  *
  * @type {{[name: string]: (boolean|string)}}
  */
-export const FLAGS = {"write-json": false, title: setFlags.title, "out-dir": true, presentation: true};
+export const FLAGS = {
+    "write-json": false,
+    title: setFlags.title,
+    "out-dir": true,
+    presentation: true
+};
 
 /** Build the HTML files of a presentation that has been loaded.
  *
@@ -50,7 +55,7 @@ export const FLAGS = {"write-json": false, title: setFlags.title, "out-dir": tru
  *  or `{ok: false, error, exitCode: 2}` for an output directory that is a file.
  */
 export function build(context) {
-    const fs   = require("fs");
+    const fs = require("fs");
     const path = require("path");
     const {controller, storage, svg, presentation, flags, warnings} = context;
 
@@ -58,7 +63,9 @@ export function build(context) {
     if (error) {
         return {ok: false, error, exitCode: 2};
     }
-    const {html: htmlPath, presenter: presenterPath} = presentationFiles(svg, presentation, {outputDir});
+    const {html: htmlPath, presenter: presenterPath} = presentationFiles(svg, presentation, {
+        outputDir
+    });
 
     if (fs.existsSync(htmlPath) && fs.statSync(svg).mtimeMs > fs.statSync(htmlPath).mtimeMs) {
         warnings.push("svg newer than existing html");
@@ -68,13 +75,16 @@ export function build(context) {
 
     // The JSON file is written first: the HTML files are then never older than it,
     // so that `render` and `export` do not take them for stale. It is reported last.
-    const writeJSON = !fs.existsSync(presentation) || storage.jsonNeedsSaving || flags["write-json"];
+    const writeJSON =
+        !fs.existsSync(presentation) || storage.jsonNeedsSaving || flags["write-json"];
     if (writeJSON) {
         fs.writeFileSync(presentation, storage.getJSONData(), {encoding: "utf-8"});
     }
     fs.mkdirSync(outputDir, {recursive: true});
     fs.writeFileSync(htmlPath, storage.exportHTML(outputDir), {encoding: "utf-8"});
-    fs.writeFileSync(presenterPath, storage.exportPresenterHTML(path.basename(htmlPath)), {encoding: "utf-8"});
+    fs.writeFileSync(presenterPath, storage.exportPresenterHTML(path.basename(htmlPath)), {
+        encoding: "utf-8"
+    });
 
     const files = writeJSON ? [htmlPath, presenterPath, presentation] : [htmlPath, presenterPath];
     return {ok: true, files, frames: storage.presentation.frames.length};

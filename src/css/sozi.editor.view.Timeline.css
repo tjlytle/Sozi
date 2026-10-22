@@ -14,7 +14,7 @@
     height: calc(100% - 2.5rem);
     overflow-y: auto;
     color: white;
-    background: rgb(80, 80, 80);
+    background: rgb(80 80 80);
 }
 
 #sozi-editor-view-timeline > div {
@@ -44,6 +44,7 @@
 .timeline-bottom-left,
 .timeline-bottom-right {
     bottom: 0;
+
     /* Always-visible horizontal scrollbar in left and right bottom tables.
      * Required for alignment between rows. */
     overflow-x: scroll;
@@ -150,21 +151,21 @@
  */
 
 .timeline-bottom-right td {
-    color: rgb(80, 80, 80);
+    color: rgb(80 80 80);
 }
 
 .timeline td,
 .timeline th.frame-index,
 .timeline th.frame-title {
-    border-left: 2px solid rgb(80, 80, 80);
+    border-left: 2px solid rgb(80 80 80);
 }
 
 .timeline .even {
-    background: rgb(200, 200, 200);
+    background: rgb(200 200 200);
 }
 
 .timeline .odd {
-    background: rgb(230, 230, 230);
+    background: rgb(230 230 230);
 }
 
 .timeline .link {
@@ -172,7 +173,7 @@
 }
 
 .timeline .selected {
-    background: rgb(200, 220, 220);
+    background: rgb(200 220 220);
 }
 
 .timeline th.selected {
@@ -180,11 +181,11 @@
 }
 
 .timeline .selected.current {
-    background: rgb(150, 200, 200);
+    background: rgb(150 200 200);
 }
 
 .timeline .frame-index.selected {
-    color: rgb(200, 220, 220);
+    color: rgb(200 220 220);
     background: transparent;
 }
 
@@ -208,10 +209,10 @@
  */
 
 .timeline {
-    -moz-user-select: none;
-    -ms-user-select: none;
-    -webkit-user-select: none;
-    -o-user-select: none;
+    user-select: none;
+    user-select: none;
+    user-select: none;
+    user-select: none;
     user-select: none;
 }
 
