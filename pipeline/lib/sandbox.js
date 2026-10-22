@@ -174,8 +174,12 @@ export function createSandbox({
             args.push("--cpus", String(settings.cpus));
         }
         args.push("-v", `${mirror}:/mirror:ro`, "-v", `${outbox}:/outbox`);
+        // With a profile no token name is passed: docker would read it from its own
+        // environment, and a token takes precedence over the profile login.
         for (const name of BY_NAME) {
-            args.push("-e", name);
+            if (!(profile && PROFILE_REPLACES.includes(name))) {
+                args.push("-e", name);
+            }
         }
         const values = {
             GH_MINT_URL: mintUrl,

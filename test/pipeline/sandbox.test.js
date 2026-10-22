@@ -199,6 +199,16 @@ describe("sandbox", () => {
         assert.ok(args.includes("CLAUDE_CONFIG_DIR=/profile/claude"));
         assert.ok(args.indexOf("sozi-factory") > args.indexOf("CLAUDE_CONFIG_DIR=/profile/claude"));
     });
+    test("a profiled start names no fallback token; an unprofiled one names both", () => {
+        const base = {issue: 25, stage: "build", persona: "builder", outbox: "/o", mintUrl: "u"};
+        const profiled = sb.startArgs({...base, mintKey: "k", profile: true});
+        const plain = sb.startArgs({...base, mintKey: "k"});
+        for (const name of ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]) {
+            assert.ok(!profiled.includes(name), name);
+            assert.equal(plain[plain.indexOf(name) - 1], "-e", name);
+        }
+        assert.ok(profiled.includes("NOTION_TOKEN"));
+    });
     test("no profile arguments when profile is not set", () => {
         const args = sb.startArgs({
             issue: 25,
