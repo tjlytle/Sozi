@@ -170,7 +170,9 @@ export function createSandbox({settings, root, run = defaultRun}) {
                 settings.image,
                 "--build-context",
                 `ghp=${pluginDir()}`,
-                path.join(root, "docker", "factory")
+                "-f",
+                path.join(root, "docker", "factory", "Dockerfile"),
+                root
             ]);
         },
         startArgs,

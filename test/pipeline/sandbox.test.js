@@ -110,6 +110,16 @@ describe("sandbox", () => {
         assert.equal(calls[0].opts.env.PIPELINE_ISSUE, "25");
         assert.equal(calls[0].opts.env.GH_MINT_KEY, "k");
     });
+    test("buildImage builds from the repo root with the plugin as a named context", async () => {
+        const {sb: s, calls} = recording(() => ({code: 0}));
+        await s.buildImage();
+        const cmd = calls[0].cmd;
+        assert.deepEqual(cmd.slice(0, 3), ["docker", "build", "-t"]);
+        assert.ok(cmd.includes("--build-context"));
+        assert.match(cmd[cmd.indexOf("--build-context") + 1], /^ghp=/);
+        assert.equal(cmd[cmd.indexOf("-f") + 1], "/repo/docker/factory/Dockerfile");
+        assert.equal(cmd.at(-1), "/repo");
+    });
     test("refreshMirror clones once, then updates", async () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));
         const {sb: s, calls} = recording(() => ({code: 0}), root);
