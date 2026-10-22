@@ -92,7 +92,7 @@ window.addEventListener(
                 },
                 false
             );
-        } catch (e) {
+        } catch {
             alert(
                 "Could not open presentation window. Please allow popups for this site and refresh this page."
             );

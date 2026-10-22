@@ -326,7 +326,6 @@ export class Camera extends CameraState {
      */
     getCandidateReferenceElement() {
         // Get all elements that intersect with the viewport.
-        const viewportArea = this.viewport.width * this.viewport.height;
         const viewportRect = this.svgRoot.createSVGRect();
         viewportRect.x = 0;
         viewportRect.y = 0;

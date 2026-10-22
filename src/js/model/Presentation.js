@@ -274,13 +274,13 @@ export class Frame {
              *
              * @type {module:model/Presentation.LayerProperties[]}
              */
-            this.layerProperties = obj.layers.map(lp => new LayerProperties(this));
+            this.layerProperties = obj.layers.map(() => new LayerProperties(this));
 
             /** The camera states of this frame for each layer.
              *
              * @type {module:model/Presentation.CameraState[]}
              */
-            this.cameraStates = obj.layers.map(cs => new CameraState(obj.document.root));
+            this.cameraStates = obj.layers.map(() => new CameraState(obj.document.root));
 
             /** The title of this frame.
              *
@@ -618,12 +618,6 @@ export class Layer {
         return this.svgNodes.some(node => node.contains(svgElement));
     }
 }
-
-/** Constant: the SVG namespace
- *
- * @type {string}
- */
-const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Type for SVG documents.
  *

@@ -558,7 +558,7 @@ export class Controller extends EventEmitter {
                 // Remove the selected frames and clear the selection.
                 // We don't use the saved index here because the actual index
                 // will change as frames are deleted.
-                for (const [frame, index] of framesByIndex) {
+                for (const [frame] of framesByIndex) {
                     this.presentation.frames.splice(frame.index, 1);
                 }
                 this.selection.selectedFrames = [];
@@ -591,7 +591,6 @@ export class Controller extends EventEmitter {
         const framesByIndex = this.selection.selectedFrames
             .slice()
             .sort((a, b) => a.index - b.index);
-        const frameIndices = framesByIndex.map(frame => frame.index);
 
         // Compute the new target frame index after the selection has been removed.
         let targetIndex = toFrameIndex;
@@ -1319,7 +1318,7 @@ export class Controller extends EventEmitter {
 
         this.perform(
             function onDo() {
-                for (const [frame, value] of savedValues) {
+                for (const [frame] of savedValues) {
                     frame[property] = newValue;
                 }
             },

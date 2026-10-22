@@ -123,7 +123,6 @@ export function upgradeFromSVG(pres, controller) {
     if (!soziNsAttrs.length) {
         return;
     }
-    const soziPrefix = soziNsAttrs[0].name.replace(/^xmlns:/, "") + ":";
 
     // Get an ordered array of sozi:frame elements
     const frameElts = Array.from(pres.document.root.getElementsByTagNameNS(SOZI_NS, "frame"));
