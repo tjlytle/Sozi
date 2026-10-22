@@ -40,8 +40,7 @@ export class CameraState {
     constructor(obj) {
         if (obj instanceof CameraState) {
             this.copy(obj);
-        }
-        else {
+        } else {
             const initialBBox = obj.getBBox();
 
             /** The root SVG element attached to this camera.
@@ -113,9 +112,9 @@ export class CameraState {
             this.cy = initialBBox.y + initialBBox.height / 2;
 
             // These are assigned through setters. See below.
-            this.width  = initialBBox.width;
+            this.width = initialBBox.width;
             this.height = initialBBox.height;
-            this.angle  = 0;
+            this.angle = 0;
         }
     }
 
@@ -124,17 +123,17 @@ export class CameraState {
      * @param {module:model/CameraState.CameraState} state - The camera state to copy.
      */
     copy(state) {
-        this.svgRoot          = state.svgRoot;
-        this.cx               = state.cx;
-        this.cy               = state.cy;
-        this.width            = state.width;
-        this.height           = state.height;
-        this.opacity          = state.opacity;
-        this.angle            = state.angle;
-        this.clipped          = state.clipped;
-        this.clipXOffset      = state.clipXOffset;
-        this.clipYOffset      = state.clipYOffset;
-        this.clipWidthFactor  = state.clipWidthFactor;
+        this.svgRoot = state.svgRoot;
+        this.cx = state.cx;
+        this.cy = state.cy;
+        this.width = state.width;
+        this.height = state.height;
+        this.opacity = state.opacity;
+        this.angle = state.angle;
+        this.clipped = state.clipped;
+        this.clipXOffset = state.clipXOffset;
+        this.clipYOffset = state.clipYOffset;
+        this.clipWidthFactor = state.clipWidthFactor;
         this.clipHeightFactor = state.clipHeightFactor;
     }
 
@@ -183,8 +182,7 @@ export class CameraState {
         this._angle = !isNaN(a) ? (a + 180) % 360 : 180;
         if (this._angle < 0) {
             this._angle += 180;
-        }
-        else {
+        } else {
             this._angle -= 180;
         }
     }
@@ -198,16 +196,16 @@ export class CameraState {
      */
     toStorable() {
         return {
-            cx              : this.cx,
-            cy              : this.cy,
-            width           : this.width,
-            height          : this.height,
-            opacity         : this.opacity,
-            angle           : this.angle,
-            clipped         : this.clipped,
-            clipXOffset     : this.clipXOffset,
-            clipYOffset     : this.clipYOffset,
-            clipWidthFactor : this.clipWidthFactor,
+            cx: this.cx,
+            cy: this.cy,
+            width: this.width,
+            height: this.height,
+            opacity: this.opacity,
+            angle: this.angle,
+            clipped: this.clipped,
+            clipXOffset: this.clipXOffset,
+            clipYOffset: this.clipYOffset,
+            clipWidthFactor: this.clipWidthFactor,
             clipHeightFactor: this.clipHeightFactor
         };
     }
@@ -257,14 +255,21 @@ export class CameraState {
      * @see {@linkcode module:model/CameraState.CameraState#offsetFromElement|offsetFromElement}
      * @see {@linkcode module:model/CameraState.CameraState#applyOffset|applyOffset}
      */
-    setAtElement(svgElement, deltaX = 0, deltaY = 0, widthFactor = 1, heightFactor = 1, deltaAngle = 0) {
+    setAtElement(
+        svgElement,
+        deltaX = 0,
+        deltaY = 0,
+        widthFactor = 1,
+        heightFactor = 1,
+        deltaAngle = 0
+    ) {
         // Read the raw bounding box of the given SVG element.
         const bbox = svgElement.getBBox();
 
         // Compute the raw coordinates of the center
         // of the given SVG element
         let bboxCenter = this.svgRoot.createSVGPoint();
-        bboxCenter.x = bbox.x + bbox.width  / 2;
+        bboxCenter.x = bbox.x + bbox.width / 2;
         bboxCenter.y = bbox.y + bbox.height / 2;
 
         // Find the transform group corresponding to the layer
@@ -284,11 +289,11 @@ export class CameraState {
 
         // Update the camera to match the bounding box information of the
         // given SVG element after its current transformation
-        this.cx     = bboxCenter.x + deltaX;
-        this.cy     = bboxCenter.y + deltaY;
-        this.width  = (bbox.width  > 0 ? bbox.width  * scale : 1) * widthFactor;
+        this.cx = bboxCenter.x + deltaX;
+        this.cy = bboxCenter.y + deltaY;
+        this.width = (bbox.width > 0 ? bbox.width * scale : 1) * widthFactor;
         this.height = (bbox.height > 0 ? bbox.height * scale : 1) * heightFactor;
-        this.angle  = Math.atan2(matrix.b, matrix.a) * 180 / Math.PI + deltaAngle;
+        this.angle = (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI + deltaAngle;
     }
 
     /** Set the clipping properties to their default values.
@@ -296,7 +301,7 @@ export class CameraState {
      * This method will fit the clipping rectangle to the image seen by the camera.
      */
     resetClipping() {
-        this.clipXOffset     = this.clipYOffset      = 0;
+        this.clipXOffset = this.clipYOffset = 0;
         this.clipWidthFactor = this.clipHeightFactor = 1;
     }
 
@@ -313,11 +318,11 @@ export class CameraState {
         const cam = new CameraState(this.svgRoot);
         cam.setAtElement(svgElement);
         return {
-            deltaX:       this.cx     - cam.cx,
-            deltaY:       this.cy     - cam.cy,
-            widthFactor:  this.width  / cam.width,
+            deltaX: this.cx - cam.cx,
+            deltaY: this.cy - cam.cy,
+            widthFactor: this.width / cam.width,
             heightFactor: this.height / cam.height,
-            deltaAngle:   this.angle  - cam.angle
+            deltaAngle: this.angle - cam.angle
         };
     }
 
@@ -336,10 +341,10 @@ export class CameraState {
      * @see {@linkcode module:model/CameraState.CameraState#setAtElement|setAtElement}
      */
     applyOffset({deltaX, deltaY, widthFactor, heightFactor, deltaAngle}) {
-        this.cx     -= deltaX;
-        this.cy     -= deltaY;
-        this.width  /= widthFactor;
+        this.cx -= deltaX;
+        this.cy -= deltaY;
+        this.width /= widthFactor;
         this.height /= heightFactor;
-        this.angle  -= deltaAngle;
+        this.angle -= deltaAngle;
     }
 }

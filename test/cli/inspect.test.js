@@ -9,20 +9,34 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck} = require("./helpers.js");
 
-/** Run `inspect` on a temp deck and check the output is a single JSON line. */
+/**
+ * Run `inspect` on a temp deck and check the output is a single JSON line.
+ * @param deck
+ * @param {...any} flags
+ */
 function inspect(deck, ...flags) {
     const run = runSozi(["inspect", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
-    assert.equal(run.stdout.trim().split("\n").length, 1, `stdout: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.equal(
+        run.stdout.trim().split("\n").length,
+        1,
+        `stdout: ${run.stdout}\nstderr: ${run.stderr}`
+    );
     assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
     return run;
 }
 
-/** The names, sizes and mtimes of the files in a directory. */
+/**
+ * The names, sizes and mtimes of the files in a directory.
+ * @param dir
+ */
 function snapshot(dir) {
-    return fs.readdirSync(dir).sort().map(name => {
-        const stat = fs.statSync(path.join(dir, name));
-        return {name, size: stat.size, mtimeMs: stat.mtimeMs};
-    });
+    return fs
+        .readdirSync(dir)
+        .sort()
+        .map(name => {
+            const stat = fs.statSync(path.join(dir, name));
+            return {name, size: stat.size, mtimeMs: stat.mtimeMs};
+        });
 }
 
 describe("inspect", () => {
@@ -40,7 +54,13 @@ describe("inspect", () => {
             assert.deepEqual(json.warnings, []);
             assert.deepEqual(json.errors, []);
 
-            assert.deepEqual(json.layers.map(l => [l.id, l.index, l.inJson]), [["layer1", 0, true], ["layer2", 1, true]]);
+            assert.deepEqual(
+                json.layers.map(l => [l.id, l.index, l.inJson]),
+                [
+                    ["layer1", 0, true],
+                    ["layer2", 1, true]
+                ]
+            );
             for (const layer of json.layers) {
                 assert.equal(typeof layer.label, "string");
             }
@@ -52,23 +72,41 @@ describe("inspect", () => {
             assert.equal(f0.title, "One");
             assert.equal(f1.index, 1);
             for (const frame of json.frames) {
-                for (const key of ["timeoutMs", "timeoutEnable", "transitionDurationMs", "showInFrameList"]) {
+                for (const key of [
+                    "timeoutMs",
+                    "timeoutEnable",
+                    "transitionDurationMs",
+                    "showInFrameList"
+                ]) {
                     assert.ok(key in frame, key);
                 }
                 assert.deepEqual(Object.keys(frame.layers).sort(), ["layer1", "layer2"]);
                 for (const layer of Object.values(frame.layers)) {
-                    for (const key of ["referenceElementId", "referenceMissing", "outlineElementId", "link", "camera"]) {
+                    for (const key of [
+                        "referenceElementId",
+                        "referenceMissing",
+                        "outlineElementId",
+                        "link",
+                        "camera"
+                    ]) {
                         assert.ok(key in layer, key);
                     }
-                    assert.deepEqual(Object.keys(layer.camera).sort(), ["angle", "clipped", "cx", "cy", "height", "opacity", "width"]);
+                    assert.deepEqual(Object.keys(layer.camera).sort(), [
+                        "angle",
+                        "clipped",
+                        "cx",
+                        "cy",
+                        "height",
+                        "opacity",
+                        "width"
+                    ]);
                 }
             }
             assert.equal(f0.layers.layer1.referenceElementId, "r1");
             assert.equal(f0.layers.layer1.referenceMissing, false);
             assert.equal(f0.layers.layer1.camera.cx, 210);
             assert.equal(f1.layers.layer2.referenceElementId, "r2");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -84,8 +122,7 @@ describe("inspect", () => {
             assert.equal(json.frames[0].layers.layer2.referenceElementId, "nope");
             assert.equal(json.frames[0].layers.layer2.referenceMissing, true);
             assert.equal(json.frames[0].layers.layer1.referenceMissing, false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -97,8 +134,7 @@ describe("inspect", () => {
             assert.equal(code, 0, JSON.stringify(json));
             assert.equal(json.frames.length, 1);
             assert.equal(json.frames[0].index, 1);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -108,10 +144,12 @@ describe("inspect", () => {
         try {
             const {code, json} = inspect(deck, "--frame=frame1");
             assert.equal(code, 0, JSON.stringify(json));
-            assert.deepEqual(json.frames.map(f => f.id), ["frame1"]);
+            assert.deepEqual(
+                json.frames.map(f => f.id),
+                ["frame1"]
+            );
             assert.equal(json.frames[0].index, 0);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -124,8 +162,7 @@ describe("inspect", () => {
             assert.equal(json.ok, false);
             assert.match(json.error, /frame not found: 9/);
             assert.equal(json.command, "inspect");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -133,15 +170,17 @@ describe("inspect", () => {
     test("--frame with no value exits 2", () => {
         const deck = withTempDeck("basic");
         try {
-            for (const args of [["inspect", "basic.svg", "--frame"], ["inspect", "--frame", "--size", "640x480", "basic.svg"]]) {
+            for (const args of [
+                ["inspect", "basic.svg", "--frame"],
+                ["inspect", "--frame", "--size", "640x480", "basic.svg"]
+            ]) {
                 const {code, json} = runSozi(args, {cwd: deck.dir});
                 assert.equal(code, 2, args.join(" "));
                 assert.equal(json.ok, false);
                 assert.equal(json.error, "missing value for --frame");
                 assert.match(json.usage, /^sozi --cli/);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -157,8 +196,7 @@ describe("inspect", () => {
             const {code} = inspect(deck);
             assert.equal(code, 0);
             assert.deepEqual(snapshot(deck.dir), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -171,10 +209,15 @@ describe("inspect", () => {
             const {code, json} = inspect(deck);
             assert.equal(code, 0, JSON.stringify(json));
             assert.deepEqual(json.frames, []);
-            assert.deepEqual(json.layers.map(l => [l.id, l.inJson]), [["layer1", false], ["layer2", false]]);
+            assert.deepEqual(
+                json.layers.map(l => [l.id, l.inJson]),
+                [
+                    ["layer1", false],
+                    ["layer2", false]
+                ]
+            );
             assert.deepEqual(snapshot(deck.dir), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -182,16 +225,29 @@ describe("inspect", () => {
     test("reports the auto layer when the SVG has top-level groups without an id", () => {
         const deck = withTempDeck("basic");
         try {
-            const svg = fs.readFileSync(deck.svg, "utf8")
-                .replace("</svg>", "  <g><rect id=\"r3\" x=\"0\" y=\"0\" width=\"10\" height=\"10\" /></g>\n</svg>");
+            const svg = fs
+                .readFileSync(deck.svg, "utf8")
+                .replace(
+                    "</svg>",
+                    '  <g><rect id="r3" x="0" y="0" width="10" height="10" /></g>\n</svg>'
+                );
             fs.writeFileSync(deck.svg, svg);
             const {code, json} = inspect(deck);
             assert.equal(code, 0, JSON.stringify(json));
-            assert.deepEqual(json.layers.map(l => [l.id, l.index, l.inJson]),
-                [["layer1", 0, true], ["layer2", 1, true], ["__sozi_auto__", 2, false]]);
-            assert.deepEqual(Object.keys(json.frames[0].layers), ["layer1", "layer2", "__sozi_auto__"]);
-        }
-        finally {
+            assert.deepEqual(
+                json.layers.map(l => [l.id, l.index, l.inJson]),
+                [
+                    ["layer1", 0, true],
+                    ["layer2", 1, true],
+                    ["__sozi_auto__", 2, false]
+                ]
+            );
+            assert.deepEqual(Object.keys(json.frames[0].layers), [
+                "layer1",
+                "layer2",
+                "__sozi_auto__"
+            ]);
+        } finally {
             deck.cleanup();
         }
     });
@@ -203,8 +259,7 @@ describe("inspect", () => {
             assert.equal(code, 0, `${JSON.stringify(json).slice(0, 500)}\n${stderr}`);
             assert.equal(json.frames.length, 9);
             assert.ok(json.layers.length > 0);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -232,8 +287,7 @@ describe("runner errors", () => {
             assert.match(json.error, /extension/);
             assert.equal(json.svg, bare);
             assert.deepEqual(snapshot(deck.dir), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -248,8 +302,7 @@ describe("runner errors", () => {
             assert.equal(json.errors.length, 1);
             assert.match(json.errors[0], /not valid SVG/);
             assert.equal(json.error, json.errors[0]);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });

@@ -11,31 +11,41 @@ import {addSVGHandler, DefaultSVGHandler} from "./SVGDocumentWrapper";
  * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
  */
 export class AiHandler extends DefaultSVGHandler {
-
     /** @inheritdoc */
     static matches(svgRoot) {
-        return /^http:\/\/ns.adobe.com\/AdobeIllustrator/.test(svgRoot.getAttribute("xmlns:i")) &&
-               Array.from(svgRoot.childNodes).some(svgNode => svgNode instanceof SVGSwitchElement);
+        return (
+            /^http:\/\/ns.adobe.com\/AdobeIllustrator/.test(svgRoot.getAttribute("xmlns:i")) &&
+            Array.from(svgRoot.childNodes).some(svgNode => svgNode instanceof SVGSwitchElement)
+        );
     }
 
     /** @inheritdoc */
     static transform(svgRoot) {
-        for (let svgSwitch of Array.from(svgRoot.getElementsByTagName("switch"))) {
+        for (const svgSwitch of Array.from(svgRoot.getElementsByTagName("switch"))) {
             // Remove first foreignObject child node
             const svgForeignObject = svgSwitch.firstElementChild;
-            if (svgForeignObject && svgForeignObject instanceof SVGForeignObjectElement &&
+            if (
+                svgForeignObject &&
+                svgForeignObject instanceof SVGForeignObjectElement &&
                 svgForeignObject.hasAttribute("requiredExtensions") &&
-                svgForeignObject.getAttribute("requiredExtensions").startsWith("http://ns.adobe.com/AdobeIllustrator")) {
+                svgForeignObject
+                    .getAttribute("requiredExtensions")
+                    .startsWith("http://ns.adobe.com/AdobeIllustrator")
+            ) {
                 // Remove foreign objet element
                 svgSwitch.removeChild(svgForeignObject);
 
                 // Unwrap main group
                 let svgGroup = svgSwitch.firstElementChild;
-                if (!svgGroup || svgGroup instanceof SVGGElement || svgGroup.getAttribute("i:extraneous") !== "self") {
+                if (
+                    !svgGroup ||
+                    svgGroup instanceof SVGGElement ||
+                    svgGroup.getAttribute("i:extraneous") !== "self"
+                ) {
                     svgGroup = svgSwitch;
                 }
                 // Make a copy of svgGroup.childNodes before modifying the document.
-                for (let childNode of Array.from(svgGroup.childNodes)) {
+                for (const childNode of Array.from(svgGroup.childNodes)) {
                     svgSwitch.parentNode.insertBefore(childNode, svgSwitch);
                 }
 

@@ -78,12 +78,18 @@ function markFrames(list, expr, value) {
         case "none":
             break;
         default:
-            for (let intervalDef of expr.split(",")) {
+            for (const intervalDef of expr.split(",")) {
                 const interval = intervalDef.split(":").map(s => s.trim());
                 if (interval.length > 0) {
-                    const first  = interval[0]                        !== "" ? parseInt(interval[0])                   - 1 : 0;
-                    const last   = interval[interval.length - 1]      !== "" ? parseInt(interval[interval.length - 1]) - 1 : list.length - 1;
-                    const second = interval.length > 2 && interval[1] !== "" ? parseInt(interval[1])                   - 1 : first + 1;
+                    const first = interval[0] !== "" ? parseInt(interval[0]) - 1 : 0;
+                    const last =
+                        interval[interval.length - 1] !== ""
+                            ? parseInt(interval[interval.length - 1]) - 1
+                            : list.length - 1;
+                    const second =
+                        interval.length > 2 && interval[1] !== ""
+                            ? parseInt(interval[1]) - 1
+                            : first + 1;
                     if (!isNaN(first) && !isNaN(second) && !isNaN(last)) {
                         markInterval(list, first, last, second - first, value);
                     }
@@ -122,12 +128,12 @@ export function selectFrames(frameCount, include, exclude) {
  * @type {object}
  */
 const pdfPageGeometry = {
-    A3     : {width: 1587, height: 1123},
-    A4     : {width: 1123, height: 794},
-    A5     : {width: 794 , height: 559},
-    Legal  : {width: 1344, height: 816},
-    Letter : {width: 1056, height: 816},
-    Tabloid: {width: 1632, height: 1056},
+    A3: {width: 1587, height: 1123},
+    A4: {width: 1123, height: 794},
+    A5: {width: 794, height: 559},
+    Legal: {width: 1344, height: 816},
+    Letter: {width: 1056, height: 816},
+    Tabloid: {width: 1632, height: 1056}
 };
 
 /** The available slide sizes for PPTX export.
@@ -141,21 +147,21 @@ const pdfPageGeometry = {
  * @type {object}
  */
 const pptxSlideGeometry = {
-    "35mm"     : {width: 11.25, height: 7.5}, // in
-    A3         : {width: 420,   height: 297}, // mm
-    A4         : {width: 297,   height: 210}, // mm
-    B4ISO      : {width: 353,   height: 250}, // mm
-    B4JIS      : {width: 364,   height: 257}, // mm
-    B5ISO      : {width: 250,   height: 176}, // mm
-    B5JIS      : {width: 257,   height: 182}, // mm
-    banner     : {width: 8,     height: 1},   // in
-    hagakiCard : {width: 148,   height: 100}, // mm
-    ledger     : {width: 17,    height: 11},  // in
-    letter     : {width: 11,    height: 8.5}, // in
-    overhead   : {width: 10,    height: 7.5}, // in
-    screen16x10: {width: 16,    height: 10},  // no unit
-    screen16x9 : {width: 16,    height: 9},   // no unit
-    screen4x3  : {width: 4,     height: 3}    // no unit
+    "35mm": {width: 11.25, height: 7.5}, // in
+    A3: {width: 420, height: 297}, // mm
+    A4: {width: 297, height: 210}, // mm
+    B4ISO: {width: 353, height: 250}, // mm
+    B4JIS: {width: 364, height: 257}, // mm
+    B5ISO: {width: 250, height: 176}, // mm
+    B5JIS: {width: 257, height: 182}, // mm
+    banner: {width: 8, height: 1}, // in
+    hagakiCard: {width: 148, height: 100}, // mm
+    ledger: {width: 17, height: 11}, // in
+    letter: {width: 11, height: 8.5}, // in
+    overhead: {width: 10, height: 7.5}, // in
+    screen16x10: {width: 16, height: 10}, // no unit
+    screen16x9: {width: 16, height: 9}, // no unit
+    screen4x3: {width: 4, height: 3} // no unit
 };
 
 /** The default height of PPTX slides, in pixels.
@@ -172,10 +178,18 @@ const pptxSlideHeightPx = 1080;
  * @type {string[]}
  */
 const settingNames = [
-    "exportToPDFPageSize", "exportToPDFPageOrientation", "exportToPDFInclude", "exportToPDFExclude",
-    "exportToPPTXSlideSize", "exportToPPTXInclude", "exportToPPTXExclude",
-    "exportToVideoFormat", "exportToVideoWidth", "exportToVideoHeight",
-    "exportToVideoFrameRate", "exportToVideoBitRate"
+    "exportToPDFPageSize",
+    "exportToPDFPageOrientation",
+    "exportToPDFInclude",
+    "exportToPDFExclude",
+    "exportToPPTXSlideSize",
+    "exportToPPTXInclude",
+    "exportToPPTXExclude",
+    "exportToVideoFormat",
+    "exportToVideoWidth",
+    "exportToVideoHeight",
+    "exportToVideoFrameRate",
+    "exportToVideoBitRate"
 ];
 
 /** Copy the export settings and frame timings of a presentation into a plain object.
@@ -189,8 +203,8 @@ export function exportSettings(presentation) {
         result[name] = presentation[name];
     }
     result.frames = presentation.frames.map(f => ({
-        timeoutMs           : f.timeoutMs,
-        timeoutEnable       : f.timeoutEnable,
+        timeoutMs: f.timeoutMs,
+        timeoutEnable: f.timeoutEnable,
         transitionDurationMs: f.transitionDurationMs
     }));
     return result;
@@ -217,7 +231,7 @@ export function videoTimeline(frames, frameRate) {
         const holdMs = frames[index].timeoutMs;
         let count = 0;
         while (count * timeStepMs < holdMs) {
-            count ++;
+            count++;
         }
         steps.push({type: "hold", frame: index, count: Math.max(count, 1)});
 
@@ -228,8 +242,8 @@ export function videoTimeline(frames, frameRate) {
 
         const durationMs = frames[next].transitionDurationMs;
         const progress = [];
-        for (let k = 0; k * timeStepMs < durationMs; k ++) {
-            progress.push(k * timeStepMs / durationMs);
+        for (let k = 0; k * timeStepMs < durationMs; k++) {
+            progress.push((k * timeStepMs) / durationMs);
         }
         steps.push({type: "transition", to: next, progress});
 
@@ -259,8 +273,7 @@ function isExecutable(fileName) {
     try {
         fs.accessSync(fileName, fs.constants.X_OK);
         return fs.statSync(fileName).isFile();
-    }
-    catch (e) {
+    } catch (e) {
         return false;
     }
 }
@@ -313,8 +326,7 @@ function cleanUpOnExit(fn) {
     const cleanUp = () => {
         try {
             fn();
-        }
-        catch (e) {
+        } catch (e) {
             // Nothing more can be done while exiting.
         }
     };
@@ -343,8 +355,7 @@ function removeCreatedDirs(dir, created) {
     for (let d = path.resolve(dir); ; d = path.dirname(d)) {
         try {
             fs.rmdirSync(d);
-        }
-        catch (e) {
+        } catch (e) {
             // Not empty, or already gone: keep it and its parents.
             return;
         }
@@ -376,7 +387,7 @@ export function partialPath(outPath) {
  * @returns {Promise} - Resolved once `outPath` is complete.
  */
 async function writeOutput(outPath, write) {
-    const dir     = path.dirname(outPath);
+    const dir = path.dirname(outPath);
     const created = fs.mkdirSync(dir, {recursive: true});
     const partial = partialPath(outPath);
     const cleanUp = () => {
@@ -387,17 +398,14 @@ async function writeOutput(outPath, write) {
     try {
         await write(partial);
         fs.renameSync(partial, outPath);
-    }
-    catch (err) {
+    } catch (err) {
         try {
             cleanUp();
-        }
-        catch (e) {
+        } catch (e) {
             // Report the error of the export, not of the clean-up.
         }
         throw err;
-    }
-    finally {
+    } finally {
         cancelCleanUp();
     }
 }
@@ -410,8 +418,7 @@ async function writeOutput(outPath, write) {
 export function moveFile(from, to) {
     try {
         fs.renameSync(from, to);
-    }
-    catch (err) {
+    } catch (err) {
         if (err.code !== "EXDEV") {
             throw err;
         }
@@ -432,8 +439,7 @@ export function moveFile(from, to) {
 export function linkOrCopy(from, to) {
     try {
         fs.linkSync(from, to);
-    }
-    catch (err) {
+    } catch (err) {
         fs.copyFileSync(from, to);
     }
 }
@@ -456,15 +462,17 @@ function runFfmpeg(ffmpegPath, args, timeoutMs) {
         const kill = () => {
             try {
                 child.kill("SIGKILL");
-            }
-            catch (e) {
+            } catch (e) {
                 // The process is already gone.
             }
         };
-        const timer = setTimeout(() => {
-            timedOut = true;
-            kill();
-        }, Math.min(timeoutMs, 2 ** 31 - 1));
+        const timer = setTimeout(
+            () => {
+                timedOut = true;
+                kill();
+            },
+            Math.min(timeoutMs, 2 ** 31 - 1)
+        );
         // Before the other exit handlers, which remove the files that ffmpeg writes.
         process.prependListener("exit", kill);
         const done = () => {
@@ -483,13 +491,20 @@ function runFfmpeg(ffmpegPath, args, timeoutMs) {
             done();
             if (timedOut) {
                 const tail = stderr.trim();
-                reject(new Error(`ffmpeg did not finish within ${timeoutMs / 1000} s and was stopped` + (tail ? `: ${tail}` : "")));
-            }
-            else if (code === 0) {
+                reject(
+                    new Error(
+                        `ffmpeg did not finish within ${timeoutMs / 1000} s and was stopped` +
+                            (tail ? `: ${tail}` : "")
+                    )
+                );
+            } else if (code === 0) {
                 resolve();
-            }
-            else {
-                reject(new Error(`ffmpeg failed (${signal ? "signal " + signal : "exit status " + code}): ${stderr.trim()}`));
+            } else {
+                reject(
+                    new Error(
+                        `ffmpeg failed (${signal ? "signal " + signal : "exit status " + code}): ${stderr.trim()}`
+                    )
+                );
             }
         });
     });
@@ -530,8 +545,12 @@ function isUniform(img) {
  * @returns {boolean} - `true` if both images are uniform with the same pixel value.
  */
 function sameUniformColour(a, b) {
-    return !b.isEmpty() && isUniform(a) && isUniform(b) &&
-        a.toBitmap().readUInt32LE(0) === b.toBitmap().readUInt32LE(0);
+    return (
+        !b.isEmpty() &&
+        isUniform(a) &&
+        isUniform(b) &&
+        a.toBitmap().readUInt32LE(0) === b.toBitmap().readUInt32LE(0)
+    );
 }
 
 /** The default time limit of each step of an export, in milliseconds.
@@ -563,7 +582,6 @@ function withTimeout(promise, ms, message) {
  * Main process only.
  */
 export class ExportWindow {
-
     /** Wrap a browser window.
      *
      * @param {BrowserWindow} w - A browser window.
@@ -636,7 +654,11 @@ export class ExportWindow {
      * @returns {Promise} - Settled like `promise`, or rejected after the time limit.
      */
     bounded(promise, what) {
-        return withTimeout(promise, this.timeoutMs, `the export window did not respond within ${this.timeoutMs / 1000} s (${what})`);
+        return withTimeout(
+            promise,
+            this.timeoutMs,
+            `the export window did not respond within ${this.timeoutMs / 1000} s (${what})`
+        );
     }
 
     /** Run a script in the page.
@@ -645,7 +667,10 @@ export class ExportWindow {
      * @returns {Promise<any>} - The value of the expression.
      */
     run(code) {
-        return this.bounded(this.window.webContents.executeJavaScript(code), "script: " + code.trim().split("\n")[0].slice(0, 60));
+        return this.bounded(
+            this.window.webContents.executeJavaScript(code),
+            "script: " + code.trim().split("\n")[0].slice(0, 60)
+        );
     }
 
     /** Wait until the page has painted its current state (two animation frames).
@@ -653,7 +678,9 @@ export class ExportWindow {
      * @returns {Promise} - Resolved after the second animation frame.
      */
     settle() {
-        return this.run("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+        return this.run(
+            "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))"
+        );
     }
 
     /** Show a frame without transition.
@@ -676,9 +703,15 @@ export class ExportWindow {
             dbg.attach("1.3");
             // Render at device scale 1, so that the screenshots have the requested
             // size in pixels on high-density displays too.
-            await this.bounded(dbg.sendCommand("Emulation.setDeviceMetricsOverride", {
-                width: this.size.width, height: this.size.height, deviceScaleFactor: 1, mobile: false
-            }), "device metrics override");
+            await this.bounded(
+                dbg.sendCommand("Emulation.setDeviceMetricsOverride", {
+                    width: this.size.width,
+                    height: this.size.height,
+                    deviceScaleFactor: 1,
+                    mobile: false
+                }),
+                "device metrics override"
+            );
         }
         return dbg;
     }
@@ -697,12 +730,10 @@ export class ExportWindow {
             await this.run("__soziExport.kick(true)");
             const img = await this.bounded(shot, "screenshot");
             return Buffer.from(img.data, "base64");
-        }
-        finally {
+        } finally {
             try {
                 await this.run("__soziExport.kick(false)");
-            }
-            catch (e) {
+            } catch (e) {
                 // The page does not respond: the window will be destroyed anyway.
             }
         }
@@ -737,7 +768,7 @@ export class ExportWindow {
         let png;
         if (!this.useCDP) {
             let img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
-            if (!img.isEmpty() && isUniform(img) && await this.svgHasContent()) {
+            if (!img.isEmpty() && isUniform(img) && (await this.svgHasContent())) {
                 // The first capture of a hidden window can come before its first
                 // paint (a uniform image, usually black): wait for a paint and capture again once.
                 await this.settle();
@@ -745,21 +776,36 @@ export class ExportWindow {
             }
             let size = img.getSize();
             const scale = size.width / this.size.width;
-            if (!img.isEmpty() && Number.isInteger(scale) && scale > 1 && size.height === scale * this.size.height) {
+            if (
+                !img.isEmpty() &&
+                Number.isInteger(scale) &&
+                scale > 1 &&
+                size.height === scale * this.size.height
+            ) {
                 // On a high-density display, capturePage returns device pixels: scale them down.
-                img  = img.resize({width: this.size.width, height: this.size.height, quality: "best"});
+                img = img.resize({
+                    width: this.size.width,
+                    height: this.size.height,
+                    quality: "best"
+                });
                 size = img.getSize();
             }
             if (img.isEmpty()) {
                 this.useCDP = true;
-                this.warnings.push("capturePage returned an empty image; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
-            }
-            else if (size.width !== this.size.width || size.height !== this.size.height) {
+                this.warnings.push(
+                    "capturePage returned an empty image; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead"
+                );
+            } else if (size.width !== this.size.width || size.height !== this.size.height) {
                 // Device pixels at a fractional scale factor, or a window clamped to the screen.
                 this.useCDP = true;
-                this.warnings.push(`capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`);
-            }
-            else if (isUniform(img) && !this.capturePageVerified && await this.svgHasContent()) {
+                this.warnings.push(
+                    `capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`
+                );
+            } else if (
+                isUniform(img) &&
+                !this.capturePageVerified &&
+                (await this.svgHasContent())
+            ) {
                 // A frame can be all one colour (e.g. inside a filled shape): believe
                 // capturePage if the Chrome DevTools Protocol shows the same colour.
                 // A blank capturePage is a failure of the window, so one confirmation is enough.
@@ -768,15 +814,15 @@ export class ExportWindow {
                     this.capturePageVerified = true;
                     png = img.toPNG();
                     this.captureMethods.add("capturePage");
-                }
-                else {
+                } else {
                     png = cdpPng;
                     this.captureMethods.add("cdp");
                     this.useCDP = true;
-                    this.warnings.push("capturePage returned a uniform image of a non-empty SVG; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead");
+                    this.warnings.push(
+                        "capturePage returned a uniform image of a non-empty SVG; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead"
+                    );
                 }
-            }
-            else {
+            } else {
                 png = img.toPNG();
                 this.captureMethods.add("capturePage");
             }
@@ -787,7 +833,9 @@ export class ExportWindow {
         }
         const {width, height} = pngSize(png);
         if (width !== this.size.width || height !== this.size.height) {
-            throw new Error(`captured image is ${width}x${height}, expected ${this.size.width}x${this.size.height} (is the window larger than the screen?)`);
+            throw new Error(
+                `captured image is ${width}x${height}, expected ${this.size.width}x${this.size.height} (is the window larger than the screen?)`
+            );
         }
         return png;
     }
@@ -824,21 +872,21 @@ export class ExportWindow {
 export async function openExportWindow(htmlPath, opts) {
     const transparent = !!opts.transparent;
     const w = new BrowserWindow({
-        width          : opts.width,
-        height         : opts.height,
-        useContentSize : true,
-        frame          : false,
-        show           : opts.hidden === false,
-        resizable      : false,
+        width: opts.width,
+        height: opts.height,
+        useContentSize: true,
+        frame: false,
+        show: opts.hidden === false,
+        resizable: false,
         enableLargerThanScreen: true,
         paintWhenInitiallyHidden: true,
         backgroundColor: transparent ? "#00000000" : "#ffffff",
-        webPreferences : {
-            preload             : path.join(__dirname, "exporter-preload.js"),
-            contextIsolation    : false,
-            nodeIntegration     : false,
+        webPreferences: {
+            preload: path.join(__dirname, "exporter-preload.js"),
+            contextIsolation: false,
+            nodeIntegration: false,
             backgroundThrottling: false,
-            spellcheck          : false
+            spellcheck: false
         }
     });
     // The capture window shows the presentation only: no link may navigate away or open a window.
@@ -848,7 +896,8 @@ export async function openExportWindow(htmlPath, opts) {
     try {
         await ew.bounded(w.loadFile(htmlPath), `loading ${htmlPath}`);
         // The player is created in the load event handler of the page.
-        await withTimeout(w.webContents.executeJavaScript(`new Promise(resolve => {
+        await withTimeout(
+            w.webContents.executeJavaScript(`new Promise(resolve => {
             (function check() {
                 if (window.sozi && window.sozi.player && window.__soziExport) {
                     resolve(true);
@@ -857,7 +906,10 @@ export async function openExportWindow(htmlPath, opts) {
                     setTimeout(check, 10);
                 }
             })();
-        })`), ew.timeoutMs, `the Sozi player did not start within ${ew.timeoutMs / 1000} s in ${htmlPath}; is it a Sozi presentation HTML file?`);
+        })`),
+            ew.timeoutMs,
+            `the Sozi player did not start within ${ew.timeoutMs / 1000} s in ${htmlPath}; is it a Sozi presentation HTML file?`
+        );
         // Stop the player and remove the blank screen, whose fade-out is a CSS transition.
         await ew.run(`(() => {
             sozi.player.disableMedia();
@@ -875,10 +927,14 @@ export async function openExportWindow(htmlPath, opts) {
         })()`);
         if (transparent) {
             const dbg = await ew.attachDebugger();
-            await ew.bounded(dbg.sendCommand("Emulation.setDefaultBackgroundColorOverride", {color: {r: 0, g: 0, b: 0, a: 0}}), "background override");
+            await ew.bounded(
+                dbg.sendCommand("Emulation.setDefaultBackgroundColorOverride", {
+                    color: {r: 0, g: 0, b: 0, a: 0}
+                }),
+                "background override"
+            );
         }
-    }
-    catch (err) {
+    } catch (err) {
         ew.close();
         throw err;
     }
@@ -897,8 +953,7 @@ async function withExportWindow(htmlPath, opts, fn) {
     try {
         const value = await fn(ew);
         return {value, warnings: ew.warnings, capture: ew.captureMethod};
-    }
-    finally {
+    } finally {
         ew.close();
     }
 }
@@ -909,16 +964,19 @@ async function withExportWindow(htmlPath, opts, fn) {
  * @returns {object} - The options with defaults.
  */
 function withDefaults(opts) {
-    return Object.assign({
-        outPath    : null,
-        ffmpegPath : null,
-        hidden     : !process.env.SOZI_EXPORT_SHOW,
-        transparent: false,
-        frameNumber: false,
-        timeoutMs  : DEFAULT_TIMEOUT_MS,
-        ffmpegTimeoutMs: null,
-        onProgress : null
-    }, opts || {});
+    return Object.assign(
+        {
+            outPath: null,
+            ffmpegPath: null,
+            hidden: !process.env.SOZI_EXPORT_SHOW,
+            transparent: false,
+            frameNumber: false,
+            timeoutMs: DEFAULT_TIMEOUT_MS,
+            ffmpegTimeoutMs: null,
+            onProgress: null
+        },
+        opts || {}
+    );
 }
 
 /** Report progress to the caller, ignoring errors in the callback.
@@ -931,8 +989,7 @@ function progress(opts, done, total) {
     if (typeof opts.onProgress === "function") {
         try {
             opts.onProgress({done, total});
-        }
-        catch (e) {
+        } catch (e) {
             // A failing progress callback must not break the export.
         }
     }
@@ -1031,7 +1088,11 @@ export function exportToPDF(presentation, htmlPath, opts) {
  */
 async function pdfExport(presentation, htmlPath, opts) {
     const outPath = opts.outPath || htmlPath.replace(/html$/, "pdf");
-    const frames  = requireFrames(presentation, presentation.exportToPDFInclude, presentation.exportToPDFExclude);
+    const frames = requireFrames(
+        presentation,
+        presentation.exportToPDFInclude,
+        presentation.exportToPDFExclude
+    );
 
     // Get the PDF page size and swap width and height in portrait orientation.
     const geometry = pdfPageGeometry[presentation.exportToPDFPageSize];
@@ -1041,23 +1102,30 @@ async function pdfExport(presentation, htmlPath, opts) {
     const landscape = presentation.exportToPDFPageOrientation !== "portrait";
     const g = landscape ? geometry : {width: geometry.height, height: geometry.width};
 
-    const {value: pdfBytes, warnings} = await withExportWindow(htmlPath, Object.assign({}, opts, g, {transparent: false}), async ew => {
-        const pdfDoc = await PDFDocument.create();
-        for (let i = 0; i < frames.length; i ++) {
-            await ew.jumpToFrame(frames[i]);
-            const pdfData = await ew.bounded(ew.window.webContents.printToPDF({
-                pageSize       : presentation.exportToPDFPageSize,
-                landscape,
-                printBackground: true,
-                margins        : {top: 0, bottom: 0, left: 0, right: 0}
-            }), "printToPDF");
-            const pdfDocForFrame = await PDFDocument.load(pdfData);
-            const [pdfPage]      = await pdfDoc.copyPages(pdfDocForFrame, [0]);
-            pdfDoc.addPage(pdfPage);
-            progress(opts, i + 1, frames.length);
+    const {value: pdfBytes, warnings} = await withExportWindow(
+        htmlPath,
+        Object.assign({}, opts, g, {transparent: false}),
+        async ew => {
+            const pdfDoc = await PDFDocument.create();
+            for (let i = 0; i < frames.length; i++) {
+                await ew.jumpToFrame(frames[i]);
+                const pdfData = await ew.bounded(
+                    ew.window.webContents.printToPDF({
+                        pageSize: presentation.exportToPDFPageSize,
+                        landscape,
+                        printBackground: true,
+                        margins: {top: 0, bottom: 0, left: 0, right: 0}
+                    }),
+                    "printToPDF"
+                );
+                const pdfDocForFrame = await PDFDocument.load(pdfData);
+                const [pdfPage] = await pdfDoc.copyPages(pdfDocForFrame, [0]);
+                pdfDoc.addPage(pdfPage);
+                progress(opts, i + 1, frames.length);
+            }
+            return pdfDoc.save();
         }
-        return pdfDoc.save();
-    });
+    );
     await writeOutput(outPath, partial => fs.writeFileSync(partial, pdfBytes));
     return {out: outPath, frames: frames.length, warnings, capture: "printToPDF"};
 }
@@ -1082,7 +1150,11 @@ export function exportToPPTX(presentation, htmlPath, opts) {
  */
 async function pptxExport(presentation, htmlPath, opts) {
     const outPath = opts.outPath || htmlPath.replace(/html$/, "pptx");
-    const frames  = requireFrames(presentation, presentation.exportToPPTXInclude, presentation.exportToPPTXExclude);
+    const frames = requireFrames(
+        presentation,
+        presentation.exportToPPTXInclude,
+        presentation.exportToPPTXExclude
+    );
 
     // Get the PPTX slide size and convert it to pixels.
     const geometry = pptxSlideGeometry[presentation.exportToPPTXSlideSize];
@@ -1090,7 +1162,7 @@ async function pptxExport(presentation, htmlPath, opts) {
         throw new Error(`unknown PPTX slide size: ${presentation.exportToPPTXSlideSize}`);
     }
     const g = {
-        width : Math.round(geometry.width * pptxSlideHeightPx / geometry.height),
+        width: Math.round((geometry.width * pptxSlideHeightPx) / geometry.height),
         height: pptxSlideHeightPx
     };
 
@@ -1101,28 +1173,43 @@ async function pptxExport(presentation, htmlPath, opts) {
         const pptxDoc = officegen("pptx");
         pptxDoc.setSlideSize(g.width, g.height, presentation.exportToPPTXSlideSize);
 
-        const {warnings, capture} = await withExportWindow(htmlPath, Object.assign({}, opts, g, {transparent: false}), async ew => {
-            for (let i = 0; i < frames.length; i ++) {
-                await ew.jumpToFrame(frames[i]);
-                const fileName = path.join(destDir.name, `img${String(i).padStart(6, "0")}.png`);
-                fs.writeFileSync(fileName, await ew.capture());
-                pptxDoc.makeNewSlide().addImage(fileName, {x: 0, y: 0, cx: "100%", cy: "100%"});
-                progress(opts, i + 1, frames.length);
+        const {warnings, capture} = await withExportWindow(
+            htmlPath,
+            Object.assign({}, opts, g, {transparent: false}),
+            async ew => {
+                for (let i = 0; i < frames.length; i++) {
+                    await ew.jumpToFrame(frames[i]);
+                    const fileName = path.join(
+                        destDir.name,
+                        `img${String(i).padStart(6, "0")}.png`
+                    );
+                    fs.writeFileSync(fileName, await ew.capture());
+                    pptxDoc.makeNewSlide().addImage(fileName, {x: 0, y: 0, cx: "100%", cy: "100%"});
+                    progress(opts, i + 1, frames.length);
+                }
             }
-        });
+        );
 
-        await writeOutput(outPath, partial => new Promise((resolve, reject) => {
-            const pptxFile = fs.createWriteStream(partial);
-            pptxFile.on("close", resolve);
-            pptxFile.on("error", reject);
-            pptxDoc.on("error", reject);
-            pptxDoc.generate(pptxFile, {
-                error: err => reject(err instanceof Error ? err : new Error(`PPTX generation failed: ${err}`))
-            });
-        }));
+        await writeOutput(
+            outPath,
+            partial =>
+                new Promise((resolve, reject) => {
+                    const pptxFile = fs.createWriteStream(partial);
+                    pptxFile.on("close", resolve);
+                    pptxFile.on("error", reject);
+                    pptxDoc.on("error", reject);
+                    pptxDoc.generate(pptxFile, {
+                        error: err =>
+                            reject(
+                                err instanceof Error
+                                    ? err
+                                    : new Error(`PPTX generation failed: ${err}`)
+                            )
+                    });
+                })
+        );
         return {out: outPath, frames: frames.length, warnings, capture};
-    }
-    finally {
+    } finally {
         cancelRemoval();
         removeTmpDir(destDir);
     }
@@ -1136,8 +1223,7 @@ function removeTmpDir(dir) {
     if (dir) {
         try {
             dir.removeCallback();
-        }
-        catch (e) {
+        } catch (e) {
             // Ignore failures to remove the temporary directory.
         }
     }
@@ -1181,16 +1267,18 @@ export function exportToVideo(presentation, htmlPath, opts) {
  * @returns {Promise<object>} - The export result.
  */
 async function videoExport(presentation, htmlPath, opts) {
-    const format  = presentation.exportToVideoFormat;
+    const format = presentation.exportToVideoFormat;
     if (!VIDEO_FORMATS.includes(format)) {
         throw new Error(`unknown video format: ${format}; expected ${VIDEO_FORMATS.join(", ")}`);
     }
-    const isPNG   = format === "png";
-    const outPath = opts.outPath || (isPNG ?
-        htmlPath.replace(/\.sozi\.html$|\.html$/, "-sozi-export") :
-        htmlPath.replace(/html$/, format));
+    const isPNG = format === "png";
+    const outPath =
+        opts.outPath ||
+        (isPNG
+            ? htmlPath.replace(/\.sozi\.html$|\.html$/, "-sozi-export")
+            : htmlPath.replace(/html$/, format));
 
-    const width  = Number(presentation.exportToVideoWidth);
+    const width = Number(presentation.exportToVideoWidth);
     const height = Number(presentation.exportToVideoHeight);
     const frameRate = Number(presentation.exportToVideoFrameRate);
     if (!(width > 0 && height > 0 && frameRate > 0)) {
@@ -1204,12 +1292,14 @@ async function videoExport(presentation, htmlPath, opts) {
     if (!isPNG) {
         ffmpegPath = findFfmpeg(opts.ffmpegPath);
         if (!ffmpegPath) {
-            throw new Error(opts.ffmpegPath ? `ffmpeg not found: ${opts.ffmpegPath}` : "ffmpeg not found");
+            throw new Error(
+                opts.ffmpegPath ? `ffmpeg not found: ${opts.ffmpegPath}` : "ffmpeg not found"
+            );
         }
     }
 
     const timeline = videoTimeline(presentation.frames, frameRate);
-    const total    = timelineImageCount(timeline);
+    const total = timelineImageCount(timeline);
 
     // The images are captured in a temporary directory, deleted even if not empty.
     const destDir = tmp.dirSync({unsafeCleanup: true});
@@ -1219,11 +1309,13 @@ async function videoExport(presentation, htmlPath, opts) {
     try {
         // Write the next image of the sequence, or link it to an earlier image with the same content.
         const write = (png, sameAs = null) => {
-            const fileName = path.join(destDir.name, `img${String(files.length).padStart(6, "0")}.png`);
+            const fileName = path.join(
+                destDir.name,
+                `img${String(files.length).padStart(6, "0")}.png`
+            );
             if (sameAs) {
                 linkOrCopy(sameAs, fileName);
-            }
-            else {
+            } else {
                 fs.writeFileSync(fileName, png);
             }
             files.push(fileName);
@@ -1231,17 +1323,20 @@ async function videoExport(presentation, htmlPath, opts) {
             return fileName;
         };
 
-        const windowOpts = Object.assign({}, opts, {width, height, transparent: isPNG && opts.transparent});
+        const windowOpts = Object.assign({}, opts, {
+            width,
+            height,
+            transparent: isPNG && opts.transparent
+        });
         const {warnings, capture} = await withExportWindow(htmlPath, windowOpts, async ew => {
             for (const step of timeline) {
                 if (step.type === "hold") {
                     await ew.jumpToFrame(step.frame);
                     const first = write(await ew.capture());
-                    for (let i = 1; i < step.count; i ++) {
+                    for (let i = 1; i < step.count; i++) {
                         write(null, first);
                     }
-                }
-                else {
+                } else {
                     await ew.run(`__soziExport.setup(${step.to})`);
                     for (const p of step.progress) {
                         await ew.run(`__soziExport.step(${p})`);
@@ -1253,28 +1348,51 @@ async function videoExport(presentation, htmlPath, opts) {
             }
         });
 
-        const result = {out: outPath, format, frames: presentation.frames.length, images: files.length, ffmpeg: ffmpegPath, warnings, capture};
+        const result = {
+            out: outPath,
+            format,
+            frames: presentation.frames.length,
+            images: files.length,
+            ffmpeg: ffmpegPath,
+            warnings,
+            capture
+        };
         if (isPNG) {
             result.files = moveSequence(files, outPath);
-        }
-        else {
-            const ffmpegTimeoutMs = opts.ffmpegTimeoutMs > 0 ? opts.ffmpegTimeoutMs : defaultFfmpegTimeoutMs(total);
-            await writeOutput(outPath, partial => runFfmpeg(ffmpegPath, [
-                "-hide_banner", "-loglevel", "error", "-y",
-                "-framerate", String(frameRate),
-                "-start_number", "0",
-                "-f", "image2",
-                "-i", path.join(destDir.name, "img%06d.png"),
-                // Most codecs require even dimensions with 4:2:0 chroma subsampling.
-                "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                "-pix_fmt", "yuv420p",
-                "-b:v", String(presentation.exportToVideoBitRate),
-                partial
-            ], ffmpegTimeoutMs));
+        } else {
+            const ffmpegTimeoutMs =
+                opts.ffmpegTimeoutMs > 0 ? opts.ffmpegTimeoutMs : defaultFfmpegTimeoutMs(total);
+            await writeOutput(outPath, partial =>
+                runFfmpeg(
+                    ffmpegPath,
+                    [
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-framerate",
+                        String(frameRate),
+                        "-start_number",
+                        "0",
+                        "-f",
+                        "image2",
+                        "-i",
+                        path.join(destDir.name, "img%06d.png"),
+                        // Most codecs require even dimensions with 4:2:0 chroma subsampling.
+                        "-vf",
+                        "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-b:v",
+                        String(presentation.exportToVideoBitRate),
+                        partial
+                    ],
+                    ffmpegTimeoutMs
+                )
+            );
         }
         return result;
-    }
-    finally {
+    } finally {
         cancelRemoval();
         removeTmpDir(destDir);
     }
@@ -1293,7 +1411,7 @@ async function videoExport(presentation, htmlPath, opts) {
  */
 function moveSequence(files, dir) {
     fs.mkdirSync(dir, {recursive: true});
-    const moved  = new Map(); // inode -> the image already moved to the output directory
+    const moved = new Map(); // inode -> the image already moved to the output directory
     const result = files.map(file => {
         const target = path.join(dir, path.basename(file));
         const {ino} = fs.statSync(file);
@@ -1302,8 +1420,7 @@ function moveSequence(files, dir) {
             fs.rmSync(target, {force: true});
             linkOrCopy(moved.get(ino), target);
             fs.unlinkSync(file);
-        }
-        else {
+        } else {
             moveFile(file, target);
             moved.set(ino, target);
         }
@@ -1343,7 +1460,7 @@ export function renderFrames(presentation, htmlPath, opts) {
  * @returns {Promise<object>} - The render result.
  */
 async function frameRender(presentation, htmlPath, opts) {
-    const width  = Number(opts.width);
+    const width = Number(opts.width);
     const height = Number(opts.height);
     if (!(Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0)) {
         throw new Error(`invalid image size: ${opts.width}x${opts.height}`);
@@ -1373,8 +1490,7 @@ async function frameRender(presentation, htmlPath, opts) {
             }
         });
         return {files, size: {width, height}, warnings, capture};
-    }
-    finally {
+    } finally {
         cancelRemoval();
     }
 }

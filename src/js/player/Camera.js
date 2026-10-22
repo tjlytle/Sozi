@@ -57,7 +57,6 @@ function getGraphicsElements(elt) {
  * @extends module:model/CameraState.CameraState
  */
 export class Camera extends CameraState {
-
     /** Initialize a new camera.
      *
      * @param {module:player/Viewport.Viewport} viewport - The viewport attached to this camera.
@@ -144,8 +143,7 @@ export class Camera extends CameraState {
             viewport.svgRoot.appendChild(this.svgClipOutlineRect2);
 
             this.concealClipping();
-        }
-        else {
+        } else {
             // When playing the presentation, we use the default SVG
             // clipping technique.
             const svgClipPath = document.createElementNS(SVG_NS, "clipPath");
@@ -168,8 +166,7 @@ export class Camera extends CameraState {
 
             if (viewport.editMode) {
                 svgClippedGroup.setAttribute("mask", "url(#" + svgClipId + ")");
-            }
-            else {
+            } else {
                 svgClippedGroup.setAttribute("clip-path", "url(#" + svgClipId + ")");
             }
 
@@ -245,7 +242,7 @@ export class Camera extends CameraState {
         this.height /= factor;
         this.restoreAspectRatio();
         this.translate(
-            (1 - factor) * (x - this.viewport.width  / 2),
+            (1 - factor) * (x - this.viewport.width / 2),
             (1 - factor) * (y - this.viewport.height / 2)
         );
     }
@@ -264,7 +261,7 @@ export class Camera extends CameraState {
      */
     translate(deltaX, deltaY) {
         const scale = this.scale;
-        const angleRad = this.angle * Math.PI / 180;
+        const angleRad = (this.angle * Math.PI) / 180;
         const si = Math.sin(angleRad);
         const co = Math.cos(angleRad);
         this.cx -= (deltaX * co - deltaY * si) / scale;
@@ -288,9 +285,12 @@ export class Camera extends CameraState {
         const scale = this.scale;
         const clipWidth = Math.abs(x1 - x0) + 1;
         const clipHeight = Math.abs(y1 - y0) + 1;
-        this.clipXOffset = (Math.min(x0, x1) - (this.viewport.width  - clipWidth)  / 2) * this.width  / clipWidth;
-        this.clipYOffset = (Math.min(y0, y1) - (this.viewport.height - clipHeight) / 2) * this.height / clipHeight;
-        this.clipWidthFactor  = clipWidth  / this.width  / scale;
+        this.clipXOffset =
+            ((Math.min(x0, x1) - (this.viewport.width - clipWidth) / 2) * this.width) / clipWidth;
+        this.clipYOffset =
+            ((Math.min(y0, y1) - (this.viewport.height - clipHeight) / 2) * this.height) /
+            clipHeight;
+        this.clipWidthFactor = clipWidth / this.width / scale;
         this.clipHeightFactor = clipHeight / this.height / scale;
         this.update();
     }
@@ -305,8 +305,7 @@ export class Camera extends CameraState {
             if (this.clipped) {
                 this.clipWidthFactor /= ratio;
             }
-        }
-        else {
+        } else {
             this.height /= ratio;
             if (this.clipped) {
                 this.clipHeightFactor *= ratio;
@@ -327,17 +326,17 @@ export class Camera extends CameraState {
      */
     getCandidateReferenceElement() {
         // Get all elements that intersect with the viewport.
-        const viewportArea     = this.viewport.width * this.viewport.height;
-        const viewportRect     = this.svgRoot.createSVGRect();
-        viewportRect.x         = 0;
-        viewportRect.y         = 0;
-        viewportRect.width     = this.viewport.width;
-        viewportRect.height    = this.viewport.height;
+        const viewportArea = this.viewport.width * this.viewport.height;
+        const viewportRect = this.svgRoot.createSVGRect();
+        viewportRect.x = 0;
+        viewportRect.y = 0;
+        viewportRect.width = this.viewport.width;
+        viewportRect.height = this.viewport.height;
 
         // Fallback for getIntersectionList not supported in Gecko
-        const intersectionList = this.svgRoot.getIntersectionList ?
-            this.svgRoot.getIntersectionList(viewportRect, this.layer.svgNodes[0]) :
-            getGraphicsElements(this.layer.svgNodes[0]);
+        const intersectionList = this.svgRoot.getIntersectionList
+            ? this.svgRoot.getIntersectionList(viewportRect, this.layer.svgNodes[0])
+            : getGraphicsElements(this.layer.svgNodes[0]);
 
         if (!intersectionList.length) {
             return {element: null, score: null};
@@ -345,23 +344,23 @@ export class Camera extends CameraState {
 
         // Find the element whose bounding box best fits in the viewport.
         let element = null;
-        let score   = null;
+        let score = null;
 
-        for (let elt of intersectionList) {
+        for (const elt of intersectionList) {
             if (elt.hasAttribute("id") && hasReliableBoundaries(elt) && !elt.closest("defs")) {
                 // FIXME getBoundingClientRect returns bounding box of bounding box
                 const eltRect = elt.getBoundingClientRect();
 
                 // Candidate elements are ranked by the "distance" between their
                 // bounding rectangle and the viewport.
-                const dl = this.viewport.x                        - eltRect.left;
-                const dt = this.viewport.y                        - eltRect.top;
-                const dr = this.viewport.x + this.viewport.width  - eltRect.right;
+                const dl = this.viewport.x - eltRect.left;
+                const dt = this.viewport.y - eltRect.top;
+                const dr = this.viewport.x + this.viewport.width - eltRect.right;
                 const db = this.viewport.y + this.viewport.height - eltRect.bottom;
                 const eltScore = dl * dl + dt * dt + dr * dr + db * db;
 
                 if (score === null || eltScore < score) {
-                    score   = eltScore;
+                    score = eltScore;
                     element = elt;
                 }
             }
@@ -378,12 +377,16 @@ export class Camera extends CameraState {
         let width, height, x, y;
         if (this.clipped) {
             const scale = this.scale;
-            width = Math.round(this.width  * this.clipWidthFactor  * scale);
+            width = Math.round(this.width * this.clipWidthFactor * scale);
             height = Math.round(this.height * this.clipHeightFactor * scale);
-            x = Math.round((this.viewport.width  - width)  / 2 + this.clipXOffset * this.clipWidthFactor  * scale);
-            y = Math.round((this.viewport.height - height) / 2 + this.clipYOffset * this.clipHeightFactor * scale);
-        }
-        else {
+            x = Math.round(
+                (this.viewport.width - width) / 2 + this.clipXOffset * this.clipWidthFactor * scale
+            );
+            y = Math.round(
+                (this.viewport.height - height) / 2 +
+                    this.clipYOffset * this.clipHeightFactor * scale
+            );
+        } else {
             width = this.viewport.width;
             height = this.viewport.height;
             x = 0;
@@ -402,37 +405,53 @@ export class Camera extends CameraState {
         const rect = this.clipRect;
         this.svgClipRect.setAttribute("x", rect.x);
         this.svgClipRect.setAttribute("y", rect.y);
-        this.svgClipRect.setAttribute("width",  rect.width);
+        this.svgClipRect.setAttribute("width", rect.width);
         this.svgClipRect.setAttribute("height", rect.height);
 
         if (this.viewport.editMode) {
-            this.svgMaskRect.setAttribute("fill", "rgb(" + this.maskValue + "," + this.maskValue + "," + this.maskValue + ")");
+            this.svgMaskRect.setAttribute(
+                "fill",
+                "rgb(" + this.maskValue + "," + this.maskValue + "," + this.maskValue + ")"
+            );
             this.svgMaskRect.setAttribute("x", 0);
             this.svgMaskRect.setAttribute("y", 0);
-            this.svgMaskRect.setAttribute("width",  this.viewport.width);
+            this.svgMaskRect.setAttribute("width", this.viewport.width);
             this.svgMaskRect.setAttribute("height", this.viewport.height);
 
             this.svgClipOutlineRect1.setAttribute("x", rect.x);
             this.svgClipOutlineRect1.setAttribute("y", rect.y);
-            this.svgClipOutlineRect1.setAttribute("width",  rect.width);
+            this.svgClipOutlineRect1.setAttribute("width", rect.width);
             this.svgClipOutlineRect1.setAttribute("height", rect.height);
 
             this.svgClipOutlineRect2.setAttribute("x", rect.x);
             this.svgClipOutlineRect2.setAttribute("y", rect.y);
-            this.svgClipOutlineRect2.setAttribute("width",  rect.width);
+            this.svgClipOutlineRect2.setAttribute("width", rect.width);
             this.svgClipOutlineRect2.setAttribute("height", rect.height);
         }
 
         // Compute and apply the geometrical transformation to the layer group
         const scale = this.scale;
-        const translateX = this.viewport.width  / scale / 2 - this.cx;
+        const translateX = this.viewport.width / scale / 2 - this.cx;
         const translateY = this.viewport.height / scale / 2 - this.cy;
 
-        for (let svgGroup of this.svgTransformGroups) {
-            svgGroup.setAttribute("transform",
-                "scale(" + scale + ")" +
-                "translate(" + translateX + "," + translateY + ")" +
-                "rotate(" + (-this.angle) + ',' + this.cx + "," + this.cy + ")"
+        for (const svgGroup of this.svgTransformGroups) {
+            svgGroup.setAttribute(
+                "transform",
+                "scale(" +
+                    scale +
+                    ")" +
+                    "translate(" +
+                    translateX +
+                    "," +
+                    translateY +
+                    ")" +
+                    "rotate(" +
+                    -this.angle +
+                    "," +
+                    this.cx +
+                    "," +
+                    this.cy +
+                    ")"
             );
             svgGroup.setAttribute("opacity", this.opacity);
             // Do not render the layer if it is completely transparent.
@@ -457,7 +476,15 @@ export class Camera extends CameraState {
      * @param {SVGPathElement} svgPath - An SVG path to follow during the transition.
      * @param {boolean} reversePath - If `true`, follow the path in the opposite direction.
      */
-    interpolate(initialState, finalState, progress, timingFunction, relativeZoom, svgPath, reversePath) {
+    interpolate(
+        initialState,
+        finalState,
+        progress,
+        timingFunction,
+        relativeZoom,
+        svgPath,
+        reversePath
+    ) {
         const tfProgress = timingFunction(progress);
         const tfRemaining = 1 - tfProgress;
 
@@ -466,7 +493,8 @@ export class Camera extends CameraState {
         }
 
         function quadratic(u0, u1) {
-            const um = (relativeZoom > 0 ? Math.min(u0, u1) : Math.max(u0, u1)) * (1 - relativeZoom);
+            const um =
+                (relativeZoom > 0 ? Math.min(u0, u1) : Math.max(u0, u1)) * (1 - relativeZoom);
             const du0 = u0 - um;
             const du1 = u1 - um;
             const r = Math.sqrt(du0 / du1);
@@ -478,25 +506,27 @@ export class Camera extends CameraState {
 
         // Interpolate camera width and height
         if (relativeZoom) {
-            this.width  = quadratic(initialState.width,  finalState.width);
+            this.width = quadratic(initialState.width, finalState.width);
             this.height = quadratic(initialState.height, finalState.height);
-        }
-        else {
-            this.width  = linear(initialState.width,  finalState.width);
+        } else {
+            this.width = linear(initialState.width, finalState.width);
             this.height = linear(initialState.height, finalState.height);
         }
 
         // Interpolate camera location
         if (svgPath) {
-            const pathLength   = svgPath.getTotalLength();
-            const startPoint   = svgPath.getPointAtLength(reversePath ? pathLength : 0);
-            const endPoint     = svgPath.getPointAtLength(reversePath ? 0 : pathLength);
-            const currentPoint = svgPath.getPointAtLength(pathLength * (reversePath ? tfRemaining : tfProgress));
+            const pathLength = svgPath.getTotalLength();
+            const startPoint = svgPath.getPointAtLength(reversePath ? pathLength : 0);
+            const endPoint = svgPath.getPointAtLength(reversePath ? 0 : pathLength);
+            const currentPoint = svgPath.getPointAtLength(
+                pathLength * (reversePath ? tfRemaining : tfProgress)
+            );
 
-            this.cx = currentPoint.x + linear(initialState.cx - startPoint.x, finalState.cx - endPoint.x);
-            this.cy = currentPoint.y + linear(initialState.cy - startPoint.y, finalState.cy - endPoint.y);
-        }
-        else {
+            this.cx =
+                currentPoint.x + linear(initialState.cx - startPoint.x, finalState.cx - endPoint.x);
+            this.cy =
+                currentPoint.y + linear(initialState.cy - startPoint.y, finalState.cy - endPoint.y);
+        } else {
             this.cx = linear(initialState.cx, finalState.cx);
             this.cy = linear(initialState.cy, finalState.cy);
         }
@@ -508,11 +538,9 @@ export class Camera extends CameraState {
         // Keep the smallest angle between the initial and final states
         if (finalState.angle - initialState.angle > 180) {
             this.angle = linear(initialState.angle, finalState.angle - 360);
-        }
-        else if (finalState.angle - initialState.angle < -180) {
+        } else if (finalState.angle - initialState.angle < -180) {
             this.angle = linear(initialState.angle - 360, finalState.angle);
-        }
-        else {
+        } else {
             this.angle = linear(initialState.angle, finalState.angle);
         }
 
@@ -522,12 +550,12 @@ export class Camera extends CameraState {
         const clipDefaults = {
             clipXOffset: 0,
             clipYOffset: 0,
-            clipWidthFactor:  this.viewport.width  / this.width  / scale,
+            clipWidthFactor: this.viewport.width / this.width / scale,
             clipHeightFactor: this.viewport.height / this.height / scale
         };
         const initialClipping = initialState.clipped ? initialState : clipDefaults;
-        const finalClipping   = finalState.clipped   ? finalState   : clipDefaults;
-        for (let clipProp in clipDefaults) {
+        const finalClipping = finalState.clipped ? finalState : clipDefaults;
+        for (const clipProp in clipDefaults) {
             this[clipProp] = linear(initialClipping[clipProp], finalClipping[clipProp]);
         }
     }

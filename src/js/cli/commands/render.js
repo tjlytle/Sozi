@@ -24,7 +24,15 @@ import {outputDirError} from "../output";
  *
  * @type {{[name: string]: (boolean|string)}}
  */
-export const FLAGS = {frame: true, all: false, out: true, rebuild: false, "frame-number": false, "out-dir": true, presentation: true};
+export const FLAGS = {
+    frame: true,
+    all: false,
+    out: true,
+    rebuild: false,
+    "frame-number": false,
+    "out-dir": true,
+    presentation: true
+};
 
 /** Parse the `--size` flag.
  *
@@ -92,18 +100,18 @@ function findFrame(presentation, key) {
  *  or `{ok: false, error, exitCode}` (2 for an unusable output path, 1 for an unknown frame).
  */
 export async function render(context) {
-    const fs       = require("fs");
-    const path     = require("path");
+    const fs = require("fs");
+    const path = require("path");
     const exporter = require("../../exporter");
     const {controller, cwd, flags, warnings} = context;
-    const frames   = controller.presentation.frames;
+    const frames = controller.presentation.frames;
 
     const {html, error} = presentationHtml(context);
     if (error) {
         return {ok: false, error, exitCode: 2};
     }
     const size = sizeOf(flags);
-    const out  = path.resolve(cwd, flags.out);
+    const out = path.resolve(cwd, flags.out);
 
     // The frames to render and their image files.
     let images;
@@ -116,11 +124,17 @@ export async function render(context) {
             return {ok: false, error: "the presentation has no frames"};
         }
         const digits = Math.max(3, String(frames.length - 1).length);
-        images = frames.map((frame, index) => ({index, file: path.join(out, `frame-${String(index).padStart(digits, "0")}.png`)}));
-    }
-    else {
+        images = frames.map((frame, index) => ({
+            index,
+            file: path.join(out, `frame-${String(index).padStart(digits, "0")}.png`)
+        }));
+    } else {
         if (fs.existsSync(out) && fs.statSync(out).isDirectory()) {
-            return {ok: false, error: `--out ${flags.out}: ${out} is a directory; with --frame, --out names the image file`, exitCode: 2};
+            return {
+                ok: false,
+                error: `--out ${flags.out}: ${out} is a directory; with --frame, --out names the image file`,
+                exitCode: 2
+            };
         }
         const bad = outputDirError(path.dirname(out));
         if (bad) {
@@ -139,16 +153,24 @@ export async function render(context) {
         return built;
     }
 
-    const renderOpts = {width: size.width, height: size.height, frameNumber: !!flags["frame-number"]};
-    const result = flags.all ?
-        await renderAll(exporter, controller.presentation, html, renderOpts, images, out) :
-        await exporter.renderFrames(controller.presentation, html, Object.assign({frames: images}, renderOpts));
+    const renderOpts = {
+        width: size.width,
+        height: size.height,
+        frameNumber: !!flags["frame-number"]
+    };
+    const result = flags.all
+        ? await renderAll(exporter, controller.presentation, html, renderOpts, images, out)
+        : await exporter.renderFrames(
+              controller.presentation,
+              html,
+              Object.assign({frames: images}, renderOpts)
+          );
     warnings.push(...result.warnings);
 
     return {
-        ok:     true,
-        files:  images.map(({file}) => file),
-        size:   result.size,
+        ok: true,
+        files: images.map(({file}) => file),
+        size: result.size,
         frames: images.map(({index, file}) => ({index, id: frames[index].frameId, file})),
         html,
         rebuilt: built.rebuilt,
@@ -170,15 +192,22 @@ export async function render(context) {
  * @returns {Promise<object>} - The result of `renderFrames`.
  */
 async function renderAll(exporter, presentation, html, opts, images, dir) {
-    const fs   = require("fs");
-    const os   = require("os");
+    const fs = require("fs");
+    const os = require("os");
     const path = require("path");
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-render-"));
     try {
-        const tmpImages = images.map(({index, file}) => ({index, file: path.join(tmpDir, path.basename(file))}));
+        const tmpImages = images.map(({index, file}) => ({
+            index,
+            file: path.join(tmpDir, path.basename(file))
+        }));
         // The exporter removes the temporary directory if the command times out.
-        const result = await exporter.renderFrames(presentation, html, Object.assign({frames: tmpImages, tempDir: tmpDir}, opts));
+        const result = await exporter.renderFrames(
+            presentation,
+            html,
+            Object.assign({frames: tmpImages, tempDir: tmpDir}, opts)
+        );
 
         fs.mkdirSync(dir, {recursive: true});
         const names = new Set(images.map(({file}) => path.basename(file)));
@@ -189,8 +218,7 @@ async function renderAll(exporter, presentation, html, opts, images, dir) {
             }
         }
         return result;
-    }
-    finally {
+    } finally {
         fs.rmSync(tmpDir, {recursive: true, force: true});
     }
 }

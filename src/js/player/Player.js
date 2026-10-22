@@ -49,7 +49,6 @@ const DEFAULT_TIMING_FUNCTION = "ease";
  * @extends EventEmitter
  */
 export class Player extends EventEmitter {
-
     /** Initialize a new Sozi player.
      *
      * If the presentation is opened in edit mode, the player will disable
@@ -167,7 +166,8 @@ export class Player extends EventEmitter {
      */
     get previousFrame() {
         const frame = this.animator.running ? this.targetFrame : this.currentFrame;
-        const index = (frame.index + this.presentation.frames.length - 1) % this.presentation.frames.length;
+        const index =
+            (frame.index + this.presentation.frames.length - 1) % this.presentation.frames.length;
         return this.presentation.frames[index];
     }
 
@@ -191,7 +191,7 @@ export class Player extends EventEmitter {
      *
      */
     lastNonAutoTransitionFrame() {
-        for (let index = this.previousFrame.index; index >= 0; index --) {
+        for (let index = this.previousFrame.index; index >= 0; index--) {
             const frame = this.presentation.frames[index];
             if (!frame.timeoutEnable || frame.timeoutMs !== 0) {
                 return frame;
@@ -330,8 +330,7 @@ export class Player extends EventEmitter {
                 durationMs = this.targetFrame.transitionDurationMs;
                 layerProperties = this.targetFrame.layerProperties;
                 useTransitionPath = true;
-            }
-            else if (this.targetFrame === this.previousFrame) {
+            } else if (this.targetFrame === this.previousFrame) {
                 durationMs = this.currentFrame.transitionDurationMs;
                 layerProperties = this.currentFrame.layerProperties;
                 useTransitionPath = true;
@@ -344,14 +343,14 @@ export class Player extends EventEmitter {
             this.emit("stateChange");
         }
 
-        for (let camera of this.viewport.cameras) {
+        for (const camera of this.viewport.cameras) {
             let timingFunction = DEFAULT_TIMING_FUNCTION;
-            let relativeZoom   = DEFAULT_RELATIVE_ZOOM;
+            let relativeZoom = DEFAULT_RELATIVE_ZOOM;
             let transitionPath = null;
 
             if (layerProperties) {
-                const lp       = layerProperties[camera.layer.index];
-                relativeZoom   = lp.transitionRelativeZoom;
+                const lp = layerProperties[camera.layer.index];
+                relativeZoom = lp.transitionRelativeZoom;
                 timingFunction = lp.transitionTimingFunction;
                 if (useTransitionPath) {
                     transitionPath = lp.transitionPath;
@@ -387,17 +386,20 @@ export class Player extends EventEmitter {
     previewFrame(frame) {
         this.targetFrame = this.findFrame(frame);
 
-        for (let camera of this.viewport.cameras) {
+        for (const camera of this.viewport.cameras) {
             this.setupTransition(camera);
         }
 
         this.animator.start(DEFAULT_TRANSITION_DURATION_MS);
     }
 
+    /**
+     *
+     */
     viewAll() {
         this.pause();
 
-        for (let camera of this.viewport.cameras) {
+        for (const camera of this.viewport.cameras) {
             this.transitions.push({
                 camera,
                 initialState: new CameraState(camera),
@@ -425,7 +427,13 @@ export class Player extends EventEmitter {
      * @param {SVGPathElement} svgPath - An SVG path to follow during the transition.
      * @param {boolean} backwards - If `true`, apply the reverse timing function and follow the transition path in the opposite direction.
      */
-    setupTransition(camera, timingFunction=DEFAULT_TIMING_FUNCTION, relativeZoom=DEFAULT_RELATIVE_ZOOM, svgPath=null, backwards=false) {
+    setupTransition(
+        camera,
+        timingFunction = DEFAULT_TIMING_FUNCTION,
+        relativeZoom = DEFAULT_RELATIVE_ZOOM,
+        svgPath = null,
+        backwards = false
+    ) {
         if (this.animator.running) {
             this.animator.stop();
         }
@@ -457,8 +465,16 @@ export class Player extends EventEmitter {
      * @see {@linkcode module:player/Player.Camera#interpolate}
      */
     onAnimatorStep(progress) {
-        for (let transition of this.transitions) {
-            transition.camera.interpolate(transition.initialState, transition.finalState, progress, transition.timingFunction, transition.relativeZoom, transition.svgPath, transition.reverse);
+        for (const transition of this.transitions) {
+            transition.camera.interpolate(
+                transition.initialState,
+                transition.finalState,
+                progress,
+                transition.timingFunction,
+                transition.relativeZoom,
+                transition.svgPath,
+                transition.reverse
+            );
             transition.camera.update();
         }
     }

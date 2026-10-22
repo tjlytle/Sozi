@@ -10,7 +10,13 @@ import nunjucks from "nunjucks";
 import Jed from "jed";
 import {upgradeFromSVG, upgradeFromStorable} from "./upgrade";
 import path from "path";
-import {isPresentationFile, presentationDataError, presentationFiles, svgKeyOf, svgOfPresentation} from "./naming";
+import {
+    isPresentationFile,
+    presentationDataError,
+    presentationFiles,
+    svgKeyOf,
+    svgOfPresentation
+} from "./naming";
 import {rewriteRelativeHrefs} from "./hrefs";
 
 /** File read/write manager. */
@@ -58,7 +64,7 @@ export class Storage {
          * @default
          * @type {any}
          */
-        this.svgFileDescriptor  = null;
+        this.svgFileDescriptor = null;
 
         /** The presentation file, when it is not the default one for the SVG file.
          *
@@ -133,7 +139,10 @@ export class Storage {
         // In the web browser, __dirname is set to "/src/js". The leading "/" will result
         // in an incorrect URL if the app is not hosted at the root of its domain.
         console.log(`__dirname=${__dirname}`);
-        const templatePath = __dirname === "/build/browser/src/js" ? "/src/templates" : path.join(__dirname, "..", "templates");
+        const templatePath =
+            __dirname === "/build/browser/src/js"
+                ? "/src/templates"
+                : path.join(__dirname, "..", "templates");
 
         nunjucks.configure(templatePath, {
             watch: false,
@@ -144,7 +153,7 @@ export class Storage {
             this.jsonNeedsSaving = this.htmlNeedsSaving = true;
         });
 
-        controller.on("editorStateChange",  () => {
+        controller.on("editorStateChange", () => {
             this.jsonNeedsSaving = true;
         });
 
@@ -161,7 +170,7 @@ export class Storage {
      * Create an instance of each supported backend.
      */
     activate() {
-        for (let backend of backendList) {
+        for (const backend of backendList) {
             const listItem = document.createElement("li");
             document.querySelector("#sozi-editor-view-preview ul").appendChild(listItem);
 
@@ -213,7 +222,14 @@ export class Storage {
         }
         if (/\.json$/i.test(name)) {
             const _ = this.controller.gettext;
-            this.controller.error(Jed.sprintf(_("Not a presentation file: %s. The name of a presentation file ends in .sozi.json."), name));
+            this.controller.error(
+                Jed.sprintf(
+                    _(
+                        "Not a presentation file: %s. The name of a presentation file ends in .sozi.json."
+                    ),
+                    name
+                )
+            );
             return false;
         }
         await this.setSVGFile(fileDescriptor, backend);
@@ -233,29 +249,32 @@ export class Storage {
      * @returns {Promise<boolean>} - A promise resolved with `false` if the presentation file or its SVG file could not be opened.
      */
     async openPresentationFile(fileDescriptor, backend) {
-        const _        = this.controller.gettext;
-        const name     = backend.getName(fileDescriptor);
+        const _ = this.controller.gettext;
+        const name = backend.getName(fileDescriptor);
         const location = backend.getLocation(fileDescriptor);
         const jsonPath = path.join(location, name);
 
         // Check the file before anything is written.
         let data, reason;
         try {
-            data   = await backend.load(fileDescriptor);
+            data = await backend.load(fileDescriptor);
             reason = presentationDataError(data);
-        }
-        catch (err) {
-            reason = String(err && err.message || err);
+        } catch (err) {
+            reason = String((err && err.message) || err);
         }
         if (reason) {
-            this.controller.error(Jed.sprintf(_("Not a presentation file: %s: %s"), jsonPath, reason));
+            this.controller.error(
+                Jed.sprintf(_("Not a presentation file: %s: %s"), jsonPath, reason)
+            );
             return false;
         }
         const svg = JSON.parse(data).svg;
         const svgKey = typeof svg === "string" ? svg : "";
 
         const svgPath = svgOfPresentation(jsonPath, svgKey);
-        const svgFileDescriptor = await backend.find(path.basename(svgPath), path.dirname(svgPath)).catch(() => null);
+        const svgFileDescriptor = await backend
+            .find(path.basename(svgPath), path.dirname(svgPath))
+            .catch(() => null);
         if (!svgFileDescriptor) {
             this.controller.error(Jed.sprintf(_("File not found: %s."), svgPath));
             return false;
@@ -274,8 +293,8 @@ export class Storage {
      */
     async setSVGFile(fileDescriptor, backend, presentationFile = null) {
         this.svgFileDescriptor = fileDescriptor;
-        this.presentationFile  = presentationFile;
-        this.backend           = backend;
+        this.presentationFile = presentationFile;
+        this.backend = backend;
         const data = await this.backend.load(this.svgFileDescriptor);
         await this.loadSVGData(data);
     }
@@ -290,18 +309,20 @@ export class Storage {
      * @param {string} data  - The content of an SVG file, as text.
      */
     async loadSVGData(data) {
-        const _        = this.controller.gettext;
-        const name     = this.backend.getName(this.svgFileDescriptor);
+        const _ = this.controller.gettext;
+        const name = this.backend.getName(this.svgFileDescriptor);
         const location = this.backend.getLocation(this.svgFileDescriptor);
 
         this.document = SVGDocumentWrapper.fromString(data);
         if (this.document.isValidSVG) {
             this.resolveRelativeURLs(location);
             this.presentation.setSVGDocument(this.document);
-            const json = this.presentationFile || {name: presentationFiles(name).presentation, location};
+            const json = this.presentationFile || {
+                name: presentationFiles(name).presentation,
+                location
+            };
             await this.openJSONFile(json.name, json.location);
-        }
-        else {
+        } else {
             this.controller.error(_("Document is not valid SVG."));
         }
     }
@@ -319,13 +340,15 @@ export class Storage {
      */
     resolveRelativeURLs(location) {
         const XLINK_NS = "http://www.w3.org/1999/xlink";
-        const xlinkNsAttrs = Array.from(this.document.root.attributes).filter(a => a.value === XLINK_NS);
+        const xlinkNsAttrs = Array.from(this.document.root.attributes).filter(
+            a => a.value === XLINK_NS
+        );
         if (!xlinkNsAttrs.length) {
             return;
         }
         const xlinkPrefix = xlinkNsAttrs[0].name.replace(/^xmlns:/, "") + ":";
 
-        for (let img of this.document.root.getElementsByTagName("image")) {
+        for (const img of this.document.root.getElementsByTagName("image")) {
             const href = img.getAttribute(xlinkPrefix + "href");
             if (!/^[a-z]+:|^[/#]/.test(href)) {
                 img.setAttribute(xlinkPrefix + "href", `${location}/${href}`);
@@ -355,11 +378,12 @@ export class Storage {
         // The SVG and JSON paths: absolute paths when locations are directory
         // paths (Electron), so that an absolute `svg` key compares equal;
         // bare names for other backends when both files are in the same location.
-        const svgName     = this.backend.getName(this.svgFileDescriptor);
+        const svgName = this.backend.getName(this.svgFileDescriptor);
         const svgLocation = this.backend.getLocation(this.svgFileDescriptor);
-        const [svgRef, jsonRef] = typeof location !== "string" && location === svgLocation ?
-            [svgName, name] :
-            [path.join(svgLocation, svgName), path.join(location, name)];
+        const [svgRef, jsonRef] =
+            typeof location !== "string" && location === svgLocation
+                ? [svgName, name]
+                : [path.join(svgLocation, svgName), path.join(location, name)];
 
         let fileDescriptor;
         this.jsonLoadError = null;
@@ -368,17 +392,25 @@ export class Storage {
             fileDescriptor = await this.backend.find(name, location);
             const data = await this.backend.load(fileDescriptor);
             this.loadJSONData(data);
-            if (path.normalize(svgOfPresentation(jsonRef, this.presentation.svgPath)) !== path.normalize(svgRef)) {
+            if (
+                path.normalize(svgOfPresentation(jsonRef, this.presentation.svgPath)) !==
+                path.normalize(svgRef)
+            ) {
                 const oldKey = this.presentation.svgPath;
                 this.presentation.svgPath = svgKeyOf(svgRef, jsonRef);
                 this.jsonNeedsSaving = true;
                 // Adding a key to a presentation without one is not a change.
                 if (oldKey) {
-                    this.controller.info(Jed.sprintf(_("svg key changed from %s to %s"), oldKey, this.presentation.svgPath || _("(none)")));
+                    this.controller.info(
+                        Jed.sprintf(
+                            _("svg key changed from %s to %s"),
+                            oldKey,
+                            this.presentation.svgPath || _("(none)")
+                        )
+                    );
                 }
             }
-        }
-        catch (err) {
+        } catch (err) {
             // The file was found but could not be read or parsed.
             if (fileDescriptor) {
                 this.jsonLoadError = err;
@@ -398,13 +430,22 @@ export class Storage {
 
             // Create a JSON file for the presentation data.
             if (this.writeOnOpen) {
-                fileDescriptor = await this.backend.create(name, location, "application/json", this.getJSONData());
+                fileDescriptor = await this.backend.create(
+                    name,
+                    location,
+                    "application/json",
+                    this.getJSONData()
+                );
             }
         }
 
         if (fileDescriptor && !this.jsonFileDescriptor) {
             this.jsonFileDescriptor = fileDescriptor;
-            this.backend.autosave(fileDescriptor, () => this.jsonNeedsSaving, () => this.getJSONData());
+            this.backend.autosave(
+                fileDescriptor,
+                () => this.jsonNeedsSaving,
+                () => this.getJSONData()
+            );
         }
 
         this.controller.onLoad();
@@ -416,10 +457,15 @@ export class Storage {
         // The HTML files are named after the presentation file.
         let outputDir = this.presentation.outputDir;
         if (outputDir && typeof location !== "string") {
-            this.controller.info(Jed.sprintf(_("outputDir is ignored here: the HTML files are written beside %s."), name));
+            this.controller.info(
+                Jed.sprintf(
+                    _("outputDir is ignored here: the HTML files are written beside %s."),
+                    name
+                )
+            );
             outputDir = "";
         }
-        const files       = presentationFiles(svgName, name, {outputDir});
+        const files = presentationFiles(svgName, name, {outputDir});
         const outLocation = outputDir ? path.resolve(location, files.outputDir) : location;
         if (outputDir) {
             this.controller.info(Jed.sprintf(_("HTML files are written to %s"), outLocation));
@@ -429,10 +475,15 @@ export class Storage {
         // the JSON file and the editing session stay usable.
         try {
             await this.createHTMLFile(path.basename(files.html), outLocation);
-            await this.createPresenterHTMLFile(path.basename(files.presenter), outLocation, path.basename(files.html));
-        }
-        catch (err) {
-            this.controller.error(Jed.sprintf(_("Could not write the HTML files in %s: %s"), outLocation, err));
+            await this.createPresenterHTMLFile(
+                path.basename(files.presenter),
+                outLocation,
+                path.basename(files.html)
+            );
+        } catch (err) {
+            this.controller.error(
+                Jed.sprintf(_("Could not write the HTML files in %s: %s"), outLocation, err)
+            );
         }
     }
 
@@ -444,16 +495,24 @@ export class Storage {
     async createHTMLFile(name, location) {
         let fileDescriptor = await this.backend.find(name, location).catch(() => null);
         if (!fileDescriptor) {
-            fileDescriptor = await this.backend.create(name, location, "text/html", this.exportHTML(location));
-        }
-        else if (this.controller.preferences.saveMode !== "manual") {
+            fileDescriptor = await this.backend.create(
+                name,
+                location,
+                "text/html",
+                this.exportHTML(location)
+            );
+        } else if (this.controller.preferences.saveMode !== "manual") {
             await this.backend.save(fileDescriptor, this.exportHTML(location));
         }
 
         if (!this.htmlFileDescriptor) {
             this.htmlFileDescriptor = fileDescriptor;
             // The output location is fixed when the presentation is opened.
-            this.backend.autosave(fileDescriptor, () => this.htmlNeedsSaving, () => this.exportHTML(location));
+            this.backend.autosave(
+                fileDescriptor,
+                () => this.htmlNeedsSaving,
+                () => this.exportHTML(location)
+            );
         }
     }
 
@@ -467,9 +526,13 @@ export class Storage {
         const fileDescriptor = await this.backend.find(name, location).catch(() => null);
         if (fileDescriptor) {
             await this.backend.save(fileDescriptor, this.exportPresenterHTML(htmlFileName));
-        }
-        else {
-            await this.backend.create(name, location, "text/html", this.exportPresenterHTML(htmlFileName));
+        } else {
+            await this.backend.create(
+                name,
+                location,
+                "text/html",
+                this.exportPresenterHTML(htmlFileName)
+            );
         }
     }
 
@@ -499,8 +562,7 @@ export class Storage {
 
         if (this.backend.sameFile(fileDescriptor, this.jsonFileDescriptor)) {
             this.jsonNeedsSaving = false;
-        }
-        else if (this.backend.sameFile(fileDescriptor, this.htmlFileDescriptor)) {
+        } else if (this.backend.sameFile(fileDescriptor, this.htmlFileDescriptor)) {
             this.htmlNeedsSaving = false;
         }
 
@@ -514,9 +576,9 @@ export class Storage {
      */
     getJSONData() {
         const storable = {};
-        for (let object of [this.presentation, this.selection, this.controller]) {
+        for (const object of [this.presentation, this.selection, this.controller]) {
             const partial = object.toStorable();
-            for (let key in partial) {
+            for (const key in partial) {
                 storable[key] = partial[key];
             }
         }
@@ -542,9 +604,10 @@ export class Storage {
      */
     exportHTML(location) {
         const svgLocation = this.backend.getLocation(this.svgFileDescriptor);
-        const svg = typeof location === "string" && typeof svgLocation === "string" ?
-            rewriteRelativeHrefs(this.document.asText, svgLocation, location) :
-            this.document.asText;
+        const svg =
+            typeof location === "string" && typeof svgLocation === "string"
+                ? rewriteRelativeHrefs(this.document.asText, svgLocation, location)
+                : this.document.asText;
         return nunjucks.render("player.html", {
             svg,
             pres: this.presentation,

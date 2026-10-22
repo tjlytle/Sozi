@@ -30,7 +30,10 @@ function outputDirKey(value, {cwd, presentation}) {
     if (!value) {
         return "";
     }
-    return path.relative(path.dirname(presentation), path.resolve(cwd, value)).split(path.sep).join("/");
+    return path
+        .relative(path.dirname(presentation), path.resolve(cwd, value))
+        .split(path.sep)
+        .join("/");
 }
 
 /** Check the value of `--out-dir` (see {@link module:cli/output.resolveOutputDir}).
@@ -56,15 +59,23 @@ function checkOutputDir(value, context) {
  * @type {{[option: string]: {property: string, kind: (boolean|string), value: ?Function, check: ?Function, build: ?boolean}}}
  */
 export const OPTIONS = {
-    title:     {property: "explicitTitle", kind: "maybe-empty"},
-    "out-dir": {property: "outputDir", kind: "maybe-empty", value: outputDirKey, check: checkOutputDir, build: false}
+    title: {property: "explicitTitle", kind: "maybe-empty"},
+    "out-dir": {
+        property: "outputDir",
+        kind: "maybe-empty",
+        value: outputDirKey,
+        check: checkOutputDir,
+        build: false
+    }
 };
 
 /** The options of {@link OPTIONS} that `build` stores in the presentation.
  *
  * @type {{[option: string]: object}}
  */
-export const BUILD_OPTIONS = Object.fromEntries(Object.entries(OPTIONS).filter(([, {build}]) => build !== false));
+export const BUILD_OPTIONS = Object.fromEntries(
+    Object.entries(OPTIONS).filter(([, {build}]) => build !== false)
+);
 
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}):
  * the options and `--presentation`, which names the presentation file.
@@ -85,7 +96,12 @@ export function checkFlags(flags) {
     if (Object.keys(OPTIONS).some(option => Object.hasOwn(flags, option))) {
         return null;
     }
-    return "no property to set; use " + Object.keys(OPTIONS).map(option => `--${option}`).join(", ");
+    return (
+        "no property to set; use " +
+        Object.keys(OPTIONS)
+            .map(option => `--${option}`)
+            .join(", ")
+    );
 }
 
 /** Check the values of the options found in the flags (see {@link OPTIONS}).
@@ -97,7 +113,8 @@ export function checkFlags(flags) {
  */
 export function checkOptions(flags, context, options = OPTIONS) {
     for (const [option, {check}] of Object.entries(options)) {
-        const error = check && Object.hasOwn(flags, option) ? check(flags[option].trim(), context) : null;
+        const error =
+            check && Object.hasOwn(flags, option) ? check(flags[option].trim(), context) : null;
         if (error) {
             return error;
         }
@@ -125,7 +142,7 @@ export function applyOptions(controller, flags, context, options = OPTIONS) {
             continue;
         }
         const from = controller.presentation[property];
-        let to     = typeof flags[option] === "string" ? flags[option].trim() : flags[option];
+        let to = typeof flags[option] === "string" ? flags[option].trim() : flags[option];
         if (value) {
             to = value(to, context);
         }

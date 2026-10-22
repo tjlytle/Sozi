@@ -12,15 +12,27 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck, fixturesDir} = require("./helpers.js");
 
-/** Run a command in the directory of a temp deck and check the output is one JSON document. */
+/**
+ * Run a command in the directory of a temp deck and check the output is one JSON document.
+ * @param deck
+ * @param {...any} args
+ */
 function sozi(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
-    assert.equal(run.stdout.trim().split("\n").length, 1, `stdout: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.equal(
+        run.stdout.trim().split("\n").length,
+        1,
+        `stdout: ${run.stdout}\nstderr: ${run.stderr}`
+    );
     assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
     return run;
 }
 
-/** Like {@link sozi}, and check that the command succeeded. */
+/**
+ * Like {@link sozi}, and check that the command succeeded.
+ * @param deck
+ * @param {...any} args
+ */
 function soziOk(deck, ...args) {
     const run = sozi(deck, ...args);
     assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`);
@@ -28,19 +40,29 @@ function soziOk(deck, ...args) {
     return run;
 }
 
-/** Read a JSON file. */
+/**
+ * Read a JSON file.
+ * @param file
+ */
 function readJson(file) {
     return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-/** Write a presentation JSON: the basic fixture data with extra keys. */
+/**
+ * Write a presentation JSON: the basic fixture data with extra keys.
+ * @param file
+ * @param extra
+ */
 function writePresentation(file, extra = {}) {
     fs.mkdirSync(path.dirname(file), {recursive: true});
     const data = {...extra, ...readJson(path.join(fixturesDir, "basic.sozi.json"))};
     fs.writeFileSync(file, JSON.stringify(data, null, "  "));
 }
 
-/** The HTML files named after a presentation file. */
+/**
+ * The HTML files named after a presentation file.
+ * @param presentation
+ */
 function htmlOf(presentation) {
     const base = presentation.replace(/\.sozi\.json$/, "");
     return {html: base + ".sozi.html", presenter: base + "-presenter.sozi.html"};
@@ -73,9 +95,11 @@ describe("several presentations from one SVG", () => {
             assert.equal(fs.existsSync(path.join(deck.dir, "basic.sozi.html")), false);
             assert.equal(fs.existsSync(path.join(deck.dir, "basic-presenter.sozi.html")), false);
             // The default presentation is left alone.
-            assert.deepEqual(fs.readFileSync(deck.json), fs.readFileSync(path.join(fixturesDir, "basic.sozi.json")));
-        }
-        finally {
+            assert.deepEqual(
+                fs.readFileSync(deck.json),
+                fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"))
+            );
+        } finally {
             deck.cleanup();
         }
     });
@@ -95,10 +119,12 @@ describe("several presentations from one SVG", () => {
             assert.deepEqual(json.files, [htmlOf(spanish).html, htmlOf(spanish).presenter]);
             assert.deepEqual(fs.readFileSync(spanish), before);
             assert.match(fs.readFileSync(htmlOf(spanish).html, "utf8"), /soziPresentationData/);
-            assert.match(fs.readFileSync(htmlOf(spanish).presenter, "utf8"), /src="spanish\.sozi\.html"/);
+            assert.match(
+                fs.readFileSync(htmlOf(spanish).presenter, "utf8"),
+                /src="spanish\.sozi\.html"/
+            );
             assert.equal(fs.existsSync(path.join(deck.dir, "basic.sozi.html")), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -108,13 +134,20 @@ describe("several presentations from one SVG", () => {
         try {
             const created = path.join(deck.dir, "es", "new.sozi.json");
             fs.mkdirSync(path.dirname(created));
-            const {json} = soziOk(deck, "set", "--title", "Hola", "--presentation", "es/new.sozi.json", "basic.svg");
+            const {json} = soziOk(
+                deck,
+                "set",
+                "--title",
+                "Hola",
+                "--presentation",
+                "es/new.sozi.json",
+                "basic.svg"
+            );
             assert.deepEqual(json.files, [created]);
             const data = readJson(created);
             assert.equal(data.svg, "../basic.svg");
             assert.equal(data.title, "Hola");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -134,7 +167,13 @@ describe("opening by presentation file", () => {
             assert.equal(byJson.title, "Charla");
             assert.equal(byJson.frames.length, 2);
 
-            const byFlag = soziOk(deck, "inspect", "--presentation", "es/spanish.sozi.json", "basic.svg").json;
+            const byFlag = soziOk(
+                deck,
+                "inspect",
+                "--presentation",
+                "es/spanish.sozi.json",
+                "basic.svg"
+            ).json;
             assert.equal(byFlag.presentation, spanish);
             assert.equal(byFlag.svgSource, "flag");
             assert.equal(byFlag.title, "Charla");
@@ -147,8 +186,7 @@ describe("opening by presentation file", () => {
             const bySvg = soziOk(deck, "inspect", "basic.svg").json;
             assert.equal(bySvg.presentation, deck.json);
             assert.equal(bySvg.svgSource, "default");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -159,9 +197,11 @@ describe("opening by presentation file", () => {
             const {json} = soziOk(deck, "build", "basic.sozi.json");
             assert.equal(json.svg, deck.svg);
             assert.deepEqual(json.files, [htmlOf(deck.json).html, htmlOf(deck.json).presenter]);
-            assert.deepEqual(fs.readFileSync(deck.json), fs.readFileSync(path.join(fixturesDir, "basic.sozi.json")));
-        }
-        finally {
+            assert.deepEqual(
+                fs.readFileSync(deck.json),
+                fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"))
+            );
+        } finally {
             deck.cleanup();
         }
     });
@@ -171,10 +211,13 @@ describe("opening by presentation file", () => {
         try {
             fs.rmSync(deck.json);
             const {json} = soziOk(deck, "build", "basic.svg");
-            assert.deepEqual(json.files, [htmlOf(deck.json).html, htmlOf(deck.json).presenter, deck.json]);
+            assert.deepEqual(json.files, [
+                htmlOf(deck.json).html,
+                htmlOf(deck.json).presenter,
+                deck.json
+            ]);
             assert.equal(Object.hasOwn(readJson(deck.json), "svg"), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -191,8 +234,7 @@ describe("presentation file errors", () => {
             assert.match(json.error, /SVG file not found: .*orphan\.svg/);
             assert.match(json.error, /no "svg" key/);
             assert.equal(fs.existsSync(path.join(deck.dir, "orphan.sozi.html")), false);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -204,8 +246,7 @@ describe("presentation file errors", () => {
             const {code, json} = sozi(deck, "inspect", "lost.sozi.json");
             assert.equal(code, 1);
             assert.match(json.error, /SVG file not found: .*art\/missing\.svg/);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -217,8 +258,7 @@ describe("presentation file errors", () => {
             const {code, json} = sozi(deck, "build", "--presentation", "es.sozi.json", "basic.svg");
             assert.equal(code, 2);
             assert.match(json.error, /--presentation .*is a directory/);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -230,17 +270,25 @@ describe("presentation file errors", () => {
             assert.equal(notJson.code, 2);
             assert.match(notJson.json.error, /--presentation .*\.json/);
 
-            const withJson = sozi(deck, "inspect", "--presentation", "talk.sozi.json", "basic.sozi.json");
+            const withJson = sozi(
+                deck,
+                "inspect",
+                "--presentation",
+                "talk.sozi.json",
+                "basic.sozi.json"
+            );
             assert.equal(withJson.code, 2);
             assert.match(withJson.json.error, /--presentation .*SVG/);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
 });
 
-/** The names of the files in a directory, recursively, with their contents. */
+/**
+ * The names of the files in a directory, recursively, with their contents.
+ * @param dir
+ */
 function snapshot(dir) {
     const result = {};
     for (const name of fs.readdirSync(dir, {recursive: true})) {
@@ -257,15 +305,14 @@ describe("only .sozi.json files are presentations", () => {
         const deck = withTempDeck("basic");
         try {
             fs.copyFileSync(deck.svg, path.join(deck.dir, "chart.svg"));
-            fs.writeFileSync(path.join(deck.dir, "chart.json"), "{\"data\": [1, 2, 3]}\n");
+            fs.writeFileSync(path.join(deck.dir, "chart.json"), '{"data": [1, 2, 3]}\n');
             const before = snapshot(deck.dir);
             const {code, json} = sozi(deck, "build", "chart.json");
             assert.equal(code, 1);
             assert.equal(json.ok, false);
             assert.match(json.error, /^not a presentation file: .*chart\.json: .+/);
             assert.deepEqual(snapshot(deck.dir), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -278,8 +325,7 @@ describe("only .sozi.json files are presentations", () => {
             assert.equal(code, 2);
             assert.match(json.error, /--presentation .*\.sozi\.json/);
             assert.deepEqual(snapshot(deck.dir), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -287,13 +333,19 @@ describe("only .sozi.json files are presentations", () => {
     test("a .sozi.json without a frames array or not parsable: exit 1, nothing written", () => {
         const deck = withTempDeck("basic");
         try {
-            fs.writeFileSync(path.join(deck.dir, "noframes.sozi.json"), JSON.stringify({svg: "basic.svg", title: "x"}));
+            fs.writeFileSync(
+                path.join(deck.dir, "noframes.sozi.json"),
+                JSON.stringify({svg: "basic.svg", title: "x"})
+            );
             fs.writeFileSync(path.join(deck.dir, "broken.sozi.json"), "{ not json");
             const before = snapshot(deck.dir);
 
             const noFrames = sozi(deck, "build", "noframes.sozi.json");
             assert.equal(noFrames.code, 1);
-            assert.match(noFrames.json.error, /^not a presentation file: .*noframes\.sozi\.json: no "frames" array$/);
+            assert.match(
+                noFrames.json.error,
+                /^not a presentation file: .*noframes\.sozi\.json: no "frames" array$/
+            );
 
             const broken = sozi(deck, "build", "broken.sozi.json");
             assert.equal(broken.code, 1);
@@ -304,8 +356,7 @@ describe("only .sozi.json files are presentations", () => {
             assert.equal(byFlag.json.ok, false);
 
             assert.deepEqual(snapshot(deck.dir), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -315,7 +366,11 @@ describe("svg key stability", () => {
     test("a key that resolves to the opened SVG is never rewritten", () => {
         const deck = withTempDeck("basic");
         try {
-            for (const [name, key] of [["absolute", deck.svg], ["dotted", "./basic.svg"], ["relative", "basic.svg"]]) {
+            for (const [name, key] of [
+                ["absolute", deck.svg],
+                ["dotted", "./basic.svg"],
+                ["relative", "basic.svg"]
+            ]) {
                 const file = path.join(deck.dir, `${name}.sozi.json`);
                 writePresentation(file, {svg: key});
                 const before = fs.readFileSync(file);
@@ -323,8 +378,7 @@ describe("svg key stability", () => {
                 assert.deepEqual(json.files, [htmlOf(file).html, htmlOf(file).presenter], name);
                 assert.deepEqual(fs.readFileSync(file), before, name);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -335,21 +389,41 @@ describe("svg key stability", () => {
             fs.copyFileSync(deck.svg, path.join(deck.dir, "other.svg"));
             const talk = path.join(deck.dir, "talk.sozi.json");
             writePresentation(talk, {svg: "basic.svg"});
-            const retarget = soziOk(deck, "build", "--presentation", "talk.sozi.json", "other.svg").json;
-            assert.ok(retarget.warnings.includes("svg key changed from basic.svg to other.svg"), retarget.warnings.join("\n"));
+            const retarget = soziOk(
+                deck,
+                "build",
+                "--presentation",
+                "talk.sozi.json",
+                "other.svg"
+            ).json;
+            assert.ok(
+                retarget.warnings.includes("svg key changed from basic.svg to other.svg"),
+                retarget.warnings.join("\n")
+            );
             assert.equal(readJson(talk).svg, "other.svg");
 
             // A default presentation bound to another SVG loses its key.
             writePresentation(deck.json, {svg: "other.svg"});
             const unbind = soziOk(deck, "inspect", "basic.svg").json;
-            assert.ok(unbind.warnings.includes("svg key changed from other.svg to (none)"), unbind.warnings.join("\n"));
+            assert.ok(
+                unbind.warnings.includes("svg key changed from other.svg to (none)"),
+                unbind.warnings.join("\n")
+            );
 
             // Adding a key to a presentation without one is not a change of key.
             writePresentation(path.join(deck.dir, "fresh.sozi.json"));
-            const added = soziOk(deck, "build", "--presentation", "fresh.sozi.json", "basic.svg").json;
-            assert.ok(!added.warnings.some(w => /svg key changed/.test(w)), added.warnings.join("\n"));
-        }
-        finally {
+            const added = soziOk(
+                deck,
+                "build",
+                "--presentation",
+                "fresh.sozi.json",
+                "basic.svg"
+            ).json;
+            assert.ok(
+                !added.warnings.some(w => /svg key changed/.test(w)),
+                added.warnings.join("\n")
+            );
+        } finally {
             deck.cleanup();
         }
     });

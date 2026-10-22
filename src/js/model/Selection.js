@@ -10,7 +10,6 @@
  * frames and layers of the presentation.
  */
 export class Selection {
-
     /** Create an empty selection for a given presentation.
      *
      * @param {module:model/Presentation.Presentation} presentation - A Sozi presentation object
@@ -58,7 +57,7 @@ export class Selection {
     fromStorable(storable) {
         if ("selectedFrames" in storable) {
             this.selectedFrames = [];
-            for (let frameId of storable.selectedFrames) {
+            for (const frameId of storable.selectedFrames) {
                 const frame = this.presentation.getFrameWithId(frameId);
                 if (frame) {
                     this.selectedFrames.push(frame);
@@ -68,7 +67,7 @@ export class Selection {
 
         if ("selectedLayers" in storable) {
             this.selectedLayers = [];
-            for (let groupId of storable.selectedLayers) {
+            for (const groupId of storable.selectedLayers) {
                 const layer = this.presentation.getLayerWithId(groupId);
                 if (layer) {
                     this.selectedLayers.push(layer);
@@ -82,9 +81,9 @@ export class Selection {
      * @type {module:model/Presentation.Frame}
      */
     get currentFrame() {
-        return this.selectedFrames.length ?
-            this.selectedFrames[this.selectedFrames.length - 1] :
-            null;
+        return this.selectedFrames.length
+            ? this.selectedFrames[this.selectedFrames.length - 1]
+            : null;
     }
 
     /** Check whether this selection contains the given frames.
@@ -128,8 +127,7 @@ export class Selection {
         const index = this.selectedFrames.indexOf(frame);
         if (index >= 0) {
             this.selectedFrames.splice(index, 1);
-        }
-        else {
+        } else {
             this.selectedFrames.push(frame);
         }
     }
@@ -175,8 +173,7 @@ export class Selection {
         const index = this.selectedLayers.indexOf(layer);
         if (index >= 0) {
             this.selectedLayers.splice(index, 1);
-        }
-        else {
+        } else {
             this.selectedLayers.push(layer);
         }
     }

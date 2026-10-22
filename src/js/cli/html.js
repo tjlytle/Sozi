@@ -25,7 +25,10 @@ export function presentationHtml(context) {
     if (error) {
         return {html: null, error};
     }
-    return {html: presentationFiles(context.svg, context.presentation, {outputDir}).html, error: null};
+    return {
+        html: presentationFiles(context.svg, context.presentation, {outputDir}).html,
+        error: null
+    };
 }
 
 /** Is the HTML file missing, or older than the SVG file or the JSON file?

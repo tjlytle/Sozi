@@ -70,13 +70,17 @@ export function rewriteRelativeHrefs(svgText, svgDir, outDir) {
             return match;
         }
         // The value is kept escaped: escaped characters are not path separators.
-        const target = path.relative(outDir, path.join(svgDir, href.trim())).split(path.sep).join("/");
+        const target = path
+            .relative(outDir, path.join(svgDir, href.trim()))
+            .split(path.sep)
+            .join("/");
         return before + quote + target + quote;
     }
 
     // href and xlink:href of image elements.
     let result = svgText.replace(/<(?:[\w.-]+:)?image(?=[\s/>])[^>]*>/g, tag =>
-        tag.replace(/(\s(?:[\w.-]+:)?href\s*=\s*)(["'])(.*?)\2/g, rebase));
+        tag.replace(/(\s(?:[\w.-]+:)?href\s*=\s*)(["'])(.*?)\2/g, rebase)
+    );
 
     // src attributes in the Sozi namespace, with any declared prefix.
     const soziNs = new RegExp(`\\sxmlns:([\\w.-]+)\\s*=\\s*(["'])${escapeRegExp(SOZI_NS)}\\2`, "g");

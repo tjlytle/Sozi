@@ -10,9 +10,11 @@
  * Apply a natural box layout model to all elements:
  * http://www.paulirish.com/2012/box-sizing-border-box-ftw/
  */
-*, *:before, *:after {
-    -moz-box-sizing: border-box;
-    -webkit-box-sizing: border-box;
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    box-sizing: border-box;
     box-sizing: border-box;
 }
 
@@ -22,10 +24,37 @@ body {
     overflow: hidden;
 }
 
-.top    { position: absolute; left:  0; top:    0; width: 100%;             height: calc(70% - 2px); }
-.bottom { position: absolute; left:  0; bottom: 0; width: 100%;             height: calc(30% - 2px); }
-.left   { position: absolute; left:  0; top:    0; width: calc(70% - 2px);  height: 100%; }
-.right  { position: absolute; right: 0; top:    0; width: calc(30% - 2px);  height: 100%; }
+.top {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: calc(70% - 2px);
+}
+
+.bottom {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: calc(30% - 2px);
+}
+
+.left {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: calc(70% - 2px);
+    height: 100%;
+}
+
+.right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: calc(30% - 2px);
+    height: 100%;
+}
 
 .hsplitter {
     position: absolute;
@@ -44,8 +73,7 @@ body {
 }
 
 .right {
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden auto;
 }
 
 .btn-group {
@@ -65,35 +93,44 @@ body {
  * ------------------------------------------------------------------------- */
 
 body {
-    background: rgb(80, 80, 80);
+    background: rgb(80 80 80);
 }
 
 .top .left {
-    background-image: linear-gradient(-45deg,
-        rgb(80, 80, 80) 25%, rgb(64, 64, 64) 25%, rgb(64, 64, 64) 50%,
-        rgb(80, 80, 80) 50%, rgb(80, 80, 80) 75%, rgb(64, 64, 64) 75%, rgb(64, 64, 64));
+    background-image: linear-gradient(
+        -45deg,
+        rgb(80 80 80) 25%,
+        rgb(64 64 64) 25%,
+        rgb(64 64 64) 50%,
+        rgb(80 80 80) 50%,
+        rgb(80 80 80) 75%,
+        rgb(64 64 64) 75%,
+        rgb(64 64 64)
+    );
     background-size: 1rem 1rem;
 }
 
 .right {
-    background: rgb(64, 64, 64);
+    background: rgb(64 64 64);
 }
 
-.hsplitter, .vsplitter {
-    background: rgb(64, 64, 64);
+.hsplitter,
+.vsplitter {
+    background: rgb(64 64 64);
 }
 
-.hsplitter:hover, .vsplitter:hover {
-    background: rgb(80, 80, 80);
+.hsplitter:hover,
+.vsplitter:hover {
+    background: rgb(80 80 80);
 }
 
 /*
  * Form elements
  */
 
-input[type=text],
-input[type=number],
-section[contenteditable=true],
+input[type="text"],
+input[type="number"],
+section[contenteditable="true"],
 select,
 button {
     border-radius: 0.5rem;
@@ -102,78 +139,78 @@ button {
     color: black;
 }
 
-input[type=text],
-input[type=number],
-section[contenteditable=true] {
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5) inset;
+input[type="text"],
+input[type="number"],
+section[contenteditable="true"] {
+    box-shadow: 0 1px 1px rgb(0 0 0 / 50%) inset;
     background-color: white;
 }
 
 select,
 button {
-    background: linear-gradient(to bottom, rgb(220, 220, 220), rgb(180, 180, 180) 100%);
+    background: linear-gradient(to bottom, rgb(220 220 220), rgb(180 180 180) 100%);
 }
 
 select:active,
 button:active {
-    background: linear-gradient(to bottom, rgb(200, 200, 200), rgb(160, 160, 160) 100%);
+    background: linear-gradient(to bottom, rgb(200 200 200), rgb(160 160 160) 100%);
 }
 
 option {
-    background: rgb(220, 220, 220);
+    background: rgb(220 220 220);
 }
 
-
 input:disabled {
-    background: rgb(220, 220, 220);
+    background: rgb(220 220 220);
 }
 
 input:disabled,
 button:disabled {
-    color: rgb(150, 150, 150);
+    color: rgb(150 150 150);
 }
 
 .active {
-    background: linear-gradient(to bottom, rgb(150, 200, 200), rgb(180, 220, 220) 100%);
+    background: linear-gradient(to bottom, rgb(150 200 200), rgb(180 220 220) 100%);
 }
 
 button.active:active {
-    background: linear-gradient(to bottom, rgb(135, 180, 180), rgb(160, 200, 200) 100%);
+    background: linear-gradient(to bottom, rgb(135 180 180), rgb(160 200 200) 100%);
 }
 
 .multiple {
-    background-image: linear-gradient(-45deg,
-        rgb(150, 200, 200) 25%, rgb(220, 220, 220) 25%, rgb(220, 220, 220) 50%,
-        rgb(150, 200, 200) 50%, rgb(150, 200, 200) 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220));
+    background-image: linear-gradient(
+        -45deg,
+        rgb(150 200 200) 25%,
+        rgb(220 220 220) 25%,
+        rgb(220 220 220) 50%,
+        rgb(150 200 200) 50%,
+        rgb(150 200 200) 75%,
+        rgb(220 220 220) 75%,
+        rgb(220 220 220)
+    );
     background-size: 1rem 1rem;
 }
 
 .btn-group button:first-child:not(:last-child) {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    border-right: 1px solid rgb(80, 80, 80);
+    border-radius: 0.5rem 0 0 0.5rem;
+    border-right: 1px solid rgb(80 80 80);
 }
 
 .btn-group button:last-child:not(:first-child) {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
+    border-radius: 0 0.5rem 0.5rem 0;
 }
 
-.btn-group button:not(:first-child):not(:last-child) {
+.btn-group button:not(:first-child, :last-child) {
     border-radius: 0;
-    border-right: 1px solid rgb(80, 80, 80);
+    border-right: 1px solid rgb(80 80 80);
 }
 
 .message.info {
-    background-color: rgba(150, 200, 200, 0.8);
+    background-color: rgb(150 200 200 / 80%);
 }
 
 .message.error {
-    background-color: rgba(255, 100, 100, 0.8);
+    background-color: rgb(255 100 100 / 80%);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -181,7 +218,7 @@ button.active:active {
  * ------------------------------------------------------------------------- */
 
 html {
-    font-family: "InterVariable", sans-serif;
+    font-family: InterVariable, sans-serif;
 }
 
 body {
@@ -208,13 +245,17 @@ body {
 .message {
     opacity: 0;
     visibility: hidden;
-    transition: visibility 0s 0.5s, opacity 0.5s ease;
+    transition:
+        visibility 0s 0.5s,
+        opacity 0.5s ease;
 }
 
 .message.visible {
     opacity: 1;
     visibility: visible;
-    transition: visibility 0s 0s, opacity 0.5s ease;
+    transition:
+        visibility 0s 0s,
+        opacity 0.5s ease;
 }
 
 .hsplitter {
@@ -229,22 +270,22 @@ body {
  * Fixes
  * ------------------------------------------------------------------------- */
 
-input[type=range] {
-    background: rgb(64, 64, 64);
+input[type="range"] {
+    background: rgb(64 64 64);
 }
 
-input[type=range]::-moz-range-track {
-  border-radius: 8px;
-  height: 7px;
-  border: 1px solid #bdc3c7;
-  background-color: #fff;
+input[type="range"]::-moz-range-track {
+    border-radius: 8px;
+    height: 7px;
+    border: 1px solid #bdc3c7;
+    background-color: #fff;
 }
 
-input[type=range]::-moz-range-thumb {
-  background: #ecf0f1;
-  border: 1px solid #bdc3c7;
-  width: 14px;
-  height: 14px;
-  border-radius: 10px;
-  cursor: pointer;
+input[type="range"]::-moz-range-thumb {
+    background: #ecf0f1;
+    border: 1px solid #bdc3c7;
+    width: 14px;
+    height: 14px;
+    border-radius: 10px;
+    cursor: pointer;
 }

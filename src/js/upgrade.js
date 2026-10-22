@@ -72,8 +72,8 @@ function convertTimingFunction(str) {
  * @param {string} attrName - The name of the attribute to read.
  * @param {Function} fn - A conversion function to apply to the attribute.
  */
-function importAttribute(obj, propName, elts, attrName, fn=x => x) {
-    for (let e of elts) {
+function importAttribute(obj, propName, elts, attrName, fn = x => x) {
+    for (const e of elts) {
         if (e && e.hasAttribute(attrName)) {
             obj[propName] = fn(e.getAttribute(attrName));
             break;
@@ -93,8 +93,8 @@ function importAttribute(obj, propName, elts, attrName, fn=x => x) {
  * @param {string} attrName - The name of the attribute to read.
  * @param {Function} fn - A conversion function to apply to the attribute.
  */
-function importAttributeNS(obj, propName, elts, nsUri, attrName, fn=x=>x) {
-    for (let e of elts) {
+function importAttributeNS(obj, propName, elts, nsUri, attrName, fn = x => x) {
+    for (const e of elts) {
         if (e && e.hasAttributeNS(nsUri, attrName)) {
             obj[propName] = fn(e.getAttributeNS(nsUri, attrName));
             break;
@@ -127,7 +127,11 @@ export function upgradeFromSVG(pres, controller) {
 
     // Get an ordered array of sozi:frame elements
     const frameElts = Array.from(pres.document.root.getElementsByTagNameNS(SOZI_NS, "frame"));
-    frameElts.sort((a, b) => parseInt(a.getAttributeNS(SOZI_NS, "sequence")) - parseInt(b.getAttributeNS(SOZI_NS, "sequence")));
+    frameElts.sort(
+        (a, b) =>
+            parseInt(a.getAttributeNS(SOZI_NS, "sequence")) -
+            parseInt(b.getAttributeNS(SOZI_NS, "sequence"))
+    );
 
     // The "default" pool contains all layers that have no corresponding
     // <layer> element in any frame. The properties for these layers are
@@ -147,7 +151,7 @@ export function upgradeFromSVG(pres, controller) {
 
         // Collect layer elements inside the current frame element
         const layerEltsByGroupId = {};
-        for (let layerElt of frameElt.getElementsByTagNameNS(SOZI_NS, "layer")) {
+        for (const layerElt of frameElt.getElementsByTagNameNS(SOZI_NS, "layer")) {
             layerEltsByGroupId[layerElt.getAttributeNS(SOZI_NS, "group")] = layerElt;
         }
 
@@ -177,30 +181,96 @@ export function upgradeFromSVG(pres, controller) {
             // update the camera state for this layer.
             let refElt;
             if (layerElt && layerElt.hasAttributeNS(SOZI_NS, "refid")) {
-                refElt = pres.document.root.getElementById(layerElt.getAttributeNS(SOZI_NS, "refid"));
-            }
-            else if (defaultLayers.indexOf(layer) >= 0) {
-                refElt = pres.document.root.getElementById(frameElt.getAttributeNS(SOZI_NS, "refid"));
+                refElt = pres.document.root.getElementById(
+                    layerElt.getAttributeNS(SOZI_NS, "refid")
+                );
+            } else if (defaultLayers.indexOf(layer) >= 0) {
+                refElt = pres.document.root.getElementById(
+                    frameElt.getAttributeNS(SOZI_NS, "refid")
+                );
             }
             if (refElt) {
-                layerProperties.referenceElementId = layerProperties.outlineElementId = refElt.getAttribute("id");
+                layerProperties.referenceElementId = layerProperties.outlineElementId =
+                    refElt.getAttribute("id");
                 cameraState.setAtElement(refElt);
             }
 
-            importAttributeNS(cameraState,     "clipped",                  [layerElt, frameElt], SOZI_NS, "clip",                    parseBoolean);
-            importAttributeNS(layerProperties, "outlineElementHide",       [layerElt, frameElt], SOZI_NS, "hide",                    parseBoolean);
-            importAttributeNS(layerProperties, "transitionTimingFunction", [layerElt, frameElt], SOZI_NS, "transition-profile",      convertTimingFunction);
-            importAttributeNS(layerProperties, "transitionRelativeZoom",   [layerElt, frameElt], SOZI_NS, "transition-zoom-percent", z => parseFloat(z) / 100);
-            importAttributeNS(layerProperties, "transitionPathId",         [layerElt, frameElt], SOZI_NS, "transition-path");
-            importAttributeNS(layerProperties, "transitionPathHide",       [layerElt, frameElt], SOZI_NS, "transition-path-hide",    parseBoolean);
+            importAttributeNS(
+                cameraState,
+                "clipped",
+                [layerElt, frameElt],
+                SOZI_NS,
+                "clip",
+                parseBoolean
+            );
+            importAttributeNS(
+                layerProperties,
+                "outlineElementHide",
+                [layerElt, frameElt],
+                SOZI_NS,
+                "hide",
+                parseBoolean
+            );
+            importAttributeNS(
+                layerProperties,
+                "transitionTimingFunction",
+                [layerElt, frameElt],
+                SOZI_NS,
+                "transition-profile",
+                convertTimingFunction
+            );
+            importAttributeNS(
+                layerProperties,
+                "transitionRelativeZoom",
+                [layerElt, frameElt],
+                SOZI_NS,
+                "transition-zoom-percent",
+                z => parseFloat(z) / 100
+            );
+            importAttributeNS(
+                layerProperties,
+                "transitionPathId",
+                [layerElt, frameElt],
+                SOZI_NS,
+                "transition-path"
+            );
+            importAttributeNS(
+                layerProperties,
+                "transitionPathHide",
+                [layerElt, frameElt],
+                SOZI_NS,
+                "transition-path-hide",
+                parseBoolean
+            );
         });
 
-        importAttribute(  frame, "frameId",              [frameElt],          "id");
-        importAttributeNS(frame, "title",                [frameElt], SOZI_NS, "title");
-        importAttributeNS(frame, "transitionDurationMs", [frameElt], SOZI_NS, "transition-duration-ms", parseFloat);
-        importAttributeNS(frame, "timeoutMs",            [frameElt], SOZI_NS, "timeout-ms",             parseFloat);
-        importAttributeNS(frame, "timeoutEnable",        [frameElt], SOZI_NS, "timeout-enable",         parseBoolean);
-        importAttributeNS(frame, "showInFrameList",      [frameElt], SOZI_NS, "show-in-frame-list",     parseBoolean);
+        importAttribute(frame, "frameId", [frameElt], "id");
+        importAttributeNS(frame, "title", [frameElt], SOZI_NS, "title");
+        importAttributeNS(
+            frame,
+            "transitionDurationMs",
+            [frameElt],
+            SOZI_NS,
+            "transition-duration-ms",
+            parseFloat
+        );
+        importAttributeNS(frame, "timeoutMs", [frameElt], SOZI_NS, "timeout-ms", parseFloat);
+        importAttributeNS(
+            frame,
+            "timeoutEnable",
+            [frameElt],
+            SOZI_NS,
+            "timeout-enable",
+            parseBoolean
+        );
+        importAttributeNS(
+            frame,
+            "showInFrameList",
+            [frameElt],
+            SOZI_NS,
+            "show-in-frame-list",
+            parseBoolean
+        );
     });
 }
 
@@ -214,8 +284,8 @@ export function upgradeFromStorable(storable) {
     // Sozi 17.02.05
     // Remove property referenceElementAuto
     // Replace referenceElementHide with outlineElementHide
-    for (let frame of storable.frames) {
-        for (let layerId in frame.layerProperties) {
+    for (const frame of storable.frames) {
+        for (const layerId in frame.layerProperties) {
             const layer = frame.layerProperties[layerId];
             if (layer.hasOwnProperty("referenceElementAuto")) {
                 delete layer.referenceElementAuto;
@@ -224,7 +294,10 @@ export function upgradeFromStorable(storable) {
                 layer.outlineElementHide = layer.referenceElementHide;
                 delete layer.referenceElementHide;
             }
-            if (layer.hasOwnProperty("referenceElementId") && !layer.hasOwnProperty("outlineElementId")) {
+            if (
+                layer.hasOwnProperty("referenceElementId") &&
+                !layer.hasOwnProperty("outlineElementId")
+            ) {
                 layer.outlineElementId = layer.referenceElementId;
             }
         }

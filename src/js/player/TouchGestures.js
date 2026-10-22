@@ -48,8 +48,7 @@ let MIN_SLOW_TRAVEL_X;
  * @default
  * @type {number}
  */
-let MIN_SLOW_TRAVEL_Y;       // minimum distance to accept a touch move as slow swipe gesture in vertical direction
-
+let MIN_SLOW_TRAVEL_Y; // minimum distance to accept a touch move as slow swipe gesture in vertical direction
 
 /** Tolerance of slight rotation gesture movement assumed to be unintentional.
  *
@@ -82,7 +81,7 @@ const ZOOM_UP_THRESHOLD = 1.5;
  * @default
  * @type {number}
  */
-const ZOOM_LOW_THRESHOLD = 1/ZOOM_UP_THRESHOLD;
+const ZOOM_LOW_THRESHOLD = 1 / ZOOM_UP_THRESHOLD;
 
 /** The current Sozi player.
  *
@@ -127,7 +126,6 @@ let currentGesture;
  * It is used to interpret changes in two finger gestures.
  */
 class Line {
-
     /** Creates  a new line defined by 2 points.
      *
      * @param {number} x1 - The X coordinate of the first point.
@@ -135,7 +133,7 @@ class Line {
      * @param {number} x2 - The X coordinate of the second point.
      * @param {number} y2 - The Y coordinate of the second point.
      */
-     constructor(x1, y1, x2, y2) {
+    constructor(x1, y1, x2, y2) {
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
@@ -157,7 +155,6 @@ class Line {
         const degree_angle = angle * (180 / Math.PI);
         return degree_angle;
     }
-
 
     /** Calculates the average horizontal distance to another line according to the two definition points.
      *
@@ -201,7 +198,6 @@ class Line {
 /** abstract class for touch gesture handlers.
  */
 class Gesture {
-
     /** Touchpoints have been moved.
      *
      * Specific behaviour to be implemented by derived classes
@@ -257,15 +253,16 @@ class Gesture {
         const dXAbs = Math.abs(distX);
         const dYAbs = Math.abs(distY);
 
-        if (dXAbs > dYAbs) { //potential horizontal swipe
+        if (dXAbs > dYAbs) {
+            //potential horizontal swipe
             if (dXAbs >= minX) {
-                this.doSwipe((distX < 0) ? "left" : "right");
+                this.doSwipe(distX < 0 ? "left" : "right");
                 return true;
             }
-        }
-        else { // potental vertical swipe
-            if (dYAbs>= minY) {
-                this.doSwipe((distY < 0) ? "up" : "down");
+        } else {
+            // potental vertical swipe
+            if (dYAbs >= minY) {
+                this.doSwipe(distY < 0 ? "up" : "down");
                 return true;
             }
         }
@@ -273,7 +270,6 @@ class Gesture {
         return false;
     }
 }
-
 
 /** Handles single touch gestures.
  *
@@ -286,23 +282,23 @@ class Gesture {
  * @extends Gesture
  */
 class SingleGesture extends Gesture {
-
     /** Creates a new single touch gesture handler.
      *
      * @param {object[]} touches - The initial touchpoint objects when the gesture is first detected
      */
-     constructor(touches) {
-         super();
+    constructor(touches) {
+        super();
 
-         this.flickTime  = Date.now(); // start time for quick swipes
-         this.firstTouch = { // first touched point for long swipes
-             x: touches[0].clientX,
-             y: touches[0].clientY
-         };
-         this.lastTouch  = this.firstTouch;  // last touched point
-         this.prevTouch  = this.firstTouch;  // point touched before the last
-         this.swipeDone  = false;  // swipe performed while moving
-     }
+        this.flickTime = Date.now(); // start time for quick swipes
+        this.firstTouch = {
+            // first touched point for long swipes
+            x: touches[0].clientX,
+            y: touches[0].clientY
+        };
+        this.lastTouch = this.firstTouch; // last touched point
+        this.prevTouch = this.firstTouch; // point touched before the last
+        this.swipeDone = false; // swipe performed while moving
+    }
 
     /** Performs a swipe.
      *
@@ -338,16 +334,19 @@ class SingleGesture extends Gesture {
         // slow swipe only needs a touch to travel a certain distance
         // without releasing the touchpoint.
         // the distance is about 1/2 of the display width to prevent accidental swipes
-        if (this.checkSwipe(current.x - this.firstTouch.x,
-                            current.y - this.firstTouch.y,
-                            MIN_SLOW_TRAVEL_X,
-                            MIN_SLOW_TRAVEL_Y)) {
+        if (
+            this.checkSwipe(
+                current.x - this.firstTouch.x,
+                current.y - this.firstTouch.y,
+                MIN_SLOW_TRAVEL_X,
+                MIN_SLOW_TRAVEL_Y
+            )
+        ) {
             this.swipeDone = true;
-        }
-        else {
-          this.flickTime = Date.now();
-          this.prevTouch = this.lastTouch;
-          this.lastTouch = current;
+        } else {
+            this.flickTime = Date.now();
+            this.prevTouch = this.lastTouch;
+            this.lastTouch = current;
         }
     }
 
@@ -376,21 +375,27 @@ class SingleGesture extends Gesture {
         }
 
         // Execute swipe or tap action.
-        if (this.checkSwipe(this.lastTouch.x - this.prevTouch.x,
-                            this.lastTouch.y - this.prevTouch.y,
-                            MIN_FLICK_TRAVEL,
-                            MIN_FLICK_TRAVEL)) {
+        if (
+            this.checkSwipe(
+                this.lastTouch.x - this.prevTouch.x,
+                this.lastTouch.y - this.prevTouch.y,
+                MIN_FLICK_TRAVEL,
+                MIN_FLICK_TRAVEL
+            )
+        ) {
             return;
         }
 
-        if (Math.abs(this.lastTouch.x - this.firstTouch.x) > MAX_TAP_DISTANCE ||
-            Math.abs(this.lastTouch.y - this.firstTouch.y) > MAX_TAP_DISTANCE)  {
+        if (
+            Math.abs(this.lastTouch.x - this.firstTouch.x) > MAX_TAP_DISTANCE ||
+            Math.abs(this.lastTouch.y - this.firstTouch.y) > MAX_TAP_DISTANCE
+        ) {
             return;
         }
 
         evt.target.dispatchEvent(new MouseEvent("mousedown", {button: 0, bubbles: true}));
-        evt.target.dispatchEvent(new MouseEvent("mouseup",   {button: 0, bubbles: true}));
-        evt.target.dispatchEvent(new MouseEvent("click",     {button: 0, bubbles: true}));
+        evt.target.dispatchEvent(new MouseEvent("mouseup", {button: 0, bubbles: true}));
+        evt.target.dispatchEvent(new MouseEvent("click", {button: 0, bubbles: true}));
     }
 }
 
@@ -403,7 +408,6 @@ class SingleGesture extends Gesture {
  * @extends Gesture
  */
 class DoubleGesture extends Gesture {
-
     /** Creates a new double touch gesture handler.
      *
      * @param {object[]} touches - The initial touchpoint objects when the gesture is first detected
@@ -438,11 +442,10 @@ class DoubleGesture extends Gesture {
      */
     zoom(actLine) {
         if (this.zoomEnabled) {
-            const zoom = (actLine.getSqrLength() / this.lastLine.getSqrLength());
+            const zoom = actLine.getSqrLength() / this.lastLine.getSqrLength();
             const mid = actLine.getMidpoint();
             playerController.zoom(zoom, mid.x, mid.y);
-        }
-        else {
+        } else {
             // Check threshhold to enable zoom.
             const zoom = Math.abs(actLine.getSqrLength() / this.startLine.getSqrLength());
             if (zoom > ZOOM_UP_THRESHOLD || zoom < ZOOM_LOW_THRESHOLD) {
@@ -459,8 +462,7 @@ class DoubleGesture extends Gesture {
         if (this.rotateEnabled) {
             const rotate = actLine.getAngle(this.lastLine);
             playerController.rotate(rotate);
-        }
-        else {
+        } else {
             // Check threshhold to enable rotation.
             if (Math.abs(actLine.getAngle(this.startLine)) >= ROTATE_THRESHOLD) {
                 this.rotateEnabled = true;
@@ -477,7 +479,6 @@ class DoubleGesture extends Gesture {
         const panY = actLine.getYDist(this.lastLine);
         playerController.translate(panX, panY);
     }
-
 
     /** Processes touchpoint moves.
      *
@@ -525,7 +526,6 @@ class DoubleGesture extends Gesture {
  * @extends Gesture
  */
 class DummyGesture extends Gesture {
-
     /** Constructs the dummy gesture handler.
      *
      * @param {number} touchNum - The number of touches this dummy should pretend to handle.
@@ -550,8 +550,8 @@ class DummyGesture extends Gesture {
  * @listens resize
  */
 function updateScreenValues() {
-    MIN_SLOW_TRAVEL_X = Math.floor(window.innerWidth/2);
-    MIN_SLOW_TRAVEL_Y = Math.floor(window.innerHeight/2);
+    MIN_SLOW_TRAVEL_X = Math.floor(window.innerWidth / 2);
+    MIN_SLOW_TRAVEL_Y = Math.floor(window.innerHeight / 2);
 }
 
 /** Creates a new gesture handler according to the number of currently applied touches.
@@ -565,9 +565,14 @@ function updateScreenValues() {
  */
 function createGesture(touches) {
     switch (touches.length) {
-        case 1: return presentation.enableMouseNavigation ? new SingleGesture(touches) : new DummyGesture(1);
-        case 2: return interactionGestureEnabled ? new DoubleGesture(touches) : new DummyGesture(2);
-        default: return new DummyGesture(touches.length);
+        case 1:
+            return presentation.enableMouseNavigation
+                ? new SingleGesture(touches)
+                : new DummyGesture(1);
+        case 2:
+            return interactionGestureEnabled ? new DoubleGesture(touches) : new DummyGesture(2);
+        default:
+            return new DummyGesture(touches.length);
     }
 }
 
@@ -607,7 +612,6 @@ function onTouchMove(evt) {
     currentGesture.move(evt.touches);
 }
 
-
 /** Processes a touch end event.
  *
  * @param {TouchEvent} evt - The DOM event to process.
@@ -634,8 +638,10 @@ export function init(pl, pr, pc) {
     presentation = pr;
     playerController = pc;
 
-    interactionGestureEnabled = presentation.enableMouseRotation ||
-        presentation.enableMouseZoom || presentation.enableMouseTranslation;
+    interactionGestureEnabled =
+        presentation.enableMouseRotation ||
+        presentation.enableMouseZoom ||
+        presentation.enableMouseTranslation;
 
     if (presentation.enableMouseNavigation || interactionGestureEnabled) {
         const root = player.viewport.svgRoot;
@@ -643,9 +649,9 @@ export function init(pl, pr, pc) {
         updateScreenValues();
         window.addEventListener("resize", updateScreenValues);
 
-        root.addEventListener("touchstart",  onTouchStart, false);
-        root.addEventListener("touchend",    onTouchEnd,   false);
-        root.addEventListener("touchcancel", onTouchEnd,   false);
-        root.addEventListener("touchmove",   onTouchMove,  false);
+        root.addEventListener("touchstart", onTouchStart, false);
+        root.addEventListener("touchend", onTouchEnd, false);
+        root.addEventListener("touchcancel", onTouchEnd, false);
+        root.addEventListener("touchmove", onTouchMove, false);
     }
 }

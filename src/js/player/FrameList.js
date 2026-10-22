@@ -48,7 +48,7 @@ let animator;
  * @default
  * @type {boolean}
  */
-let isOpen = false;
+const isOpen = false;
 
 /** The start location of the frame list with respect to the left border of the viewport.
  *
@@ -97,7 +97,7 @@ export function init(p, controller) {
     frameList = document.querySelector(".sozi-frame-list");
     links = frameList.querySelectorAll("li a");
 
-    for (let link of links) {
+    for (const link of links) {
         link.addEventListener("click", evt => {
             if (evt.button === 0) {
                 controller.previewFrame(link.hash.slice(1));
@@ -251,9 +251,7 @@ function onMouseOut(evt) {
  * @listens module:player/Player.frameChange
  */
 function onFrameChange() {
-    for (let link of links) {
-        link.className = link.hash === "#" + player.currentFrame.frameId ?
-            "current" :
-            "";
+    for (const link of links) {
+        link.className = link.hash === "#" + player.currentFrame.frameId ? "current" : "";
     }
 }

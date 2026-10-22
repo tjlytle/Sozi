@@ -15,7 +15,11 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck, decodePng} = require("./helpers.js");
 
-/** Run a command in the directory of a temp deck and check that it succeeded. */
+/**
+ * Run a command in the directory of a temp deck and check that it succeeded.
+ * @param deck
+ * @param {...any} args
+ */
 function soziOk(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
     assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`);
@@ -24,7 +28,11 @@ function soziOk(deck, ...args) {
     return run;
 }
 
-/** Run a command in the directory of a temp deck and check that it is a usage error. */
+/**
+ * Run a command in the directory of a temp deck and check that it is a usage error.
+ * @param deck
+ * @param {...any} args
+ */
 function soziUsageError(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
     assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
@@ -41,6 +49,8 @@ const CHROME = "/usr/bin/google-chrome";
  * Only a failure to spawn Chrome (ENOENT, EACCES) skips the test;
  * a timeout or a non-zero exit status fails it.
  *
+ * @param t
+ * @param result
  * @returns {boolean} - `true` if Chrome ran, `false` if the test was skipped.
  */
 function chromeRan(t, result) {
@@ -57,6 +67,8 @@ function chromeRan(t, result) {
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
  * a Chrome run that fails or times out is a test failure.
+ * @param t
+ * @param file
  */
 function browserDom(t, file) {
     if (!fs.existsSync(CHROME)) {
@@ -65,17 +77,23 @@ function browserDom(t, file) {
     }
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
     try {
-        const result = spawnSync(CHROME, [
-            "--headless=new", "--disable-gpu", "--no-sandbox",
-            `--user-data-dir=${profile}`,
-            "--dump-dom", "file://" + file
-        ], {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024});
+        const result = spawnSync(
+            CHROME,
+            [
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                `--user-data-dir=${profile}`,
+                "--dump-dom",
+                "file://" + file
+            ],
+            {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024}
+        );
         if (!chromeRan(t, result)) {
             return null;
         }
         return result.stdout;
-    }
-    finally {
+    } finally {
         fs.rmSync(profile, {recursive: true, force: true});
     }
 }
@@ -84,6 +102,11 @@ function browserDom(t, file) {
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
  * a Chrome run that fails or times out is a test failure.
+ * @param t
+ * @param file
+ * @param root0
+ * @param root0.width
+ * @param root0.height
  */
 function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
     if (!fs.existsSync(CHROME)) {
@@ -93,38 +116,57 @@ function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
     try {
         const png = path.join(profile, "shot.png");
-        const result = spawnSync(CHROME, [
-            "--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
-            `--user-data-dir=${profile}`,
-            // Let the player run its initial transition before the screenshot.
-            "--virtual-time-budget=5000",
-            `--window-size=${width},${height}`,
-            `--screenshot=${png}`, "file://" + file
-        ], {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL"});
+        const result = spawnSync(
+            CHROME,
+            [
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                "--hide-scrollbars",
+                `--user-data-dir=${profile}`,
+                // Let the player run its initial transition before the screenshot.
+                "--virtual-time-budget=5000",
+                `--window-size=${width},${height}`,
+                `--screenshot=${png}`,
+                "file://" + file
+            ],
+            {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL"}
+        );
         if (!chromeRan(t, result)) {
             return null;
         }
         return decodePng(fs.readFileSync(png));
-    }
-    finally {
+    } finally {
         fs.rmSync(profile, {recursive: true, force: true});
     }
 }
 
-/** Read a JSON file. */
+/**
+ * Read a JSON file.
+ * @param file
+ */
 function readJson(file) {
     return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-/** Add keys to a presentation file. */
+/**
+ * Add keys to a presentation file.
+ * @param file
+ * @param extra
+ */
 function addKeys(file, extra) {
     fs.mkdirSync(path.dirname(file), {recursive: true});
     fs.writeFileSync(file, JSON.stringify({...readJson(file), ...extra}, null, "  "));
 }
 
-/** The image hrefs of an HTML file. */
+/**
+ * The image hrefs of an HTML file.
+ * @param file
+ */
 function imageHrefs(file) {
-    return [...fs.readFileSync(file, "utf8").matchAll(/<image\b[^>]*?\sxlink:href="([^"]*)"/g)].map(m => m[1]);
+    return [...fs.readFileSync(file, "utf8").matchAll(/<image\b[^>]*?\sxlink:href="([^"]*)"/g)].map(
+        m => m[1]
+    );
 }
 
 describe("outputDir key", () => {
@@ -147,10 +189,12 @@ describe("outputDir key", () => {
             assert.match(fs.readFileSync(presenter, "utf8"), /linked\.sozi\.html/);
             // The JSON file stays beside the SVG; the SVG is not copied.
             assert.equal(readJson(deck.json).outputDir, "site/talk");
-            assert.deepEqual(fs.readdirSync(outDir).sort(), ["linked-presenter.sozi.html", "linked.sozi.html"]);
+            assert.deepEqual(fs.readdirSync(outDir).sort(), [
+                "linked-presenter.sozi.html",
+                "linked.sozi.html"
+            ]);
             assert.ok(!json.warnings.some(w => /relative image/.test(w)), json.warnings.join("\n"));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -166,11 +210,13 @@ describe("outputDir key", () => {
 
             const {json} = soziOk(deck, "build", "es/x.sozi.json");
             const html = path.join(deck.dir, "site", "x.sozi.html");
-            assert.deepEqual(json.files, [html, path.join(deck.dir, "site", "x-presenter.sozi.html")]);
+            assert.deepEqual(json.files, [
+                html,
+                path.join(deck.dir, "site", "x-presenter.sozi.html")
+            ]);
             assert.deepEqual(imageHrefs(html), ["../img/dot.png"]);
             assert.ok(!fs.existsSync(path.join(deck.dir, "es", "x.sozi.html")));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -182,8 +228,7 @@ describe("outputDir key", () => {
             soziOk(deck, "build", "--write-json", "linked.svg");
             assert.equal(readJson(deck.json).outputDir, "out");
             assert.ok(fs.existsSync(path.join(deck.dir, "out", "linked.sozi.html")));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -193,8 +238,7 @@ describe("outputDir key", () => {
         try {
             soziOk(deck, "build", "--write-json", "basic.svg");
             assert.ok(!("outputDir" in readJson(deck.json)));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -215,8 +259,7 @@ describe("outputDir key", () => {
             soziOk(deck, "build", "linked.svg");
             assert.ok(fs.existsSync(path.join(deck.dir, "out", "linked.sozi.html")));
             assert.ok(!fs.existsSync(path.join(deck.dir, " out ")));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -226,10 +269,12 @@ describe("outputDir key", () => {
         try {
             addKeys(deck.json, {outputDir: 3});
             const {json} = soziOk(deck, "build", "linked.svg");
-            assert.ok(json.warnings.includes(`ignored non-string outputDir in ${deck.json}`), json.warnings.join("\n"));
+            assert.ok(
+                json.warnings.includes(`ignored non-string outputDir in ${deck.json}`),
+                json.warnings.join("\n")
+            );
             assert.deepEqual(imageHrefs(path.join(deck.dir, "linked.sozi.html")), ["img/dot.png"]);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -242,8 +287,7 @@ describe("relative hrefs and the html directory", () => {
             const {json} = soziOk(deck, "build", "linked.svg");
             assert.deepEqual(imageHrefs(path.join(deck.dir, "linked.sozi.html")), ["img/dot.png"]);
             assert.deepEqual(json.warnings, []);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -253,8 +297,12 @@ describe("relative hrefs and the html directory", () => {
         const deck = withTempDeck("linked");
         try {
             const href = "./img/../img/dot.png";
-            fs.writeFileSync(deck.svg, fs.readFileSync(deck.svg, "utf8").replace("img/dot.png", href));
-            const embeddedSvg = file => fs.readFileSync(file, "utf8").match(/<svg\b[\s\S]*<\/svg>/)[0];
+            fs.writeFileSync(
+                deck.svg,
+                fs.readFileSync(deck.svg, "utf8").replace("img/dot.png", href)
+            );
+            const embeddedSvg = file =>
+                fs.readFileSync(file, "utf8").match(/<svg\b[\s\S]*<\/svg>/)[0];
 
             soziOk(deck, "build", "linked.svg");
             const plain = embeddedSvg(path.join(deck.dir, "linked.sozi.html"));
@@ -264,10 +312,9 @@ describe("relative hrefs and the html directory", () => {
             // so the default build is the serialized document with no rewrite at all.
             soziOk(deck, "build", "--out-dir", "site/talk", "linked.svg");
             const moved = embeddedSvg(path.join(deck.dir, "site", "talk", "linked.sozi.html"));
-            assert.equal(moved, plain.replace(`"${href}"`, "\"../../img/dot.png\""));
+            assert.equal(moved, plain.replace(`"${href}"`, '"../../img/dot.png"'));
             assert.notEqual(moved, plain);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -277,10 +324,11 @@ describe("relative hrefs and the html directory", () => {
         try {
             fs.mkdirSync(path.join(deck.dir, "es"));
             const {json} = soziOk(deck, "build", "--presentation", "es/x.sozi.json", "linked.svg");
-            assert.deepEqual(imageHrefs(path.join(deck.dir, "es", "x.sozi.html")), ["../img/dot.png"]);
+            assert.deepEqual(imageHrefs(path.join(deck.dir, "es", "x.sozi.html")), [
+                "../img/dot.png"
+            ]);
             assert.ok(!json.warnings.some(w => /relative image/.test(w)), json.warnings.join("\n"));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -302,10 +350,12 @@ describe("--out-dir", () => {
             assert.ok(!fs.existsSync(path.join(deck.dir, "linked-presenter.sozi.html")));
             assert.deepEqual(imageHrefs(html), ["../../img/dot.png"]);
             assert.ok(fs.existsSync(path.join(outDir, "../../img/dot.png")));
-            assert.deepEqual(fs.readdirSync(outDir).sort(), ["linked-presenter.sozi.html", "linked.sozi.html"]);
+            assert.deepEqual(fs.readdirSync(outDir).sort(), [
+                "linked-presenter.sozi.html",
+                "linked.sozi.html"
+            ]);
             assert.equal(fs.readFileSync(deck.json, "utf8"), before);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -316,8 +366,7 @@ describe("--out-dir", () => {
             soziOk(deck, "build", "--write-json", "--out-dir", "out", "linked.svg");
             assert.ok(!("outputDir" in readJson(deck.json)));
             assert.ok(fs.existsSync(path.join(deck.dir, "out", "linked.sozi.html")));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -333,8 +382,7 @@ describe("--out-dir", () => {
             ]);
             assert.ok(!fs.existsSync(path.join(deck.dir, "stored")));
             assert.equal(readJson(deck.json).outputDir, "stored");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -343,12 +391,19 @@ describe("--out-dir", () => {
         const deck = withTempDeck("linked");
         try {
             fs.mkdirSync(path.join(deck.dir, "es"));
-            soziOk(deck, "build", "--presentation", "es/x.sozi.json", "--out-dir", "site", "linked.svg");
+            soziOk(
+                deck,
+                "build",
+                "--presentation",
+                "es/x.sozi.json",
+                "--out-dir",
+                "site",
+                "linked.svg"
+            );
             const html = path.join(deck.dir, "site", "x.sozi.html");
             assert.ok(fs.existsSync(html));
             assert.deepEqual(imageHrefs(html), ["../img/dot.png"]);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -360,15 +415,17 @@ describe("--out-dir", () => {
             assert.deepEqual(json.changed, {"out-dir": {from: "", to: "site/talk"}});
             assert.deepEqual(json.files, [deck.json]);
             assert.equal(readJson(deck.json).outputDir, "site/talk");
-            assert.ok(!fs.existsSync(path.join(deck.dir, "site")), "set writes no HTML and creates no directory");
+            assert.ok(
+                !fs.existsSync(path.join(deck.dir, "site")),
+                "set writes no HTML and creates no directory"
+            );
 
             const built = soziOk(deck, "build", "linked.svg");
             assert.deepEqual(built.json.files, [
                 path.join(deck.dir, "site", "talk", "linked.sozi.html"),
                 path.join(deck.dir, "site", "talk", "linked-presenter.sozi.html")
             ]);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -378,17 +435,32 @@ describe("--out-dir", () => {
         try {
             fs.mkdirSync(path.join(deck.dir, "es"));
             const pres = path.join(deck.dir, "es", "x.sozi.json");
-            soziOk(deck, "set", "--presentation", "es/x.sozi.json", "--out-dir", "site/es", "linked.svg");
+            soziOk(
+                deck,
+                "set",
+                "--presentation",
+                "es/x.sozi.json",
+                "--out-dir",
+                "site/es",
+                "linked.svg"
+            );
             assert.equal(readJson(pres).outputDir, "../site/es");
-            soziOk(deck, "set", "--presentation", "es/x.sozi.json", "--out-dir", path.join(deck.dir, "abs"), "linked.svg");
+            soziOk(
+                deck,
+                "set",
+                "--presentation",
+                "es/x.sozi.json",
+                "--out-dir",
+                path.join(deck.dir, "abs"),
+                "linked.svg"
+            );
             assert.equal(readJson(pres).outputDir, "../abs");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
 
-    test("set --out-dir \"\" removes the key", () => {
+    test('set --out-dir "" removes the key', () => {
         const deck = withTempDeck("linked");
         try {
             addKeys(deck.json, {outputDir: "site"});
@@ -397,8 +469,7 @@ describe("--out-dir", () => {
             assert.ok(!("outputDir" in readJson(deck.json)));
             soziOk(deck, "build", "linked.svg");
             assert.ok(fs.existsSync(path.join(deck.dir, "linked.sozi.html")));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -409,7 +480,14 @@ describe("--out-dir", () => {
             const before = fs.readFileSync(deck.json, "utf8");
             fs.writeFileSync(path.join(deck.dir, "afile"), "x");
 
-            let {json} = soziUsageError(deck, "build", "--write-json", "--out-dir", "afile", "linked.svg");
+            let {json} = soziUsageError(
+                deck,
+                "build",
+                "--write-json",
+                "--out-dir",
+                "afile",
+                "linked.svg"
+            );
             assert.match(json.error, /--out-dir .*afile.* is not a directory/);
             ({json} = soziUsageError(deck, "build", "--out-dir", "afile/sub", "linked.svg"));
             assert.match(json.error, /is not a directory/);
@@ -426,9 +504,13 @@ describe("--out-dir", () => {
             ({json} = soziUsageError(deck, "build", "linked.svg"));
             assert.match(json.error, /outputDir .*afile.* is not a directory/);
             assert.equal(soziUsageError(deck, "inspect", "linked.svg").json.error, json.error);
-            assert.deepEqual(fs.readdirSync(deck.dir).sort(), ["afile", "img", "linked.sozi.json", "linked.svg"]);
-        }
-        finally {
+            assert.deepEqual(fs.readdirSync(deck.dir).sort(), [
+                "afile",
+                "img",
+                "linked.sozi.json",
+                "linked.svg"
+            ]);
+        } finally {
             deck.cleanup();
         }
     });
@@ -444,15 +526,16 @@ describe("--out-dir", () => {
             const before = fs.readFileSync(deck.json, "utf8");
             fs.mkdirSync(locked);
             fs.chmodSync(locked, 0o555);
-            const run = runSozi(["build", "--out-dir", "locked/site", "linked.svg"], {cwd: deck.dir});
+            const run = runSozi(["build", "--out-dir", "locked/site", "linked.svg"], {
+                cwd: deck.dir
+            });
             assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`);
             assert.equal(run.json.ok, false);
             assert.match(run.json.error, /EACCES/);
             assert.deepEqual(fs.readdirSync(locked), []);
             assert.ok(!fs.existsSync(path.join(deck.dir, "linked.sozi.html")));
             assert.equal(fs.readFileSync(deck.json, "utf8"), before);
-        }
-        finally {
+        } finally {
             fs.chmodSync(locked, 0o755);
             deck.cleanup();
         }
@@ -465,8 +548,7 @@ describe("--out-dir", () => {
             const {json} = soziOk(deck, "set", "--out-dir", ".", "linked.svg");
             assert.deepEqual(json.changed, {"out-dir": {from: "site", to: ""}});
             assert.ok(!("outputDir" in readJson(deck.json)));
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -476,8 +558,7 @@ describe("--out-dir", () => {
         try {
             const {json} = soziUsageError(deck, "build", "--out-dir=", "linked.svg");
             assert.equal(json.error, "missing value for --out-dir");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -490,8 +571,7 @@ describe("inspect and the output directory", () => {
             const {json} = soziOk(deck, "inspect", "linked.svg");
             assert.equal(json.outputDir, null);
             assert.equal(json.outputSource, "default");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -503,8 +583,7 @@ describe("inspect and the output directory", () => {
             const {json} = soziOk(deck, "inspect", "linked.svg");
             assert.equal(json.outputDir, path.join(deck.dir, "site", "talk"));
             assert.equal(json.outputSource, "json");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -517,8 +596,7 @@ describe("inspect and the output directory", () => {
             assert.equal(json.outputDir, path.join(deck.dir, "flag"));
             assert.equal(json.outputSource, "flag");
             assert.ok(!fs.existsSync(path.join(deck.dir, "flag")), "inspect creates nothing");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -535,13 +613,14 @@ describe("runtime check", () => {
                 return;
             }
             // The player ran: the SVG is in the live DOM, with the rewritten href.
-            const hrefs = [...dom.matchAll(/<image\b[^>]*?\s(?:xlink:)?href="([^"]*)"/g)].map(m => m[1]);
+            const hrefs = [...dom.matchAll(/<image\b[^>]*?\s(?:xlink:)?href="([^"]*)"/g)].map(
+                m => m[1]
+            );
             assert.deepEqual(hrefs, ["../../img/dot.png"]);
             const image = path.resolve(path.dirname(html), hrefs[0]);
             assert.equal(image, path.join(deck.dir, "img", "dot.png"));
             assert.ok(fs.statSync(image).isFile());
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -567,7 +646,10 @@ describe("runtime check", () => {
             if (shot === null) {
                 return;
             }
-            assert.ok(greenPixels(shot) > 10000, `the image is not shown: ${greenPixels(shot)} green pixels`);
+            assert.ok(
+                greenPixels(shot) > 10000,
+                `the image is not shown: ${greenPixels(shot)} green pixels`
+            );
 
             // Control: without the image file, the same page has no green pixel.
             fs.rmSync(path.join(deck.dir, "img", "dot.png"));
@@ -576,8 +658,7 @@ describe("runtime check", () => {
                 return;
             }
             assert.equal(greenPixels(missing), 0);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });

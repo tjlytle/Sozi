@@ -20,8 +20,19 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  * @readonly
  * @type {string[]}
  */
-const DRAWABLE_TAGS = [ "g", "image", "path", "rect", "circle",
-    "ellipse", "line", "polyline", "polygon", "text", "clippath" ];
+const DRAWABLE_TAGS = [
+    "g",
+    "image",
+    "path",
+    "rect",
+    "circle",
+    "ellipse",
+    "line",
+    "polyline",
+    "polygon",
+    "text",
+    "clippath"
+];
 
 /** A dictionary of SVG handlers.
  *
@@ -64,8 +75,7 @@ export class DefaultSVGHandler {
      *
      * @param {SVGSVGElement} svgRoot - The root SVG element to check.
      */
-    static transform(svgRoot) {
-    }
+    static transform(svgRoot) {}
 
     /** Check whether an SVG group represents a layer.
      *
@@ -95,7 +105,6 @@ export class DefaultSVGHandler {
 
 /** SVG document wrapper. */
 export class SVGDocumentWrapper {
-
     /** Initialize a new wrapper for a given SVG root element.
      *
      * @param {SVGSVGElement} svgRoot - An SVG root element.
@@ -120,7 +129,7 @@ export class SVGDocumentWrapper {
         this.root = svgRoot;
 
         // Prevent event propagation on hyperlinks
-        for (let link of this.root.getElementsByTagName("a")) {
+        for (const link of this.root.getElementsByTagName("a")) {
             link.addEventListener("mousedown", evt => evt.stopPropagation(), false);
         }
     }
@@ -145,9 +154,11 @@ export class SVGDocumentWrapper {
      * @returns {boolean} - `true` if the given node represents a layer.
      */
     isLayer(svgNode) {
-        return svgNode instanceof SVGGElement &&
+        return (
+            svgNode instanceof SVGGElement &&
             svgNode.hasAttribute("id") &&
-            this.handler.isLayer(svgNode);
+            this.handler.isLayer(svgNode)
+        );
     }
 
     /** Parse the given string into a new SVG document wrapper.
@@ -164,7 +175,7 @@ export class SVGDocumentWrapper {
         const svgRoot = new DOMParser().parseFromString(data, "image/svg+xml").documentElement;
         const doc = new SVGDocumentWrapper(svgRoot);
 
-        for (let name in handlers) {
+        for (const name in handlers) {
             if (handlers[name].matches(svgRoot)) {
                 console.log(`Using handler: ${name}`);
                 doc.handler = handlers[name];
@@ -198,7 +209,7 @@ export class SVGDocumentWrapper {
 
             // Get all child nodes of the SVG root.
             // Make a copy of svgRoot.childNodes before modifying the document.
-            for (let svgNode of Array.from(svgRoot.childNodes)) {
+            for (const svgNode of Array.from(svgRoot.childNodes)) {
                 // Remove text nodes and comments
                 if (svgNode.tagName === undefined) {
                     svgRoot.removeChild(svgNode);
@@ -253,7 +264,7 @@ export class SVGDocumentWrapper {
     removeScripts() {
         // Make a copy of root.childNodes before modifying the document.
         const scripts = Array.from(this.root.getElementsByTagName("script"));
-        for (let script of scripts) {
+        for (const script of scripts) {
             script.parentNode.removeChild(script);
         }
     }
@@ -265,8 +276,8 @@ export class SVGDocumentWrapper {
      *
      * @param {boolean} styled - If `true`, disable the hand-shaped mouse cursor over links.
      */
-    disableHyperlinks(styled=false) {
-        for (let link of this.root.getElementsByTagName("a")) {
+    disableHyperlinks(styled = false) {
+        for (const link of this.root.getElementsByTagName("a")) {
             link.addEventListener("click", evt => evt.preventDefault(), false);
             if (styled) {
                 link.style.cursor = "default";

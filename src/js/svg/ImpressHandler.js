@@ -7,18 +7,19 @@
 import {addSVGHandler, DefaultSVGHandler} from "./SVGDocumentWrapper";
 
 const SOFFICE_NS = "http://sun.com/xmlns/staroffice/presentation";
-const OOO_NS     = "http://xml.openoffice.org/svg/export";
+const OOO_NS = "http://xml.openoffice.org/svg/export";
 
 /** LibreOffice Impress SVG handler.
  *
  * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
  */
 export class ImpressHandler extends DefaultSVGHandler {
-
     /** @inheritdoc */
     static matches(svgRoot) {
-        return svgRoot.getAttribute("xmlns:presentation") === SOFFICE_NS &&
-               svgRoot.getAttribute("xmlns:ooo") === OOO_NS
+        return (
+            svgRoot.getAttribute("xmlns:presentation") === SOFFICE_NS &&
+            svgRoot.getAttribute("xmlns:ooo") === OOO_NS
+        );
     }
 
     /** @inheritdoc */

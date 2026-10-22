@@ -12,11 +12,11 @@ import {EventEmitter} from "events";
  * @type {Function}
  */
 const doRequestAnimationFrame =
-        window.requestAnimationFrame ||
-        window.mozRequestAnimationFrame ||
-        window.webkitRequestAnimationFrame ||
-        window.msRequestAnimationFrame ||
-        window.oRequestAnimationFrame;
+    window.requestAnimationFrame ||
+    window.mozRequestAnimationFrame ||
+    window.webkitRequestAnimationFrame ||
+    window.msRequestAnimationFrame ||
+    window.oRequestAnimationFrame;
 
 /** The object that provides the `now` method to read the current time.
  *
@@ -76,13 +76,12 @@ function loop() {
 
         // Step all animators. We iterate over a copy of the animator list
         // in case the step() method removes an animator from the list.
-        for (let animator of animatorList) {
+        for (const animator of animatorList) {
             if (animator.running) {
                 animator.step();
             }
         }
-    }
-    else if (!doRequestAnimationFrame) {
+    } else if (!doRequestAnimationFrame) {
         // If all animators have been removed,
         // and if this function is called periodically
         // by setInterval(), disable the periodic calling.
@@ -99,8 +98,7 @@ function loop() {
 function start() {
     if (doRequestAnimationFrame) {
         doRequestAnimationFrame(loop);
-    }
-    else {
+    } else {
         timer = window.setInterval(loop, TIME_STEP_MS);
     }
 }
@@ -174,7 +172,7 @@ export class Animator extends EventEmitter {
         this.emit("step", 0);
         if (!this.running) {
             this.running = true;
-            runningAnimators ++;
+            runningAnimators++;
             if (runningAnimators === 1) {
                 start();
             }
@@ -188,7 +186,7 @@ export class Animator extends EventEmitter {
     stop() {
         if (this.running) {
             this.running = false;
-            runningAnimators --;
+            runningAnimators--;
             this.emit("stop");
         }
     }
@@ -210,7 +208,7 @@ export class Animator extends EventEmitter {
         if (elapsedTime >= this.durationMs) {
             this.emit("step", 1);
             this.running = false;
-            runningAnimators --;
+            runningAnimators--;
             this.emit("done");
         } else {
             this.emit("step", elapsedTime / this.durationMs);

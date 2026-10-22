@@ -15,7 +15,6 @@ import pkg from "../../../package.json";
  * @todo Add documentation.
  */
 export class Toolbar extends VirtualDOMView {
-
     /** Initialize a new toolbar view.
      *
      * @param {HTMLElement} container - The HTML element that will contain this preview area.
@@ -45,7 +44,7 @@ export class Toolbar extends VirtualDOMView {
          */
         this.viewport = viewport;
 
-        screenfull.on("change",     () => this.repaint());
+        screenfull.on("change", () => this.repaint());
         properties.on("modeChange", () => this.repaint());
     }
 
@@ -53,9 +52,9 @@ export class Toolbar extends VirtualDOMView {
     render() {
         const properties = this.properties;
         const controller = this.controller;
-        const _          = controller.gettext;
+        const _ = controller.gettext;
 
-        this.state["aspect-width"]  = {value: this.presentation.aspectWidth};
+        this.state["aspect-width"] = {value: this.presentation.aspectWidth};
         this.state["aspect-height"] = {value: this.presentation.aspectHeight};
 
         return h("div", [
@@ -92,78 +91,157 @@ export class Toolbar extends VirtualDOMView {
                 })
             ]),
             h("span.group.btn-group", [
-                h("button", {
-                    title: _("Move the selected layers (hold Alt to zoom, Shift to rotate)"),
-                    className: this.viewport.dragMode === "translate" ? "active" : "",
-                    onclick() { controller.setDragMode("translate"); }
-                }, h("i.fa.fa-arrows")),
-                h("button", {
-                    title: _("Zoom in/out on the selected layers (you can also hold the Alt key in Move mode)"),
-                    className: this.viewport.dragMode === "scale" ? "active" : "",
-                    onclick() { controller.setDragMode("scale"); }
-                }, h("i.fa.fa-expand")),
-                h("button", {
-                    title: _("Rotate the selected layers (you can also hold the Shift key in Move mode)"),
-                    className: this.viewport.dragMode === "rotate" ? "active" : "",
-                    onclick() { controller.setDragMode("rotate"); }
-                }, h("i.fa.fa-rotate-left")),
-                h("button", {
-                    title: _("Edit the clipping area"),
-                    className: this.viewport.dragMode === "clip" ? "active" : "",
-                    onclick() { controller.setDragMode("clip"); }
-                }, h("i.fa.fa-crop"))
+                h(
+                    "button",
+                    {
+                        title: _("Move the selected layers (hold Alt to zoom, Shift to rotate)"),
+                        className: this.viewport.dragMode === "translate" ? "active" : "",
+                        onclick() {
+                            controller.setDragMode("translate");
+                        }
+                    },
+                    h("i.fa.fa-arrows")
+                ),
+                h(
+                    "button",
+                    {
+                        title: _(
+                            "Zoom in/out on the selected layers (you can also hold the Alt key in Move mode)"
+                        ),
+                        className: this.viewport.dragMode === "scale" ? "active" : "",
+                        onclick() {
+                            controller.setDragMode("scale");
+                        }
+                    },
+                    h("i.fa.fa-expand")
+                ),
+                h(
+                    "button",
+                    {
+                        title: _(
+                            "Rotate the selected layers (you can also hold the Shift key in Move mode)"
+                        ),
+                        className: this.viewport.dragMode === "rotate" ? "active" : "",
+                        onclick() {
+                            controller.setDragMode("rotate");
+                        }
+                    },
+                    h("i.fa.fa-rotate-left")
+                ),
+                h(
+                    "button",
+                    {
+                        title: _("Edit the clipping area"),
+                        className: this.viewport.dragMode === "clip" ? "active" : "",
+                        onclick() {
+                            controller.setDragMode("clip");
+                        }
+                    },
+                    h("i.fa.fa-crop")
+                )
             ]),
             h("span.group.btn-group", [
-                h("button", {
-                    title: _("Undo"),
-                    disabled: controller.undoStack.length ? undefined : "disabled",
-                    onclick() { controller.undo(); }
-                }, h("i.fa.fa-reply")), // "reply" icon preferred to the official "undo" icon
-                h("button", {
-                    title: _("Redo"),
-                    disabled: controller.redoStack.length ? undefined : "disabled",
-                    onclick() { controller.redo(); }
-                }, h("i.fa.fa-share")) // "share" icon preferred to the official "redo" icon
+                h(
+                    "button",
+                    {
+                        title: _("Undo"),
+                        disabled: controller.undoStack.length ? undefined : "disabled",
+                        onclick() {
+                            controller.undo();
+                        }
+                    },
+                    h("i.fa.fa-reply")
+                ), // "reply" icon preferred to the official "undo" icon
+                h(
+                    "button",
+                    {
+                        title: _("Redo"),
+                        disabled: controller.redoStack.length ? undefined : "disabled",
+                        onclick() {
+                            controller.redo();
+                        }
+                    },
+                    h("i.fa.fa-share")
+                ) // "share" icon preferred to the official "redo" icon
             ]),
             h("span.group", [
-                h("button", {
-                    title: screenfull.isFullscreen ? _("Disable full-screen mode") : _("Enable full-screen mode"),
-                    id: "btn-fullscreen",
-                    className: screenfull.isFullscreen ? "active" : undefined,
-                    disabled: !screenfull.isEnabled,
-                    onclick() { screenfull.toggle(document.documentElement); }
-                }, h("i.fa.fa-desktop"))
+                h(
+                    "button",
+                    {
+                        title: screenfull.isFullscreen
+                            ? _("Disable full-screen mode")
+                            : _("Enable full-screen mode"),
+                        id: "btn-fullscreen",
+                        className: screenfull.isFullscreen ? "active" : undefined,
+                        disabled: !screenfull.isEnabled,
+                        onclick() {
+                            screenfull.toggle(document.documentElement);
+                        }
+                    },
+                    h("i.fa.fa-desktop")
+                )
             ]),
             h("span.group.btn-group", [
-                h("button", {
-                    title: _("Save the presentation"),
-                    disabled: controller.storage && controller.storage.htmlNeedsSaving ? undefined : "disabled",
-                    onclick() { controller.save(); }
-                }, h("i.fa.fa-download")), // "download" icon preferred to the official "save" icon
-                h("button", {
-                    title: _("Reload the SVG document"),
-                    onclick() { controller.reload(); }
-                }, h("i.fa.fa-refresh")),
+                h(
+                    "button",
+                    {
+                        title: _("Save the presentation"),
+                        disabled:
+                            controller.storage && controller.storage.htmlNeedsSaving
+                                ? undefined
+                                : "disabled",
+                        onclick() {
+                            controller.save();
+                        }
+                    },
+                    h("i.fa.fa-download")
+                ), // "download" icon preferred to the official "save" icon
+                h(
+                    "button",
+                    {
+                        title: _("Reload the SVG document"),
+                        onclick() {
+                            controller.reload();
+                        }
+                    },
+                    h("i.fa.fa-refresh")
+                ),
                 // TODO disable the Export button if the feature is not available
-                h("button", {
-                    title: _("Export the presentation"),
-                    className: properties.mode === "export" ? "active" : undefined,
-                    onclick() { properties.toggleMode("export"); }
-                }, h("i.fa.fa-file")) // "file-export" is missing in Fork-Awesome
+                h(
+                    "button",
+                    {
+                        title: _("Export the presentation"),
+                        className: properties.mode === "export" ? "active" : undefined,
+                        onclick() {
+                            properties.toggleMode("export");
+                        }
+                    },
+                    h("i.fa.fa-file")
+                ) // "file-export" is missing in Fork-Awesome
             ]),
             h("span.group.btn-group", [
-                h("button", {
-                    title: _("Preferences"),
-                    className: properties.mode === "preferences" ? "active" : undefined,
-                    onclick() { properties.toggleMode("preferences"); }
-                }, h("i.fa.fa-sliders")),
-                h("button", {
-                    title: _("Information"),
-                    onclick() {
-                        controller.hideNotification();
-                        controller.info(`Sozi ${pkg.version}`, true);
-                    }
-                }, h("i.fa.fa-info"))
+                h(
+                    "button",
+                    {
+                        title: _("Preferences"),
+                        className: properties.mode === "preferences" ? "active" : undefined,
+                        onclick() {
+                            properties.toggleMode("preferences");
+                        }
+                    },
+                    h("i.fa.fa-sliders")
+                ),
+                h(
+                    "button",
+                    {
+                        title: _("Information"),
+                        onclick() {
+                            controller.hideNotification();
+                            controller.info(`Sozi ${pkg.version}`, true);
+                        }
+                    },
+                    h("i.fa.fa-info")
+                )
             ])
         ]);
     }

@@ -1,4 +1,3 @@
-
 import {app, BrowserWindow, ipcMain} from "electron";
 import * as remoteMain from "@electron/remote/main";
 import settings from "electron-app-settings";
@@ -18,7 +17,7 @@ const webPreferences = {
     spellcheck: false
 };
 
-function createWindow () {
+function createWindow() {
     // This sets the initial window size.
     // If Sozi has been opened before, the size and location will be
     // loaded from local storage in backend/Electron.js.
@@ -92,7 +91,15 @@ function cliExit(code, result) {
         return;
     }
     cliExiting = true;
-    const base = {ok: false, command: cliArgs.command, svg: null, presentation: null, warnings: [], errors: [], error: null};
+    const base = {
+        ok: false,
+        command: cliArgs.command,
+        svg: null,
+        presentation: null,
+        warnings: [],
+        errors: [],
+        error: null
+    };
     process.stdout.write(JSON.stringify(Object.assign(base, result)) + "\n", () => app.exit(code));
 }
 
@@ -109,7 +116,10 @@ function cliMain() {
     }
 
     if (cliArgs.command === null || cliArgs.flags.help) {
-        cliExit(2, {error: cliArgs.command === null ? "missing command" : "help requested", usage: CLI_USAGE});
+        cliExit(2, {
+            error: cliArgs.command === null ? "missing command" : "help requested",
+            usage: CLI_USAGE
+        });
         return;
     }
 
@@ -129,11 +139,16 @@ function cliMain() {
 
     const timeout = Number(cliArgs.flags.timeout || DEFAULT_TIMEOUT_S);
     if (!(timeout > 0)) {
-        cliExit(2, {error: `invalid --timeout: ${cliArgs.flags.timeout}; expected a number of seconds`});
+        cliExit(2, {
+            error: `invalid --timeout: ${cliArgs.flags.timeout}; expected a number of seconds`
+        });
         return;
     }
     // setTimeout fires at once beyond 2^31 - 1 ms (about 24.8 days).
-    setTimeout(() => cliExit(1, {error: `timed out after ${timeout} s`}), Math.min(timeout * 1000, 2 ** 31 - 1));
+    setTimeout(
+        () => cliExit(1, {error: `timed out after ${timeout} s`}),
+        Math.min(timeout * 1000, 2 ** 31 - 1)
+    );
 
     process.on("uncaughtException", err => {
         process.stderr.write(`${err.stack || err}\n`);
@@ -155,10 +170,13 @@ function cliMain() {
             show: false,
             width: size.width,
             height: size.height,
-            webPreferences: Object.assign({
-                backgroundThrottling: false,
-                additionalArguments: ["--sozi-cli=" + JSON.stringify(options)]
-            }, webPreferences)
+            webPreferences: Object.assign(
+                {
+                    backgroundThrottling: false,
+                    additionalArguments: ["--sozi-cli=" + JSON.stringify(options)]
+                },
+                webPreferences
+            )
         });
 
         remoteMain.enable(mainWindow.webContents);
@@ -167,11 +185,16 @@ function cliMain() {
             cliExit(1, {error: `renderer process gone: ${details.reason}`});
         });
 
-        mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-            if (isMainFrame) {
-                cliExit(1, {error: `editor failed to load: ${errorDescription} (${errorCode}) ${validatedURL}`});
+        mainWindow.webContents.on(
+            "did-fail-load",
+            (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+                if (isMainFrame) {
+                    cliExit(1, {
+                        error: `editor failed to load: ${errorDescription} (${errorCode}) ${validatedURL}`
+                    });
+                }
             }
-        });
+        );
 
         mainWindow.loadURL(`file://${__dirname}/../index.html`);
     });
@@ -179,8 +202,7 @@ function cliMain() {
 
 if (cliArgs.cli) {
     cliMain();
-}
-else {
+} else {
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.

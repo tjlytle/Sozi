@@ -16,13 +16,12 @@ const CLIP_BORDER = 3;
 
 /** Viewing area for Sozi presentation. */
 export class Viewport {
-
     /** Initialize a new viewport for the given presentation.
      *
      * @param {module:model/Presentation.Presentation} presentation - The presentations to display.
      * @param {boolean} editMode - Does this viewport support editing features?
      */
-    constructor(presentation, editMode=false) {
+    constructor(presentation, editMode = false) {
         /** The presentations to display.
          *
          * @type {module:model/Presentation.Presentation}
@@ -90,8 +89,8 @@ export class Viewport {
         let id;
         do {
             id = prefix + suffix;
-            suffix ++;
-        } while(this.svgRoot.getElementById(id));
+            suffix++;
+        } while (this.svgRoot.getElementById(id));
         return id;
     }
 
@@ -140,7 +139,7 @@ export class Viewport {
         const y = clientY - this.y;
 
         if (this.dragMode === "clip") {
-            switch (this.getClipMode(x,y).operation) {
+            switch (this.getClipMode(x, y).operation) {
                 case "select":
                     this.svgRoot.style.cursor = "crosshair";
                     break;
@@ -166,8 +165,7 @@ export class Viewport {
                 default:
                     this.svgRoot.style.cursor = "default";
             }
-        }
-        else {
+        } else {
             this.svgRoot.style.cursor = "default";
         }
     }
@@ -177,9 +175,9 @@ export class Viewport {
      * @param {number} clientX - the current mouse x coordinate.
      * @param {number} clientY - the current mouse y coordinate.
      */
-    updateClipMode(clientX,clientY) {
+    updateClipMode(clientX, clientY) {
         if (this.dragMode === "clip") {
-            this.clipMode = this.getClipMode(clientX - this.x,clientY - this.y);
+            this.clipMode = this.getClipMode(clientX - this.x, clientY - this.y);
         }
     }
 
@@ -195,39 +193,40 @@ export class Viewport {
      *
      * @see {@linkcode module:player/Viewport.Viewport#clipMode|clipMode}
      */
-    getClipMode(x,y) {
+    getClipMode(x, y) {
         const camerasByOperation = {
-            nw:   [],
-            sw:   [],
-            ne:   [],
-            se:   [],
-            w:    [],
-            e:    [],
-            n:    [],
-            s:    [],
+            nw: [],
+            sw: [],
+            ne: [],
+            se: [],
+            w: [],
+            e: [],
+            n: [],
+            s: [],
             move: []
         };
 
         const selectedCameras = this.cameras.filter(camera => camera.selected);
 
-        for (let camera of selectedCameras) {
+        for (const camera of selectedCameras) {
             const rect = camera.clipRect;
-            if (x >= rect.x - CLIP_BORDER && x <= rect.x + rect.width  + CLIP_BORDER &&
-                y >= rect.y - CLIP_BORDER && y <= rect.y + rect.height + CLIP_BORDER) {
+            if (
+                x >= rect.x - CLIP_BORDER &&
+                x <= rect.x + rect.width + CLIP_BORDER &&
+                y >= rect.y - CLIP_BORDER &&
+                y <= rect.y + rect.height + CLIP_BORDER
+            ) {
                 const w = x <= rect.x + CLIP_BORDER;
                 const e = x >= rect.x + rect.width - CLIP_BORDER - 1;
                 const n = y <= rect.y + CLIP_BORDER;
                 const s = y >= rect.y + rect.height - CLIP_BORDER - 1;
                 const operation =
-                    w || e || n || s ?
-                        (n ? "n" : s ? "s" : "") +
-                        (w ? "w" : e ? "e" : "") :
-                        "move";
+                    w || e || n || s ? (n ? "n" : s ? "s" : "") + (w ? "w" : e ? "e" : "") : "move";
                 camerasByOperation[operation].push(camera);
             }
         }
 
-        for (let operation in camerasByOperation) {
+        for (const operation in camerasByOperation) {
             if (camerasByOperation[operation].length) {
                 return {
                     cameras: camerasByOperation[operation],
@@ -323,9 +322,9 @@ export class Viewport {
      * @type {number}
      */
     get width() {
-        return this.svgRoot === document.documentElement ?
-            window.innerWidth :
-            this.svgRoot.parentNode.clientWidth;
+        return this.svgRoot === document.documentElement
+            ? window.innerWidth
+            : this.svgRoot.parentNode.clientWidth;
     }
 
     /** The height of the current viewport.
@@ -340,9 +339,9 @@ export class Viewport {
      * @type {number}
      */
     get height() {
-        return this.svgRoot === document.documentElement ?
-            window.innerHeight :
-            this.svgRoot.parentNode.clientHeight;
+        return this.svgRoot === document.documentElement
+            ? window.innerHeight
+            : this.svgRoot.parentNode.clientHeight;
     }
 
     /** Repaint the current viewport.
@@ -358,7 +357,7 @@ export class Viewport {
 
         this.update();
 
-        for (let id of this.presentation.elementsToHide) {
+        for (const id of this.presentation.elementsToHide) {
             const elt = document.getElementById(id);
             if (elt) {
                 elt.style.visibility = this.showHiddenElements ? "visible" : "hidden";
@@ -371,7 +370,7 @@ export class Viewport {
      * @see {@linkcode module:player/Camera.Camera#update}
      */
     update() {
-        for (let camera of this.cameras) {
+        for (const camera of this.cameras) {
             camera.update();
         }
     }
@@ -394,7 +393,7 @@ export class Viewport {
      * @param {number} deltaY - The vertical displacement, in pixels.
      */
     translate(deltaX, deltaY) {
-        for (let camera of this.cameras) {
+        for (const camera of this.cameras) {
             if (camera.selected) {
                 camera.translate(deltaX, deltaY);
             }
@@ -412,7 +411,7 @@ export class Viewport {
      * @see {@linkcode module:player/Camera.Camera#zoom}
      */
     zoom(factor, x, y) {
-        for (let camera of this.cameras) {
+        for (const camera of this.cameras) {
             if (camera.selected) {
                 camera.zoom(factor, x, y);
             }
@@ -428,7 +427,7 @@ export class Viewport {
      * @see {@linkcode module:player/Camera.Camera#rotate}
      */
     rotate(angle) {
-        for (let camera of this.cameras) {
+        for (const camera of this.cameras) {
             if (camera.selected) {
                 camera.rotate(angle);
             }
@@ -445,7 +444,7 @@ export class Viewport {
      * @see {@linkcode module:player/Camera.Camera#clip}
      */
     clip(x0, y0, x1, y1) {
-        for (let camera of this.clipMode.cameras) {
+        for (const camera of this.clipMode.cameras) {
             camera.clip(x0, y0, x1, y1);
         }
     }
@@ -460,13 +459,15 @@ export class Viewport {
      * @see {@linkcode module:player/Camera.Camera#clip}
      */
     clipRel(w, n, e, s) {
-        for (let camera of this.clipMode.cameras) {
+        for (const camera of this.clipMode.cameras) {
             const rect = camera.clipRect;
             if (w <= rect.width + e - 1 && n <= rect.height + s - 1) {
-                camera.clip(rect.x + w,
-                            rect.y + n,
-                            rect.x + rect.width + e - 1,
-                            rect.y + rect.height + s - 1);
+                camera.clip(
+                    rect.x + w,
+                    rect.y + n,
+                    rect.x + rect.width + e - 1,
+                    rect.y + rect.height + s - 1
+                );
             }
         }
     }

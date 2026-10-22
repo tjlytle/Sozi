@@ -25,7 +25,6 @@ import Jed from "jed";
  * @todo Add documentation
  */
 export class Timeline extends VirtualDOMView {
-
     /** Initialize a new timeline view.
      *
      * @param {HTMLElement} container - The HTML element that will contain this preview area.
@@ -91,7 +90,11 @@ export class Timeline extends VirtualDOMView {
      * @see {@linkcode module:Controller.Controller#updateLayerSelection}
      */
     updateLayerSelection(layerIndex, evt) {
-        this.controller.updateLayerSelection(evt.ctrlKey, evt.shiftKey, this.controller.getLayersAtIndex(layerIndex));
+        this.controller.updateLayerSelection(
+            evt.ctrlKey,
+            evt.shiftKey,
+            this.controller.getLayersAtIndex(layerIndex)
+        );
         evt.stopPropagation();
     }
 
@@ -108,7 +111,12 @@ export class Timeline extends VirtualDOMView {
      * @see {@linkcode module:Controller.Controller#updateLayerSelection}
      */
     updateLayerAndFrameSelection(layerIndex, frameIndex, evt) {
-        this.controller.updateLayerAndFrameSelection(evt.ctrlKey, evt.shiftKey, this.controller.getLayersAtIndex(layerIndex), frameIndex);
+        this.controller.updateLayerAndFrameSelection(
+            evt.ctrlKey,
+            evt.shiftKey,
+            this.controller.getLayersAtIndex(layerIndex),
+            frameIndex
+        );
         evt.stopPropagation();
     }
 
@@ -132,8 +140,11 @@ export class Timeline extends VirtualDOMView {
 
         // Fit the width of the left tables,
         // allocate remaining width to the right tables
-        topLeft.style.width = bottomLeft.style.width =
-        topLeftTable.style.width = bottomLeftTable.style.width = leftWidth + "px";
+        topLeft.style.width =
+            bottomLeft.style.width =
+            topLeftTable.style.width =
+            bottomLeftTable.style.width =
+                leftWidth + "px";
         topRight.style.width = bottomRight.style.width = rightWidth + "px";
 
         // Fit the height of the top tables,
@@ -142,8 +153,12 @@ export class Timeline extends VirtualDOMView {
         bottomLeft.style.height = bottomRight.style.height = bottomHeight + "px";
 
         // Corresponding rows in left and right tables must have the same height
-        const leftRows  = document.querySelectorAll(".timeline-top-left tr,  .timeline-bottom-left tr");
-        const rightRows = document.querySelectorAll(".timeline-top-right tr, .timeline-bottom-right tr");
+        const leftRows = document.querySelectorAll(
+            ".timeline-top-left tr,  .timeline-bottom-left tr"
+        );
+        const rightRows = document.querySelectorAll(
+            ".timeline-top-right tr, .timeline-bottom-right tr"
+        );
         leftRows.forEach((leftRow, rowIndex) => {
             const rightRow = rightRows[rowIndex];
             const maxHeight = Math.max(leftRow.clientHeight, rightRow.clientHeight);
@@ -160,8 +175,7 @@ export class Timeline extends VirtualDOMView {
         function updateEven(frame, layer) {
             if (frame.index === 0) {
                 even = true;
-            }
-            else if (!frame.layerProperties[layer.index].link) {
+            } else if (!frame.layerProperties[layer.index].link) {
                 even = !even;
             }
             return even;
@@ -182,85 +196,137 @@ export class Timeline extends VirtualDOMView {
                 h("table.timeline", [
                     h("tr", [
                         h("th", [
-                            h("button", {
-                                title: _("Delete the selected frames"),
-                                disabled: this.selection.selectedFrames.length ? undefined : "disabled",
-                                onclick() { controller.deleteFrames(); }
-                            }, h("i.fa.fa-trash"))
+                            h(
+                                "button",
+                                {
+                                    title: _("Delete the selected frames"),
+                                    disabled: this.selection.selectedFrames.length
+                                        ? undefined
+                                        : "disabled",
+                                    onclick() {
+                                        controller.deleteFrames();
+                                    }
+                                },
+                                h("i.fa.fa-trash")
+                            )
                         ]),
                         h("th", [
-                            h("button", {
-                                title: _("Create a new frame"),
-                                onclick() { controller.addFrame(); }
-                            }, h("i.fa.fa-plus"))
-                        ]),
+                            h(
+                                "button",
+                                {
+                                    title: _("Create a new frame"),
+                                    onclick() {
+                                        controller.addFrame();
+                                    }
+                                },
+                                h("i.fa.fa-plus")
+                            )
+                        ])
                     ]),
                     h("tr", [
-                        h("th", {colspan: 2},
-                            h("select", {
-                                onchange: evt => {
-                                    const value = evt.target.value;
-                                    evt.target.value = "__sozi_add__";
-                                    if (value === "__sozi_add_all__") {
-                                        controller.addAllLayers();
+                        h(
+                            "th",
+                            {colspan: 2},
+                            h(
+                                "select",
+                                {
+                                    onchange: evt => {
+                                        const value = evt.target.value;
+                                        evt.target.value = "__sozi_add__";
+                                        if (value === "__sozi_add_all__") {
+                                            controller.addAllLayers();
+                                        } else {
+                                            controller.addLayer(value);
+                                        }
                                     }
-                                    else {
-                                        controller.addLayer(value);
-                                    }
-                                }
-                            }, [
-                                h("option", {value: "__sozi_add__", selected: "selected"}, _("Add layer")),
-                                h("option", {value: "__sozi_add_all__"}, _("Add all layers")),
-                                this.presentation.layers.slice().reverse()
-                                    .filter(layer => !layer.auto && controller.defaultLayers.indexOf(layer) >= 0)
-                                    .map(layer => h("option", {value: layer.index}, layer.label))
-                            ])
+                                },
+                                [
+                                    h(
+                                        "option",
+                                        {value: "__sozi_add__", selected: "selected"},
+                                        _("Add layer")
+                                    ),
+                                    h("option", {value: "__sozi_add_all__"}, _("Add all layers")),
+                                    this.presentation.layers
+                                        .slice()
+                                        .reverse()
+                                        .filter(
+                                            layer =>
+                                                !layer.auto &&
+                                                controller.defaultLayers.indexOf(layer) >= 0
+                                        )
+                                        .map(layer =>
+                                            h("option", {value: layer.index}, layer.label)
+                                        )
+                                ]
+                            )
                         )
                     ])
                 ])
             ]),
             h("div.timeline-bottom-left", [
                 h("table.timeline", [
-                    controller.hasDefaultLayer ? h("tr", [
-                        h("th.layer-icons", [
-                            defaultLayersAreVisible ?
-                                h("i.visibility.fa.fa-eye", {
-                                    title: _("This layer is visible. Click to hide it."),
-                                    onclick: evt => this.toggleLayerVisibility(-1, evt)
-                                }) :
-                                h("i.visibility.fa.fa-eye-slash", {
-                                    title: _("This layer is hidden. Click to show it."),
-                                    onclick: evt => this.toggleLayerVisibility(-1, evt)
-                                }),
-                            h("i.remove.fa.fa-times", {style: {visibility: "hidden"}})
-                        ]),
-                        h("th", {
-                            className: "layer-label" + (controller.defaultLayersAreSelected ? " selected" : ""),
-                            onclick: evt => this.updateLayerSelection(-1, evt)
-                        }, _("Default"))
-                    ]) : null,
-                    this.presentation.layers.slice().reverse()
-                        .filter(layer => controller.editableLayers.indexOf(layer) >= 0)
-                        .map(layer => h("tr", [
-                                h("th.layer-icons", [
-                                    layer.isVisible ?
-                                        h("i.visibility.fa.fa-eye", {
+                    controller.hasDefaultLayer
+                        ? h("tr", [
+                              h("th.layer-icons", [
+                                  defaultLayersAreVisible
+                                      ? h("i.visibility.fa.fa-eye", {
                                             title: _("This layer is visible. Click to hide it."),
-                                            onclick: evt => this.toggleLayerVisibility(layer.index, evt)
-                                        }) :
-                                        h("i.visibility.fa.fa-eye-slash", {
+                                            onclick: evt => this.toggleLayerVisibility(-1, evt)
+                                        })
+                                      : h("i.visibility.fa.fa-eye-slash", {
                                             title: _("This layer is hidden. Click to show it."),
-                                            onclick: evt => this.toggleLayerVisibility(layer.index, evt)
+                                            onclick: evt => this.toggleLayerVisibility(-1, evt)
                                         }),
+                                  h("i.remove.fa.fa-times", {style: {visibility: "hidden"}})
+                              ]),
+                              h(
+                                  "th",
+                                  {
+                                      className:
+                                          "layer-label" +
+                                          (controller.defaultLayersAreSelected ? " selected" : ""),
+                                      onclick: evt => this.updateLayerSelection(-1, evt)
+                                  },
+                                  _("Default")
+                              )
+                          ])
+                        : null,
+                    this.presentation.layers
+                        .slice()
+                        .reverse()
+                        .filter(layer => controller.editableLayers.indexOf(layer) >= 0)
+                        .map(layer =>
+                            h("tr", [
+                                h("th.layer-icons", [
+                                    layer.isVisible
+                                        ? h("i.visibility.fa.fa-eye", {
+                                              title: _("This layer is visible. Click to hide it."),
+                                              onclick: evt =>
+                                                  this.toggleLayerVisibility(layer.index, evt)
+                                          })
+                                        : h("i.visibility.fa.fa-eye-slash", {
+                                              title: _("This layer is hidden. Click to show it."),
+                                              onclick: evt =>
+                                                  this.toggleLayerVisibility(layer.index, evt)
+                                          }),
                                     h("i.remove.fa.fa-times", {
                                         title: _("Remove this layer"),
                                         onclick: () => controller.removeLayer(layer.index)
                                     })
                                 ]),
-                                h("th", {
-                                    className: "layer-label" + (this.selection.selectedLayers.indexOf(layer) >= 0 ? " selected" : ""),
-                                    onclick: evt => this.updateLayerSelection(layer.index, evt)
-                                }, layer.label)
+                                h(
+                                    "th",
+                                    {
+                                        className:
+                                            "layer-label" +
+                                            (this.selection.selectedLayers.indexOf(layer) >= 0
+                                                ? " selected"
+                                                : ""),
+                                        onclick: evt => this.updateLayerSelection(layer.index, evt)
+                                    },
+                                    layer.label
+                                )
                             ])
                         ),
                     h("tr", {style: {visibility: "collapse"}}, [
@@ -271,70 +337,155 @@ export class Timeline extends VirtualDOMView {
             ]),
             h("div.timeline-top-right", [
                 h("table.timeline", [
-                    h("tr", this.presentation.frames.map((frame, frameIndex)  => h("th", {
-                            className: "frame-index" +
-                                (this.selection.selectedFrames.indexOf(frame) >= 0 ? " selected" : "") +
-                                (frame === this.selection.currentFrame ? " current" : ""),
-                            onclick: evt => this.updateFrameSelection(frameIndex, evt)
-                        }, [
-                            h("i.insert-before.fa.fa-arrow-circle-down", {
-                                title: Jed.sprintf(_("Insert selection before frame %d"), frameIndex + 1),
-                                onclick(evt) {
-                                    controller.moveFrames(frameIndex);
-                                    evt.stopPropagation();
-                                }
-                            }),
-                            h("i.insert-after.fa.fa-arrow-circle-down", {
-                                title: Jed.sprintf(_("Insert selection after frame %d"), frameIndex + 1),
-                                onclick(evt) {
-                                    controller.moveFrames(frameIndex + 1);
-                                    evt.stopPropagation();
-                                }
-                            }),
-                            (frameIndex + 1).toString()
-                        ])
-                    )),
-                    h("tr",
-                      this.presentation.frames.map((frame, frameIndex) => h("th", {
-                                title: frame.title,
-                                className: "frame-title" +
-                                    (this.selection.selectedFrames.indexOf(frame) >= 0 ? " selected" : "") +
-                                    (frame === this.selection.currentFrame ? " current" : ""),
-                                onclick: evt => this.updateFrameSelection(frameIndex, evt)
-                            }, frame.title)
+                    h(
+                        "tr",
+                        this.presentation.frames.map((frame, frameIndex) =>
+                            h(
+                                "th",
+                                {
+                                    className:
+                                        "frame-index" +
+                                        (this.selection.selectedFrames.indexOf(frame) >= 0
+                                            ? " selected"
+                                            : "") +
+                                        (frame === this.selection.currentFrame ? " current" : ""),
+                                    onclick: evt => this.updateFrameSelection(frameIndex, evt)
+                                },
+                                [
+                                    h("i.insert-before.fa.fa-arrow-circle-down", {
+                                        title: Jed.sprintf(
+                                            _("Insert selection before frame %d"),
+                                            frameIndex + 1
+                                        ),
+                                        onclick(evt) {
+                                            controller.moveFrames(frameIndex);
+                                            evt.stopPropagation();
+                                        }
+                                    }),
+                                    h("i.insert-after.fa.fa-arrow-circle-down", {
+                                        title: Jed.sprintf(
+                                            _("Insert selection after frame %d"),
+                                            frameIndex + 1
+                                        ),
+                                        onclick(evt) {
+                                            controller.moveFrames(frameIndex + 1);
+                                            evt.stopPropagation();
+                                        }
+                                    }),
+                                    (frameIndex + 1).toString()
+                                ]
+                            )
                         )
-                     )
+                    ),
+                    h(
+                        "tr",
+                        this.presentation.frames.map((frame, frameIndex) =>
+                            h(
+                                "th",
+                                {
+                                    title: frame.title,
+                                    className:
+                                        "frame-title" +
+                                        (this.selection.selectedFrames.indexOf(frame) >= 0
+                                            ? " selected"
+                                            : "") +
+                                        (frame === this.selection.currentFrame ? " current" : ""),
+                                    onclick: evt => this.updateFrameSelection(frameIndex, evt)
+                                },
+                                frame.title
+                            )
+                        )
+                    )
                 ])
             ]),
-            h("div.timeline-bottom-right", {
-                onscroll: evt => {
-                    this.container.querySelector(".timeline-top-right").scrollLeft = evt.target.scrollLeft;
-                    this.container.querySelector(".timeline-bottom-left").scrollTop = evt.target.scrollTop;
-                }
-            }, h("table.timeline", [
-                    controller.hasDefaultLayer ? h("tr",
-                        this.presentation.frames.map((frame, frameIndex) => h("td", {
-                            className:
-                                (controller.defaultLayersAreSelected && this.selection.selectedFrames.indexOf(frame) >= 0 ? "selected" : "") +
-                                (frame === this.selection.currentFrame ? " current" : "") +
-                                (isLinked(frame, controller.defaultLayers[0]) ? " link" : "") +
-                                (updateEven(frame, controller.defaultLayers[0]) ? " even" : " odd"),
-                            onclick: evt => this.updateLayerAndFrameSelection(-1, frameIndex, evt)
-                        }, hasNoReferenceElement(frame, controller.defaultLayers[0]) ? h("i.fa.fa-exclamation-triangle", {title: _("You should add graphic elements in the current area to help Sozi keep track of this layer's position.")}) : null))
-                    ) : null,
-                    this.presentation.layers.slice().reverse()
+            h(
+                "div.timeline-bottom-right",
+                {
+                    onscroll: evt => {
+                        this.container.querySelector(".timeline-top-right").scrollLeft =
+                            evt.target.scrollLeft;
+                        this.container.querySelector(".timeline-bottom-left").scrollTop =
+                            evt.target.scrollTop;
+                    }
+                },
+                h("table.timeline", [
+                    controller.hasDefaultLayer
+                        ? h(
+                              "tr",
+                              this.presentation.frames.map((frame, frameIndex) =>
+                                  h(
+                                      "td",
+                                      {
+                                          className:
+                                              (controller.defaultLayersAreSelected &&
+                                              this.selection.selectedFrames.indexOf(frame) >= 0
+                                                  ? "selected"
+                                                  : "") +
+                                              (frame === this.selection.currentFrame
+                                                  ? " current"
+                                                  : "") +
+                                              (isLinked(frame, controller.defaultLayers[0])
+                                                  ? " link"
+                                                  : "") +
+                                              (updateEven(frame, controller.defaultLayers[0])
+                                                  ? " even"
+                                                  : " odd"),
+                                          onclick: evt =>
+                                              this.updateLayerAndFrameSelection(-1, frameIndex, evt)
+                                      },
+                                      hasNoReferenceElement(frame, controller.defaultLayers[0])
+                                          ? h("i.fa.fa-exclamation-triangle", {
+                                                title: _(
+                                                    "You should add graphic elements in the current area to help Sozi keep track of this layer's position."
+                                                )
+                                            })
+                                          : null
+                                  )
+                              )
+                          )
+                        : null,
+                    this.presentation.layers
+                        .slice()
+                        .reverse()
                         .filter(layer => controller.editableLayers.indexOf(layer) >= 0)
-                        .map(layer => h("tr",
-                            this.presentation.frames.map((frame, frameIndex) => h("td", {
-                                className:
-                                    (this.selection.selectedLayers.indexOf(layer) >= 0 && this.selection.selectedFrames.indexOf(frame) >= 0 ? "selected" : "") +
-                                    (frame === this.selection.currentFrame ? " current" : "") +
-                                    (isLinked(frame, layer) ? " link" : "") +
-                                    (updateEven(frame, layer) ? " even" : " odd"),
-                                onclick: evt => this.updateLayerAndFrameSelection(layer.index, frameIndex, evt)
-                            }, hasNoReferenceElement(frame, layer) ? h("i.fa.fa-exclamation-triangle", {title: _("You should add graphic elements in the current area to help Sozi keep track of this layer's position.")}) : null)
-                        ))),
-                    h("tr.collapse",
+                        .map(layer =>
+                            h(
+                                "tr",
+                                this.presentation.frames.map((frame, frameIndex) =>
+                                    h(
+                                        "td",
+                                        {
+                                            className:
+                                                (this.selection.selectedLayers.indexOf(layer) >=
+                                                    0 &&
+                                                this.selection.selectedFrames.indexOf(frame) >= 0
+                                                    ? "selected"
+                                                    : "") +
+                                                (frame === this.selection.currentFrame
+                                                    ? " current"
+                                                    : "") +
+                                                (isLinked(frame, layer) ? " link" : "") +
+                                                (updateEven(frame, layer) ? " even" : " odd"),
+                                            onclick: evt =>
+                                                this.updateLayerAndFrameSelection(
+                                                    layer.index,
+                                                    frameIndex,
+                                                    evt
+                                                )
+                                        },
+                                        hasNoReferenceElement(frame, layer)
+                                            ? h("i.fa.fa-exclamation-triangle", {
+                                                  title: _(
+                                                      "You should add graphic elements in the current area to help Sozi keep track of this layer's position."
+                                                  )
+                                              })
+                                            : null
+                                    )
+                                )
+                            )
+                        ),
+                    h(
+                        "tr.collapse",
                         this.presentation.frames.map(frame => h("td", frame.title))
                     )
                 ])

@@ -34,13 +34,12 @@ describe("linkOrCopy", () => {
             };
             const {linkOrCopy} = loadExporter();
             const from = path.join(dir, "a.png");
-            const to   = path.join(dir, "b.png");
+            const to = path.join(dir, "b.png");
             fs.writeFileSync(from, "image");
             linkOrCopy(from, to);
             assert.equal(fs.readFileSync(to, "utf8"), "image");
             assert.notEqual(fs.statSync(to).ino, fs.statSync(from).ino, "a copy, not a link");
-        }
-        finally {
+        } finally {
             fs.linkSync = linkSync;
             delete require.cache[require.resolve(exporterModule)];
             fs.rmSync(dir, {recursive: true, force: true});
@@ -52,12 +51,11 @@ describe("linkOrCopy", () => {
         try {
             const {linkOrCopy} = loadExporter();
             const from = path.join(dir, "a.png");
-            const to   = path.join(dir, "b.png");
+            const to = path.join(dir, "b.png");
             fs.writeFileSync(from, "image");
             linkOrCopy(from, to);
             assert.equal(fs.statSync(to).ino, fs.statSync(from).ino);
-        }
-        finally {
+        } finally {
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });

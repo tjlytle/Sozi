@@ -15,11 +15,18 @@ const ELECTRON = "/path/to/electron";
 const APP = "/path/to/build/electron";
 
 // The flags of each command, as exported by src/js/cli/commands/*.js.
-const FLAGS = {build: {"write-json": false, title: "maybe-empty"}, inspect: {frame: true}, set: {title: "maybe-empty"}};
+const FLAGS = {
+    build: {"write-json": false, title: "maybe-empty"},
+    inspect: {frame: true},
+    set: {title: "maybe-empty"}
+};
 
 const USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg>";
 
-/** The fields that every CLI result carries. */
+/**
+ * The fields that every CLI result carries.
+ * @param json
+ */
 function assertBaseFields(json) {
     for (const key of ["ok", "command", "svg", "presentation", "warnings", "errors", "error"]) {
         assert.ok(key in json, `missing ${key} in ${JSON.stringify(json)}`);
@@ -36,30 +43,45 @@ describe("parseArgs", () => {
 
     test("command and positional", () => {
         assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "build", "deck.svg"]), {
-            cli: true, command: "build", positionals: ["deck.svg"], flags: {}
+            cli: true,
+            command: "build",
+            positionals: ["deck.svg"],
+            flags: {}
         });
     });
 
     test("packaged binary without an app path", () => {
         assert.deepEqual(parseArgs(["/opt/sozi/sozi", "--cli", "inspect", "deck.svg"]), {
-            cli: true, command: "inspect", positionals: ["deck.svg"], flags: {}
+            cli: true,
+            command: "inspect",
+            positionals: ["deck.svg"],
+            flags: {}
         });
     });
 
     test("no command", () => {
         assert.deepEqual(parseArgs([ELECTRON, APP, "--cli"]), {
-            cli: true, command: null, positionals: [], flags: {}
+            cli: true,
+            command: null,
+            positionals: [],
+            flags: {}
         });
     });
 
     test("--name=value and --name value", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "inspect", "--size=640x480", "--frame", "2", "deck.svg"], FLAGS);
+        const parsed = parseArgs(
+            [ELECTRON, APP, "--cli", "inspect", "--size=640x480", "--frame", "2", "deck.svg"],
+            FLAGS
+        );
         assert.deepEqual(parsed.flags, {size: "640x480", frame: "2"});
         assert.deepEqual(parsed.positionals, ["deck.svg"]);
     });
 
     test("boolean flags of the command do not take a value", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--write-json", "deck.svg"], FLAGS);
+        const parsed = parseArgs(
+            [ELECTRON, APP, "--cli", "build", "--write-json", "deck.svg"],
+            FLAGS
+        );
         assert.deepEqual(parsed.flags, {"write-json": true});
         assert.deepEqual(parsed.positionals, ["deck.svg"]);
     });
@@ -71,12 +93,24 @@ describe("parseArgs", () => {
     });
 
     test("a value-taking flag with no value is true", () => {
-        assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "inspect", "deck.svg", "--frame"], FLAGS).flags, {frame: true});
-        assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "inspect", "--frame", "--size", "1x1", "deck.svg"], FLAGS).flags, {frame: true, size: "1x1"});
+        assert.deepEqual(
+            parseArgs([ELECTRON, APP, "--cli", "inspect", "deck.svg", "--frame"], FLAGS).flags,
+            {frame: true}
+        );
+        assert.deepEqual(
+            parseArgs(
+                [ELECTRON, APP, "--cli", "inspect", "--frame", "--size", "1x1", "deck.svg"],
+                FLAGS
+            ).flags,
+            {frame: true, size: "1x1"}
+        );
     });
 
     test("global flags take a value with any command", () => {
-        const parsed = parseArgs([ELECTRON, APP, "--cli", "build", "--timeout", "5", "--size", "640x480", "deck.svg"], FLAGS);
+        const parsed = parseArgs(
+            [ELECTRON, APP, "--cli", "build", "--timeout", "5", "--size", "640x480", "deck.svg"],
+            FLAGS
+        );
         assert.deepEqual(parsed.flags, {timeout: "5", size: "640x480"});
         assert.deepEqual(parsed.positionals, ["deck.svg"]);
     });
@@ -88,36 +122,76 @@ describe("parseArgs", () => {
     });
 
     test("Chromium switches are ignored", () => {
-        const parsed = parseArgs([ELECTRON, "--no-sandbox", APP, "--enable-logging", "--cli",
-                                  "build", "--disable-gpu", "deck.svg"], FLAGS);
+        const parsed = parseArgs(
+            [
+                ELECTRON,
+                "--no-sandbox",
+                APP,
+                "--enable-logging",
+                "--cli",
+                "build",
+                "--disable-gpu",
+                "deck.svg"
+            ],
+            FLAGS
+        );
         assert.deepEqual(parsed, {
-            cli: true, command: "build", positionals: ["deck.svg"], flags: {}
+            cli: true,
+            command: "build",
+            positionals: ["deck.svg"],
+            flags: {}
         });
     });
 });
 
 describe("validateArgs", () => {
-    const check = (...args) => validateArgs(parseArgs([ELECTRON, APP, "--cli", ...args], FLAGS), FLAGS);
+    const check = (...args) =>
+        validateArgs(parseArgs([ELECTRON, APP, "--cli", ...args], FLAGS), FLAGS);
 
     test("valid command lines", () => {
         assert.equal(check("build", "deck.svg"), null);
-        assert.equal(check("build", "--write-json", "--size", "640x480", "--timeout=5", "deck.svg"), null);
+        assert.equal(
+            check("build", "--write-json", "--size", "640x480", "--timeout=5", "deck.svg"),
+            null
+        );
         assert.equal(check("inspect", "--frame", "2", "deck.svg"), null);
         assert.equal(check("inspect"), null, "a missing file is reported by the runner");
     });
 
     test("unknown flag", () => {
         assert.equal(check("build", "--no-jsn", "deck.svg"), "unknown option for build: --no-jsn");
-        assert.equal(check("build", "deck.svg", "--verbose"), "unknown option for build: --verbose");
-        assert.equal(check("build", "--frame", "1", "deck.svg"), "unknown option for build: --frame");
+        assert.equal(
+            check("build", "deck.svg", "--verbose"),
+            "unknown option for build: --verbose"
+        );
+        assert.equal(
+            check("build", "--frame", "1", "deck.svg"),
+            "unknown option for build: --frame"
+        );
     });
 
     test("names of Object.prototype properties are unknown flags", () => {
-        assert.equal(check("build", "--toString", "deck.svg"), "unknown option for build: --toString");
-        assert.equal(check("build", "--constructor", "deck.svg"), "unknown option for build: --constructor");
-        assert.equal(check("build", "--__proto__", "deck.svg"), "unknown option for build: --__proto__");
-        assert.equal(check("constructor", "--title", "x", "deck.svg"), "unknown option for constructor: --title");
-        assert.deepEqual(parseArgs([ELECTRON, APP, "--cli", "build", "--toString", "deck.svg"], FLAGS).positionals, ["deck.svg"]);
+        assert.equal(
+            check("build", "--toString", "deck.svg"),
+            "unknown option for build: --toString"
+        );
+        assert.equal(
+            check("build", "--constructor", "deck.svg"),
+            "unknown option for build: --constructor"
+        );
+        assert.equal(
+            check("build", "--__proto__", "deck.svg"),
+            "unknown option for build: --__proto__"
+        );
+        assert.equal(
+            check("constructor", "--title", "x", "deck.svg"),
+            "unknown option for constructor: --title"
+        );
+        assert.deepEqual(
+            parseArgs([ELECTRON, APP, "--cli", "build", "--toString", "deck.svg"], FLAGS)
+                .positionals,
+            ["deck.svg"]
+        );
     });
 
     test("a flag that accepts an empty value", () => {
@@ -132,7 +206,10 @@ describe("validateArgs", () => {
     });
 
     test("value given to a boolean flag", () => {
-        assert.equal(check("build", "--write-json=no", "deck.svg"), "option --write-json does not take a value");
+        assert.equal(
+            check("build", "--write-json=no", "deck.svg"),
+            "option --write-json does not take a value"
+        );
     });
 
     test("extra positionals", () => {
@@ -145,8 +222,14 @@ describe("electron entry", () => {
         const {code, stdout, json} = runSozi([]);
         assert.equal(code, 2, stdout);
         assert.deepEqual(json, {
-            ok: false, command: null, svg: null, presentation: null, warnings: [], errors: [],
-            error: "missing command", usage: USAGE
+            ok: false,
+            command: null,
+            svg: null,
+            presentation: null,
+            warnings: [],
+            errors: [],
+            error: "missing command",
+            usage: USAGE
         });
         assert.equal(stdout.trim().split("\n").length, 1);
     });
@@ -164,7 +247,20 @@ describe("electron entry", () => {
     test("parseSize: WxH with positive whole numbers", () => {
         assert.deepEqual(parseSize("1280x720"), {width: 1280, height: 720});
         assert.deepEqual(parseSize("1x1"), {width: 1, height: 1});
-        for (const bad of ["0x10", "10x0", "big", "10x", "x10", "10.5x10", "-1x10", "10X10", " 10x10", "", undefined, true]) {
+        for (const bad of [
+            "0x10",
+            "10x0",
+            "big",
+            "10x",
+            "x10",
+            "10.5x10",
+            "-1x10",
+            "10X10",
+            " 10x10",
+            "",
+            undefined,
+            true
+        ]) {
             assert.equal(parseSize(bad), null, String(bad));
         }
     });
@@ -175,7 +271,10 @@ describe("electron entry", () => {
             assert.equal(code, 2, value);
             assertBaseFields(json);
             assert.equal(json.ok, false);
-            assert.equal(json.error, `invalid --size: ${value}; expected WxH with W and H greater than 0`);
+            assert.equal(
+                json.error,
+                `invalid --size: ${value}; expected WxH with W and H greater than 0`
+            );
         }
     });
 
@@ -199,8 +298,7 @@ describe("electron entry", () => {
                 assertBaseFields(json);
                 assert.equal(json.error, `missing value for ${flag}`);
             }
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -208,11 +306,12 @@ describe("electron entry", () => {
     test("a --timeout beyond the range of setTimeout does not fire at once", () => {
         const deck = withTempDeck("basic");
         try {
-            const {code, json} = runSozi(["inspect", "--timeout", "3000000", "basic.svg"], {cwd: deck.dir});
+            const {code, json} = runSozi(["inspect", "--timeout", "3000000", "basic.svg"], {
+                cwd: deck.dir
+            });
             assert.equal(code, 0, JSON.stringify(json));
             assert.equal(json.ok, true);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -221,15 +320,17 @@ describe("electron entry", () => {
         const deck = withTempDeck("basic");
         try {
             const env = {...process.env, SOZI_CLI_TEST_HANG: "1"};
-            const {code, stdout, stderr, json} = runSozi(["inspect", "--timeout", "1", "basic.svg"], {cwd: deck.dir, env});
+            const {code, stdout, stderr, json} = runSozi(
+                ["inspect", "--timeout", "1", "basic.svg"],
+                {cwd: deck.dir, env}
+            );
             assert.equal(code, 1, `stdout: ${stdout}\nstderr: ${stderr}`);
             assert.equal(stdout.trim().split("\n").length, 1);
             assertBaseFields(json);
             assert.equal(json.ok, false);
             assert.equal(json.command, "inspect");
             assert.equal(json.error, "timed out after 1 s");
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -243,8 +344,7 @@ describe("electron entry", () => {
             assert.equal(json.ok, false);
             assert.equal(json.error, `file not found: ${path.join(dir, "missing.svg")}`);
             assert.equal(stdout.trim().split("\n").length, 1);
-        }
-        finally {
+        } finally {
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
@@ -256,7 +356,12 @@ describe("electron entry", () => {
         const {code, json} = runSozi(["build", "deck.svg"], {env});
         assert.equal(code, 2);
         assert.deepEqual(json, {
-            ok: false, command: "build", svg: null, presentation: null, warnings: [], errors: [],
+            ok: false,
+            command: "build",
+            svg: null,
+            presentation: null,
+            warnings: [],
+            errors: [],
             error: "no display; run under xvfb-run"
         });
     });
@@ -267,12 +372,16 @@ describe("language", () => {
         const deck = withTempDeck("basic");
         try {
             fs.writeFileSync(deck.svg, "this is not svg");
-            const env = {...process.env, LANG: "fr_FR.UTF-8", LANGUAGE: "fr", LC_ALL: "fr_FR.UTF-8"};
+            const env = {
+                ...process.env,
+                LANG: "fr_FR.UTF-8",
+                LANGUAGE: "fr",
+                LC_ALL: "fr_FR.UTF-8"
+            };
             const {code, json} = runSozi(["inspect", "basic.svg"], {cwd: deck.dir, env});
             assert.equal(code, 1);
             assert.deepEqual(json.errors, ["Document is not valid SVG."]);
-        }
-        finally {
+        } finally {
             deck.cleanup();
         }
     });
@@ -288,21 +397,22 @@ describe("withTempDeck", () => {
             fs.writeFileSync(path.join(root, "folder", "deck.svg"), "<svg/>");
             fs.writeFileSync(path.join(root, "folder", "deck.sozi.json"), "{}");
 
-            for (const [name, base] of [["pair", "pair"], ["folder", "deck"]]) {
+            for (const [name, base] of [
+                ["pair", "pair"],
+                ["folder", "deck"]
+            ]) {
                 const deck = withTempDeck(name, {fixturesDir: root});
                 try {
                     assert.equal(deck.svg, path.join(deck.dir, base + ".svg"));
                     assert.equal(deck.json, path.join(deck.dir, base + ".sozi.json"));
                     assert.ok(fs.existsSync(deck.svg));
                     assert.ok(fs.existsSync(deck.json));
-                }
-                finally {
+                } finally {
                     deck.cleanup();
                 }
                 assert.ok(!fs.existsSync(deck.dir));
             }
-        }
-        finally {
+        } finally {
             fs.rmSync(root, {recursive: true, force: true});
         }
     });

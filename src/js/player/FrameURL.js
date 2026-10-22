@@ -46,15 +46,13 @@ export function getFrame() {
         const frame = player.presentation.getFrameWithId(indexOrId);
         if (frame) {
             return frame;
-        }
-        else {
+        } else {
             const index = parseInt(indexOrId);
-            return !isNaN(index) && index > 0 && index <= player.presentation.frames.length ?
-                player.presentation.frames[index - 1] :
-                player.currentFrame;
+            return !isNaN(index) && index > 0 && index <= player.presentation.frames.length
+                ? player.presentation.frames[index - 1]
+                : player.currentFrame;
         }
-    }
-    else {
+    } else {
         return player.currentFrame;
     }
 }

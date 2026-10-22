@@ -1,4 +1,3 @@
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -86,41 +85,40 @@ export class Preferences {
          * @property {string} toggleFullscreen - Enter or exit fullscreen mode
          * @property {string} toggleDevTools - Open or close the developer tools
          */
-        this.keys                = {
+        this.keys = {
             autoselectOutlineElement: "Ctrl+E",
-            resetLayer              : "Ctrl+R",
-            addFrame                : "Ctrl+N",
-            save                    : "Ctrl+S",
-            redo                    : "Ctrl+Y",
-            undo                    : "Ctrl+Z",
-            focusTitleField         : "F2",
-            reload                  : "F5",
-            toggleFullscreen        : "F11",
-            toggleDevTools          : "F12"
+            resetLayer: "Ctrl+R",
+            addFrame: "Ctrl+N",
+            save: "Ctrl+S",
+            redo: "Ctrl+Y",
+            undo: "Ctrl+Z",
+            focusTitleField: "F2",
+            reload: "F5",
+            toggleFullscreen: "F11",
+            toggleDevTools: "F12"
         };
     }
 
     /** Save the preferences to local storage */
     save() {
-        for (let key of Object.keys(this)) {
+        for (const key of Object.keys(this)) {
             localStorage.setItem(key, JSON.stringify(this[key]));
         }
     }
 
     /** Load the preferences from local storage */
     load() {
-        for (let key of Object.keys(this)) {
+        for (const key of Object.keys(this)) {
             const value = localStorage.getItem(key);
             if (value === null) {
                 return;
             }
             const pref = JSON.parse(value);
             if (typeof pref === "object") {
-                for (let [fieldName, fieldValue] of Object.entries(pref)) {
+                for (const [fieldName, fieldValue] of Object.entries(pref)) {
                     this[key][fieldName] = fieldValue;
                 }
-            }
-            else {
+            } else {
                 this[key] = JSON.parse(value);
             }
         }

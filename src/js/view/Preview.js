@@ -70,7 +70,7 @@ export class Preview {
      */
     onLoad() {
         // Replace the content of the preview area with the SVG document
-        while(this.container.hasChildNodes()) {
+        while (this.container.hasChildNodes()) {
             this.container.removeChild(this.container.firstChild);
         }
         this.container.appendChild(this.presentation.document.root);
@@ -101,18 +101,24 @@ export class Preview {
         }
 
         // this.container is assumed to have padding: 0
-        const parentWidth  = this.container.parentNode.clientWidth;
+        const parentWidth = this.container.parentNode.clientWidth;
         const parentHeight = this.container.parentNode.clientHeight;
 
-        const maxWidth  = parentWidth  - 2 * PREVIEW_MARGIN;
+        const maxWidth = parentWidth - 2 * PREVIEW_MARGIN;
         const maxHeight = parentHeight - 2 * PREVIEW_MARGIN;
 
-        const width  = Math.min(maxWidth, maxHeight * this.presentation.aspectWidth / this.presentation.aspectHeight);
-        const height = Math.min(maxHeight, maxWidth * this.presentation.aspectHeight / this.presentation.aspectWidth);
+        const width = Math.min(
+            maxWidth,
+            (maxHeight * this.presentation.aspectWidth) / this.presentation.aspectHeight
+        );
+        const height = Math.min(
+            maxHeight,
+            (maxWidth * this.presentation.aspectHeight) / this.presentation.aspectWidth
+        );
 
-        this.container.style.left   = (parentWidth  - width)  / 2 + "px";
-        this.container.style.top    = (parentHeight - height) / 2 + "px";
-        this.container.style.width  = width + "px";
+        this.container.style.left = (parentWidth - width) / 2 + "px";
+        this.container.style.top = (parentHeight - height) / 2 + "px";
+        this.container.style.width = width + "px";
         this.container.style.height = height + "px";
 
         if (this.selection.currentFrame) {
@@ -146,7 +152,7 @@ export class Preview {
      * @see {@linkcode module:player/Camera.Camera#revealClipping}
      */
     onMouseEnter() {
-        for (let camera of this.viewport.cameras) {
+        for (const camera of this.viewport.cameras) {
             if (camera.selected) {
                 camera.revealClipping();
             }
@@ -162,7 +168,7 @@ export class Preview {
      * @see {@linkcode module:player/Camera.Camera#concealClipping}
      */
     onMouseLeave() {
-        for (let camera of this.viewport.cameras) {
+        for (const camera of this.viewport.cameras) {
             if (camera.selected) {
                 camera.concealClipping();
             }

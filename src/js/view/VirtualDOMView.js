@@ -18,7 +18,6 @@ import {EventEmitter} from "events";
  * @extends EventEmitter
  */
 export class VirtualDOMView extends EventEmitter {
-
     /** Initialize a new virtual DOM view.
      *
      * @param {HTMLElement} container - The HTML element that will contain this preview area.
@@ -63,10 +62,10 @@ export class VirtualDOMView extends EventEmitter {
      */
     repaint() {
         render(this.render(), this.container, () => {
-            for (let prop in this.state) {
+            for (const prop in this.state) {
                 const elt = document.getElementById("field-" + prop);
                 if (elt) {
-                    for (let attr in this.state[prop]) {
+                    for (const attr in this.state[prop]) {
                         elt[attr] = this.state[prop][attr];
                     }
                 }

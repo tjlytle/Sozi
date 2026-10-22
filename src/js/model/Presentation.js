@@ -37,7 +37,6 @@ function copyIfSet(dest, src, prop) {
  * @todo Find a better name for this class.
  */
 export class LayerProperties {
-
     /** Initialize a new layer properties object.
      *
      * If the argument is another instance of `LayerProperties`, this constructor will create a copy of
@@ -50,8 +49,7 @@ export class LayerProperties {
     constructor(obj) {
         if (obj instanceof LayerProperties) {
             this.copy(obj);
-        }
-        else {
+        } else {
             /** The frame that owns the current object.
              *
              * @type {module:model/Presentation.Frame}
@@ -107,13 +105,13 @@ export class LayerProperties {
      * @param {module:model/Presentation.LayerProperties} other - The object to copy.
      */
     copy(other) {
-        this.frame                    = other.frame;
-        this.link                     = other.link;
-        this.referenceElementId       = other.referenceElementId;
-        this.outlineElementId         = other.outlineElementId;
+        this.frame = other.frame;
+        this.link = other.link;
+        this.referenceElementId = other.referenceElementId;
+        this.outlineElementId = other.outlineElementId;
         this.transitionTimingFunction = other.transitionTimingFunction;
-        this.transitionRelativeZoom   = other.transitionRelativeZoom;
-        this.transitionPathId         = other.transitionPathId;
+        this.transitionRelativeZoom = other.transitionRelativeZoom;
+        this.transitionPathId = other.transitionPathId;
     }
 
     /** Convert this instance to a plain object that can be stored as JSON.
@@ -125,12 +123,12 @@ export class LayerProperties {
      */
     toStorable() {
         return {
-            link                    : this.link,
-            referenceElementId      : this.referenceElementId,
-            outlineElementId        : this.outlineElementId,
+            link: this.link,
+            referenceElementId: this.referenceElementId,
+            outlineElementId: this.outlineElementId,
             transitionTimingFunction: this.transitionTimingFunction,
-            transitionRelativeZoom  : this.transitionRelativeZoom,
-            transitionPathId        : this.transitionPathId
+            transitionRelativeZoom: this.transitionRelativeZoom,
+            transitionPathId: this.transitionPathId
         };
     }
 
@@ -144,8 +142,8 @@ export class LayerProperties {
     toMinimalStorable() {
         return {
             transitionTimingFunction: this.transitionTimingFunction,
-            transitionRelativeZoom  : this.transitionRelativeZoom,
-            transitionPathId        : this.transitionPathId
+            transitionRelativeZoom: this.transitionRelativeZoom,
+            transitionPathId: this.transitionPathId
         };
     }
 
@@ -214,8 +212,7 @@ export class LayerProperties {
         const hidden = this.outlineElementHide;
         if (hide && !hidden) {
             this.frame.presentation.elementsToHide.push(this.outlineElementId);
-        }
-        else if (!hide && hidden) {
+        } else if (!hide && hidden) {
             const index = this.frame.presentation.elementsToHide.indexOf(this.outlineElementId);
             this.frame.presentation.elementsToHide.splice(index, 1);
         }
@@ -236,8 +233,7 @@ export class LayerProperties {
         const hidden = this.transitionPathHide;
         if (hide && !hidden) {
             this.frame.presentation.elementsToHide.push(this.transitionPathId);
-        }
-        else if (!hide && hidden) {
+        } else if (!hide && hidden) {
             const index = this.frame.presentation.elementsToHide.indexOf(this.transitionPathId);
             this.frame.presentation.elementsToHide.splice(index, 1);
         }
@@ -249,7 +245,6 @@ export class LayerProperties {
 
 /** A frame in a Sozi presentation. */
 export class Frame {
-
     /** Initialize a new frame.
      *
      * If the argument is another frame, this constructor will create a copy of
@@ -262,8 +257,7 @@ export class Frame {
     constructor(obj) {
         if (obj instanceof Frame) {
             this.copy(obj);
-        }
-        else {
+        } else {
             /** The presentation that contains this frame.
              *
              * @type {module:model/Presentation.Presentation}
@@ -355,21 +349,21 @@ export class Frame {
      * @param {module:model/Presentation.Frame} other - The frame to copy.
      * @param {boolean} preserveId - If `true`, keep the original ID of the current frame.
      */
-    copy(other, preserveId=false) {
+    copy(other, preserveId = false) {
         this.presentation = other.presentation;
         if (!preserveId) {
             this.frameId = other.presentation.makeFrameId();
         }
-        this.title                = other.title;
-        this.titleLevel           = other.titleLevel;
-        this.notes                = other.notes;
-        this.timeoutMs            = other.timeoutMs;
-        this.timeoutEnable        = other.timeoutEnable;
+        this.title = other.title;
+        this.titleLevel = other.titleLevel;
+        this.notes = other.notes;
+        this.timeoutMs = other.timeoutMs;
+        this.timeoutEnable = other.timeoutEnable;
         this.transitionDurationMs = other.transitionDurationMs;
-        this.showInFrameList      = other.showInFrameList;
-        this.showFrameNumber      = other.showFrameNumber;
-        this.layerProperties      = other.layerProperties.map(lp => new LayerProperties(lp));
-        this.cameraStates         = other.cameraStates.map(cs => new CameraState(cs));
+        this.showInFrameList = other.showInFrameList;
+        this.showFrameNumber = other.showFrameNumber;
+        this.layerProperties = other.layerProperties.map(lp => new LayerProperties(lp));
+        this.cameraStates = other.cameraStates.map(cs => new CameraState(cs));
     }
 
     /** Convert this instance to a plain object that can be stored as JSON.
@@ -398,15 +392,15 @@ export class Frame {
         });
 
         return {
-            frameId             : this.frameId,
-            title               : this.title,
-            titleLevel          : this.titleLevel,
-            notes               : this.notes,
-            timeoutMs           : this.timeoutMs,
-            timeoutEnable       : this.timeoutEnable,
+            frameId: this.frameId,
+            title: this.title,
+            titleLevel: this.titleLevel,
+            notes: this.notes,
+            timeoutMs: this.timeoutMs,
+            timeoutEnable: this.timeoutEnable,
             transitionDurationMs: this.transitionDurationMs,
-            showInFrameList     : this.showInFrameList,
-            showFrameNumber     : this.showFrameNumber,
+            showInFrameList: this.showInFrameList,
+            showFrameNumber: this.showFrameNumber,
             layerProperties,
             cameraStates,
             cameraOffsets
@@ -478,9 +472,14 @@ export class Frame {
                 const re = lp.referenceElement;
                 if (re) {
                     const ofs = storable.cameraOffsets[key] || {};
-                    cs.setAtElement(re, ofs.deltaX, ofs.deltaY,
-                                    ofs.widthFactor, ofs.heightFactor,
-                                    ofs.deltaAngle);
+                    cs.setAtElement(
+                        re,
+                        ofs.deltaX,
+                        ofs.deltaY,
+                        ofs.widthFactor,
+                        ofs.heightFactor,
+                        ofs.deltaAngle
+                    );
                     // TODO compare current camera state with stored camera state.
                     // If different, mark the current layer as "dirty".
                 }
@@ -519,10 +518,12 @@ export class Frame {
      */
     isLinkedTo(frame, layerIndex) {
         const [first, second] = this.index < frame.index ? [this, frame] : [frame, this];
-        return second.layerProperties[layerIndex].link &&
-               (second.index === first.index + 1 ||
-                second.index > first.index &&
-                this.presentation.frames[second.index - 1].isLinkedTo(first, layerIndex));
+        return (
+            second.layerProperties[layerIndex].link &&
+            (second.index === first.index + 1 ||
+                (second.index > first.index &&
+                    this.presentation.frames[second.index - 1].isLinkedTo(first, layerIndex)))
+        );
     }
 }
 
@@ -603,7 +604,7 @@ export class Layer {
     }
 
     set isVisible(visible) {
-        for (let node of this.svgNodes) {
+        for (const node of this.svgNodes) {
             node.style.display = visible ? "initial" : "none";
         }
     }
@@ -634,7 +635,6 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  * @extends EventEmitter
  */
 export class Presentation extends EventEmitter {
-
     /** Initialize a Sozi document object. */
     constructor() {
         super();
@@ -893,17 +893,18 @@ export class Presentation extends EventEmitter {
         const autoLayer = new Layer(this, "auto", true);
 
         this.layers = [];
-        for (let svgNode of this.document.root.childNodes) {
+        for (const svgNode of this.document.root.childNodes) {
             if (svgNode instanceof SVGGElement) {
                 const nodeId = svgNode.getAttribute("id");
                 if (nodeId === null) {
                     autoLayer.svgNodes.push(svgNode);
-                }
-                else {
+                } else {
                     // Add the current node as a new layer.
-                    const layer = new Layer(this,
-                        this.document.handler.getLabel(svgNode) || ("#" + nodeId),
-                        false);
+                    const layer = new Layer(
+                        this,
+                        this.document.handler.getLabel(svgNode) || "#" + nodeId,
+                        false
+                    );
                     layer.svgNodes.push(svgNode);
                     this.layers.push(layer);
                 }
@@ -956,32 +957,32 @@ export class Presentation extends EventEmitter {
             ...(this.svgPath ? {svg: this.svgPath} : {}),
             ...(this.explicitTitle ? {title: this.explicitTitle} : {}),
             ...(this.outputDir ? {outputDir: this.outputDir} : {}),
-            aspectWidth               : this.aspectWidth,
-            aspectHeight              : this.aspectHeight,
-            enableKeyboardZoom        : this.enableKeyboardZoom,
-            enableKeyboardRotation    : this.enableKeyboardRotation,
-            enableKeyboardNavigation  : this.enableKeyboardNavigation,
-            enableMouseTranslation    : this.enableMouseTranslation,
-            enableMouseZoom           : this.enableMouseZoom,
-            enableMouseRotation       : this.enableMouseRotation,
-            enableMouseNavigation     : this.enableMouseNavigation,
-            updateURLOnFrameChange    : this.updateURLOnFrameChange,
-            exportType                : this.exportType,
-            exportToPDFPageSize       : this.exportToPDFPageSize,
+            aspectWidth: this.aspectWidth,
+            aspectHeight: this.aspectHeight,
+            enableKeyboardZoom: this.enableKeyboardZoom,
+            enableKeyboardRotation: this.enableKeyboardRotation,
+            enableKeyboardNavigation: this.enableKeyboardNavigation,
+            enableMouseTranslation: this.enableMouseTranslation,
+            enableMouseZoom: this.enableMouseZoom,
+            enableMouseRotation: this.enableMouseRotation,
+            enableMouseNavigation: this.enableMouseNavigation,
+            updateURLOnFrameChange: this.updateURLOnFrameChange,
+            exportType: this.exportType,
+            exportToPDFPageSize: this.exportToPDFPageSize,
             exportToPDFPageOrientation: this.exportToPDFPageOrientation,
-            exportToPDFInclude        : this.exportToPDFInclude,
-            exportToPDFExclude        : this.exportToPDFExclude,
-            exportToPPTXSlideSize     : this.exportToPPTXSlideSize,
-            exportToPPTXInclude       : this.exportToPPTXInclude,
-            exportToPPTXExclude       : this.exportToPPTXExclude,
-            exportToVideoFormat       : this.exportToVideoFormat,
-            exportToVideoWidth        : this.exportToVideoWidth,
-            exportToVideoHeight       : this.exportToVideoHeight,
-            exportToVideoFrameRate    : this.exportToVideoFrameRate,
-            exportToVideoBitRate      : this.exportToVideoBitRate,
-            frames                    : this.frames.map(frame => frame.toStorable()),
-            elementsToHide            : this.elementsToHide.slice(),
-            customFiles               : this.customFiles.slice(),
+            exportToPDFInclude: this.exportToPDFInclude,
+            exportToPDFExclude: this.exportToPDFExclude,
+            exportToPPTXSlideSize: this.exportToPPTXSlideSize,
+            exportToPPTXInclude: this.exportToPPTXInclude,
+            exportToPPTXExclude: this.exportToPPTXExclude,
+            exportToVideoFormat: this.exportToVideoFormat,
+            exportToVideoWidth: this.exportToVideoWidth,
+            exportToVideoHeight: this.exportToVideoHeight,
+            exportToVideoFrameRate: this.exportToVideoFrameRate,
+            exportToVideoBitRate: this.exportToVideoBitRate,
+            frames: this.frames.map(frame => frame.toStorable()),
+            elementsToHide: this.elementsToHide.slice(),
+            customFiles: this.customFiles.slice()
         };
     }
 
@@ -995,16 +996,16 @@ export class Presentation extends EventEmitter {
     toMinimalStorable() {
         return {
             ...(this.explicitTitle ? {title: this.explicitTitle} : {}),
-            enableKeyboardZoom      : this.enableKeyboardZoom,
-            enableKeyboardRotation  : this.enableKeyboardRotation,
+            enableKeyboardZoom: this.enableKeyboardZoom,
+            enableKeyboardRotation: this.enableKeyboardRotation,
             enableKeyboardNavigation: this.enableKeyboardNavigation,
-            enableMouseTranslation  : this.enableMouseTranslation,
-            enableMouseZoom         : this.enableMouseZoom,
-            enableMouseRotation     : this.enableMouseRotation,
-            enableMouseNavigation   : this.enableMouseNavigation,
-            updateURLOnFrameChange  : this.updateURLOnFrameChange,
-            frames                  : this.frames.map(frame => frame.toMinimalStorable()),
-            elementsToHide          : this.elementsToHide.slice()
+            enableMouseTranslation: this.enableMouseTranslation,
+            enableMouseZoom: this.enableMouseZoom,
+            enableMouseRotation: this.enableMouseRotation,
+            enableMouseNavigation: this.enableMouseNavigation,
+            updateURLOnFrameChange: this.updateURLOnFrameChange,
+            frames: this.frames.map(frame => frame.toMinimalStorable()),
+            elementsToHide: this.elementsToHide.slice()
         };
     }
 
@@ -1017,22 +1018,19 @@ export class Presentation extends EventEmitter {
         this.ignoredStorableKeys = [];
         if (typeof storable.title === "string") {
             this.explicitTitle = storable.title;
-        }
-        else if (storable.hasOwnProperty("title")) {
+        } else if (storable.hasOwnProperty("title")) {
             this.ignoredStorableKeys.push("title");
         }
         this.svgPath = "";
         if (typeof storable.svg === "string") {
             this.svgPath = storable.svg;
-        }
-        else if (storable.hasOwnProperty("svg")) {
+        } else if (storable.hasOwnProperty("svg")) {
             this.ignoredStorableKeys.push("svg");
         }
         this.outputDir = "";
         if (typeof storable.outputDir === "string") {
             this.outputDir = storable.outputDir.trim();
-        }
-        else if (storable.hasOwnProperty("outputDir")) {
+        } else if (storable.hasOwnProperty("outputDir")) {
             this.ignoredStorableKeys.push("outputDir");
         }
         copyIfSet(this, storable, "aspectWidth");
@@ -1084,7 +1082,7 @@ export class Presentation extends EventEmitter {
         let frameId;
         do {
             frameId = prefix + suffix;
-            suffix ++;
+            suffix++;
         } while (this.frames.some(frame => frame.frameId === frameId));
         return frameId;
     }
@@ -1095,7 +1093,7 @@ export class Presentation extends EventEmitter {
      * @returns {?module:model/Presentation.Frame} - The frame with that ID.
      */
     getFrameWithId(frameId) {
-        for (let frame of this.frames) {
+        for (const frame of this.frames) {
             if (frame.frameId === frameId) {
                 return frame;
             }
@@ -1109,7 +1107,7 @@ export class Presentation extends EventEmitter {
      * @returns {?module:model/Presentation.Layer} - The layer that maps to a group with that ID.
      */
     getLayerWithId(groupId) {
-        for (let layer of this.layers) {
+        for (const layer of this.layers) {
             if (layer.groupId === groupId) {
                 return layer;
             }
@@ -1127,24 +1125,25 @@ export class Presentation extends EventEmitter {
             return;
         }
 
-        const firstCameraStates      = this.frames[0].cameraStates;
-        const defaultCameraState     = firstCameraStates[firstCameraStates.length - 1];
+        const firstCameraStates = this.frames[0].cameraStates;
+        const defaultCameraState = firstCameraStates[firstCameraStates.length - 1];
 
-        const firstLayerProperties   = this.frames[0].layerProperties;
+        const firstLayerProperties = this.frames[0].layerProperties;
         const defaultLayerProperties = firstLayerProperties[firstLayerProperties.length - 1];
 
         this.layers.forEach((layer, layerIndex) => {
-            let cameraState     = defaultCameraState;
+            let cameraState = defaultCameraState;
             let layerProperties = defaultLayerProperties;
 
-            for (let frame of this.frames) {
+            for (const frame of this.frames) {
                 if (frame.layerProperties[layerIndex].link) {
                     frame.cameraStates[layerIndex].copy(cameraState);
-                    frame.layerProperties[layerIndex].referenceElementId = layerProperties.referenceElementId;
-                    frame.layerProperties[layerIndex].outlineElementId   = layerProperties.outlineElementId;
-                }
-                else {
-                    cameraState     = frame.cameraStates[layerIndex];
+                    frame.layerProperties[layerIndex].referenceElementId =
+                        layerProperties.referenceElementId;
+                    frame.layerProperties[layerIndex].outlineElementId =
+                        layerProperties.outlineElementId;
+                } else {
+                    cameraState = frame.cameraStates[layerIndex];
                     layerProperties = frame.layerProperties[layerIndex];
                 }
             }

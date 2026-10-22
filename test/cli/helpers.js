@@ -13,8 +13,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const repoDir     = path.resolve(__dirname, "..", "..");
-const appDir      = path.join(repoDir, "build", "electron");
+const repoDir = path.resolve(__dirname, "..", "..");
+const appDir = path.join(repoDir, "build", "electron");
 const fixturesDir = path.join(repoDir, "test", "fixtures");
 
 // The electron npm package exports the path of its binary.
@@ -25,6 +25,10 @@ const electronBinary = require("electron");
  * @param {string[]} args - The CLI arguments after `--cli`.
  * @param {object} [opts] - `cwd` (default: the repository), `env` (default: process.env),
  *  `timeout` in milliseconds (default: 60000), `switches`: Chromium switches placed before `--cli`.
+ * @param opts.cwd
+ * @param opts.env
+ * @param opts.timeout
+ * @param opts.switches
  * @returns {{code: number|null, stdout: string, stderr: string, json: object|null}}
  */
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
@@ -42,8 +46,7 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
     let json = null;
     try {
         json = JSON.parse(result.stdout);
-    }
-    catch {
+    } catch {
         // Leave json null; tests assert on it.
     }
     return {code: result.status, stdout: result.stdout, stderr: result.stderr, json};
@@ -57,6 +60,7 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
  *
  * @param {string} fixtureName - The fixture name.
  * @param {object} [opts] - `fixturesDir` (default: test/fixtures).
+ * @param opts.fixturesDir
  * @returns {{dir: string, svg: string, json: string, cleanup: Function}}
  */
 function withTempDeck(fixtureName, {fixturesDir: root = fixturesDir} = {}) {
@@ -67,14 +71,18 @@ function withTempDeck(fixtureName, {fixturesDir: root = fixturesDir} = {}) {
         fs.cpSync(fixtureDir, dir, {recursive: true});
         const svgs = fs.readdirSync(dir).filter(name => name.endsWith(".svg"));
         if (svgs.length !== 1) {
-            throw new Error(`fixture ${fixtureName} must contain exactly one .svg, found ${svgs.length}`);
+            throw new Error(
+                `fixture ${fixtureName} must contain exactly one .svg, found ${svgs.length}`
+            );
         }
         svgName = svgs[0];
-    }
-    else {
+    } else {
         svgName = fixtureName + ".svg";
         fs.copyFileSync(path.join(root, svgName), path.join(dir, svgName));
-        fs.copyFileSync(path.join(root, fixtureName + ".sozi.json"), path.join(dir, fixtureName + ".sozi.json"));
+        fs.copyFileSync(
+            path.join(root, fixtureName + ".sozi.json"),
+            path.join(dir, fixtureName + ".sozi.json")
+        );
     }
     const svg = path.join(dir, svgName);
     return {
@@ -87,14 +95,18 @@ function withTempDeck(fixtureName, {fixturesDir: root = fixturesDir} = {}) {
 
 /** Decode an 8-bit, non-interlaced RGB or RGBA PNG (what Chrome writes).
  *
+ * @param buf
  * @returns {{width: number, height: number, pixel: Function}} - `pixel(x, y)` gives `[r, g, b]`.
  */
 function decodePng(buf) {
     const zlib = require("node:zlib");
-    assert.ok(buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), "PNG signature");
+    assert.ok(
+        buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
+        "PNG signature"
+    );
     let width, height, channels;
     const idat = [];
-    for (let o = 8; o < buf.length; ) {
+    for (let o = 8; o < buf.length;) {
         const length = buf.readUInt32BE(o);
         const type = buf.toString("ascii", o + 4, o + 8);
         const data = buf.subarray(o + 8, o + 8 + length);
@@ -105,8 +117,7 @@ function decodePng(buf) {
             assert.equal(data[12], 0, "PNG interlace");
             channels = {2: 3, 6: 4}[data[9]];
             assert.ok(channels, `PNG color type ${data[9]}`);
-        }
-        else if (type === "IDAT") {
+        } else if (type === "IDAT") {
             idat.push(data);
         }
         o += 12 + length;
@@ -122,17 +133,30 @@ function decodePng(buf) {
             const b = y > 0 ? pixels[(y - 1) * stride + i] : 0;
             const c = i >= channels && y > 0 ? pixels[(y - 1) * stride + i - channels] : 0;
             const p = a + b - c;
-            const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a :
-                Math.abs(p - b) <= Math.abs(p - c) ? b : c;
+            const paeth =
+                Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c)
+                    ? a
+                    : Math.abs(p - b) <= Math.abs(p - c)
+                      ? b
+                      : c;
             pixels[y * stride + i] = (x + [0, a, b, (a + b) >> 1, paeth][filter]) & 0xff;
         }
     }
-    return {width, height, pixel: (x, y) => [...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)]};
+    return {
+        width,
+        height,
+        pixel: (x, y) => [
+            ...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)
+        ]
+    };
 }
 
 /** Decode a PNG file and check its size, and that its pixels are not all the same colour.
  *
  * Every fourth row and column is sampled.
+ * @param file
+ * @param width
+ * @param height
  */
 function checkPng(file, width, height) {
     assert.ok(fs.existsSync(file), `${file} exists`);
@@ -152,6 +176,9 @@ function checkPng(file, width, height) {
  *
  * The frames of the basic fixture are filled by the orange rectangle r2 (#cc6633),
  * and the frame number of the player is hidden by default: every sampled pixel is orange.
+ * @param file
+ * @param width
+ * @param height
  */
 function checkBasicPng(file, width, height) {
     assert.ok(fs.existsSync(file), `${file} exists`);
@@ -160,7 +187,10 @@ function checkBasicPng(file, width, height) {
     for (let y = 0; y < height; y += 4) {
         for (let x = 0; x < width; x += 4) {
             const [r, g, b] = png.pixel(x, y);
-            assert.ok(Math.abs(r - 0xcc) < 8 && Math.abs(g - 0x66) < 8 && Math.abs(b - 0x33) < 8, `${file} at ${x},${y}: ${[r, g, b]}`);
+            assert.ok(
+                Math.abs(r - 0xcc) < 8 && Math.abs(g - 0x66) < 8 && Math.abs(b - 0x33) < 8,
+                `${file} at ${x},${y}: ${[r, g, b]}`
+            );
         }
     }
     return png;
@@ -169,6 +199,7 @@ function checkBasicPng(file, width, height) {
 /** The number of dark pixels in the top left corner of a PNG file, where the player draws the frame number.
  *
  * The frame number is a dark box; the frames of the basic fixture are orange there.
+ * @param file
  */
 function darkInCorner(file) {
     const png = decodePng(fs.readFileSync(file));
@@ -207,7 +238,10 @@ function fakeFfmpeg(dir) {
     const file = path.join(dir, "stuck-ffmpeg");
     const pidFile = path.join(dir, "stuck-ffmpeg.pid");
     fs.writeFileSync(file, `#!/bin/sh\necho $$ > "${pidFile}"\nexec sleep 60\n`, {mode: 0o755});
-    return {path: file, pid: () => fs.existsSync(pidFile) ? Number(fs.readFileSync(pidFile, "utf8")) : null};
+    return {
+        path: file,
+        pid: () => (fs.existsSync(pidFile) ? Number(fs.readFileSync(pidFile, "utf8")) : null)
+    };
 }
 
 /** Write a fake ffmpeg that writes junk to its output file (its last argument) and fails.
@@ -217,7 +251,11 @@ function fakeFfmpeg(dir) {
  */
 function failingFfmpeg(dir) {
     const file = path.join(dir, "failing-ffmpeg");
-    fs.writeFileSync(file, `#!/bin/sh\nfor last; do :; done\necho junk > "$last"\necho "simulated failure" >&2\nexit 1\n`, {mode: 0o755});
+    fs.writeFileSync(
+        file,
+        `#!/bin/sh\nfor last; do :; done\necho junk > "$last"\necho "simulated failure" >&2\nexit 1\n`,
+        {mode: 0o755}
+    );
     return file;
 }
 
@@ -232,14 +270,12 @@ function isAlive(pid) {
     }
     try {
         process.kill(pid, 0);
-    }
-    catch {
+    } catch {
         return false;
     }
     try {
         return !/^\S+ \(.*\) Z/.test(fs.readFileSync(`/proc/${pid}/stat`, "utf8"));
-    }
-    catch {
+    } catch {
         return true;
     }
 }
@@ -255,8 +291,7 @@ function which(name) {
         try {
             fs.accessSync(file, fs.constants.X_OK);
             return file;
-        }
-        catch {
+        } catch {
             // Not in this directory.
         }
     }
@@ -277,16 +312,17 @@ function zipEntries(buf) {
     const entries = [];
     for (let i = 0; i < count; i++) {
         assert.equal(buf.readUInt32LE(o), 0x02014b50, "zip central directory entry");
-        const method         = buf.readUInt16LE(o + 10);
+        const method = buf.readUInt16LE(o + 10);
         const compressedSize = buf.readUInt32LE(o + 20);
-        const nameLength     = buf.readUInt16LE(o + 28);
-        const extraLength    = buf.readUInt16LE(o + 30);
-        const commentLength  = buf.readUInt16LE(o + 32);
-        const local          = buf.readUInt32LE(o + 42);
+        const nameLength = buf.readUInt16LE(o + 28);
+        const extraLength = buf.readUInt16LE(o + 30);
+        const commentLength = buf.readUInt16LE(o + 32);
+        const local = buf.readUInt32LE(o + 42);
         entries.push({
             name: buf.toString("utf8", o + 46, o + 46 + nameLength),
             data() {
-                const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+                const start =
+                    local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
                 const raw = buf.subarray(start, start + compressedSize);
                 return method === 8 ? zlib.inflateRawSync(raw) : raw;
             }
@@ -296,4 +332,21 @@ function zipEntries(buf) {
     return entries;
 }
 
-module.exports = {runSozi, withTempDeck, privateTmp, decodePng, checkPng, checkBasicPng, darkInCorner, zipEntries, fakeFfmpeg, failingFfmpeg, isAlive, which, electronBinary, repoDir, appDir, fixturesDir};
+module.exports = {
+    runSozi,
+    withTempDeck,
+    privateTmp,
+    decodePng,
+    checkPng,
+    checkBasicPng,
+    darkInCorner,
+    zipEntries,
+    fakeFfmpeg,
+    failingFfmpeg,
+    isAlive,
+    which,
+    electronBinary,
+    repoDir,
+    appDir,
+    fixturesDir
+};
