@@ -163,6 +163,12 @@ export function checkFlags(flags) {
  */
 function exportSettings(exporter, presentation, type, format, flags) {
     const settings = exporter.exportSettings(presentation);
+    /** Copy a flag into the settings.
+     *
+     * @param {string} flag - The flag name.
+     * @param {string} key - The settings key.
+     * @param {(value: any) => (string|number)} [convert] - Converts the flag value.
+     */
     const set = (flag, key, convert = String) => {
         if (Object.hasOwn(flags, flag)) {
             settings[key] = convert(flags[flag]);
@@ -230,6 +236,7 @@ export async function exportPresentation(context) {
             error: `invalid exportToVideoFormat in the presentation file: ${format}; expected ${FORMATS.join(", ")}`
         };
     }
+    /** @type {{type: string, format: string, ffmpeg: ?string}} */
     const fields = {type, format, ffmpeg: null};
     const usage = checkApplicable(flags, type, format);
     if (usage) {
@@ -284,7 +291,8 @@ export async function exportPresentation(context) {
         }
     }
 
-    const built = buildIfNeeded(context, html);
+    // Cast: without an error, presentationHtml returned the HTML path.
+    const built = buildIfNeeded(context, /** @type {string} */ (html));
     if (!built.ok) {
         return Object.assign(fields, built);
     }
@@ -308,13 +316,14 @@ export async function exportPresentation(context) {
     } catch (err) {
         return Object.assign(fields, {
             ok: false,
-            error: (err && err.message) || String(err),
+            error: (err && /** @type {{message?: string}} */ (err).message) || String(err),
             html,
             rebuilt: built.rebuilt
         });
     }
     warnings.push(...result.warnings);
 
+    /** @type {{[field: string]: unknown}} */
     const commandResult = Object.assign(fields, {
         ok: true,
         out: result.out,

@@ -110,7 +110,9 @@ export async function render(context) {
     if (error) {
         return {ok: false, error, exitCode: 2};
     }
-    const size = sizeOf(flags);
+    // Casts of html below: without an error, presentationHtml returns the HTML path.
+    // Cast: checkFlags rejected an invalid --size before the presentation was loaded.
+    const size = /** @type {{width: number, height: number}} */ (sizeOf(flags));
     const out = path.resolve(cwd, flags.out);
 
     // The frames to render and their image files.
@@ -148,7 +150,7 @@ export async function render(context) {
     }
 
     // Build the HTML file in this process if needed.
-    const built = buildIfNeeded(context, html);
+    const built = buildIfNeeded(context, /** @type {string} */ (html));
     if (!built.ok) {
         return built;
     }
@@ -159,10 +161,17 @@ export async function render(context) {
         frameNumber: !!flags["frame-number"]
     };
     const result = flags.all
-        ? await renderAll(exporter, controller.presentation, html, renderOpts, images, out)
+        ? await renderAll(
+              exporter,
+              controller.presentation,
+              /** @type {string} */ (html),
+              renderOpts,
+              images,
+              out
+          )
         : await exporter.renderFrames(
               controller.presentation,
-              html,
+              /** @type {string} */ (html),
               Object.assign({frames: images}, renderOpts)
           );
     warnings.push(...result.warnings);

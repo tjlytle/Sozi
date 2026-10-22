@@ -71,6 +71,18 @@ const FLAG_CHECKS = {set: checkSetFlags, render: checkRenderFlags, export: check
  */
 let replied = false;
 
+/** The JSON result of a CLI command, as printed on standard output.
+ *
+ * @typedef {object} CliResult
+ * @property {string} command - The command name.
+ * @property {?string} svg - The absolute path of the SVG file, once known.
+ * @property {?string} presentation - The absolute path of the JSON file, once known.
+ * @property {string[]} warnings - The warnings reported so far.
+ * @property {string[]} errors - The errors reported so far.
+ * @property {boolean} [ok] - Did the command succeed?
+ * @property {?string} [error] - The error message of a failed command.
+ */
+
 /** The fields of the result known so far, reported by the global error handlers.
  *
  * @type {object}
@@ -150,7 +162,7 @@ export function catchCliErrors() {
  *
  * @param {string} file - The absolute path of the file argument.
  * @param {object} options - The value returned by {@link getCliOptions}.
- * @returns {{result: {svg: ?string, presentation: ?string}, svgSource: string, code: number, error: ?string}} -
+ * @returns {{result: {svg: ?string, presentation: ?string}, svgSource: ?string, code: number, error: ?string}} -
  *  The file paths, how the SVG file was found (`"default"`, `"json"` for the `svg` key, `"flag"` for `--presentation`),
  *  and an exit code with an error message, or code 0.
  */
@@ -159,6 +171,7 @@ function resolveFiles(file, options) {
     const path = require("path");
 
     const flag = options.flags.presentation;
+    /** @type {{svg: ?string, presentation: ?string}} */
     const result = {svg: null, presentation: null};
     const fail = (code, error) => ({result, svgSource: null, code, error});
 
@@ -236,6 +249,7 @@ export async function runCli(options, {controller, storage, preferences}) {
 
     const warnings = [];
     const errors = [];
+    /** @type {CliResult} */
     const result = (partialResult = {
         command: options.command,
         svg: null,
@@ -305,9 +319,10 @@ export async function runCli(options, {controller, storage, preferences}) {
 
         const backend = storage.backends.find(b => b.constructor.name === "Electron");
         storage.writeOnOpen = false;
+        // Casts: resolveFiles sets both paths when it returns code 0.
         await storage.setSVGFile(result.svg, backend, {
-            name: path.basename(result.presentation),
-            location: path.dirname(result.presentation)
+            name: path.basename(/** @type {string} */ (result.presentation)),
+            location: path.dirname(/** @type {string} */ (result.presentation))
         });
         if (storage.jsonLoadError) {
             const message = storage.jsonLoadError.message || String(storage.jsonLoadError);
@@ -347,6 +362,13 @@ export async function runCli(options, {controller, storage, preferences}) {
         }
         reply(result.ok ? 0 : exitCode, result);
     } catch (err) {
-        reply(1, Object.assign(result, {ok: false, error: String(err), stack: err && err.stack}));
+        reply(
+            1,
+            Object.assign(result, {
+                ok: false,
+                error: String(err),
+                stack: err && /** @type {{stack?: string}} */ (err).stack
+            })
+        );
     }
 }

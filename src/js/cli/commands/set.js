@@ -56,7 +56,7 @@ function checkOutputDir(value, context) {
  * `check(flag, context)`, if any, returns a usage error for the flag value, or `null`.
  * `build: false` marks an option that `build` uses for one run without storing it.
  *
- * @type {{[option: string]: {property: string, kind: (boolean|string), value: ?Function, check: ?Function, build: ?boolean}}}
+ * @type {{[option: string]: {property: string, kind: (boolean|string), value?: Function, check?: Function, build?: boolean}}}
  */
 export const OPTIONS = {
     title: {property: "explicitTitle", kind: "maybe-empty"},
@@ -136,6 +136,7 @@ export function checkOptions(flags, context, options = OPTIONS) {
  * @returns {{[option: string]: {from: any, to: any}}} - The changed options, with their old and new values.
  */
 export function applyOptions(controller, flags, context, options = OPTIONS) {
+    /** @type {{[option: string]: {from: any, to: any}}} */
     const changed = {};
     for (const [option, {property, value}] of Object.entries(options)) {
         if (!Object.hasOwn(flags, option)) {
@@ -165,7 +166,7 @@ export function applyOptions(controller, flags, context, options = OPTIONS) {
  * @param {string} context.presentation - The absolute path of the JSON file.
  * @param {string} context.cwd - The working directory.
  * @param {object} context.flags - The command-line flags.
- * @returns {{ok: boolean, changed: object, files: string[]}} - The command result,
+ * @returns {{ok: boolean, changed: object, files: string[]}|{ok: false, error: string, exitCode: number}} - The command result,
  *  or `{ok: false, error, exitCode: 2}` for an invalid option value.
  */
 export function set(context) {
