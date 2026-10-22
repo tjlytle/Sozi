@@ -140,8 +140,8 @@ export class Player extends EventEmitter {
 
     /** Find a frame by its ID or number.
      *
-     * @param {(string|number|module:model/Presentation.Frame)} frame - An indication of the frame to find.
-     * @returns {?module:model/Presentation.Frame} - The frame found, or `null`.
+     * @param {(string|number|Frame)} frame - An indication of the frame to find.
+     * @returns {?Frame} - The frame found, or `null`.
      */
     findFrame(frame) {
         if (frame instanceof Frame) {
@@ -219,7 +219,7 @@ export class Player extends EventEmitter {
      * This method sets the {@linkcode module:player/Player.Player#playing|playing} flag,
      * shows the desired frame and waits for the frame timeout if needed.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The first frame to show.
+     * @param {string|number|Frame} frame - The first frame to show.
      *
      * @fires module:player/Player.stateChange
      */
@@ -246,7 +246,8 @@ export class Player extends EventEmitter {
     pause() {
         this.animator.stop();
         if (this.waitingTimeout) {
-            window.clearTimeout(this.timeoutHandle);
+            // Cast: the handle is set while waitingTimeout is true.
+            window.clearTimeout(/** @type {number} */ (this.timeoutHandle));
             this.waitingTimeout = false;
         }
         if (this.playing) {
@@ -283,7 +284,7 @@ export class Player extends EventEmitter {
      * The presentation is stopped: if a timeout has been set for the
      * target frame, it will be ignored.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The frame to show.
+     * @param {string|number|Frame} frame - The frame to show.
      *
      * @fires module:player/Player.frameChange
      */
@@ -305,7 +306,7 @@ export class Player extends EventEmitter {
      * the transition properties of the next frame are used.
      * Otherwise, default transition properties are used.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The first frame to show.
+     * @param {string|number|Frame} frame - The first frame to show.
      *
      * @fires module:player/Player.frameChange
      * @fires module:player/Player.stateChange
@@ -314,7 +315,8 @@ export class Player extends EventEmitter {
         this.disableBlankScreen();
 
         if (this.waitingTimeout) {
-            window.clearTimeout(this.timeoutHandle);
+            // Cast: the handle is set while waitingTimeout is true.
+            window.clearTimeout(/** @type {number} */ (this.timeoutHandle));
             this.waitingTimeout = false;
         }
 
@@ -378,7 +380,7 @@ export class Player extends EventEmitter {
      * state of the viewport to the desired frame, using
      * default transition settings.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The first frame to show.
+     * @param {string|number|Frame} frame - The first frame to show.
      *
      * @fires module:player/Player.frameChange
      * @fires module:player/Player.stateChange
@@ -424,7 +426,7 @@ export class Player extends EventEmitter {
      * @param {module:player/Camera.Camera} camera - The camera that will perform the transition.
      * @param {string} timingFunction - The name of a function that maps the progress indicator to the relative distance already completed between the initial and final states (between 0 and 1).
      * @param {number} relativeZoom - An additional zooming factor to apply during the transition.
-     * @param {SVGPathElement} svgPath - An SVG path to follow during the transition.
+     * @param {?SVGPathElement} svgPath - An SVG path to follow during the transition.
      * @param {boolean} backwards - If `true`, apply the reverse timing function and follow the transition path in the opposite direction.
      */
     setupTransition(
@@ -510,7 +512,11 @@ export class Player extends EventEmitter {
      * @type {boolean}
      */
     get blankScreenIsVisible() {
-        return document.querySelector(".sozi-blank-screen").style.visibility === "visible";
+        // Cast: the player page always has a blank screen element.
+        return (
+            /** @type {HTMLElement} */ (document.querySelector(".sozi-blank-screen")).style
+                .visibility === "visible"
+        );
     }
 
     /** Enable the blank screen.
@@ -520,9 +526,11 @@ export class Player extends EventEmitter {
      */
     enableBlankScreen() {
         this.pause();
-        const blankScreen = document.querySelector(".sozi-blank-screen");
+        const blankScreen = /** @type {?HTMLElement} */ (
+            document.querySelector(".sozi-blank-screen")
+        );
         if (blankScreen) {
-            blankScreen.style.opacity = 1;
+            blankScreen.style.opacity = "1";
             blankScreen.style.visibility = "visible";
         }
     }
@@ -532,9 +540,11 @@ export class Player extends EventEmitter {
      * This method will reveal the viewport again.
      */
     disableBlankScreen() {
-        const blankScreen = document.querySelector(".sozi-blank-screen");
+        const blankScreen = /** @type {?HTMLElement} */ (
+            document.querySelector(".sozi-blank-screen")
+        );
         if (blankScreen) {
-            blankScreen.style.opacity = 0;
+            blankScreen.style.opacity = "0";
             blankScreen.style.visibility = "hidden";
         }
     }

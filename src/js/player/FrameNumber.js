@@ -20,7 +20,8 @@ import * as FrameList from "./FrameList";
  * @param {module:player/Player.Player} player - The current Sozi player.
  */
 export function init(player) {
-    const frameNumber = document.querySelector(".sozi-frame-number");
+    // Cast: the player page always has a frame number element.
+    const frameNumber = /** @type {HTMLElement} */ (document.querySelector(".sozi-frame-number"));
 
     player.on("frameChange", () => {
         frameNumber.innerHTML = player.currentFrame.index + 1;

@@ -63,13 +63,18 @@ function bezierSlope(t, a, b, c) {
     return (3.0 * a * t + 2.0 * b) * t + c;
 }
 
+/** A timing function, optionally paired with the function that plays it backwards.
+ *
+ * @typedef {((t: number) => number) & {reverse?: TimingFunction}} TimingFunction
+ */
+
 /** Create a Bézier curve with the given control points.
  *
  * @param {number} x1 - The X coordinate of the first control point.
  * @param {number} y1 - The Y coordinate of the first control point.
  * @param {number} x2 - The X coordinate of the second control point.
  * @param {number} y2 - The Y coordinate of the second control point.
- * @returns {Function} - A function that takes a coordinates X and computes the Y coordinate of the corresponding point of the Bézier curve.
+ * @returns {TimingFunction} - A function that takes a coordinates X and computes the Y coordinate of the corresponding point of the Bézier curve.
  */
 export function makeBezier(x1, y1, x2, y2) {
     const ax = A(x1, x2),
@@ -105,7 +110,7 @@ export function makeBezier(x1, y1, x2, y2) {
  *
  * @param {number} n - The number of steps.
  * @param {boolean} start - Step at the beginning or at the end of each interval?
- * @returns {Function} - A function that takes a coordinates X and computes the Y coordinate of the corresponding point of the step function.
+ * @returns {TimingFunction} - A function that takes a coordinates X and computes the Y coordinate of the corresponding point of the step function.
  */
 export function makeSteps(n, start) {
     const trunc = start ? Math.ceil : Math.floor;

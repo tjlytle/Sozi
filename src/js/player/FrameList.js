@@ -27,7 +27,7 @@ let frameList;
 
 /** The HTML links to each frame in the frame list.
  *
- * @type {HTMLAnchorElement[]}
+ * @type {import("../types/dom").ElementList<HTMLAnchorElement>}
  */
 let links;
 
@@ -87,7 +87,8 @@ let currentOffset = startOffset;
 export function init(p, controller) {
     player = p;
 
-    frameList = document.querySelector(".sozi-frame-list");
+    // Cast: the player page always has a frame list.
+    frameList = /** @type {HTMLElement} */ (document.querySelector(".sozi-frame-list"));
     links = frameList.querySelectorAll("li a");
 
     for (const link of links) {
@@ -227,7 +228,8 @@ function onTouchStart() {
  * @listens event:mouseout
  */
 function onMouseOut(evt) {
-    let rel = evt.relatedTarget;
+    // Cast: the related target of a mouseout event is a node.
+    let rel = /** @type {?Node} */ (evt.relatedTarget);
     while (rel && rel !== frameList && rel !== document.documentElement) {
         rel = rel.parentNode;
     }

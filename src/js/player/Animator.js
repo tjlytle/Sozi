@@ -21,9 +21,13 @@ const doRequestAnimationFrame =
 /** The object that provides the `now` method to read the current time.
  *
  * @readonly
- * @type {Function}
+ * @type {{now: () => number}}
  */
-const perf = window.performance && window.performance.now ? window.performance : Date;
+// Cast: older browsers have window.performance without now().
+const perf =
+    window.performance && /** @type {Partial<Performance>} */ (window.performance).now
+        ? window.performance
+        : Date;
 
 /** The default time step.
  *
