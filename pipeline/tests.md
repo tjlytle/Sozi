@@ -7,7 +7,7 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
 ## Rules for this session
 
 - Every `gh` command goes through `gh-as qa` and passes `-R tjlytle/Sozi`, reads included.
-  Commits and pushes too: `gh-as qa --git commit -F <file>`, `gh-as qa --push <branch> -u`.
+  Commits and pushes too: `gh-as qa --git commit -F <file>`, `gh-as qa --push <branch>`.
 - `.agents/tmp/` is the only place for temporary files. Write every comment, issue body and
   commit message there first and pass it with `--body-file` or `-F`.
 - Change nothing under `src/`. The code is the builder's; you write tests only.
@@ -58,7 +58,7 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
    step file you changed, then `bin/check <file>` until it is clean.
 7. **Commit, push, report.** `gh-as qa --git add <the feature and step files>`, commit with
    a message like "Scenarios for #{N}, red" and the scenario names in the body, push with
-   `gh-as qa --push {N}-<slug> -u`. Post one comment on the issue as qa: the branch, the
+   `gh-as qa --push {N}-<slug>`. Post one comment on the issue as qa: the branch, the
    feature file, the scenario names, and the red run (the failing part of
    `.agents/tmp/red-{N}.txt` in a fenced block).
 8. **Finish.** The issue goes to the builder, `stage:in-progress`.

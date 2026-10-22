@@ -27,8 +27,8 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
 ARG FACTORY_UID=1000
 RUN userdel -r node \
     && useradd -m -u ${FACTORY_UID} -s /bin/bash factory \
-    && mkdir -p /work /outbox /mirror /cache \
-    && chown factory:factory /work /outbox /mirror /cache
+    && mkdir -p /work /outbox /mirror /cache /profile \
+    && chown factory:factory /work /outbox /mirror /cache /profile
 
 # The agent harness CLIs, unpinned: a rebuild picks the newest.
 RUN npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai \

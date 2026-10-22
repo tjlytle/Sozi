@@ -52,7 +52,12 @@ function host({statuses, onSleep = () => {}}) {
             start: async () => "c25",
             status: async () => statuses.shift() ?? "exited",
             stop: silent,
-            remove: async () => void events.push("remove")
+            remove: async () => void events.push("remove"),
+            inspectProfile: async () => ({
+                claude: {present: true, loggedIn: true, servers: []},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            })
         },
         sleep: async () => onSleep(++sleeps),
         onSignal: (/** @type {() => void} */ handler) => {
@@ -91,6 +96,55 @@ describe("bin/pipeline.js", () => {
         assert.match(text, /queued labels: 2/);
         assert.match(text, /#25 comment as ops/);
         assert.match(text, /dead letters: 1\n.*HTTP 404/);
+    });
+    test("--status lists each persona profile without values", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pl-"));
+        fs.mkdirSync(path.join(root, "var", "pipeline"), {recursive: true});
+        fs.writeFileSync(
+            path.join(root, "var", "pipeline", "state.json"),
+            JSON.stringify(emptyState())
+        );
+        /** @type {Record<string, any>} */
+        const infos = {
+            architect: {
+                claude: {present: true, loggedIn: true, servers: ["mobbin"], accessToken: "s3cret"},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            },
+            builder: {
+                claude: {present: true, loggedIn: true, servers: []},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            },
+            qa: {
+                claude: {present: true, loggedIn: false, servers: []},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            },
+            reviewer: null
+        };
+        const sandbox = {
+            inspectProfile: async (/** @type {string} */ persona) => {
+                if (persona === "advocate") {
+                    throw new Error("docker is down\nsecond line");
+                }
+                return infos[persona] ?? null;
+            }
+        };
+        let text = "";
+        const code = await main(["--status"], {
+            root,
+            env: {},
+            out: t => (text += t),
+            deps: /** @type {any} */ ({sandbox})
+        });
+        assert.equal(code, 0);
+        assert.match(text, /profile architect: claude logged in, servers: mobbin\n/);
+        assert.match(text, /profile builder: claude logged in\n/);
+        assert.match(text, /profile qa: claude not logged in\n/);
+        assert.match(text, /profile ops: none\n/);
+        assert.match(text, /profile advocate: unknown \(docker is down\)\n/);
+        assert.doesNotMatch(text, /accessToken|s3cret/);
     });
     test("an unknown argument prints the usage", async () => {
         let text = "";
@@ -218,4 +272,70 @@ describe("bin/pipeline.js", () => {
         );
         assert.equal(saved.run.stopped, false, "an interrupted run goes on at the next start");
     });
+});
+
+test("--login runs the interactive login for a persona and returns its status", async () => {
+    const h = host({statuses: []});
+    /** @type {any} */
+    let got;
+    h.deps.sandbox.login = async (/** @type {any} */ opts) => {
+        got = opts;
+        return 0;
+    };
+    assert.equal(
+        await main(["--login", "architect"], {
+            root: h.root,
+            env: {},
+            out: () => {},
+            deps: h.deps
+        }),
+        0
+    );
+    assert.deepEqual(got, {persona: "architect", harness: "claude"});
+    assert.ok(!h.events.includes("close"), "no mint was opened");
+    assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
+test("--login rejects an unknown persona or harness with the usage", async () => {
+    let text = "";
+    assert.equal(await main(["--login", "root"], {env: {}, err: t => (text += t)}), 2);
+    assert.match(text, /persona must be one of advocate\|architect\|builder\|qa\|reviewer\|ops/);
+    assert.match(text, /--login <persona>/);
+    text = "";
+    assert.equal(
+        await main(["--login", "qa", "--harness", "cursor"], {env: {}, err: t => (text += t)}),
+        2
+    );
+    assert.match(text, /harness must be one of claude\|codex\|opencode/);
+});
+
+test("--copy-profile copies one persona to another without a mint or state", async () => {
+    const h = host({statuses: []});
+    /** @type {any} */
+    let got;
+    h.deps.sandbox.copyProfile = async (/** @type {any} */ opts) => {
+        got = opts;
+    };
+    assert.equal(
+        await main(["--copy-profile", "builder", "qa"], {
+            root: h.root,
+            env: {},
+            out: () => {},
+            deps: h.deps
+        }),
+        0
+    );
+    assert.deepEqual(got, {from: "builder", to: "qa"});
+    assert.ok(!h.events.includes("close"), "no mint was opened");
+    assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
+test("--copy-profile rejects an unknown persona with the usage", async () => {
+    let text = "";
+    assert.equal(
+        await main(["--copy-profile", "builder", "root"], {env: {}, err: t => (text += t)}),
+        2
+    );
+    assert.match(text, /persona must be one of/);
+    assert.equal(await main(["--copy-profile", "builder"], {env: {}, err: () => {}}), 2);
 });

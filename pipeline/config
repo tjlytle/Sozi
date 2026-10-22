@@ -9,3 +9,8 @@ PIPELINE_PARALLEL=2
 PIPELINE_SESSION_MINUTES=45
 PIPELINE_SYNC_MINUTES=10
 PIPELINE_IMAGE=sozi-factory
+# PIPELINE_PROFILES=auto|off  (auto: a persona's volume when it exists, else the token)
+# PIPELINE_MCP_<PERSONA>=name,name  (MCP servers the persona's profile may hold; empty = none)
+PIPELINE_MCP_ARCHITECT=mobbin,context7
+PIPELINE_MCP_ADVOCATE=mobbin
+PIPELINE_MCP_BUILDER=context7

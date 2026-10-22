@@ -2,12 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Starting sessions: queued spawn requests first, then due issues, while a slot is free.
-// Each session gets a rendered prompt in a fresh outbox and a container.
+// Starting sessions: queued spawn requests first, then due issues, while a slot is free
+// and the persona has one. Each session gets a rendered prompt in a fresh outbox and a
+// container, with its persona's profile mounted when the profile passes its checks.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import {checkAllowlist, personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
 import {ceiling, dueIssues, promptFor, scope} from "./state.js";
 import {moveStage, writeLabel} from "./sync.js";
@@ -15,6 +17,7 @@ import {moveStage, writeLabel} from "./sync.js";
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
  * @typedef {{persona: string, prompt: string, issue: number | null, harness: string | null}} Spawn
+ * @typedef {{profile: boolean} | {refused: string}} ProfileVerdict
  */
 
 /**
@@ -37,6 +40,96 @@ function read(ctx, name) {
 export function running(ctx) {
     const issues = Object.values(ctx.state.issues).filter(r => r.session).length;
     return issues + ctx.state.run.sessions.length;
+}
+
+/**
+ * Count the sessions of one persona running now; an issue session recorded before
+ * sessions carried a persona counts for none.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {string} persona - The persona.
+ * @returns {number} The count.
+ */
+export function runningFor(ctx, persona) {
+    const issues = Object.values(ctx.state.issues).filter(
+        r => /** @type {{persona?: string} | null} */ (r.session)?.persona === persona
+    ).length;
+    const spawns = ctx.state.run.sessions.filter(
+        (/** @type {{persona: string}} */ s) => s.persona === persona
+    ).length;
+    return issues + spawns;
+}
+
+/**
+ * Tell whether a persona has as many sessions as it may run at once.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {string} persona - The persona.
+ * @returns {boolean} True when another session of it must wait.
+ */
+function atPersonaLimit(ctx, persona) {
+    const limit = ctx.settings.perPersona;
+    return limit > 0 && runningFor(ctx, persona) >= limit;
+}
+
+/**
+ * Judge a persona's profile: mount it, start without one, or refuse the start.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {string} persona - The persona.
+ * @returns {Promise<ProfileVerdict>} The verdict.
+ */
+async function judgeProfile(ctx, persona) {
+    const {settings, sandbox, env} = ctx;
+    if (settings.profiles === "off") {
+        return {profile: false};
+    }
+    /** @type {import("./profile.js").ProfileInfo | null} */
+    const info = await sandbox.inspectProfile(persona);
+    if (info === null) {
+        if (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY) {
+            return {profile: false};
+        }
+        return {refused: `no profile for ${persona}: run npm run pipeline -- --login ${persona}`};
+    }
+    if (!info.claude.loggedIn) {
+        return {refused: `profile of ${persona} is not logged in`};
+    }
+    const extra = checkAllowlist(info, settings.mcpFor(persona));
+    if (extra.length > 0) {
+        return {
+            refused: `profile of ${persona} holds MCP servers not allowed: ${extra.join(", ")}`
+        };
+    }
+    return {profile: true};
+}
+
+/**
+ * The verdict on a persona's profile, inspected at most once a pass.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {string} persona - The persona.
+ * @returns {Promise<ProfileVerdict>} The verdict.
+ */
+export async function profileFor(ctx, persona) {
+    const cached = ctx.profiles.get(persona);
+    if (cached) {
+        return cached;
+    }
+    const verdict = await judgeProfile(ctx, persona);
+    ctx.profiles.set(persona, verdict);
+    return verdict;
+}
+
+/**
+ * The prompt stage an issue starts now; a blocked issue starts at its tests.
+ *
+ * @param {import("./state.js").IssueRecord} record - The issue record.
+ * @returns {string} The prompt stage name.
+ */
+function stageOfIssue(record) {
+    const stage = record.stage === "stage:blocked" ? "stage:tests" : record.stage;
+    return /** @type {string} */ (promptFor(stage));
 }
 
 /**
@@ -78,9 +171,10 @@ function render(ctx, template, issue, stage) {
  *
  * @param {PassContext} ctx - The pass context.
  * @param {Spawn} spawn - The request.
+ * @param {boolean} profile - Whether to mount the persona's profile.
  * @returns {Promise<void>}
  */
-async function startSpawn(ctx, spawn) {
+async function startSpawn(ctx, spawn, profile) {
     const {settings, state, sandbox} = ctx;
     const issue = spawn.issue ?? 0;
     const template = read(ctx, "spawn.md")
@@ -101,7 +195,9 @@ async function startSpawn(ctx, spawn) {
         harness: spawn.harness ?? settings.harnessFor("qa"),
         model: settings.modelFor("qa"),
         tag: crypto.randomBytes(2).toString("hex"),
-        env: sessionEnv(ctx, issue)
+        env: sessionEnv(ctx, issue),
+        persona: spawn.persona,
+        profile
     });
     const started = new Date(ctx.clock.now()).toISOString();
     state.run.sessions.push({container, started, outbox, persona: spawn.persona, issue});
@@ -114,15 +210,16 @@ async function startSpawn(ctx, spawn) {
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
+ * @param {{persona: string, profile: boolean}} who - The persona and whether to mount its profile.
  * @returns {Promise<void>}
  */
-async function startIssue(ctx, n) {
+async function startIssue(ctx, n, {persona, profile}) {
     const {state, sandbox} = ctx;
     const record = state.issues[n];
+    const stage = stageOfIssue(record);
     if (record.stage === "stage:blocked") {
         await moveStage(ctx, n, "stage:tests");
     }
-    const stage = /** @type {string} */ (promptFor(record.stage));
     const prompt = render(ctx, read(ctx, `${stage}.md`), n, stage);
     const outbox = sandbox.prepareOutbox({issue: n, stage, prompt, allow: read(ctx, "allow.txt")});
     await writeLabel(ctx, {issue: n, add: ["working"], remove: []});
@@ -136,14 +233,17 @@ async function startIssue(ctx, n) {
             outbox,
             mintUrl,
             mintKey,
-            env: sessionEnv(ctx, n)
+            env: sessionEnv(ctx, n),
+            persona,
+            profile
         });
     } catch (error) {
         record.labels = record.labels.filter(l => l !== "working");
         await writeLabel(ctx, {issue: n, add: [], remove: ["working"]});
         throw error;
     }
-    record.session = {container, started: new Date(ctx.clock.now()).toISOString(), stage, outbox};
+    const started = new Date(ctx.clock.now()).toISOString();
+    record.session = {container, started, stage, outbox, persona};
     ctx.summary.started.push(n);
     ctx.log(`#${n}: ${stage} started: ${container}`);
 }
@@ -166,8 +266,61 @@ function nextIssue(ctx) {
 }
 
 /**
+ * Try the queued spawn at an index: it stays queued while its persona is at its limit,
+ * and is dropped when its profile is refused or it cannot start.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} index - The index of the spawn in the queue.
+ * @returns {Promise<number>} The index of the next spawn to try.
+ */
+async function trySpawn(ctx, index) {
+    const spawns = ctx.state.run.spawns;
+    /** @type {Spawn} */
+    const spawn = spawns[index];
+    const persona = personaFor("spawn", spawn.persona);
+    if (atPersonaLimit(ctx, persona)) {
+        return index + 1;
+    }
+    // Taken off the queue first: a spawn that cannot start is dropped, not retried.
+    spawns.splice(index, 1);
+    const verdict = await profileFor(ctx, persona);
+    if ("refused" in verdict) {
+        ctx.log(verdict.refused);
+        ctx.log(`spawn ${persona} dropped`);
+        return index;
+    }
+    await startSpawn(ctx, spawn, verdict.profile);
+    return index;
+}
+
+/**
+ * Try a due issue: it waits for the next pass while its persona is at its limit or its
+ * profile is refused.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @returns {Promise<void>}
+ */
+async function tryIssue(ctx, n) {
+    const persona = personaFor(stageOfIssue(ctx.state.issues[n]));
+    if (atPersonaLimit(ctx, persona)) {
+        ctx.log(`#${n}: waits, ${persona} at its limit`);
+        ctx.tried.add(n);
+        return;
+    }
+    const verdict = await profileFor(ctx, persona);
+    if ("refused" in verdict) {
+        ctx.log(verdict.refused);
+        ctx.tried.add(n);
+        return;
+    }
+    await startIssue(ctx, n, {persona, profile: verdict.profile});
+}
+
+/**
  * Start sessions while slots are free: queued spawns first, then due issues. One slot
- * past the soft ceiling; none while a model rate limit pauses starts.
+ * past the soft ceiling; none while a model rate limit pauses starts. A spawn or issue
+ * whose persona is at its limit waits for the next pass.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
@@ -179,19 +332,18 @@ export async function start(ctx) {
         return;
     }
     const limit = ceiling(state, ctx.settings) === "soft" ? 1 : ctx.settings.parallel;
+    let index = 0;
     while (running(ctx) < limit) {
-        const spawn = state.run.only === null ? state.run.spawns[0] : undefined;
+        const spawn = state.run.only === null ? state.run.spawns[index] : undefined;
         const n = spawn ? undefined : nextIssue(ctx);
         if (!spawn && n === undefined) {
             return;
         }
         try {
             if (spawn) {
-                // Taken off the queue first: a spawn that cannot start is dropped, not retried.
-                state.run.spawns.shift();
-                await startSpawn(ctx, spawn);
+                index = await trySpawn(ctx, index);
             } else {
-                await startIssue(ctx, /** @type {number} */ (n));
+                await tryIssue(ctx, /** @type {number} */ (n));
             }
         } catch (error) {
             if (spawn) {

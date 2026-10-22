@@ -2,6 +2,7 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {parseUntil} from "../../bin/pipeline.js";
 import {end, issue, world} from "./pass-world.js";
@@ -251,6 +252,148 @@ describe("a pass", () => {
                     c[1].remove.includes("stage:blocked")
             )
         );
+    });
+});
+
+describe("persona profiles at start", () => {
+    test("a stage starts with its persona's profile", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        await w.p.pass();
+        assert.equal(w.starts.length, 1);
+        assert.equal(w.starts[0].persona, "builder");
+        assert.equal(w.starts[0].profile, true);
+        assert.equal(w.state.issues[25].session.persona, "builder");
+    });
+    test("no profile and no token: the start is refused and logged, no working label", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.profiles.builder = null;
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.equal(w.state.issues[25].session, null);
+        assert.equal(w.starts.length, 0);
+        assert.ok(
+            w.logs.some(l =>
+                /no profile for builder: run npm run pipeline -- --login builder/.test(l)
+            )
+        );
+        assert.ok(!w.state.issues[25].labels.includes("working"));
+        assert.ok(!w.calls.some(c => c[0] === "label" && c[1].add.includes("working")));
+    });
+    test("no profile but a token: starts without a profile", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {CLAUDE_CODE_OAUTH_TOKEN: "t"}
+        });
+        w.profiles.builder = null;
+        await w.p.pass();
+        assert.equal(w.starts.length, 1);
+        assert.equal(w.starts[0].persona, "builder");
+        assert.equal(w.starts[0].profile, false);
+    });
+    test("a server outside the allowlist refuses the start by name", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.profiles.builder = {
+            ...w.profiles.builder,
+            claude: {present: true, loggedIn: true, servers: ["mobbin"]}
+        };
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        const refusals = w.logs.filter(l => /not allowed/.test(l));
+        assert.deepEqual(refusals, ["profile of builder holds MCP servers not allowed: mobbin"]);
+        assert.ok(!w.logs.some(l => /loggedIn|present|writable|codex/.test(l)));
+    });
+    test("one session per persona: the second builder issue waits, a qa issue starts", async () => {
+        const w = world({
+            issues: [
+                issue(25, ["stage:in-progress"]),
+                issue(26, ["stage:in-progress"]),
+                issue(27, ["stage:tests"])
+            ],
+            env: {PIPELINE_PARALLEL: "3"}
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25, 27]);
+        assert.ok(w.state.issues[25].session);
+        assert.ok(w.state.issues[27].session);
+        assert.equal(w.state.issues[26].session, null);
+        assert.ok(!w.state.issues[26].labels.includes("working"));
+        assert.deepEqual(w.state.deadLetters, []);
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            requests: {done: {done: {issue: 25, to: "stage:review"}}}
+        });
+        const next = await w.p.pass();
+        assert.deepEqual(next.started, [25, 26], "the waiting builder starts once one is free");
+    });
+    test("PIPELINE_PER_PERSONA=0 lifts the limit", async () => {
+        const w = world({
+            issues: [
+                issue(25, ["stage:in-progress"]),
+                issue(26, ["stage:in-progress"]),
+                issue(27, ["stage:tests"])
+            ],
+            env: {PIPELINE_PARALLEL: "3", PIPELINE_PER_PERSONA: "0"}
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25, 26, 27]);
+    });
+    test("a profile that is not logged in refuses the start, no working label", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.profiles.builder = {
+            ...w.profiles.builder,
+            claude: {present: true, loggedIn: false, servers: []}
+        };
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.equal(w.starts.length, 0);
+        assert.ok(w.logs.includes("profile of builder is not logged in"));
+        assert.ok(!w.state.issues[25].labels.includes("working"));
+        assert.ok(!w.calls.some(c => c[0] === "label" && c[1].add.includes("working")));
+    });
+    test("an issue at its persona limit waits with a log line", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"]), issue(26, ["stage:in-progress"])]
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+        assert.ok(w.logs.includes("#26: waits, builder at its limit"));
+    });
+    test("a spawn at its persona limit stays queued; the next spawn and an issue start", async () => {
+        const w = world({issues: [issue(27, ["stage:tests"])], env: {PIPELINE_PARALLEL: "3"}});
+        w.containers.cb = "running";
+        const started = new Date(w.clock.now()).toISOString();
+        const outbox = fs.mkdtempSync(path.join(os.tmpdir(), "ob-"));
+        w.state.run.sessions.push({container: "cb", started, outbox, persona: "builder", issue: 0});
+        const waiting = {persona: "builder", prompt: "Build X", issue: null, harness: null};
+        const next = {persona: "advocate", prompt: "File Y", issue: null, harness: null};
+        w.state.run.spawns.push(waiting, next);
+        const s = await w.p.pass();
+        assert.deepEqual(w.state.run.spawns, [waiting], "the builder spawn stays queued");
+        assert.deepEqual(
+            w.starts.map((/** @type {any} */ o) => [o.stage, o.persona]),
+            [
+                ["spawn", "advocate"],
+                ["tests", "qa"]
+            ]
+        );
+        assert.deepEqual(s.started, [27]);
+    });
+    test("a spawn whose profile is refused is dropped and the pass goes on", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.profiles.advocate = null;
+        w.state.run.spawns.push({
+            persona: "advocate",
+            prompt: "File Y",
+            issue: null,
+            harness: null
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(w.state.run.spawns, []);
+        assert.ok(
+            w.logs.includes("no profile for advocate: run npm run pipeline -- --login advocate")
+        );
+        assert.ok(w.logs.includes("spawn advocate dropped"));
+        assert.ok(!w.starts.some((/** @type {any} */ o) => o.stage === "spawn"));
+        assert.deepEqual(s.started, [25]);
     });
 });
 

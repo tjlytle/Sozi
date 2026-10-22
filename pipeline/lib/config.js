@@ -36,13 +36,16 @@ const DEFAULTS = {
     PIPELINE_MINT_PORT: "0",
     PIPELINE_MEMORY: "",
     PIPELINE_CPUS: "0",
-    PIPELINE_BOARD_FULL_EVERY: "12"
+    PIPELINE_BOARD_FULL_EVERY: "12",
+    PIPELINE_PROFILES: "auto",
+    PIPELINE_PER_PERSONA: "1"
 };
 
 const CHOICES = {
     PIPELINE_MERGE: ["auto", "review"],
     PIPELINE_PLANS: ["auto", "review"],
-    PIPELINE_FINDINGS: ["obvious", "triage"]
+    PIPELINE_FINDINGS: ["obvious", "triage"],
+    PIPELINE_PROFILES: ["auto", "off"]
 };
 
 const NUMBERS = [
@@ -55,7 +58,8 @@ const NUMBERS = [
     "PIPELINE_HARD_TOKENS",
     "PIPELINE_MINT_PORT",
     "PIPELINE_CPUS",
-    "PIPELINE_BOARD_FULL_EVERY"
+    "PIPELINE_BOARD_FULL_EVERY",
+    "PIPELINE_PER_PERSONA"
 ];
 
 const DECIMALS = ["PIPELINE_SESSION_BUDGET_USD"];
@@ -202,6 +206,18 @@ export function loadConfig({root, env, files}) {
         memory: raw.PIPELINE_MEMORY,
         cpus: num("PIPELINE_CPUS"),
         boardFullEvery: num("PIPELINE_BOARD_FULL_EVERY"),
+        profiles: raw.PIPELINE_PROFILES,
+        perPersona: num("PIPELINE_PER_PERSONA"),
+        /** The MCP servers a persona's profile may hold.
+         *
+         * @param {string} persona - The persona name.
+         * @returns {string[]} - The server names; empty when none are allowed.
+         */
+        mcpFor: persona =>
+            perStage("PIPELINE_MCP", persona, "")
+                .split(",")
+                .map(name => name.trim())
+                .filter(name => name !== ""),
         secrets: secretsOf(layers)
     };
 }

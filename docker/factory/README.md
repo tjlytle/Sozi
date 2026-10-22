@@ -32,6 +32,11 @@ and filled as `factory`, so no layer re-owns it.
   override by hand with `docker build --build-arg FACTORY_UID=$(id -u) ...`. The base image's `node` user is removed to free uid 1000.
   Mount points: `/mirror`, `/outbox`, `/work`.
 
+`/profile` is the mount point of a persona's profile volume (`sozi-factory-profile-<persona>`,
+one per persona, created by `--login` or `--copy-profile`). The image creates it owned by
+`factory`, so an image built before profiles existed lacks a writable `/profile`; rebuild it.
+`/pipeline/profile-inspect.sh` and `/pipeline/login.sh` live in the image.
+
 Electron and Playwright Chromium cannot start their own sandboxes under Docker's default
 seccomp profile (verified 2026-10-22: Electron aborts with "Failed to move to new namespace"
 even with the setuid helper in place; `--no-sandbox` works). The choice between

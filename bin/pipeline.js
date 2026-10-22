@@ -12,12 +12,17 @@
 //   node bin/pipeline.js --status       sessions, tries, queued labels, totals
 //   node bin/pipeline.js --digest       finish the run's Notion page
 //   node bin/pipeline.js --build-image  build the stage image
+//   node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]
+//                                       log a persona in inside a container
+//   node bin/pipeline.js --copy-profile <from> <to>
+//                                       copy one persona's profile to another
 //   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
 // lives in var/pipeline/state.json. Ctrl-C saves the state and leaves running containers
 // to finish; the next start adopts them.
 
+import {spawnSync} from "node:child_process";
 import path from "node:path";
 import {parseArgs} from "node:util";
 import {fileURLToPath, pathToFileURL} from "node:url";
@@ -27,9 +32,10 @@ import {startMint} from "../pipeline/lib/mint.js";
 import {createControl, drain, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
 import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
+import {PERSONAS} from "../pipeline/lib/profile.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
-import {statusText} from "../pipeline/lib/status.js";
+import {profilesText, statusText} from "../pipeline/lib/status.js";
 import {sync as boardSync} from "./board.js";
 import {main as digestMain} from "./digest.js";
 
@@ -37,12 +43,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
-    "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]"
+    "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]",
+    "       node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]   log a persona in inside a container",
+    "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile to another"
 ];
 
 /**
  * @typedef {object} Deps
  * @property {import("../pipeline/lib/github.js").Runner} run - Runs commands on the host.
+ * @property {(cmd: string[]) => number | Promise<number>} runInteractive - Runs a command with the terminal attached; resolves to its exit status.
  * @property {typeof startMint} startMint - Starts the mint endpoint.
  * @property {typeof digestMain} digest - The digest command line.
  * @property {any} [github] - The GitHub client; the real one when absent.
@@ -56,6 +65,7 @@ const USAGE = [
 /** @type {Deps} */
 const DEFAULT_DEPS = {
     run: defaultRun,
+    runInteractive: cmd => spawnSync(cmd[0], cmd.slice(1), {stdio: "inherit"}).status ?? 1,
     startMint,
     digest: digestMain,
     sleep: undefined,
@@ -105,6 +115,17 @@ function openState(file, now) {
     return state;
 }
 
+/** Check a persona name.
+ *
+ * @param {string} persona - The name.
+ * @throws {Error} - When it is not a persona.
+ */
+function checkPersona(persona) {
+    if (!PERSONAS.includes(persona)) {
+        throw new Error(`persona must be one of ${PERSONAS.join("|")}`);
+    }
+}
+
 /** Read the command line.
  *
  * @param {string[]} argv - The arguments after the script name.
@@ -120,11 +141,26 @@ function parseCommand(argv) {
             status: {type: "boolean"},
             digest: {type: "boolean"},
             "build-image": {type: "boolean"},
+            login: {type: "string"},
+            "copy-profile": {type: "boolean"},
             until: {type: "string"},
             epic: {type: "string"},
             harness: {type: "string"}
         }
     });
+    if (values["copy-profile"]) {
+        if (positionals.length !== 2) {
+            throw new Error("--copy-profile takes <from> <to>");
+        }
+        positionals.forEach(checkPersona);
+        return {opt: {...values, copy: positionals}, target: "watch"};
+    }
+    if (values.login !== undefined) {
+        checkPersona(values.login);
+        if (!["claude", "codex", "opencode"].includes(values.harness ?? "claude")) {
+            throw new Error("harness must be one of claude|codex|opencode");
+        }
+    }
     const target = positionals[0] ?? "watch";
     if (positionals.length > 1 || !/^(watch|\d+)$/.test(target)) {
         throw new Error(`unexpected ${positionals.join(" ")}`);
@@ -133,6 +169,23 @@ function parseCommand(argv) {
         throw new Error(`--epic takes an issue number, not ${JSON.stringify(values.epic)}`);
     }
     return {opt: values, target};
+}
+
+/** Inspect every persona profile, an error standing in for a persona that cannot be inspected.
+ *
+ * @param {ReturnType<typeof createSandbox>} sandbox - The sandbox.
+ * @returns {Promise<Array<{persona: string, info: import("../pipeline/lib/profile.js").ProfileInfo | null | Error}>>} - One entry per persona.
+ */
+async function inspectAll(sandbox) {
+    return Promise.all(
+        PERSONAS.map(async persona => {
+            try {
+                return {persona, info: await sandbox.inspectProfile(persona)};
+            } catch (error) {
+                return {persona, info: error instanceof Error ? error : new Error(String(error))};
+            }
+        })
+    );
 }
 
 /** Build the pass over the real GitHub, board, digest and clock.
@@ -158,6 +211,7 @@ function loopPass({state, settings, sandbox, env, root, log, save, deps}) {
         board: deps.board ?? {sync: options => boardSync(options, ctx)},
         digest: noteDigest(state, env),
         clock: {now: () => Date.now()},
+        env,
         log,
         root,
         save
@@ -196,7 +250,10 @@ export async function main(
         ({opt, target} = parseCommand(argv));
         settings = loadConfig({
             root,
-            env: opt.harness ? {...env, PIPELINE_HARNESS: opt.harness} : env
+            env:
+                opt.harness && opt.login === undefined
+                    ? {...env, PIPELINE_HARNESS: opt.harness}
+                    : env
         });
         opt.until = opt.until ? parseUntil(opt.until, new Date()).toISOString() : null;
     } catch (error) {
@@ -207,10 +264,19 @@ export async function main(
     }
     // The environment wins over the secrets file, as it does for the settings.
     const runEnv = {...settings.secrets, ...env};
+    const sandbox =
+        deps.sandbox ??
+        createSandbox({
+            settings,
+            root,
+            run: deps.run,
+            runInteractive: deps.runInteractive,
+            env: runEnv
+        });
     if (opt.status || opt.digest) {
         const state = loadState(file);
         await (opt.status
-            ? write(statusText(state))
+            ? write(statusText(state) + profilesText(await inspectAll(sandbox)))
             : finishDigest({
                   state,
                   reason: "finished by hand",
@@ -222,9 +288,22 @@ export async function main(
               }));
         return 0;
     }
-    const sandbox = deps.sandbox ?? createSandbox({settings, root, run: deps.run, env: runEnv});
     if (opt["build-image"]) {
         await sandbox.buildImage();
+        return 0;
+    }
+
+    if (opt.login !== undefined) {
+        return sandbox.login({persona: opt.login, harness: opt.harness ?? "claude"});
+    }
+    if (opt["copy-profile"]) {
+        const [from, to] = opt.copy;
+        try {
+            await sandbox.copyProfile({from, to});
+        } catch (error) {
+            writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
+            return 1;
+        }
         return 0;
     }
 

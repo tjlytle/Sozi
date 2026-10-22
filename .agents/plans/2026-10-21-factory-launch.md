@@ -30,7 +30,8 @@
 
 ### Task 0: What only Tim can provide (collect, do not block on)
 
-- [ ] `claude setup-token` on the host → `CLAUDE_CODE_OAUTH_TOKEN=...` in `var/pipeline/env`.
+- [ ] `npm run pipeline -- --build-image` first: the image must contain `/profile`, `login.sh` and `profile-inspect.sh`, and one built before persona profiles does not.
+- [ ] Log each persona in, in this order, because a profile holding a server outside its allowlist is refused at the next start and a copy carries every server of its source: (a) `npm run pipeline -- --login architect` (inside: `claude`, `/login` only, no `/mcp` yet, exit); (b) `npm run pipeline -- --copy-profile architect <persona>` for each of advocate, builder, qa, reviewer, ops; (c) `npm run pipeline -- --login <persona>` again for each persona with an allowlist; for each of exactly its allowed servers (architect: mobbin, context7; advocate: mobbin; builder: context7) `claude mcp add --scope user <name> ...`, then `claude` and `/mcp` to authorise it, exit (a fresh profile has no servers; `/mcp` only authorises configured ones). qa, reviewer and ops get no servers. `--harness codex` too where Tim wants Codex. `CLAUDE_CODE_OAUTH_TOKEN=...` in `var/pipeline/env` (from `claude setup-token`) is only the fallback when a persona has no profile.
 - [ ] A Notion internal integration with access to a parent page → `NOTION_TOKEN=...` and `PIPELINE_NOTION_PARENT=<page id>` in `var/pipeline/env`.
 - [ ] An R2 bucket with a public domain and an API token with Object Read & Write on it → `PIPELINE_EVIDENCE_ACCOUNT`, `PIPELINE_EVIDENCE_BUCKET`, `PIPELINE_EVIDENCE_TOKEN`, `PIPELINE_EVIDENCE_URL` in `var/pipeline/env`, and the same four as repository secrets for CI (`gh-as - secret set`).
 - [ ] Confirm all six persona Apps are installed on `tjlytle/Sozi` (`gh-personas mode` shows `bot` for each; a `marker` line means one is missing).
@@ -155,9 +156,9 @@ Three more from the final review of the loop build, checked on the first session
   fake as a `FAKE_MODE`.
 - Whether a headless session can write `/outbox` (the adapter passes `--add-dir` with the
   outbox): a `req-done.json` must appear after the first plan session.
-- That `CLAUDE_CODE_OAUTH_TOKEN` is set inside a container (it comes from
-  `var/pipeline/env` through the loop): `docker exec <container> sh -c 'test -n
-  "$CLAUDE_CODE_OAUTH_TOKEN" && echo set'`, never printing the value.
+- That the profiles are in place: `node bin/pipeline.js --status` shows every persona
+  `claude logged in` with only the allowed servers, and inside a container `docker exec
+  <container> sh -c 'test -d "$CLAUDE_CONFIG_DIR" && echo set'`.
 
 **Decision for Tim before the first QA stage runs:** Electron and Playwright Chromium cannot start their own sandboxes under Docker's default seccomp profile (verified 2026-10-22 in the image; the setuid helper is in place but the kernel refuses the user namespace). Pick one: `--security-opt seccomp=unconfined` on the container (the container stays the boundary; Electron keeps its own sandbox), a custom seccomp profile allowing user namespaces (Playwright publishes one), or `--no-sandbox` in the stage runner. The session that built the loop was not permitted to weaken the container's security settings, so the choice is open; `pipeline/lib/sandbox.js` `startArgs` is where the flag goes, with its test.
 

@@ -11,7 +11,7 @@ request is about; read it first (`gh-as {PERSONA} issue view <n> -R tjlytle/Sozi
 
 - Every `gh` command goes through `gh-as {PERSONA}` and passes `-R tjlytle/Sozi`, reads
   included. Commits `gh-as {PERSONA} --git commit -F <file>`, pushes
-  `gh-as {PERSONA} --push <branch> -u`.
+  `gh-as {PERSONA} --push <branch>`.
 - `.agents/tmp/` is the only place for temporary files. Write every comment, issue body and
   commit message there first and pass it with `--body-file` or `-F`.
 - Do what the request asks and nothing more. You have no stage: change no stage label, and

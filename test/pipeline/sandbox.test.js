@@ -7,6 +7,8 @@ import path from "node:path";
 import {createSandbox} from "../../pipeline/lib/sandbox.js";
 import {loadConfig} from "../../pipeline/lib/config.js";
 
+const REPO = path.resolve(import.meta.dirname, "..", "..");
+
 describe("sandbox", () => {
     const settings = loadConfig({
         root: "/nonexistent",
@@ -128,6 +130,27 @@ describe("sandbox", () => {
         assert.equal(calls[0].opts.env.UNRELATED, undefined, "only the names docker passes");
         assert.ok(!calls[0].cmd.some((/** @type {string} */ a) => a.includes("tok")));
     });
+    test("a profiled start leaves the fallback tokens out; an unprofiled one keeps them", async () => {
+        /** @type {any[]} */
+        const calls = [];
+        const s = createSandbox({
+            settings,
+            root: "/repo",
+            env: {CLAUDE_CODE_OAUTH_TOKEN: "tok", ANTHROPIC_API_KEY: "key", NOTION_TOKEN: "n"},
+            run: async (cmd, opts) => {
+                calls.push({cmd, opts});
+                return {code: 0, stdout: "id\n", stderr: ""};
+            }
+        });
+        const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
+        await s.start({...base, persona: "builder", profile: true});
+        await s.start(base);
+        assert.equal(calls[0].opts.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+        assert.equal(calls[0].opts.env.ANTHROPIC_API_KEY, undefined);
+        assert.equal(calls[0].opts.env.NOTION_TOKEN, "n");
+        assert.equal(calls[1].opts.env.CLAUDE_CODE_OAUTH_TOKEN, "tok");
+        assert.equal(calls[1].opts.env.ANTHROPIC_API_KEY, "key");
+    });
     test("buildImage builds from the repo root with the plugin as a named context", async () => {
         const {sb: s, calls} = recording(() => ({code: 0}));
         await s.buildImage();
@@ -161,5 +184,157 @@ describe("sandbox", () => {
         assert.match(path.basename(a), /^out-25-build-/);
         assert.equal(fs.readFileSync(path.join(a, "prompt.md"), "utf8"), "P");
         assert.equal(fs.readFileSync(path.join(b, "allow.txt"), "utf8"), "Read\n");
+    });
+    test("the profile volume and the harness config dirs when profile is set", () => {
+        const args = sb.startArgs({
+            issue: 25,
+            stage: "build",
+            persona: "builder",
+            profile: true,
+            outbox: "/o",
+            mintUrl: "u",
+            mintKey: "k"
+        });
+        assert.ok(args.includes("sozi-factory-profile-builder:/profile"));
+        assert.ok(args.includes("CLAUDE_CONFIG_DIR=/profile/claude"));
+        assert.ok(args.indexOf("sozi-factory") > args.indexOf("CLAUDE_CONFIG_DIR=/profile/claude"));
+    });
+    test("a profiled start names no fallback token; an unprofiled one names both", () => {
+        const base = {issue: 25, stage: "build", persona: "builder", outbox: "/o", mintUrl: "u"};
+        const profiled = sb.startArgs({...base, mintKey: "k", profile: true});
+        const plain = sb.startArgs({...base, mintKey: "k"});
+        for (const name of ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]) {
+            assert.ok(!profiled.includes(name), name);
+            assert.equal(plain[plain.indexOf(name) - 1], "-e", name);
+        }
+        assert.ok(profiled.includes("NOTION_TOKEN"));
+    });
+    test("no profile arguments when profile is not set", () => {
+        const args = sb.startArgs({
+            issue: 25,
+            stage: "build",
+            persona: "builder",
+            outbox: "/o",
+            mintUrl: "u",
+            mintKey: "k"
+        });
+        assert.ok(!args.some(a => a.includes("/profile")));
+    });
+    test("login runs an interactive container on the host network with the volume", async () => {
+        /** @type {string[]} */
+        let cmd = [];
+        const sb2 = createSandbox({
+            settings,
+            root: "/repo",
+            run: async () => ({code: 0, stdout: "", stderr: ""}),
+            runInteractive: c => {
+                cmd = c;
+                return 0;
+            }
+        });
+        assert.equal(await sb2.login({persona: "architect", harness: "claude"}), 0);
+        assert.deepEqual(cmd.slice(0, 4), ["docker", "run", "-it", "--rm"]);
+        assert.ok(cmd.includes("--network") && cmd.includes("host"));
+        assert.ok(cmd.includes("sozi-factory-profile-architect:/profile"));
+        assert.ok(cmd.includes("PIPELINE_LOGIN_HARNESS=claude"));
+        assert.ok(cmd.includes("PIPELINE_LOGIN_PERSONA=architect"));
+        assert.deepEqual(cmd.slice(-2), [settings.image, "/pipeline/login.sh"]);
+    });
+    /** A sandbox whose runner records every command and answers through a function.
+     *
+     * @param {(cmd: string[]) => {code: number, stderr?: string}} answer - The result per command.
+     * @returns {{sb3: ReturnType<typeof createSandbox>, cmds: string[][]}} - The sandbox and the log.
+     */
+    function copying(answer) {
+        /** @type {string[][]} */
+        const cmds = [];
+        const sb3 = createSandbox({
+            settings,
+            root: "/repo",
+            run: async cmd => {
+                cmds.push(cmd);
+                return {stdout: "", stderr: "", ...answer(cmd)};
+            }
+        });
+        return {sb3, cmds};
+    }
+    const QA = "sozi-factory-profile-qa";
+    test("copyProfile checks the source, creates the target, copies into /profile", async () => {
+        const {sb3, cmds} = copying(cmd => ({
+            code: cmd[2] === "inspect" && cmd[3] === QA ? 1 : 0
+        }));
+        await sb3.copyProfile({from: "builder", to: "qa"});
+        assert.deepEqual(cmds[0], ["docker", "volume", "inspect", "sozi-factory-profile-builder"]);
+        assert.deepEqual(cmds[1], ["docker", "volume", "inspect", QA]);
+        assert.deepEqual(cmds[2], ["docker", "volume", "create", QA]);
+        assert.deepEqual(cmds[3], [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            "sozi-factory-profile-builder:/from:ro",
+            "-v",
+            `${QA}:/profile`,
+            settings.image,
+            "-c",
+            "cp -a /from/. /profile/"
+        ]);
+        assert.equal(cmds.length, 4);
+    });
+    test("copyProfile refuses a source with no volume and creates nothing", async () => {
+        const {sb3, cmds} = copying(cmd => ({code: cmd[2] === "inspect" ? 1 : 0}));
+        await assert.rejects(
+            sb3.copyProfile({from: "builder", to: "qa"}),
+            /^Error: no profile for builder: run npm run pipeline -- --login builder$/
+        );
+        assert.equal(cmds.length, 1);
+        assert.ok(!cmds.some(c => c[2] === "create" || c[1] === "run"));
+    });
+    test("copyProfile removes the target when the copy fails", async () => {
+        const {sb3, cmds} = copying(cmd => {
+            if (cmd[1] === "run") {
+                return {code: 1, stderr: "cp: Permission denied"};
+            }
+            return {code: cmd[2] === "inspect" && cmd[3] === QA ? 1 : 0};
+        });
+        await assert.rejects(sb3.copyProfile({from: "builder", to: "qa"}), /Permission denied/);
+        assert.deepEqual(cmds.at(-1), ["docker", "volume", "rm", QA]);
+    });
+    test("copyProfile refuses when the target already has a volume", async () => {
+        const {sb3, cmds} = copying(() => ({code: 0}));
+        await assert.rejects(
+            sb3.copyProfile({from: "builder", to: "qa"}),
+            /^Error: profile of qa exists; remove the volume first$/
+        );
+        assert.equal(cmds.length, 2);
+        assert.ok(!cmds.some(c => c[2] === "create" || c[1] === "run"));
+        await assert.rejects(sb3.copyProfile({from: "root", to: "qa"}), /unknown persona/);
+    });
+    test("after the image name comes a /pipeline/ script or -c, as the entrypoint is bash", async () => {
+        const text = fs.readFileSync(path.join(REPO, "docker", "factory", "Dockerfile"), "utf8");
+        const entrypoints = [...text.matchAll(/^ENTRYPOINT\s+(.*)$/gm)];
+        assert.equal(entrypoints.at(-1)?.[1].trim(), '["bash"]');
+        /** @type {string[]} */
+        let inspect = [];
+        const {sb3, cmds} = copying(cmd => {
+            if (cmd[1] === "run" && cmd.includes("/pipeline/profile-inspect.sh")) {
+                inspect = cmd;
+            }
+            return {code: cmd[2] === "inspect" && cmd[3] === QA ? 1 : 0};
+        });
+        await sb3.inspectProfile("builder").catch(() => null);
+        await sb3.copyProfile({from: "builder", to: "qa"});
+        const copy = cmds.find(c => c[1] === "run" && c.includes("-c")) ?? [];
+        const login = sb3.loginArgs({persona: "qa", harness: "claude"});
+        for (const [what, args] of Object.entries({login, inspect, copy})) {
+            const next = args[args.indexOf(settings.image) + 1];
+            assert.ok(args.includes(settings.image), what);
+            assert.ok(next === "-c" || next.startsWith("/pipeline/"), `${what}: ${next}`);
+        }
+    });
+    test("the image creates /profile for the factory user", () => {
+        const text = fs.readFileSync(path.join(REPO, "docker", "factory", "Dockerfile"), "utf8");
+        assert.match(text, /mkdir -p [^\n]*\/profile/);
+        assert.match(text, /chown factory:factory [^\n]*\/profile/);
     });
 });

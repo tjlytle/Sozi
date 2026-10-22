@@ -66,6 +66,17 @@ TypeScript (yes, gradually); "nightly" meant "a build per merge".
   on `tjlytle/Sozi`.
 - **Prompts** in `pipeline/*.md`, one per stage; `bin/pipeline` runs one headless pass per
   stage with the allow list in `pipeline/allow.txt`. Tim starts and stops the loop.
+- **Before the first run:** `npm run pipeline -- --build-image` first, so the image holds
+  `/profile`, `login.sh` and `profile-inspect.sh`. Then log each persona in.
+  `npm run pipeline -- --login architect` (inside: `claude`, `/login` only, exit), then
+  `npm run pipeline -- --copy-profile architect builder` and so on for the other personas,
+  then `--login <persona>` again for each persona with an allowlist: for each of exactly its
+  allowed servers (architect: mobbin, context7; advocate: mobbin; builder: context7)
+  `claude mcp add --scope user <name> ...`, then `claude` and `/mcp` to authorise it, then
+  exit (a fresh profile has no servers, and `/mcp` only authorises configured ones).
+  Authorise servers after the copies: a copy carries every server of its source, and a
+  profile holding a server outside its allowlist is refused. `npm run pipeline -- --status` shows what each
+  profile holds. Design: "Persona profiles" in `loop-design.md`.
 - **Policy lines in `CLAUDE.md`:** `Merge: auto`, `Plans: auto`, `Promote ideas: no`.
 - **Models:** plan on the most capable model, the rest on the standard one.
 - **Lessons from the talk already folded in:** QA tests the branch merged with master,
