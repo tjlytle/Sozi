@@ -16,7 +16,7 @@
 // Environment: PIPELINE_REPO (owner/name; read from `gh repo view` when unset). `sync`
 // keeps labels and board in step: whichever changed last wins, so a loop label move shows
 // on the board and a card dragged by a person moves the label; closed issues go to Done.
-// It prints `#n board <- label: X` or `#n label <- board: X` per change. `--issues` looks
+// It prints `#n board ← label: X` or `#n label ← board: X` per change. `--issues` looks
 // the board item up in the state file (issues[n].board.item) and writes it back when it
 // adds one. Any other subcommand prints this usage and exits 2.
 
@@ -150,6 +150,7 @@ export function decide({state, stage, idea, triage, have, boardAt, labelAt}) {
  * @property {string} repo - The repository, owner/name.
  * @property {Run} run - The command runner.
  * @property {(text: string) => void} out - Standard output.
+ * @property {(text: string) => void} [err] - Standard error.
  */
 
 /** Run a command and return its output, throwing on failure.
@@ -288,24 +289,79 @@ async function makeLabels({repo, run}) {
     }
 }
 
-/** Keep labels and board in step.
- *
- * @param {object} options - What to sync.
- * @param {number[]} [options.issues] - Only these issues, unless `all`.
- * @param {boolean} [options.all] - Every issue, reading the board items in bulk.
- * @param {string} [options.state] - The state file that holds board item ids for `issues`.
- * @param {Context} ctx - The context.
- * @returns {Promise<void>}
+/**
+ * @typedef {object} BoardMeta
+ * @property {{id: string, number: number}} project - The board.
+ * @property {{id: string, options: Record<string, string>}} field - The Status field and its option ids by column name.
  */
-export async function sync({issues = [], all = false, state}, ctx) {
-    const {repo, run, out} = ctx;
-    const owner = repo.split("/")[0];
+
+/** The board, its Status field and the option ids: from the cache when it holds them,
+ * otherwise read from GitHub.
+ *
+ * @param {Context} ctx - The context.
+ * @param {any} book - The state, whose boardMeta is the cache.
+ * @param {(change: (b: any) => void) => void} save - Writes a change to the state.
+ * @returns {Promise<BoardMeta>} - The board details.
+ */
+async function boardMeta(ctx, book, save) {
+    const cached = book?.boardMeta;
+    if (cached?.project?.id && cached?.field?.id && cached?.field?.options) {
+        return cached;
+    }
     const project = await findProject(ctx);
     if (!project) {
         throw new Error("no board; run node bin/board.js create");
     }
     const field = await statusField(ctx, project.number);
-    const book = state && fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : null;
+    /** @type {BoardMeta} */
+    const meta = {
+        project: {id: project.id, number: project.number},
+        field: {id: field.id, options: Object.fromEntries(field.options.map(o => [o.name, o.id]))}
+    };
+    save(b => {
+        b.boardMeta = meta;
+    });
+    return meta;
+}
+
+/**
+ * @typedef {object} SyncOptions
+ * @property {number[]} [issues] - Only these issues, unless `all`.
+ * @property {boolean} [all] - Every issue, reading the board items in bulk.
+ * @property {string} [state] - A state file for board item ids and the cached board details.
+ * @property {any} [book] - The loop in-memory state; when given it is changed in place and never written to a file.
+ */
+
+/** Keep labels and board in step. Only `book.issues[n].board` and `book.boardMeta` are
+ * written. A failure on one issue is reported and the others carry on.
+ *
+ * @param {SyncOptions} options - What to sync.
+ * @param {Context} ctx - The context.
+ * @returns {Promise<number>} - How many issues failed.
+ */
+export async function sync({issues = [], all = false, state, book}, ctx) {
+    const {repo, run, out} = ctx;
+    const [owner] = repo.split("/");
+    const fromFile = () =>
+        state && fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : null;
+    const local = book ?? fromFile();
+    /** Apply a change to the state: in place for a given book, else to a fresh read of the file.
+     * @param {(b: any) => void} change - The change.
+     */
+    const save = change => {
+        if (book) {
+            change(book);
+        } else if (state) {
+            const fresh = fromFile() ?? {};
+            change(fresh);
+            fs.writeFileSync(state, `${JSON.stringify(fresh, null, 2)}\n`);
+        }
+        if (local && local !== book) {
+            change(local);
+        }
+    };
+    const meta = await boardMeta(ctx, local, save);
+    const projectId = meta.project.id;
     /** @type {Map<number, {id: string, status: string, at: string}>} */
     const cards = new Map();
     /** @type {any[]} */
@@ -318,7 +374,7 @@ export async function sync({issues = [], all = false, state}, ctx) {
                 "api",
                 "graphql",
                 "-f",
-                `id=${project.id}`,
+                `id=${projectId}`,
                 "-f",
                 `query=query($id: ID!) { node(id: $id) { ... on ProjectV2 { items(first: 100) { nodes { ${ITEM_FIELDS} } } } } }`
             ])
@@ -344,123 +400,176 @@ export async function sync({issues = [], all = false, state}, ctx) {
                 "number,url,state,labels"
             ])
         );
-    } else {
-        for (const n of issues) {
-            list.push(
-                JSON.parse(
+    }
+    let failed = 0;
+    for (const target of all ? list : issues) {
+        const n = all ? target.number : target;
+        try {
+            let issue = target;
+            let card = cards.get(n);
+            if (!all) {
+                // The REST endpoint: gh issue view is GraphQL under the hood and costs more.
+                const rest = JSON.parse(
+                    await exec(run, ["gh-as", "ops", "api", `repos/${repo}/issues/${n}`])
+                );
+                issue = {
+                    number: n,
+                    url: rest.html_url,
+                    state: String(rest.state).toUpperCase(),
+                    labels: rest.labels ?? []
+                };
+                card = await findCard(ctx, local, n, projectId);
+            }
+            const names = (issue.labels ?? []).map((/** @type {any} */ l) => l.name);
+            const stage = names.find((/** @type {string} */ x) => x.startsWith("stage:")) ?? "";
+            const facts = {
+                state: issue.state,
+                stage,
+                idea: names.includes("idea"),
+                triage: names.includes("triage")
+            };
+            const have = card?.status ?? "";
+            const boardAt = card?.at ?? "";
+            let decision = decide({...facts, have, boardAt, labelAt: ""});
+            if (decision?.label) {
+                decision = decide({...facts, have, boardAt, labelAt: await labelTime(ctx, n)});
+            }
+            if (!decision) {
+                if (card && !all) {
+                    remember(local, save, n, card.id);
+                }
+                continue;
+            }
+            if (decision.label) {
+                const cmd = ["gh-as", "ops", "issue", "edit", String(n), "-R", repo];
+                if (decision.label.add.length) {
+                    cmd.push("--add-label", decision.label.add.join(","));
+                }
+                if (decision.label.remove.length) {
+                    cmd.push("--remove-label", decision.label.remove.join(","));
+                }
+                await exec(run, cmd);
+                out(`#${n} label ← board: ${have}\n`);
+                continue;
+            }
+            let id = card?.id;
+            if (!id) {
+                const added = JSON.parse(
                     await exec(run, [
                         "gh-as",
                         "-",
-                        "issue",
-                        "view",
-                        String(n),
-                        "-R",
-                        repo,
-                        "--json",
-                        "number,url,state,labels"
-                    ])
-                )
-            );
-            const known = book?.issues?.[n]?.board;
-            const id = typeof known === "string" ? known : known?.item;
-            if (id) {
-                const reply = JSON.parse(
-                    await exec(run, [
-                        "gh-as",
-                        "-",
-                        "api",
-                        "graphql",
-                        "-f",
-                        `id=${id}`,
-                        "-f",
-                        `query=query($id: ID!) { node(id: $id) { ... on ProjectV2Item { ${ITEM_FIELDS} } } }`
+                        "project",
+                        "item-add",
+                        String(meta.project.number),
+                        "--owner",
+                        owner,
+                        "--url",
+                        issue.url,
+                        "--format",
+                        "json"
                     ])
                 );
-                if (reply.data?.node) {
-                    cards.set(n, itemRow(reply.data.node));
-                }
+                id = String(added.id);
             }
+            remember(local, save, n, id);
+            const option = meta.field.options[decision.board ?? ""];
+            if (!option) {
+                throw new Error(`the board has no column ${decision.board}`);
+            }
+            await exec(run, [
+                "gh-as",
+                "-",
+                "project",
+                "item-edit",
+                "--project-id",
+                projectId,
+                "--id",
+                id,
+                "--field-id",
+                meta.field.id,
+                "--single-select-option-id",
+                option
+            ]);
+            out(`#${n} board ← label: ${decision.board}\n`);
+        } catch (error) {
+            failed++;
+            (ctx.err ?? (() => {}))(
+                `#${n}: ${error instanceof Error ? error.message : String(error)}\n`
+            );
         }
     }
-    for (const issue of list) {
-        const names = (issue.labels ?? []).map((/** @type {any} */ l) => l.name);
-        const stage = names.find((/** @type {string} */ x) => x.startsWith("stage:")) ?? "";
-        const facts = {
-            state: issue.state,
-            stage,
-            idea: names.includes("idea"),
-            triage: names.includes("triage")
-        };
-        const card = cards.get(issue.number);
-        const have = card?.status ?? "";
-        const boardAt = card?.at ?? "";
-        let decision = decide({...facts, have, boardAt, labelAt: ""});
-        if (decision?.label) {
-            decision = decide({
-                ...facts,
-                have,
-                boardAt,
-                labelAt: await labelTime(ctx, issue.number)
-            });
-        }
-        if (!decision) {
-            continue;
-        }
-        if (decision.label) {
-            const cmd = ["gh-as", "ops", "issue", "edit", String(issue.number), "-R", repo];
-            if (decision.label.add.length) {
-                cmd.push("--add-label", decision.label.add.join(","));
-            }
-            if (decision.label.remove.length) {
-                cmd.push("--remove-label", decision.label.remove.join(","));
-            }
-            await exec(run, cmd);
-            out(`#${issue.number} label ← board: ${have}\n`);
-            continue;
-        }
-        let id = card?.id;
-        if (!id) {
-            const added = JSON.parse(
-                await exec(run, [
-                    "gh-as",
-                    "-",
-                    "project",
-                    "item-add",
-                    String(project.number),
-                    "--owner",
-                    owner,
-                    "--url",
-                    issue.url,
-                    "--format",
-                    "json"
-                ])
-            );
-            id = String(added.id);
-            if (book && state) {
-                book.issues[issue.number] = {...book.issues[issue.number], board: {item: id}};
-                fs.writeFileSync(state, `${JSON.stringify(book, null, 2)}\n`);
+    return failed;
+}
+
+/** Record the board item of an issue in the state, if it is not there already.
+ *
+ * @param {any} local - The state as last read.
+ * @param {(change: (b: any) => void) => void} save - Writes a change to the state.
+ * @param {number} n - The issue number.
+ * @param {string} id - The board item id.
+ */
+function remember(local, save, n, id) {
+    const known = local?.issues?.[n]?.board;
+    if ((typeof known === "string" ? known : known?.item) === id) {
+        return;
+    }
+    save(b => {
+        b.issues ??= {};
+        b.issues[n] = {...b.issues[n], board: {item: id}};
+    });
+}
+
+/** Find the card of one issue on this board: by the item id the state holds, and when
+ * that is missing or stale, by asking GitHub for the project items of the issue.
+ *
+ * @param {Context} ctx - The context.
+ * @param {any} book - The state.
+ * @param {number} n - The issue number.
+ * @param {string} projectId - The board id.
+ * @returns {Promise<{id: string, status: string, at: string}|undefined>} - The card, if any.
+ */
+async function findCard({repo, run}, book, n, projectId) {
+    const known = book?.issues?.[n]?.board;
+    const id = typeof known === "string" ? known : known?.item;
+    if (id) {
+        const r = await run([
+            "gh-as",
+            "-",
+            "api",
+            "graphql",
+            "-f",
+            `id=${id}`,
+            "-f",
+            `query=query($id: ID!) { node(id: $id) { ... on ProjectV2Item { ${ITEM_FIELDS} } } }`
+        ]);
+        if (r.code === 0) {
+            const node = JSON.parse(r.stdout).data?.node;
+            if (node) {
+                return itemRow(node);
             }
         }
-        const option = field.options.find(o => o.name === decision.board);
-        if (!option) {
-            throw new Error(`the board has no column ${decision.board}`);
-        }
+        // A stale id: look the card up again.
+    }
+    const [owner, name] = repo.split("/");
+    const reply = JSON.parse(
         await exec(run, [
             "gh-as",
             "-",
-            "project",
-            "item-edit",
-            "--project-id",
-            project.id,
-            "--id",
-            id,
-            "--field-id",
-            field.id,
-            "--single-select-option-id",
-            option.id
-        ]);
-        out(`#${issue.number} board ← label: ${decision.board}\n`);
-    }
+            "api",
+            "graphql",
+            "-f",
+            `owner=${owner}`,
+            "-f",
+            `name=${name}`,
+            "-F",
+            `number=${n}`,
+            "-f",
+            `query=query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { projectItems(first: 20) { nodes { id updatedAt project { id } status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name updatedAt } } } } } } }`
+        ])
+    );
+    const nodes = reply.data?.repository?.issue?.projectItems?.nodes ?? [];
+    const mine = nodes.find((/** @type {any} */ x) => x.project?.id === projectId);
+    return mine ? itemRow(mine) : undefined;
 }
 
 /** Make the board, link it to the repository and give its Status field the columns.
@@ -492,6 +601,7 @@ async function create(ctx) {
     if (!project) {
         throw new Error("the board was not created");
     }
+    // Linking an already linked board fails; that is fine, so the result is ignored.
     await run([
         "gh-as",
         "-",
@@ -564,7 +674,7 @@ export async function main(argv, {env = process.env, run = defaultRun, out, err}
                     ".nameWithOwner"
                 ])
             ).trim();
-        const ctx = {repo, run, out: write};
+        const ctx = {repo, run, out: write, err: writeErr};
         if (command === "labels") {
             await makeLabels(ctx);
         } else if (command === "create") {
@@ -576,19 +686,23 @@ export async function main(argv, {env = process.env, run = defaultRun, out, err}
             }
             write(`https://github.com/users/${repo.split("/")[0]}/projects/${project.number}\n`);
         } else {
-            const issues = (values.issues ?? "")
-                .split(",")
-                .filter(Boolean)
-                .map(s => {
-                    if (!/^\d+$/.test(s)) {
-                        throw new Error(`--issues must be numbers: ${JSON.stringify(s)}`);
-                    }
-                    return Number(s);
-                });
+            const issues = [
+                ...new Set(
+                    (values.issues ?? "")
+                        .split(",")
+                        .filter(Boolean)
+                        .map(s => {
+                            if (!/^\d+$/.test(s)) {
+                                throw new Error(`--issues must be numbers: ${JSON.stringify(s)}`);
+                            }
+                            return Number(s);
+                        })
+                )
+            ];
             if (!values.all && !issues.length) {
                 throw new Error("sync needs --all or --issues n,m");
             }
-            await sync({issues, all: values.all, state: values.state}, ctx);
+            return (await sync({issues, all: values.all, state: values.state}, ctx)) ? 1 : 0;
         }
         return 0;
     } catch (error) {
