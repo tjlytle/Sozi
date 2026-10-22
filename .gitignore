@@ -7,3 +7,6 @@ cache
 /js/backend/GoogleDrive.config.js
 npm-debug.log
 *.mo
+.agents/tmp/*
+!.agents/tmp/.gitkeep
+var/

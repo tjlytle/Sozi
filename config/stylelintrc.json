@@ -1,0 +1,58 @@
+{
+    "extends": "stylelint-config-standard",
+    "plugins": ["stylelint-declaration-strict-value"],
+    "rules": {
+        "declaration-no-important": true,
+        "selector-max-id": 0,
+        "selector-max-specificity": "0,3,0",
+        "property-no-vendor-prefix": true,
+        "value-no-vendor-prefix": true,
+        "selector-no-vendor-prefix": true,
+        "at-rule-no-vendor-prefix": true,
+        "scale-unlimited/declaration-strict-value": [
+            [
+                "color",
+                "background",
+                "background-color",
+                "border-color",
+                "outline-color",
+                "fill",
+                "stroke",
+                "/^margin/",
+                "/^padding/",
+                "gap",
+                "row-gap",
+                "column-gap"
+            ],
+            {
+                "ignoreValues": [
+                    "currentColor",
+                    "transparent",
+                    "inherit",
+                    "initial",
+                    "unset",
+                    "none",
+                    "/^(0|auto)(\\s+(0|auto))*$/"
+                ],
+                "disableFix": true,
+                "message": "Colours and spacing come from custom properties (var(--\u2026)), see standard 1.4"
+            }
+        ],
+        "selector-class-pattern": [
+            "^sozi-[a-z0-9]+(?:-[a-z0-9]+)*(?:__[a-z0-9]+(?:-[a-z0-9]+)*)?(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?$",
+            {
+                "resolveNestedSelectors": true,
+                "message": "Class names are sozi-block__element--modifier (standard 3.1)"
+            }
+        ],
+        "unit-disallowed-list": [
+            ["px"],
+            {
+                "ignoreProperties": {
+                    "px": ["/^border/", "/^outline/", "box-shadow", "text-shadow", "stroke-width"]
+                },
+                "message": "Sizes are rem; px only for borders, outlines and shadows (standard 3.2)"
+            }
+        ]
+    }
+}

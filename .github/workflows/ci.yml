@@ -1,0 +1,133 @@
+# The gate. See .claude/skills/code-standard/SKILL.md, section 1.5.
+# Every job here is marked required in the branch protection of master once it
+# is green; a check is never required while red (section 1, "Cleanups").
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [master]
+
+jobs:
+    check:
+        name: Format, lint, CSS, types
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - run: npm run check
+
+    pr-shape:
+        name: PR shape (standard 5)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+            - run: node bin/check-pr.js --base "origin/${{ github.base_ref }}" --branch "${{ github.head_ref }}"
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+
+    coverage:
+        name: Tests cover the change (standard 6.2)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+            - run: node bin/check-coverage.js --base "origin/${{ github.base_ref }}"
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+
+    deps:
+        name: Dependencies (standard 4)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - run: node bin/check-deps.js --base "origin/${{ github.base_ref }}"
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+
+    build:
+        name: Build, test, scenarios
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - run: npx gulp
+            - run: sudo apt-get update && sudo apt-get install -y xvfb
+            - name: Let Electron use its sandbox helper (ubuntu-latest restricts user namespaces)
+              run: |
+                  sudo chown root:root node_modules/electron/dist/chrome-sandbox
+                  sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+            - run: npm test
+            - run: npx playwright install --with-deps chromium
+            - run: xvfb-run -a npm run test:features
+            - name: Keep the scenario report and screenshots
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: features-${{ github.sha }}
+                  path: build/features
+                  retention-days: 30
+            - name: Keep the Electron build of this commit
+              if: github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: electron-${{ github.sha }}
+                  path: build/electron
+                  retention-days: 30
+            - name: Package the AppImage
+              if: github.event_name == 'push'
+              run: npx gulp packageLinux
+            - name: Keep the AppImage of this commit
+              if: github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: appimage-${{ github.sha }}
+                  path: build/dist/*.AppImage
+                  retention-days: 30
+            - name: Build the pages of the fixture deck
+              if: github.event_name == 'push'
+              run: xvfb-run -a node_modules/.bin/electron build/electron --cli build --out-dir build/pages test/fixtures/basic.svg
+            - name: Publish the pages of this commit
+              if: github.event_name == 'push'
+              continue-on-error: true
+              env:
+                  PIPELINE_EVIDENCE_ACCOUNT: ${{ secrets.PIPELINE_EVIDENCE_ACCOUNT }}
+                  PIPELINE_EVIDENCE_BUCKET: ${{ secrets.PIPELINE_EVIDENCE_BUCKET }}
+                  PIPELINE_EVIDENCE_TOKEN: ${{ secrets.PIPELINE_EVIDENCE_TOKEN }}
+                  PIPELINE_EVIDENCE_URL: ${{ secrets.PIPELINE_EVIDENCE_URL }}
+              run: |
+                  presenter=$(node bin/evidence.js put build/pages/basic-presenter.sozi.html --key builds/${{ github.sha }}/presenter.html)
+                  index=$(node bin/evidence.js put build/pages/basic.sozi.html --key builds/${{ github.sha }}/index.html)
+                  {
+                      echo "## Builds"
+                      echo "- [Presenter page]($presenter)"
+                      echo "- [Presentation page]($index)"
+                      echo "- AppImage: artifact appimage-${{ github.sha }}"
+                  } >> "$GITHUB_STEP_SUMMARY"

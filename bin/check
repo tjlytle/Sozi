@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# One command that runs every check CI runs, in the same order.
+#
+#   bin/check              every check over the whole repository (what CI does)
+#   bin/check FILE...      the per-file checks (format, lint) on just those files;
+#                          used by the Claude Code edit hook
+#   bin/check --fix FILE   same, but let Prettier and ESLint rewrite the files first
+#
+# Exit status is non-zero if any check failed. Every check runs even after a
+# failure, so one run reports everything.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+fix=0
+if [ "${1:-}" = "--fix" ]; then fix=1; shift; fi
+
+status=0
+run() {
+    local name=$1; shift
+    echo "== $name"
+    if ! "$@"; then
+        status=1
+        echo "== $name: FAILED"
+    fi
+}
+
+PRETTIER_PATHS=("src/js/**/*.{js,ts,tsx}" "src/css/**/*.css" "test/**/*.{js,ts,tsx}" "bin/*.js" "pipeline/lib/**/*.js" "config/**/*" ".github/**/*.yml" "*.json")
+STYLE_PATHS=("src/css/**/*.css")
+
+if [ $# -eq 0 ]; then
+    run "prettier"  npx prettier --check "${PRETTIER_PATHS[@]}"
+    run "eslint"    npx eslint --config config/eslintrc.mjs --max-warnings 0 src/js pipeline/lib test bin/*.js
+    run "stylelint" npx stylelint --config config/stylelintrc.json --max-warnings 0 "${STYLE_PATHS[@]}"
+    run "tsc"       npx tsc --noEmit -p tsconfig.json
+    run "tsc (js)"  npx tsc --noEmit -p tsconfig.checkjs.json
+    exit $status
+fi
+
+js=() css=() all=()
+for f in "$@"; do
+    [ -f "$f" ] || continue
+    case "$f" in
+        *.js|*.mjs|*.cjs|*.ts|*.tsx) js+=("$f"); all+=("$f") ;;
+        *.css)                 css+=("$f"); all+=("$f") ;;
+        *.json|*.yml|*.yaml) all+=("$f") ;;
+    esac
+done
+[ ${#all[@]} -eq 0 ] && exit 0
+
+if [ $fix -eq 1 ]; then
+    npx prettier --write --ignore-unknown "${all[@]}" >/dev/null
+    [ ${#js[@]} -gt 0 ] && npx eslint --config config/eslintrc.mjs --fix "${js[@]}" >/dev/null 2>&1
+    [ ${#css[@]} -gt 0 ] && npx stylelint --config config/stylelintrc.json --fix "${css[@]}" >/dev/null 2>&1
+fi
+run "prettier" npx prettier --check --ignore-unknown "${all[@]}"
+[ ${#js[@]} -gt 0 ]  && run "eslint"    npx eslint --config config/eslintrc.mjs --max-warnings 0 "${js[@]}"
+[ ${#css[@]} -gt 0 ] && run "stylelint" npx stylelint --config config/stylelintrc.json --max-warnings 0 "${css[@]}"
+exit $status

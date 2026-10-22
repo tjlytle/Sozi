@@ -1,0 +1,15 @@
+# Generated or vendored: never formatted.
+build/
+dist/
+node_modules/
+locales/
+package-lock.json
+yarn.lock
+*.min.js
+*.sozi.html
+test/fixtures/
+docs/
+src/templates/
+*.md
+*.html
+*.svg

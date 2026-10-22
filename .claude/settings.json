@@ -1,9 +1,4 @@
 {
-  "enabledPlugins": {
-    "gh-personas@dev-flow": true,
-    "build@initialcommit": true,
-    "superpowers@claude-plugins-official": true
-  },
   "hooks": {
     "PreToolUse": [
       {
@@ -16,6 +11,24 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-file.py\"",
+            "timeout": 120
+          }
+        ]
+      }
     ]
+  },
+  "enabledPlugins": {
+    "gh-personas@dev-flow": true,
+    "build@initialcommit": true,
+    "superpowers@claude-plugins-official": true,
+    "but-for-real@initialcommit": true
   }
 }

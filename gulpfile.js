@@ -448,6 +448,9 @@ const electronDistTask = series(
 
 exports.package = electronDistTask;
 
+// The Linux AppImage alone, for CI: the Windows target needs Wine.
+exports.packageLinux = series(electronBuildTask, electronLinuxPackageTask);
+
 /* -------------------------------------------------------------------------- *
  * Package the desktop application.
  * -------------------------------------------------------------------------- */
