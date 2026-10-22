@@ -67,18 +67,16 @@ function markInterval(list, first, last, step, value) {
  * @param {boolean} value - The value to assign for each frame to mark.
  */
 function markFrames(list, expr, value) {
-    expr = (expr || "").trim();
-    if (!expr.length) {
-        expr = value ? "all" : "none";
-    }
-    switch (expr) {
+    const trimmed = (expr || "").trim();
+    const frameExpr = trimmed.length ? trimmed : value ? "all" : "none";
+    switch (frameExpr) {
         case "all":
             markInterval(list, 0, list.length - 1, 1, value);
             break;
         case "none":
             break;
         default:
-            for (const intervalDef of expr.split(",")) {
+            for (const intervalDef of frameExpr.split(",")) {
                 const interval = intervalDef.split(":").map(s => s.trim());
                 if (interval.length > 0) {
                     const first = interval[0] !== "" ? parseInt(interval[0]) - 1 : 0;

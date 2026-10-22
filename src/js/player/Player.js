@@ -438,16 +438,14 @@ export class Player extends EventEmitter {
             this.animator.stop();
         }
 
-        timingFunction = Timing[timingFunction];
-        if (backwards) {
-            timingFunction = timingFunction.reverse;
-        }
+        const forwardTiming = Timing[timingFunction];
+        const timing = backwards ? forwardTiming.reverse : forwardTiming;
 
         this.transitions.push({
             camera,
             initialState: new CameraState(camera),
             finalState: this.targetFrame.cameraStates[camera.layer.index],
-            timingFunction,
+            timingFunction: timing,
             relativeZoom,
             svgPath,
             backwards

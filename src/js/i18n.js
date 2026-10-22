@@ -28,20 +28,21 @@ function normalize(tag) {
  * @returns {Jed} - An instance of `Jed` that provides the `gettext` function.
  */
 export function init(lang = "auto") {
+    let requestedLang = lang;
     if (lang === "auto") {
-        lang =
+        requestedLang =
             window.navigator.languages && window.navigator.languages.length
                 ? window.navigator.languages[0]
                 : window.navigator.language || window.navigator.userLanguage || "en";
     }
 
     // Normalize the given language tag and extract the language code alone
-    lang = normalize(lang);
-    const langShort = lang.split("-")[0];
+    const langTag = normalize(requestedLang);
+    const langShort = langTag.split("-")[0];
 
     // Find the user language in the available locales
     const allLanguages = Object.keys(locales).map(normalize);
-    let langIndex = allLanguages.indexOf(lang);
+    let langIndex = allLanguages.indexOf(langTag);
     if (langIndex < 0) {
         langIndex = allLanguages.indexOf(langShort);
     }

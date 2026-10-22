@@ -594,9 +594,10 @@ export class Controller extends EventEmitter {
         const frameIndices = framesByIndex.map(frame => frame.index);
 
         // Compute the new target frame index after the selection has been removed.
+        let targetIndex = toFrameIndex;
         for (const frame of framesByIndex) {
             if (frame.index < toFrameIndex) {
-                toFrameIndex--;
+                targetIndex--;
             }
         }
 
@@ -608,7 +609,7 @@ export class Controller extends EventEmitter {
         const reorderedFrames = this.presentation.frames.filter(
             frame => !this.selection.hasFrames([frame])
         );
-        Array.prototype.splice.apply(reorderedFrames, [toFrameIndex, 0].concat(framesByIndex));
+        Array.prototype.splice.apply(reorderedFrames, [targetIndex, 0].concat(framesByIndex));
 
         // Identify the frames and layers that must be unlinked after the move operation.
         // If a linked frame is moved after a frame to which it was not previously linked,
@@ -849,10 +850,8 @@ export class Controller extends EventEmitter {
      * @fires module:Controller.repaint
      */
     selectFrame(index) {
-        if (index < 0) {
-            index = this.presentation.frames.length + index;
-        }
-        this.updateLayerAndFrameSelection(false, false, this.selection.selectedLayers, index);
+        const frameIndex = index < 0 ? this.presentation.frames.length + index : index;
+        this.updateLayerAndFrameSelection(false, false, this.selection.selectedLayers, frameIndex);
     }
 
     /** Select all frames.
@@ -1775,25 +1774,28 @@ export class Controller extends EventEmitter {
         const shift = /\bShift\s*\+/i.test(newValue);
 
         // Remove all occurrences of modifier keys and spaces in the given value.
-        newValue = newValue.replace(/\bCtrl\s*\+\s*/gi, "");
-        newValue = newValue.replace(/\bAlt\s*\+\s*/gi, "");
-        newValue = newValue.replace(/\bShift\s*\+\s*/gi, "");
-        newValue = newValue.replace(/\s/g, "").toUpperCase();
-        if (newValue.length === 0) {
+        const key = newValue
+            .replace(/\bCtrl\s*\+\s*/gi, "")
+            .replace(/\bAlt\s*\+\s*/gi, "")
+            .replace(/\bShift\s*\+\s*/gi, "")
+            .replace(/\s/g, "")
+            .toUpperCase();
+        if (key.length === 0) {
             return;
         }
 
         // Rewrite the shortcut in standard order.
+        let shortcut = key;
         if (shift) {
-            newValue = "Shift+" + newValue;
+            shortcut = "Shift+" + shortcut;
         }
         if (alt) {
-            newValue = "Alt+" + newValue;
+            shortcut = "Alt+" + shortcut;
         }
         if (ctrl) {
-            newValue = "Ctrl+" + newValue;
+            shortcut = "Ctrl+" + shortcut;
         }
-        this.preferences.keys[action] = newValue;
+        this.preferences.keys[action] = shortcut;
     }
 
     /** Update the user interface after modifying the preferences.
