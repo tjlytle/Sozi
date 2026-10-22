@@ -7,6 +7,8 @@ import path from "node:path";
 import {createSandbox} from "../../pipeline/lib/sandbox.js";
 import {loadConfig} from "../../pipeline/lib/config.js";
 
+const REPO = path.resolve(import.meta.dirname, "..", "..");
+
 describe("sandbox", () => {
     const settings = loadConfig({
         root: "/nonexistent",
@@ -161,5 +163,55 @@ describe("sandbox", () => {
         assert.match(path.basename(a), /^out-25-build-/);
         assert.equal(fs.readFileSync(path.join(a, "prompt.md"), "utf8"), "P");
         assert.equal(fs.readFileSync(path.join(b, "allow.txt"), "utf8"), "Read\n");
+    });
+    test("the profile volume and the harness config dirs when profile is set", () => {
+        const args = sb.startArgs({
+            issue: 25,
+            stage: "build",
+            persona: "builder",
+            profile: true,
+            outbox: "/o",
+            mintUrl: "u",
+            mintKey: "k"
+        });
+        assert.ok(args.includes("sozi-factory-profile-builder:/profile"));
+        assert.ok(args.includes("CLAUDE_CONFIG_DIR=/profile/claude"));
+        assert.ok(args.indexOf("sozi-factory") > args.indexOf("CLAUDE_CONFIG_DIR=/profile/claude"));
+    });
+    test("no profile arguments when profile is not set", () => {
+        const args = sb.startArgs({
+            issue: 25,
+            stage: "build",
+            persona: "builder",
+            outbox: "/o",
+            mintUrl: "u",
+            mintKey: "k"
+        });
+        assert.ok(!args.some(a => a.includes("/profile")));
+    });
+    test("login runs an interactive container on the host network with the volume", async () => {
+        /** @type {string[]} */
+        let cmd = [];
+        const sb2 = createSandbox({
+            settings,
+            root: "/repo",
+            run: async () => ({code: 0, stdout: "", stderr: ""}),
+            runInteractive: c => {
+                cmd = c;
+                return 0;
+            }
+        });
+        assert.equal(await sb2.login({persona: "architect", harness: "claude"}), 0);
+        assert.deepEqual(cmd.slice(0, 4), ["docker", "run", "-it", "--rm"]);
+        assert.ok(cmd.includes("--network") && cmd.includes("host"));
+        assert.ok(cmd.includes("sozi-factory-profile-architect:/profile"));
+        assert.ok(cmd.includes("PIPELINE_LOGIN_HARNESS=claude"));
+        assert.ok(cmd.includes("PIPELINE_LOGIN_PERSONA=architect"));
+        assert.deepEqual(cmd.slice(-2), ["bash", "/pipeline/login.sh"]);
+    });
+    test("the image creates /profile for the factory user", () => {
+        const text = fs.readFileSync(path.join(REPO, "docker", "factory", "Dockerfile"), "utf8");
+        assert.match(text, /mkdir -p [^\n]*\/profile/);
+        assert.match(text, /chown factory:factory [^\n]*\/profile/);
     });
 });

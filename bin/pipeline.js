@@ -18,6 +18,7 @@
 // lives in var/pipeline/state.json. Ctrl-C saves the state and leaves running containers
 // to finish; the next start adopts them.
 
+import {spawnSync} from "node:child_process";
 import path from "node:path";
 import {parseArgs} from "node:util";
 import {fileURLToPath, pathToFileURL} from "node:url";
@@ -43,6 +44,7 @@ const USAGE = [
 /**
  * @typedef {object} Deps
  * @property {import("../pipeline/lib/github.js").Runner} run - Runs commands on the host.
+ * @property {(cmd: string[]) => number | Promise<number>} runInteractive - Runs a command with the terminal attached; resolves to its exit status.
  * @property {typeof startMint} startMint - Starts the mint endpoint.
  * @property {typeof digestMain} digest - The digest command line.
  * @property {any} [github] - The GitHub client; the real one when absent.
@@ -56,6 +58,7 @@ const USAGE = [
 /** @type {Deps} */
 const DEFAULT_DEPS = {
     run: defaultRun,
+    runInteractive: cmd => spawnSync(cmd[0], cmd.slice(1), {stdio: "inherit"}).status ?? 1,
     startMint,
     digest: digestMain,
     sleep: undefined,
@@ -222,7 +225,15 @@ export async function main(
               }));
         return 0;
     }
-    const sandbox = deps.sandbox ?? createSandbox({settings, root, run: deps.run, env: runEnv});
+    const sandbox =
+        deps.sandbox ??
+        createSandbox({
+            settings,
+            root,
+            run: deps.run,
+            runInteractive: deps.runInteractive,
+            env: runEnv
+        });
     if (opt["build-image"]) {
         await sandbox.buildImage();
         return 0;

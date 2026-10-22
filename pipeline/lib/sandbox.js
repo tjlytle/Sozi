@@ -9,7 +9,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {spawnSync} from "node:child_process";
 import {defaultRun} from "./github.js";
+import {inspectProfile, profileArgs} from "./profile.js";
 
 /** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
  * environment of the docker command and they never appear in a process listing.
@@ -31,6 +33,16 @@ const BY_NAME = [
 const MAX_RESUMES = "3";
 
 /**
+ * Run a command with the terminal attached.
+ *
+ * @param {string[]} cmd - The command and its arguments.
+ * @returns {number} The exit status; 1 when the command did not run to an exit.
+ */
+function spawnInteractive(cmd) {
+    return spawnSync(cmd[0], cmd.slice(1), {stdio: "inherit"}).status ?? 1;
+}
+
+/**
  * @typedef {import("./github.js").Runner} Runner
  */
 
@@ -44,6 +56,8 @@ const MAX_RESUMES = "3";
  * @property {string} [harness] - The harness; the stage's setting when absent.
  * @property {string} [model] - The model; the stage's setting when absent.
  * @property {string} [tag] - A suffix that keeps the container name unique.
+ * @property {string} [persona] - The persona whose profile volume is mounted.
+ * @property {boolean} [profile] - Whether to mount the persona's profile; nothing is mounted when absent.
  * @property {Date} [now] - The time the name carries; the current time when absent.
  * @property {Record<string, string>} [env] - Values for the names passed through, such as PIPELINE_ISSUE.
  */
@@ -57,6 +71,9 @@ const MAX_RESUMES = "3";
  * @property {(container: string) => Promise<"running" | "exited" | "gone" | "unknown">} status - A container's state; unknown when docker itself fails.
  * @property {(container: string) => Promise<void>} stop - Stops a container, ten seconds' grace.
  * @property {(container: string) => Promise<void>} remove - Removes a container.
+ * @property {(persona: string) => Promise<import("./profile.js").ProfileInfo | null>} inspectProfile - What a persona's profile holds; null when it has no volume.
+ * @property {(opts: {persona: string, harness: string}) => string[]} loginArgs - The docker run arguments of an interactive login.
+ * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
  * @property {(opts: {issue: number, stage: string, prompt: string, allow: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path.
  */
 
@@ -95,6 +112,8 @@ function pluginDir() {
  * @param {Runner} [options.run] - The command runner.
  * @param {Record<string, string | undefined>} [options.env] - The loop's environment with the
  *     secrets of var/pipeline/env; the names docker passes on are taken from it.
+ * @param {(cmd: string[]) => number | Promise<number>} [options.runInteractive] - Runs a
+ *     command with the terminal attached and returns its exit status.
  * @param {string} [options.pluginDir] - The gh-personas plugin directory to build into the
  *     image; by default the newest version in the Claude plugin cache.
  * @returns {Sandbox} The sandbox.
@@ -104,6 +123,7 @@ export function createSandbox({
     root,
     run = defaultRun,
     env: loopEnv = {},
+    runInteractive = spawnInteractive,
     pluginDir: pluginDirGiven
 }) {
     const varDir = path.join(root, "var", "pipeline");
@@ -127,7 +147,18 @@ export function createSandbox({
     }
 
     /** @type {Sandbox["startArgs"]} */
-    function startArgs({issue, stage, outbox, mintUrl, harness, model, tag, now}) {
+    function startArgs({
+        issue,
+        stage,
+        outbox,
+        mintUrl,
+        harness,
+        model,
+        tag,
+        now,
+        persona,
+        profile
+    }) {
         const at = now ?? new Date();
         const name = `factory-${issue}-${stage}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
         const args = ["run", "-d", "--name", tag ? `${name}-${tag}` : name];
@@ -153,8 +184,32 @@ export function createSandbox({
         for (const [key, value] of Object.entries(values)) {
             args.push("-e", `${key}=${value}`);
         }
+        if (profile) {
+            args.push(...profileArgs(/** @type {string} */ (persona)));
+        }
         args.push(settings.image, "/pipeline/stage.sh", String(issue), stage);
         return args;
+    }
+
+    /** @type {Sandbox["loginArgs"]} */
+    function loginArgs({persona, harness}) {
+        return [
+            "run",
+            "-it",
+            "--rm",
+            "--network",
+            "host",
+            "--name",
+            `factory-login-${persona}`,
+            ...profileArgs(persona),
+            "-e",
+            `PIPELINE_LOGIN_PERSONA=${persona}`,
+            "-e",
+            `PIPELINE_LOGIN_HARNESS=${harness}`,
+            settings.image,
+            "bash",
+            "/pipeline/login.sh"
+        ];
     }
 
     return {
@@ -189,6 +244,13 @@ export function createSandbox({
             ]);
         },
         startArgs,
+        loginArgs,
+        async login(opts) {
+            return runInteractive(["docker", ...loginArgs(opts)]);
+        },
+        inspectProfile(persona) {
+            return inspectProfile(run, {image: settings.image, persona});
+        },
         async start(opts) {
             const ev = settings.evidence;
             /** @type {Record<string, string>} */
