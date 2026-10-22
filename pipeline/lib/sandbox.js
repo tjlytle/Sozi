@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
 import {defaultRun} from "./github.js";
-import {inspectProfile, profileArgs} from "./profile.js";
+import {inspectProfile, profileArgs, volumeName} from "./profile.js";
 
 /** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
  * environment of the docker command and they never appear in a process listing.
@@ -74,6 +74,7 @@ function spawnInteractive(cmd) {
  * @property {(persona: string) => Promise<import("./profile.js").ProfileInfo | null>} inspectProfile - What a persona's profile holds; null when it has no volume.
  * @property {(opts: {persona: string, harness: string}) => string[]} loginArgs - The docker run arguments of an interactive login.
  * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
+ * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume into a new volume for another; refuses when that volume exists.
  * @property {(opts: {issue: number, stage: string, prompt: string, allow: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path.
  */
 
@@ -247,6 +248,28 @@ export function createSandbox({
         loginArgs,
         async login(opts) {
             return runInteractive(["docker", ...loginArgs(opts)]);
+        },
+        async copyProfile({from, to}) {
+            const source = volumeName(from);
+            const target = volumeName(to);
+            if ((await run(["docker", "volume", "inspect", target])).code === 0) {
+                throw new Error(`profile of ${to} exists; remove the volume first`);
+            }
+            await must(["docker", "volume", "create", target]);
+            await must([
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                `${source}:/from:ro`,
+                "-v",
+                `${target}:/to`,
+                settings.image,
+                "cp",
+                "-a",
+                "/from/.",
+                "/to/"
+            ]);
         },
         inspectProfile(persona) {
             return inspectProfile(run, {image: settings.image, persona});

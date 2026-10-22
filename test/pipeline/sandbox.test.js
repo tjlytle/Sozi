@@ -209,6 +209,56 @@ describe("sandbox", () => {
         assert.ok(cmd.includes("PIPELINE_LOGIN_PERSONA=architect"));
         assert.deepEqual(cmd.slice(-2), ["bash", "/pipeline/login.sh"]);
     });
+    test("copyProfile creates the target volume, then copies with the source read-only", async () => {
+        /** @type {string[][]} */
+        const cmds = [];
+        const sb3 = createSandbox({
+            settings,
+            root: "/repo",
+            run: async cmd => {
+                cmds.push(cmd);
+                return cmd[2] === "inspect"
+                    ? {code: 1, stdout: "", stderr: "No such volume"}
+                    : {code: 0, stdout: "", stderr: ""};
+            }
+        });
+        await sb3.copyProfile({from: "builder", to: "qa"});
+        assert.deepEqual(cmds[0], ["docker", "volume", "inspect", "sozi-factory-profile-qa"]);
+        assert.deepEqual(cmds[1], ["docker", "volume", "create", "sozi-factory-profile-qa"]);
+        assert.deepEqual(cmds[2], [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            "sozi-factory-profile-builder:/from:ro",
+            "-v",
+            "sozi-factory-profile-qa:/to",
+            settings.image,
+            "cp",
+            "-a",
+            "/from/.",
+            "/to/"
+        ]);
+        assert.equal(cmds.length, 3);
+    });
+    test("copyProfile refuses when the target already has a volume", async () => {
+        /** @type {string[][]} */
+        const cmds = [];
+        const sb3 = createSandbox({
+            settings,
+            root: "/repo",
+            run: async cmd => {
+                cmds.push(cmd);
+                return {code: 0, stdout: "", stderr: ""};
+            }
+        });
+        await assert.rejects(
+            sb3.copyProfile({from: "builder", to: "qa"}),
+            /^Error: profile of qa exists; remove the volume first$/
+        );
+        assert.equal(cmds.length, 1);
+        await assert.rejects(sb3.copyProfile({from: "root", to: "qa"}), /unknown persona/);
+    });
     test("the image creates /profile for the factory user", () => {
         const text = fs.readFileSync(path.join(REPO, "docker", "factory", "Dockerfile"), "utf8");
         assert.match(text, /mkdir -p [^\n]*\/profile/);

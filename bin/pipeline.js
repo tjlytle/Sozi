@@ -12,6 +12,10 @@
 //   node bin/pipeline.js --status       sessions, tries, queued labels, totals
 //   node bin/pipeline.js --digest       finish the run's Notion page
 //   node bin/pipeline.js --build-image  build the stage image
+//   node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]
+//                                       log a persona in inside a container
+//   node bin/pipeline.js --copy-profile <from> <to>
+//                                       copy one persona's profile to another
 //   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
@@ -28,6 +32,7 @@ import {startMint} from "../pipeline/lib/mint.js";
 import {createControl, drain, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
 import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
+import {PERSONAS} from "../pipeline/lib/profile.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
 import {statusText} from "../pipeline/lib/status.js";
@@ -38,7 +43,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
-    "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]"
+    "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]",
+    "       node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]   log a persona in inside a container",
+    "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile to another"
 ];
 
 /**
@@ -108,6 +115,17 @@ function openState(file, now) {
     return state;
 }
 
+/** Check a persona name.
+ *
+ * @param {string} persona - The name.
+ * @throws {Error} - When it is not a persona.
+ */
+function checkPersona(persona) {
+    if (!PERSONAS.includes(persona)) {
+        throw new Error(`persona must be one of ${PERSONAS.join("|")}`);
+    }
+}
+
 /** Read the command line.
  *
  * @param {string[]} argv - The arguments after the script name.
@@ -123,11 +141,26 @@ function parseCommand(argv) {
             status: {type: "boolean"},
             digest: {type: "boolean"},
             "build-image": {type: "boolean"},
+            login: {type: "string"},
+            "copy-profile": {type: "boolean"},
             until: {type: "string"},
             epic: {type: "string"},
             harness: {type: "string"}
         }
     });
+    if (values["copy-profile"]) {
+        if (positionals.length !== 2) {
+            throw new Error("--copy-profile takes <from> <to>");
+        }
+        positionals.forEach(checkPersona);
+        return {opt: {...values, copy: positionals}, target: "watch"};
+    }
+    if (values.login !== undefined) {
+        checkPersona(values.login);
+        if (!["claude", "codex", "opencode"].includes(values.harness ?? "claude")) {
+            throw new Error("harness must be one of claude|codex|opencode");
+        }
+    }
     const target = positionals[0] ?? "watch";
     if (positionals.length > 1 || !/^(watch|\d+)$/.test(target)) {
         throw new Error(`unexpected ${positionals.join(" ")}`);
@@ -200,7 +233,10 @@ export async function main(
         ({opt, target} = parseCommand(argv));
         settings = loadConfig({
             root,
-            env: opt.harness ? {...env, PIPELINE_HARNESS: opt.harness} : env
+            env:
+                opt.harness && opt.login === undefined
+                    ? {...env, PIPELINE_HARNESS: opt.harness}
+                    : env
         });
         opt.until = opt.until ? parseUntil(opt.until, new Date()).toISOString() : null;
     } catch (error) {
@@ -237,6 +273,20 @@ export async function main(
         });
     if (opt["build-image"]) {
         await sandbox.buildImage();
+        return 0;
+    }
+
+    if (opt.login !== undefined) {
+        return sandbox.login({persona: opt.login, harness: opt.harness ?? "claude"});
+    }
+    if (opt["copy-profile"]) {
+        const [from, to] = opt.copy;
+        try {
+            await sandbox.copyProfile({from, to});
+        } catch (error) {
+            writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
+            return 1;
+        }
         return 0;
     }
 

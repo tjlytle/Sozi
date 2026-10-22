@@ -224,3 +224,69 @@ describe("bin/pipeline.js", () => {
         assert.equal(saved.run.stopped, false, "an interrupted run goes on at the next start");
     });
 });
+
+test("--login runs the interactive login for a persona and returns its status", async () => {
+    const h = host({statuses: []});
+    /** @type {any} */
+    let got;
+    h.deps.sandbox.login = async (/** @type {any} */ opts) => {
+        got = opts;
+        return 0;
+    };
+    assert.equal(
+        await main(["--login", "architect"], {
+            root: h.root,
+            env: {},
+            out: () => {},
+            deps: h.deps
+        }),
+        0
+    );
+    assert.deepEqual(got, {persona: "architect", harness: "claude"});
+    assert.ok(!h.events.includes("close"), "no mint was opened");
+    assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
+test("--login rejects an unknown persona or harness with the usage", async () => {
+    let text = "";
+    assert.equal(await main(["--login", "root"], {env: {}, err: t => (text += t)}), 2);
+    assert.match(text, /persona must be one of advocate\|architect\|builder\|qa\|reviewer\|ops/);
+    assert.match(text, /--login <persona>/);
+    text = "";
+    assert.equal(
+        await main(["--login", "qa", "--harness", "cursor"], {env: {}, err: t => (text += t)}),
+        2
+    );
+    assert.match(text, /harness must be one of claude\|codex\|opencode/);
+});
+
+test("--copy-profile copies one persona to another without a mint or state", async () => {
+    const h = host({statuses: []});
+    /** @type {any} */
+    let got;
+    h.deps.sandbox.copyProfile = async (/** @type {any} */ opts) => {
+        got = opts;
+    };
+    assert.equal(
+        await main(["--copy-profile", "builder", "qa"], {
+            root: h.root,
+            env: {},
+            out: () => {},
+            deps: h.deps
+        }),
+        0
+    );
+    assert.deepEqual(got, {from: "builder", to: "qa"});
+    assert.ok(!h.events.includes("close"), "no mint was opened");
+    assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
+test("--copy-profile rejects an unknown persona with the usage", async () => {
+    let text = "";
+    assert.equal(
+        await main(["--copy-profile", "builder", "root"], {env: {}, err: t => (text += t)}),
+        2
+    );
+    assert.match(text, /persona must be one of/);
+    assert.equal(await main(["--copy-profile", "builder"], {env: {}, err: () => {}}), 2);
+});
