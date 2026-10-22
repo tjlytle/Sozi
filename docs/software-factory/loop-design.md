@@ -118,7 +118,7 @@ never means a fixed hour.
 - `--until <duration|time>` (`--until 6h`, `--until 07:00`): no new session starts after
   that point; running sessions finish and are judged.
 - `--epic <#>`: the scope is the epic's open children plus every issue filed during the
-  run by a session working on one of them (the prompts have personas write `Epic: #<n>`
+  run by a session working on one of them (the prompts have personas write `Part of #<n>`
   into any issue they file while on an epic's child, so the scope follows the work). The
   loop stops when nothing in the scope is due: each issue is done, or is parked, in
   triage, an idea, or blocked by an issue outside the scope.
@@ -434,9 +434,21 @@ secrets; the board sync running from the same routine.
 - The epic (#24) never carries a stage label; only its children move.
 - A parked issue resumes at the stage it parked from, not always `stage:in-progress`.
 - One loop, one project, and the project is one repository: see "One repository" below.
-- Day-one checks the builder verifies and writes back here: whether headless `claude -p`
-  installs the marketplaces named in `.claude/settings.json`; whether the Mobbin MCP is
-  reachable inside the container.
+- The day-one checks are deferred to the launch plan's first supervised run
+  (`.agents/plans/2026-10-21-factory-launch.md`, Task 6), because the Claude token was not
+  available when the loop was built. Whoever runs it writes the answers back here: (1) does
+  headless `claude -p` load the plugin hooks (a `gh-as` denial on a bare `git commit` in a
+  second prompt) and install the marketplaces named in `.claude/settings.json`; (2) is the
+  Mobbin MCP reachable inside the container without a display; (3) does `claude -p` in a
+  fresh clone show a trust prompt, and if so what fixed it (a `.claude/settings.local.json`
+  written by `stage.sh`, or `--permission-mode`). The image loads the plugin with
+  `--plugin-dir /opt/gh-personas`, which sidesteps the marketplace question for the
+  container; the cloud path still needs the answer.
+- What the build taught: the image is about 6.5 GB and builds in about 6 minutes. Stage
+  runs on `master` run `npm ci` today, because master's lockfile differs from the branch
+  until the foundation PR merges. `--once` and a Ctrl-C wait for running sessions, so the
+  mint endpoint stays up while they work. A session that ends with a note and no done
+  request is waiting for a person, not a failed try.
 
 ## One repository
 
