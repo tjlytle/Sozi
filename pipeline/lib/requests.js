@@ -37,6 +37,8 @@ const LABELS = [
     "working"
 ];
 
+const USAGE_STATUSES = ["ok", "error", "rate-limited", "budget", "unsupported"];
+
 const NEVER_ADDED = ["stage:done", "working"];
 const NEVER_REMOVED = ["working"];
 
@@ -109,6 +111,14 @@ function isObject(value) {
 
 /**
  * @param {unknown} value - A value from a request file.
+ * @returns {value is number} Whether it is a positive safe integer.
+ */
+function isIssue(value) {
+    return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+/**
+ * @param {unknown} value - A value from a request file.
  * @param {string} what - What the value is, for the error message.
  * @returns {string[]} The value as a list of labels, or an empty list when absent.
  */
@@ -167,7 +177,7 @@ export function validateRequest(obj, {issue}) {
     }
 
     if (kind === "label") {
-        if (typeof body.issue !== "number" || !Number.isInteger(body.issue)) {
+        if (!isIssue(body.issue)) {
             throw new Error("label needs an issue number");
         }
         const add = labelList(body.add, "add");
@@ -199,7 +209,7 @@ export function validateRequest(obj, {issue}) {
     /** @type {SpawnRequest} */
     const spawn = {kind: "spawn", persona: body.persona, prompt: body.prompt};
     if (body.issue !== undefined) {
-        if (typeof body.issue !== "number" || !Number.isInteger(body.issue)) {
+        if (!isIssue(body.issue)) {
             throw new Error("spawn issue must be an issue number");
         }
         spawn.issue = body.issue;
@@ -211,6 +221,22 @@ export function validateRequest(obj, {issue}) {
         spawn.harness = body.harness;
     }
     return spawn;
+}
+
+/**
+ * Order request file names by their number when both carry one, else by name.
+ *
+ * @param {string} a - A file name.
+ * @param {string} b - Another file name.
+ * @returns {number} Sort order.
+ */
+function compareNames(a, b) {
+    const na = /^req-(\d+)/.exec(a);
+    const nb = /^req-(\d+)/.exec(b);
+    if (na && nb && Number(na[1]) !== Number(nb[1])) {
+        return Number(na[1]) - Number(nb[1]);
+    }
+    return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**
@@ -230,7 +256,7 @@ export function readRequests(dir, {issue}) {
         names = fs
             .readdirSync(dir)
             .filter(n => /^req-.*\.json$/.test(n))
-            .sort();
+            .sort(compareNames);
     } catch {
         return {accepted, refused};
     }
@@ -267,14 +293,35 @@ export function readResult(dir) {
     if (!isObject(raw)) {
         return null;
     }
-    const usage = isObject(raw.usage) ? raw.usage : {};
+    const u = isObject(raw.usage) ? raw.usage : {};
+    /**
+     * @param {unknown} v - A usage value.
+     * @returns {number} The value if finite, else 0.
+     */
+    const num = v => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+    /**
+     * @param {unknown} v - A list from the file.
+     * @returns {string[]} Its string elements.
+     */
+    const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
     return {
-        ...raw,
-        exit: typeof raw.exit === "number" ? raw.exit : 1,
+        exit: Number.isInteger(raw.exit) ? /** @type {number} */ (raw.exit) : 1,
         session: typeof raw.session === "string" ? raw.session : null,
-        usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 0, status: "error", ...usage},
-        changed: Array.isArray(raw.changed) ? raw.changed : [],
-        commits: Array.isArray(raw.commits) ? raw.commits : [],
-        resumes: typeof raw.resumes === "number" ? raw.resumes : 0
+        usage: {
+            tokensIn: num(u.tokensIn),
+            tokensOut: num(u.tokensOut),
+            costUsd: num(u.costUsd),
+            turns: num(u.turns),
+            status:
+                typeof u.status === "string" && USAGE_STATUSES.includes(u.status)
+                    ? u.status
+                    : "error"
+        },
+        changed: strings(raw.changed),
+        commits: strings(raw.commits),
+        resumes:
+            Number.isInteger(raw.resumes) && /** @type {number} */ (raw.resumes) >= 0
+                ? /** @type {number} */ (raw.resumes)
+                : 0
     };
 }

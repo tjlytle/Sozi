@@ -170,3 +170,82 @@ describe("readResult", () => {
         });
     });
 });
+
+describe("hostile input", () => {
+    const session = {issue: 25};
+    test("types are checked", () => {
+        assert.throws(
+            () => validateRequest({done: {issue: "25", to: "stage:qa"}}, session),
+            /issue/
+        );
+        assert.throws(() => validateRequest({done: {issue: 25, to: 5}}, session), /done target/);
+        assert.throws(
+            () => validateRequest({label: {issue: 25, add: "triage"}}, session),
+            /list of labels/
+        );
+        assert.throws(() => validateRequest(JSON.parse('{"__proto__": {}}'), session), /unknown/);
+        assert.throws(() => validateRequest({label: {issue: 1.5, add: []}}, session), /issue/);
+        assert.throws(() => validateRequest({label: {issue: 0, add: []}}, session), /issue/);
+        assert.throws(() => validateRequest({label: {issue: 2 ** 60, add: []}}, session), /issue/);
+        assert.throws(
+            () => validateRequest({spawn: {persona: "qa", prompt: "x", issue: 1.5}}, session),
+            /issue/
+        );
+        assert.throws(
+            () => validateRequest({spawn: {persona: "qa", prompt: "x", issue: -3}}, session),
+            /issue/
+        );
+    });
+    test("a done for another issue is refused through readRequests", () => {
+        const dir = scratch();
+        fs.writeFileSync(
+            path.join(dir, "req-1.json"),
+            JSON.stringify({done: {issue: 26, to: "stage:qa"}})
+        );
+        const {accepted, refused} = readRequests(dir, session);
+        assert.deepEqual(accepted, []);
+        assert.equal(refused[0].file, "req-1.json");
+        assert.match(refused[0].reason, /issue 26/);
+    });
+    test("request files sort numerically", () => {
+        const dir = scratch();
+        for (const n of [10, 2, 1]) {
+            fs.writeFileSync(path.join(dir, `req-${n}.json`), JSON.stringify({note: `n${n}`}));
+        }
+        assert.deepEqual(
+            readRequests(dir, session).accepted.map(r => (r.kind === "note" ? r.text : "")),
+            ["n1", "n2", "n10"]
+        );
+    });
+    test("readResult checks every field type and drops unknown keys", () => {
+        const dir = scratch();
+        fs.writeFileSync(
+            path.join(dir, "result.json"),
+            JSON.stringify({
+                exit: "0",
+                session: 7,
+                extra: "x",
+                usage: {tokensIn: "x", tokensOut: 5, costUsd: null, turns: 2, status: "weird"},
+                changed: ["a", 3, "b"],
+                commits: "abc",
+                resumes: -1
+            })
+        );
+        assert.deepEqual(readResult(dir), {
+            exit: 1,
+            session: null,
+            usage: {tokensIn: 0, tokensOut: 5, costUsd: 0, turns: 2, status: "error"},
+            changed: ["a", "b"],
+            commits: [],
+            resumes: 0
+        });
+        fs.writeFileSync(
+            path.join(dir, "result.json"),
+            JSON.stringify({usage: "lots", exit: 0, resumes: 2})
+        );
+        const result = readResult(dir);
+        assert.equal(result?.usage.turns, 0);
+        assert.equal(result?.exit, 0);
+        assert.equal(result?.resumes, 2);
+    });
+});
