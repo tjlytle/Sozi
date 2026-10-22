@@ -71,3 +71,54 @@ export function profileArgs(persona) {
         "XDG_CONFIG_HOME=/profile/xdg"
     ];
 }
+
+/**
+ * What a persona profile holds; names and booleans only, never a value.
+ *
+ * @typedef {object} ProfileInfo
+ * @property {{present: boolean, loggedIn: boolean, servers: string[]}} claude - The Claude Code profile.
+ * @property {{present: boolean, loggedIn: boolean}} codex - The Codex profile.
+ * @property {boolean} writable - Whether the profile directory is writable.
+ */
+
+/** Inspect a persona's profile volume read-only, in the stage image.
+ *
+ * @param {import("./github.js").Runner} run - The command runner.
+ * @param {{image: string, persona: string}} options - The stage image and the persona.
+ * @returns {Promise<ProfileInfo | null>} - What the profile holds; null when it has no volume.
+ * @throws {Error} - When the inspection output cannot be read.
+ */
+export async function inspectProfile(run, {image, persona}) {
+    const volume = volumeName(persona);
+    if ((await run(["docker", "volume", "inspect", volume])).code !== 0) {
+        return null;
+    }
+    const r = await run([
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        `${volume}:/profile:ro`,
+        image,
+        "bash",
+        "/pipeline/profile-inspect.sh"
+    ]);
+    try {
+        if (r.code !== 0) {
+            throw new Error("inspect exited non-zero");
+        }
+        return JSON.parse(r.stdout.trim().split("\n").pop() ?? "");
+    } catch {
+        throw new Error(`profile inspect failed for ${persona}`);
+    }
+}
+
+/** The MCP servers a profile holds that its persona may not.
+ *
+ * @param {ProfileInfo} info - The inspected profile.
+ * @param {string[]} allowed - The server names the persona may hold.
+ * @returns {string[]} - The disallowed server names, sorted.
+ */
+export function checkAllowlist(info, allowed) {
+    return info.claude.servers.filter(s => !allowed.includes(s)).sort();
+}
