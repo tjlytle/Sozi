@@ -13,6 +13,8 @@ import {addUsage, park, promptFor, recordTry, stageOf} from "./state.js";
 import {applyLabels, backOff, hasQueued, inBackoff, moveStage, writeLabel} from "./sync.js";
 
 const LOG_TAIL_LINES = 20;
+const MAX_BACKOFF_MINUTES = 120;
+const NO_TRY_STATUSES = ["rate-limited", "unsupported"];
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
@@ -36,8 +38,8 @@ function logTail(outbox) {
 }
 
 /**
- * Read a session's result and add its usage to the run; a rate-limited session backs the
- * loop off.
+ * Read a session's result and add its usage to the run. A rate-limited session backs the
+ * loop off; each one in a row doubles the back-off, up to two hours.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {string} outbox - The outbox directory.
@@ -54,14 +56,20 @@ function takeResult(ctx, outbox, who) {
         tokens: result.usage.tokensIn + result.usage.tokensOut,
         costUsd: result.usage.costUsd
     });
-    if (result.usage.status === "rate-limited") {
-        const until = new Date(
-            ctx.clock.now() + ctx.settings.rateLimitBackoffMinutes * 60 * 1000
-        ).toISOString();
-        ctx.state.sync.backoffUntil = until;
-        ctx.state.run.startsPausedUntil = until;
-        ctx.log(`${who}: the model is rate limited; no starts until ${until}`);
+    const sync = ctx.state.sync;
+    if (result.usage.status !== "rate-limited") {
+        sync.backoffStreak = 0;
+        return result;
     }
+    sync.backoffStreak = (sync.backoffStreak ?? 0) + 1;
+    const minutes = Math.min(
+        ctx.settings.rateLimitBackoffMinutes * 2 ** (sync.backoffStreak - 1),
+        MAX_BACKOFF_MINUTES
+    );
+    const until = new Date(ctx.clock.now() + minutes * 60 * 1000).toISOString();
+    sync.backoffUntil = until;
+    ctx.state.run.startsPausedUntil = until;
+    ctx.log(`${who}: the model is rate limited; no starts until ${until}`);
     return result;
 }
 
@@ -293,7 +301,9 @@ async function judgeIssue(ctx, n, outcome) {
     const {accepted, refused} = readRequests(outbox, {issue: n});
     const moved = await applyRequests(ctx, n, accepted, unverified);
     const notes = await notesAndRefusals(ctx, accepted, refused, n, who);
-    if (!moved && !unverified && result?.exit === 0 && notes > 0) {
+    if (!moved && result && NO_TRY_STATUSES.includes(result.usage.status)) {
+        ctx.log(`${who}: usage ${result.usage.status}; no try, stays at ${record.stage}`);
+    } else if (!moved && !unverified && result?.exit === 0 && notes > 0) {
         record.waiting = true;
         ctx.log(`${who}: waiting for a person at ${record.stage}`);
     } else if (!moved && (unverified || !(await movedByHand(ctx, n)))) {

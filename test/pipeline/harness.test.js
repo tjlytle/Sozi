@@ -139,6 +139,13 @@ describe("harness adapters", () => {
         assert.equal(usageOf(out).status, "rate-limited");
     });
 
+    test("claude: a subscription usage limit is rate-limited and exits 75", () => {
+        const out = scratch();
+        const r = adapter("claude", runArgs(out), {FAKE_MODE: "usagelimit"});
+        assert.equal(r.status, 75);
+        assert.equal(usageOf(out).status, "rate-limited");
+    });
+
     test("claude: budget status", () => {
         const out = scratch();
         adapter("claude", runArgs(out), {FAKE_MODE: "budget"});

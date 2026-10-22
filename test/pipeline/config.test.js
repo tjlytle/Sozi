@@ -63,6 +63,30 @@ describe("pipeline settings", () => {
             "claude-opus-5-5"
         );
     });
+    test("secrets: every file key that is not a PIPELINE_ setting, never the environment", () => {
+        const file = {
+            CLAUDE_CODE_OAUTH_TOKEN: "tok",
+            NOTION_TOKEN: "n",
+            PIPELINE_PARALLEL: "3",
+            PIPELINE_EVIDENCE_TOKEN: "ev",
+            PIPELINE_NOTION_PAGE: "page"
+        };
+        const s = loadConfig({root: "/nonexistent", env: {HOME: "/h"}, files: [file]});
+        assert.deepEqual(s.secrets, {
+            CLAUDE_CODE_OAUTH_TOKEN: "tok",
+            NOTION_TOKEN: "n",
+            PIPELINE_EVIDENCE_TOKEN: "ev",
+            PIPELINE_NOTION_PAGE: "page"
+        });
+    });
+    test("a decimal session budget is accepted; a negative one is not", () => {
+        const s = loadConfig({root: "/nonexistent", env: {PIPELINE_SESSION_BUDGET_USD: "2.5"}});
+        assert.equal(s.sessionBudgetUsd, 2.5);
+        assert.throws(
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_SESSION_BUDGET_USD: "-1"}}),
+            /PIPELINE_SESSION_BUDGET_USD/
+        );
+    });
     test("the repository's pipeline/config loads", () => {
         const s = loadConfig({root: fileURLToPath(new URL("../..", import.meta.url)), env: {}});
         assert.equal(s.image, "sozi-factory");

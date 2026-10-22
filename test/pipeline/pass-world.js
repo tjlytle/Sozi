@@ -99,15 +99,20 @@ export const issue = (
  * @param {any} w - The world.
  * @param {string} outbox - The outbox.
  * @param {string} container - The container id.
- * @param {{exit?: number, hooks?: string, requests?: Record<string, any>}} [result] - What the session left.
+ * @param {{exit?: number, hooks?: string, status?: string, requests?: Record<string, any>}} [result] - What the session left.
  */
-export function end(w, outbox, container, {exit = 0, hooks = "ok", requests = {}} = {}) {
+export function end(
+    w,
+    outbox,
+    container,
+    {exit = 0, hooks = "ok", status = "ok", requests = {}} = {}
+) {
     fs.writeFileSync(
         path.join(outbox, "result.json"),
         JSON.stringify({
             exit,
             session: "s",
-            usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"},
+            usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status},
             changed: [],
             commits: [],
             resumes: 0,

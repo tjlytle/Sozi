@@ -56,6 +56,58 @@ describe("unverified sessions", () => {
     });
 });
 
+describe("a model usage limit", () => {
+    test("a rate-limited session costs no try and keeps its stage", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            exit: 75,
+            hooks: "skipped",
+            status: "rate-limited"
+        });
+        const s = await w.p.pass();
+        assert.equal(w.state.issues[25].tries, 0);
+        assert.equal(w.state.issues[25].stage, "stage:todo");
+        assert.equal(w.state.issues[25].session, null);
+        assert.deepEqual(s.started, [], "starts wait for the back-off");
+        assert.ok(!w.state.issues[25].labels.includes("working"));
+    });
+    test("an unsupported usage report costs no try either", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 1, status: "unsupported"});
+        await w.p.pass();
+        assert.equal(w.state.issues[25].tries, 0);
+    });
+    test("rate limits in a row double the back-off; a clean result resets it", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        const backoff = () => Date.parse(w.state.sync.backoffUntil) - w.clock.now();
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 75, status: "rate-limited"});
+        await w.p.pass();
+        assert.equal(backoff(), 15 * MIN);
+        w.clock.advance(16 * MIN);
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 75, status: "rate-limited"});
+        await w.p.pass();
+        assert.equal(backoff(), 30 * MIN);
+        assert.equal(w.state.sync.backoffStreak, 2);
+        w.clock.advance(31 * MIN);
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 1});
+        await w.p.pass();
+        assert.equal(w.state.sync.backoffStreak, 0);
+    });
+    test("the back-off is capped at two hours", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        w.state.sync.backoffStreak = 10;
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 75, status: "rate-limited"});
+        await w.p.pass();
+        assert.equal(Date.parse(w.state.sync.backoffUntil) - w.clock.now(), 120 * MIN);
+    });
+});
+
 describe("parking and waking", () => {
     test("a lost parking comment is queued and written at the next sync", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])], env: {PIPELINE_MAX_TRIES: "1"}});

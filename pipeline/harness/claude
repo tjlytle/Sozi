@@ -68,7 +68,7 @@ write_usage() {
         {tokensIn: ($x.usage.input_tokens // 0), tokensOut: ($x.usage.output_tokens // 0),
          costUsd: ($x.total_cost_usd // 0), turns: ($x.num_turns // 0),
          status: (if $r == null then "error"
-                  elif ($text | test("rate limit|429|overloaded"; "i")) then "rate-limited"
+                  elif ($text | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
                   elif (($x.subtype // "") | test("budget")) then "budget"
                   elif $x.is_error == true then "error" else "ok" end)}' >"$OUT/usage.json"
 }

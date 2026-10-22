@@ -57,7 +57,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @typedef {object} State
  * @property {Record<string, any>} run - Totals and flags of the current run.
  * @property {Record<number, IssueRecord>} issues - Known issues by number.
- * @property {{last: string | null, backoffUntil: string | null}} sync - GitHub sync bookkeeping.
+ * @property {{last: string | null, backoffUntil: string | null, backoffStreak?: number}} sync - GitHub sync bookkeeping; the streak counts model rate limits in a row.
  * @property {(LabelOp | {comment: {persona: string, issue: number, body: string}})[]} queued - Label changes and comments not yet written to GitHub.
  * @property {{op: object, error: string}[]} [deadLetters] - Queued writes GitHub refused for good.
  * @property {any} [boardMeta] - The board details bin/board.js caches.
@@ -80,7 +80,7 @@ export function emptyState() {
             mintKey: null
         },
         issues: {},
-        sync: {last: null, backoffUntil: null},
+        sync: {last: null, backoffUntil: null, backoffStreak: 0},
         queued: []
     };
 }

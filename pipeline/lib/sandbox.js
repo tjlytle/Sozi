@@ -93,9 +93,11 @@ function pluginDir() {
  * @param {any} options.settings - The loop settings from loadConfig.
  * @param {string} options.root - The repository root; var/pipeline lives under it.
  * @param {Runner} [options.run] - The command runner.
+ * @param {Record<string, string | undefined>} [options.env] - The loop's environment with the
+ *     secrets of var/pipeline/env; the names docker passes on are taken from it.
  * @returns {Sandbox} The sandbox.
  */
-export function createSandbox({settings, root, run = defaultRun}) {
+export function createSandbox({settings, root, run = defaultRun, env: loopEnv = {}}) {
     const varDir = path.join(root, "var", "pipeline");
     const mirror = path.join(varDir, "mirror.git");
 
@@ -182,6 +184,12 @@ export function createSandbox({settings, root, run = defaultRun}) {
             const ev = settings.evidence;
             /** @type {Record<string, string>} */
             const env = {};
+            for (const name of BY_NAME) {
+                const value = loopEnv[name];
+                if (value) {
+                    env[name] = value;
+                }
+            }
             const fromSettings = {
                 PIPELINE_EVIDENCE_ACCOUNT: ev.account,
                 PIPELINE_EVIDENCE_BUCKET: ev.bucket,

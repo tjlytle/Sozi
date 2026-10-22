@@ -110,6 +110,24 @@ describe("sandbox", () => {
         assert.equal(calls[0].opts.env.PIPELINE_ISSUE, "25");
         assert.equal(calls[0].opts.env.GH_MINT_KEY, "k");
     });
+    test("start hands docker the secrets of the loop's environment, by name", async () => {
+        /** @type {any[]} */
+        const calls = [];
+        const s = createSandbox({
+            settings,
+            root: "/repo",
+            env: {CLAUDE_CODE_OAUTH_TOKEN: "tok", NOTION_TOKEN: "n", UNRELATED: "x"},
+            run: async (cmd, opts) => {
+                calls.push({cmd, opts});
+                return {code: 0, stdout: "id\n", stderr: ""};
+            }
+        });
+        await s.start({issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"});
+        assert.equal(calls[0].opts.env.CLAUDE_CODE_OAUTH_TOKEN, "tok");
+        assert.equal(calls[0].opts.env.NOTION_TOKEN, "n");
+        assert.equal(calls[0].opts.env.UNRELATED, undefined, "only the names docker passes");
+        assert.ok(!calls[0].cmd.some((/** @type {string} */ a) => a.includes("tok")));
+    });
     test("buildImage builds from the repo root with the plugin as a named context", async () => {
         const {sb: s, calls} = recording(() => ({code: 0}));
         await s.buildImage();

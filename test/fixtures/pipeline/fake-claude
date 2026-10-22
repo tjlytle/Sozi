@@ -3,7 +3,7 @@
 # an assistant event and a result event, and exits like the real CLI would.
 #
 # Env: FAKE_ARGS (file; one line of arguments appended per call),
-# FAKE_MODE (ratelimit | budget | noresult | mention; default is a clean success).
+# FAKE_MODE (ratelimit | usagelimit | budget | noresult | mention; default is a clean success).
 set -u
 
 echo "$*" >>"${FAKE_ARGS:-/dev/null}"
@@ -26,6 +26,9 @@ case "$mode" in
         exit 0 ;;
     ratelimit)
         echo '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"API rate limit reached","num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
+        exit 1 ;;
+    usagelimit)
+        echo '{"type":"result","subtype":"success","is_error":true,"result":"You\u0027ve hit your limit \u00b7 resets 3pm","num_turns":1,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":0},"session_id":"'"$id"'"}'
         exit 1 ;;
     budget)
         echo '{"type":"result","subtype":"error_max_budget_usd","is_error":true,"num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'

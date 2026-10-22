@@ -103,6 +103,45 @@ describe("bin/pipeline.js", () => {
         assert.equal(code, 0);
         assert.deepEqual(h.events, ["remove", "close"]);
     });
+    test("secrets in var/pipeline/env reach docker run and the Notion start", async () => {
+        const h = host({statuses: []});
+        fs.mkdirSync(path.join(h.root, "var", "pipeline"), {recursive: true});
+        fs.writeFileSync(
+            path.join(h.root, "var", "pipeline", "env"),
+            "CLAUDE_CODE_OAUTH_TOKEN=tok\nNOTION_TOKEN=nt\n"
+        );
+        /** @type {any[]} */
+        const runs = [];
+        delete h.deps.sandbox;
+        h.deps.run = async (/** @type {string[]} */ cmd, /** @type {any} */ opts) => {
+            runs.push({cmd, opts});
+            if (cmd[0] === "docker" && cmd[1] === "run") {
+                return {code: 0, stdout: "c25\n", stderr: ""};
+            }
+            if (cmd[0] === "docker" && cmd[1] === "inspect") {
+                return {code: 0, stdout: "exited\n", stderr: ""};
+            }
+            return {code: 1, stdout: "", stderr: ""};
+        };
+        /** @type {any[]} */
+        const digests = [];
+        h.deps.digest = async (/** @type {string[]} */ argv, /** @type {any} */ io) => {
+            digests.push({argv, env: io.env});
+            io.out?.("page-1\n");
+            return 0;
+        };
+        const code = await main(["--once"], {
+            root: h.root,
+            env: {PIPELINE_NOTION_PARENT: "parent"},
+            out: () => {},
+            deps: h.deps
+        });
+        assert.equal(code, 0);
+        const docker = runs.find(r => r.cmd[0] === "docker" && r.cmd[1] === "run");
+        assert.equal(docker.opts.env.CLAUDE_CODE_OAUTH_TOKEN, "tok");
+        assert.equal(digests[0].argv[0], "start");
+        assert.equal(digests[0].env.NOTION_TOKEN, "nt");
+    });
     test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
         const h = host({
             statuses: ["running", "running", "exited"],

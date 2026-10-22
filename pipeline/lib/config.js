@@ -35,7 +35,8 @@ const DEFAULTS = {
     PIPELINE_EVIDENCE_URL: "",
     PIPELINE_MINT_PORT: "0",
     PIPELINE_MEMORY: "",
-    PIPELINE_CPUS: "0"
+    PIPELINE_CPUS: "0",
+    PIPELINE_BOARD_FULL_EVERY: "12"
 };
 
 const CHOICES = {
@@ -52,10 +53,15 @@ const NUMBERS = [
     "PIPELINE_MAX_TRIES",
     "PIPELINE_SOFT_TOKENS",
     "PIPELINE_HARD_TOKENS",
-    "PIPELINE_SESSION_BUDGET_USD",
     "PIPELINE_MINT_PORT",
-    "PIPELINE_CPUS"
+    "PIPELINE_CPUS",
+    "PIPELINE_BOARD_FULL_EVERY"
 ];
+
+const DECIMALS = ["PIPELINE_SESSION_BUDGET_USD"];
+
+/** File keys that are secrets for the containers and the Notion calls, not settings. */
+const SECRET_SETTINGS = /^PIPELINE_(EVIDENCE_|NOTION_PAGE$)/;
 
 /** Parses KEY=value lines; blank lines and lines starting with # are ignored.
  *
@@ -92,13 +98,33 @@ function readConfigFile(file) {
     }
 }
 
+/** Picks the secrets out of the settings files: every key that is not a PIPELINE_ setting,
+ * and the evidence and Notion page values. Later files win.
+ *
+ * @param {Record<string, string>[]} layers - Parsed settings files, lowest precedence first.
+ * @returns {Record<string, string>} - The secrets by name.
+ */
+function secretsOf(layers) {
+    /** @type {Record<string, string>} */
+    const out = {};
+    for (const layer of layers) {
+        for (const [key, value] of Object.entries(layer)) {
+            if (!key.startsWith("PIPELINE_") || SECRET_SETTINGS.test(key)) {
+                out[key] = value;
+            }
+        }
+    }
+    return out;
+}
+
 /** Loads the settings.
  *
  * @param {object} options - The sources.
  * @param {string} options.root - The repository root, where the settings files live.
  * @param {Record<string, string | undefined>} options.env - The environment.
  * @param {Record<string, string>[]} [options.files] - Parsed settings files, lowest precedence first; read from root when absent.
- * @returns {object} - The settings.
+ * @returns {object} - The settings; `secrets` holds the file keys the loop passes on by
+ *     name (credentials such as CLAUDE_CODE_OAUTH_TOKEN), never logged.
  * @throws {Error} - When a value is invalid; the message names the key.
  */
 export function loadConfig({root, env, files}) {
@@ -120,6 +146,11 @@ export function loadConfig({root, env, files}) {
     for (const key of NUMBERS) {
         if (!/^\d+$/.test(raw[key])) {
             throw new Error(`${key} must be an integer of at least 0, not "${raw[key]}"`);
+        }
+    }
+    for (const key of DECIMALS) {
+        if (!/^\d+(\.\d+)?$/.test(raw[key])) {
+            throw new Error(`${key} must be a number of at least 0, not "${raw[key]}"`);
         }
     }
 
@@ -169,6 +200,8 @@ export function loadConfig({root, env, files}) {
         },
         mintPort: num("PIPELINE_MINT_PORT"),
         memory: raw.PIPELINE_MEMORY,
-        cpus: num("PIPELINE_CPUS")
+        cpus: num("PIPELINE_CPUS"),
+        boardFullEvery: num("PIPELINE_BOARD_FULL_EVERY"),
+        secrets: secretsOf(layers)
     };
 }

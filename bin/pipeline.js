@@ -18,7 +18,6 @@
 // lives in var/pipeline/state.json. Ctrl-C saves the state and leaves running containers
 // to finish; the next start adopts them.
 
-import crypto from "node:crypto";
 import path from "node:path";
 import {parseArgs} from "node:util";
 import {fileURLToPath, pathToFileURL} from "node:url";
@@ -27,15 +26,14 @@ import {createGithub, defaultRun} from "../pipeline/lib/github.js";
 import {startMint} from "../pipeline/lib/mint.js";
 import {createControl, drain, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
+import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
 import {statusText} from "../pipeline/lib/status.js";
 import {sync as boardSync} from "./board.js";
-import {main as digestMain, notion, runs} from "./digest.js";
+import {main as digestMain} from "./digest.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_MINT_PORT = 7311;
-const BRIDGE_FALLBACK = "172.17.0.1";
 
 const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
@@ -46,6 +44,7 @@ const USAGE = [
  * @typedef {object} Deps
  * @property {import("../pipeline/lib/github.js").Runner} run - Runs commands on the host.
  * @property {typeof startMint} startMint - Starts the mint endpoint.
+ * @property {typeof digestMain} digest - The digest command line.
  * @property {any} [github] - The GitHub client; the real one when absent.
  * @property {any} [board] - The board; the real one when absent.
  * @property {any} [sandbox] - The sandbox; the real one when absent.
@@ -58,6 +57,7 @@ const USAGE = [
 const DEFAULT_DEPS = {
     run: defaultRun,
     startMint,
+    digest: digestMain,
     sleep: undefined,
     onSignal: handler => {
         process.on("SIGINT", handler);
@@ -89,24 +89,6 @@ export function parseUntil(text, now) {
         return at;
     }
     throw new Error(`--until takes 6h, 90m or HH:MM, not ${JSON.stringify(text)}`);
-}
-
-/** The address of the Docker bridge, which the mint binds to.
- *
- * @param {import("../pipeline/lib/github.js").Runner} run - The command runner.
- * @returns {Promise<string>} - The gateway address.
- */
-async function bridgeAddress(run) {
-    const r = await run([
-        "docker",
-        "network",
-        "inspect",
-        "bridge",
-        "-f",
-        "{{(index .IPAM.Config 0).Gateway}}"
-    ]);
-    const address = r.stdout.trim();
-    return r.code === 0 && /^[\d.]+$/.test(address) ? address : BRIDGE_FALLBACK;
 }
 
 /** Load the state, starting a new run when the last one stopped.
@@ -151,92 +133,6 @@ function parseCommand(argv) {
         throw new Error(`--epic takes an issue number, not ${JSON.stringify(values.epic)}`);
     }
     return {opt: values, target};
-}
-
-/** Write the closing summary to the run's Notion page, when there is one.
- *
- * @param {any} state - The loop state.
- * @param {string} reason - Why the run ends.
- * @param {Record<string, string|undefined>} env - The environment.
- * @param {(line: string) => void} log - The log.
- * @returns {Promise<void>}
- */
-async function finishDigest(state, reason, env, log) {
-    if (!state.run.notionPage || !env.NOTION_TOKEN) {
-        log("digest: no page for this run");
-        return;
-    }
-    const cost = Number(state.run.costUsd).toFixed(2);
-    const summary = `Stopped: ${reason}. ${state.run.tokens} tokens, $${cost}.`;
-    await digestMain(["finish", "--summary", summary], {
-        env: {...env, PIPELINE_NOTION_PAGE: state.run.notionPage},
-        err: log
-    });
-}
-
-/** Open the run: the mint endpoint containers fetch tokens from, and the Notion page.
- *
- * @param {any} state - The loop state; gets mintKey, mintUrl and notionPage.
- * @param {any} settings - The settings.
- * @param {Record<string, string|undefined>} env - The environment.
- * @param {(line: string) => void} log - The log.
- * @param {Deps} deps - The outside world.
- * @returns {Promise<{close: () => Promise<void>}>} - The mint endpoint.
- */
-async function openRun(state, settings, env, log, deps) {
-    const adopting =
-        Object.values(state.issues).some((/** @type {any} */ r) => r.session) ||
-        (state.run.sessions ?? []).length > 0;
-    if (!adopting || !state.run.mintKey) {
-        state.run.mintKey = crypto.randomBytes(32).toString("hex");
-    }
-    const mint = await deps.startMint({
-        port: settings.mintPort || DEFAULT_MINT_PORT,
-        host: await bridgeAddress(deps.run),
-        key: state.run.mintKey,
-        repos: [settings.repo],
-        log: e => log(`mint ${e.bot} ${e.status}${e.reason ? ` ${e.reason}` : ""}`)
-    });
-    state.run.mintUrl = `http://host.docker.internal:${mint.port}/`;
-    if (state.run.notionPage) {
-        return mint;
-    }
-    if (!settings.notionParent || !env.NOTION_TOKEN) {
-        log("digest: PIPELINE_NOTION_PARENT or NOTION_TOKEN unset; no Notion page");
-        return mint;
-    }
-    let page = "";
-    const title = `Sozi pipeline ${state.run.started.slice(0, 16)}`;
-    await digestMain(["start", "--title", title, "--parent", settings.notionParent], {
-        env,
-        out: text => (page += text),
-        err: log
-    });
-    state.run.notionPage = page.trim() || null;
-    return mint;
-}
-
-/** The digest the pass adds notes to: a plain paragraph on the run's page, no checkbox.
- *
- * @param {any} state - The loop state.
- * @param {Record<string, string|undefined>} env - The environment.
- * @returns {{add: (entry: {issue: number, text: string}) => Promise<void>}} - The digest.
- */
-function noteDigest(state, env) {
-    return {
-        async add({issue, text}) {
-            const token = env.NOTION_TOKEN;
-            if (!state.run.notionPage || !token) {
-                return;
-            }
-            const line = issue ? `#${issue} ${text}` : text;
-            const children = [
-                {object: "block", type: "paragraph", paragraph: {rich_text: runs(line)}}
-            ];
-            const where = `/blocks/${state.run.notionPage}/children`;
-            await notion("PATCH", where, {children}, {token});
-        }
-    };
 }
 
 /** Build the pass over the real GitHub, board, digest and clock.
@@ -309,14 +205,16 @@ export async function main(
         );
         return 2;
     }
+    // The environment wins over the secrets file, as it does for the settings.
+    const runEnv = {...settings.secrets, ...env};
     if (opt.status || opt.digest) {
         const state = loadState(file);
         await (opt.status
             ? write(statusText(state))
-            : finishDigest(state, "finished by hand", env, log));
+            : finishDigest({state, reason: "finished by hand", env: runEnv, log, deps}));
         return 0;
     }
-    const sandbox = deps.sandbox ?? createSandbox({settings, root});
+    const sandbox = deps.sandbox ?? createSandbox({settings, root, run: deps.run, env: runEnv});
     if (opt["build-image"]) {
         await sandbox.buildImage();
         return 0;
@@ -327,9 +225,9 @@ export async function main(
     state.run.epic = opt.epic ? Number(opt.epic) : state.run.epic;
     state.run.only = target === "watch" ? null : Number(target);
     const save = () => saveState(file, state);
-    const mint = await openRun(state, settings, env, log, deps);
+    const mint = await openRun(state, settings, runEnv, log, deps);
     save();
-    const {pass} = loopPass({state, settings, sandbox, env, root, log, save, deps});
+    const {pass} = loopPass({state, settings, sandbox, env: runEnv, root, log, save, deps});
     const control = createControl({sleep: deps.sleep, save, exit: deps.exit, log});
     const unhook = deps.onSignal(() => control.interrupt());
     let code = 0;
@@ -347,7 +245,7 @@ export async function main(
             if (reason !== null) {
                 state.run.stopped = true;
                 save();
-                await finishDigest(state, reason, env, log);
+                await finishDigest({state, reason, env: runEnv, log, deps});
                 write(`stopped: ${reason}\n`);
             }
         }
