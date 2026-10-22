@@ -276,9 +276,8 @@ export class CameraState {
         bboxCenter.y = bbox.y + bbox.height / 2;
 
         // Find the transform group corresponding to the layer
-        // that contains the given element
+        // that contains the given element.
         // Casts: the element lies inside a layer group of the SVG root.
-        // that contains the given element
         let layerGroup = svgElement;
         while (/** @type {Node} */ (layerGroup.parentNode).parentNode !== this.svgRoot) {
             layerGroup = /** @type {SVGGraphicsElement} */ (layerGroup.parentNode);

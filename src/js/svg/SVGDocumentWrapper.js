@@ -172,7 +172,8 @@ export class SVGDocumentWrapper {
      * @see {@linkcode module:svg/SVGDocumentWrapper.DefaultSVGHandler.transform}
      */
     static fromString(data) {
-        // Cast: isValidSVG below checks that the root is an SVG element.
+        // Cast: the root is an SVG element only for a valid document (an invalid one gives a
+        // parsererror element); the handler transforms below run only when doc.isValidSVG.
         const svgRoot = /** @type {SVGSVGElement} */ (
             /** @type {Element} */ (
                 new DOMParser().parseFromString(data, "image/svg+xml").documentElement

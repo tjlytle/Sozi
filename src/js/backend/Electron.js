@@ -337,8 +337,10 @@ export class Electron extends AbstractBackend {
 
     /** @inheritdoc */
     toggleDevTools() {
-        // @ts-expect-error Bug kept: BrowserWindow has no toggleDevTools (webContents has), so F12 throws.
-        browserWindow.toggleDevTools();
+        // Cast: Electron forwards toggleDevTools to webContents; its typings omit the forwarder.
+        /** @type {BrowserWindow & {toggleDevTools: () => void}} */ (
+            browserWindow
+        ).toggleDevTools();
     }
 
     /** @inheritdoc */
