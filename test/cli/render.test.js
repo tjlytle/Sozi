@@ -550,7 +550,7 @@ describe("render usage errors", () => {
             /unknown option for render: --title/
         ]
     ];
-    for (const [args, message] of cases) {
+    for (const [args, message] of /** @type {[string[], RegExp][]} */ (cases)) {
         test(args.slice(1, -1).join(" "), () => {
             const deck = withTempDeck("basic");
             try {

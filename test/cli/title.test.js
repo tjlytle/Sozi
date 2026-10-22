@@ -405,11 +405,16 @@ describe("set", () => {
 });
 
 describe("inspect title fields", () => {
-    for (const [name, fixture, jsonTitle, expected] of [
+    for (const [
+        name,
+        fixture,
+        jsonTitle,
+        expected
+    ] of /** @type {[string, string, ?string, object][]} */ ([
         ["json", "basic", "My Talk", {title: "My Talk", titleSource: "json", svgTitle: "Basic"}],
         ["svg", "basic", null, {title: "Basic", titleSource: "svg", svgTitle: "Basic"}],
         ["default", "notitle", null, {title: "Untitled", titleSource: "default", svgTitle: ""}]
-    ]) {
+    ])) {
         test(`reports titleSource ${name}`, () => {
             const deck = withTempDeck(fixture);
             try {
