@@ -18,7 +18,7 @@ import {hasReliableBoundaries} from "../player/Camera";
  * @param {string} prop - The name of the property to copy.
  */
 function copyIfSet(dest, src, prop) {
-    if (src.hasOwnProperty(prop)) {
+    if (Object.hasOwn(src, prop)) {
         dest[prop] = src[prop];
     }
 }
@@ -1018,19 +1018,19 @@ export class Presentation extends EventEmitter {
         this.ignoredStorableKeys = [];
         if (typeof storable.title === "string") {
             this.explicitTitle = storable.title;
-        } else if (storable.hasOwnProperty("title")) {
+        } else if (Object.hasOwn(storable, "title")) {
             this.ignoredStorableKeys.push("title");
         }
         this.svgPath = "";
         if (typeof storable.svg === "string") {
             this.svgPath = storable.svg;
-        } else if (storable.hasOwnProperty("svg")) {
+        } else if (Object.hasOwn(storable, "svg")) {
             this.ignoredStorableKeys.push("svg");
         }
         this.outputDir = "";
         if (typeof storable.outputDir === "string") {
             this.outputDir = storable.outputDir.trim();
-        } else if (storable.hasOwnProperty("outputDir")) {
+        } else if (Object.hasOwn(storable, "outputDir")) {
             this.ignoredStorableKeys.push("outputDir");
         }
         copyIfSet(this, storable, "aspectWidth");
