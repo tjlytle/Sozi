@@ -52,6 +52,9 @@ describe("the code standard skill", () => {
         assert.doesNotMatch(all, /alternative|we could have|instead of|decided/i);
         assert.doesNotMatch(all, /code-standard\.md/);
     });
+    test("a protocol or API change updates its docs in the same PR (record 2.8)", () => {
+        assert.match(refs["change.md"], /protocol or API change[^.]*docs?[^.]*same PR/i);
+    });
     test("no hook, script or lint message cites the record", () => {
         const files = [
             "config/eslintrc.mjs",

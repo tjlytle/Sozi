@@ -712,6 +712,10 @@ one too when the change affects the narrow layout. When nothing is visual, an ap
 review comment is the evidence. For a protocol or API change, the doc diff. A PR
 without a QA comment is not ready.
 
+**Revised 2026-10-21 (loop design).** The QA comment is QA's approval: the qa App
+cannot submit a PR review, so the comment is the record, and the merge rule of 6.4 reads
+it as such.
+
 **Why.** It is the thing you read instead of the JavaScript. "Visual" is QA's judgment;
 "at least a comment" is not.
 
@@ -728,6 +732,16 @@ dependency not named in the plan, a new transport, a change to the protocol or t
 published API). Everything else is decided by the standard and checked by CI. Later,
 a decision model may sit in front of the merge; for now the required checks are the
 judgment.
+
+**Revised 2026-10-21 (loop design, "Questions do not stop the line").** The two parking
+cases above are withdrawn. Parking is for a mechanical blocker only (a missing
+credential, a push the lock denied). A question the issue, the plan and the standard do
+not answer is answered by the persona that meets it: it picks the better route, records
+the decision in the plan, the PR body or its comment, and files the road not taken as
+an `idea` issue for Tim to weigh. Version control is the safety net. The merge rule
+while the gate is still red on old code: a PR merges when every CI job that is green on
+master is green on the PR and the reviewer has approved; QA merges as builder, squashed,
+deleting the branch.
 
 **Alternatives.** (a) A nightly branch promoted by hand: a second branch to keep in
 step, and a day's delay between a merge and a build, for a safety net CI already

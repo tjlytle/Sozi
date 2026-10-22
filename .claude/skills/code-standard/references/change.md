@@ -15,5 +15,6 @@
 - `locales/messages.pot` and `yarn.lock` are rewritten by every gulp run; revert both
   before committing. The diff against the base must hold neither.
 - A bug fix starts with a failing test.
-- A protocol or API change stays backwards compatible for one release.
+- A protocol or API change stays backwards compatible for one release and updates its
+  docs in the same PR.
 - Every commit, push, PR and comment goes through `gh-as <persona>`.
