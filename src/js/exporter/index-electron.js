@@ -20,6 +20,9 @@
  */
 
 import {BrowserWindow, nativeImage} from "electron";
+
+/** @typedef {import("electron").NativeImage} NativeImage */
+/** @typedef {import("electron").Debugger} Debugger */
 import path from "path";
 import process from "process";
 import * as tmp from "tmp";
@@ -519,7 +522,7 @@ function pngSize(png) {
 
 /** Check whether all the pixels of an image have the same colour.
  *
- * @param {Electron.NativeImage} img - An image.
+ * @param {NativeImage} img - An image.
  * @returns {boolean} - `true` if the image is uniform.
  */
 function isUniform(img) {
@@ -538,8 +541,8 @@ function isUniform(img) {
 
 /** Are two images uniform, of the same colour?
  *
- * @param {Electron.NativeImage} a - An image.
- * @param {Electron.NativeImage} b - Another image.
+ * @param {NativeImage} a - An image.
+ * @param {NativeImage} b - Another image.
  * @returns {boolean} - `true` if both images are uniform with the same pixel value.
  */
 function sameUniformColour(a, b) {
@@ -693,7 +696,7 @@ export class ExportWindow {
 
     /** Attach the Chrome DevTools Protocol debugger if not done yet.
      *
-     * @returns {Electron.Debugger} - The debugger of the window.
+     * @returns {Promise<Debugger>} - The debugger of the window.
      */
     async attachDebugger() {
         const dbg = this.window.webContents.debugger;
@@ -1496,6 +1499,6 @@ async function frameRender(presentation, htmlPath, opts) {
 /** The export functions that a renderer can call through {@linkcode module:exporter.runExport|runExport}.
  *
  * @readonly
- * @type {object.<string, Function>}
+ * @type {{[name: string]: Function}}
  */
 const exportFunctions = {exportToPDF, exportToPPTX, exportToVideo, renderFrames};

@@ -23,9 +23,9 @@ const OTHER = "tjlytle/sozi-channel";
 /** Run the hook on a command and return its decision.
  *
  * @param {string} command - The Bash command under test.
- * @param {object} [opts] - `cwd` for the payload, `lock` for the locked repositories.
- * @param opts.cwd
- * @param opts.lock
+ * @param {object} [opts] - Options.
+ * @param {string} [opts.cwd] - The `cwd` of the payload (default: the repository).
+ * @param {string[]} [opts.lock] - The locked repositories (default: the fork and one other).
  * @returns {{decision: "allow"|"deny", reason: string}} - What the hook decided.
  */
 function decide(command, {cwd = root, lock = [FORK, OTHER]} = {}) {

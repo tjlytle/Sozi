@@ -53,7 +53,7 @@ export class Timeline extends VirtualDOMView {
      * @param {number} layerIndex - The index of the layer to change.
      * @param {MouseEvent} evt - The DOM event that triggered this action.
      *
-     * @listens click
+     * @listens event:click
      *
      * @see {@linkcode module:Controller.Controller#updateLayerVisibility}
      */
@@ -69,7 +69,7 @@ export class Timeline extends VirtualDOMView {
      * @param {number} frameIndex - The index of the frame to add or remove.
      * @param {MouseEvent} evt - The DOM event that triggered this action.
      *
-     * @listens click
+     * @listens event:click
      *
      * @see {@linkcode module:Controller.Controller#updateFrameSelection}
      */
@@ -85,7 +85,7 @@ export class Timeline extends VirtualDOMView {
      * @param {number} layerIndex - The index of the layer to add or remove.
      * @param {MouseEvent} evt - The DOM event that triggered this action.
      *
-     * @listens click
+     * @listens event:click
      *
      * @see {@linkcode module:Controller.Controller#updateLayerSelection}
      */
@@ -106,7 +106,7 @@ export class Timeline extends VirtualDOMView {
      * @param {number} frameIndex - The index of the frame to add or remove.
      * @param {MouseEvent} evt - The DOM event that triggered this action.
      *
-     * @listens click
+     * @listens event:click
      *
      * @see {@linkcode module:Controller.Controller#updateLayerSelection}
      */

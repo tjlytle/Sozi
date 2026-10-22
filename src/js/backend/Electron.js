@@ -58,7 +58,7 @@ export class Electron extends AbstractBackend {
          *
          * Populated by the {@linkcode module:backend/Electron.Electron#load|load} method.
          *
-         * @type {object.<string, fs.FSWatcher>}
+         * @type {{[path: string]: fs.FSWatcher}}
          */
         this.watchers = {};
 

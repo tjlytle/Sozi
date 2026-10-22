@@ -155,7 +155,7 @@ export function toggle() {
  *
  * @param {KeyboardEvent} evt - The DOM event representing the keypress.
  *
- * @listens keypress
+ * @listens event:keypress
  */
 function onKeyPress(evt) {
     // Keys with modifiers are ignored
@@ -211,7 +211,7 @@ function onMouseDown(button) {
  *
  * Closes the Frame List on any touch outside of the list itself.
  *
- * @listens touchstart
+ * @listens event:touchstart
  */
 function onTouchStart() {
     close();
@@ -224,7 +224,7 @@ function onTouchStart() {
  *
  * @param {MouseEvent} evt - The DOM event representing the mouse gesture.
  *
- * @listens mouseout
+ * @listens event:mouseout
  */
 function onMouseOut(evt) {
     let rel = evt.relatedTarget;

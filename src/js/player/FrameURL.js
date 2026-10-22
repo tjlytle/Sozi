@@ -61,7 +61,7 @@ export function getFrame() {
  *
  * Move the presentation to the frame that corresponds to the current URL.
  *
- * @listens hashchange
+ * @listens event:hashchange
  */
 function onHashChange() {
     const frame = getFrame();

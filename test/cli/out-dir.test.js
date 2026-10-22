@@ -15,10 +15,16 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck, decodePng} = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+/** @typedef {import("node:test").TestContext} TestContext */
+
 /**
  * Run a command in the directory of a temp deck and check that it succeeded.
- * @param deck
- * @param {...any} args
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} args - The CLI arguments after `--cli`.
+ * @returns {SoziRun} - The result of the run.
  */
 function soziOk(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
@@ -30,8 +36,10 @@ function soziOk(deck, ...args) {
 
 /**
  * Run a command in the directory of a temp deck and check that it is a usage error.
- * @param deck
- * @param {...any} args
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} args - The CLI arguments after `--cli`.
+ * @returns {SoziRun} - The result of the run.
  */
 function soziUsageError(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
@@ -49,8 +57,9 @@ const CHROME = "/usr/bin/google-chrome";
  * Only a failure to spawn Chrome (ENOENT, EACCES) skips the test;
  * a timeout or a non-zero exit status fails it.
  *
- * @param t
- * @param result
+ * @param {TestContext} t - The context of the running test, to skip it.
+ * @param {import("node:child_process").SpawnSyncReturns<string>} result - The result of
+ *  `spawnSync` for Chrome.
  * @returns {boolean} - `true` if Chrome ran, `false` if the test was skipped.
  */
 function chromeRan(t, result) {
@@ -67,8 +76,10 @@ function chromeRan(t, result) {
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
  * a Chrome run that fails or times out is a test failure.
- * @param t
- * @param file
+ *
+ * @param {TestContext} t - The context of the running test, to skip it.
+ * @param {string} file - The path of the HTML file.
+ * @returns {?string} - The serialized DOM, or null when the test was skipped.
  */
 function browserDom(t, file) {
     if (!fs.existsSync(CHROME)) {
@@ -102,11 +113,14 @@ function browserDom(t, file) {
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
  * a Chrome run that fails or times out is a test failure.
- * @param t
- * @param file
- * @param root0
- * @param root0.width
- * @param root0.height
+ *
+ * @param {TestContext} t - The context of the running test, to skip it.
+ * @param {string} file - The path of the HTML file.
+ * @param {object} [size] - The size of the browser window.
+ * @param {number} [size.width] - The width in pixels (default: 800).
+ * @param {number} [size.height] - The height in pixels (default: 450).
+ * @returns {?{width: number, height: number, pixel: Function}} - The decoded screenshot, or
+ *  null when the test was skipped.
  */
 function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
     if (!fs.existsSync(CHROME)) {
@@ -143,7 +157,9 @@ function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
 
 /**
  * Read a JSON file.
- * @param file
+ *
+ * @param {string} file - The path of the file.
+ * @returns {object} - The parsed content.
  */
 function readJson(file) {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -151,8 +167,9 @@ function readJson(file) {
 
 /**
  * Add keys to a presentation file.
- * @param file
- * @param extra
+ *
+ * @param {string} file - The path of the presentation file.
+ * @param {object} extra - The keys to add or replace.
  */
 function addKeys(file, extra) {
     fs.mkdirSync(path.dirname(file), {recursive: true});
@@ -161,7 +178,9 @@ function addKeys(file, extra) {
 
 /**
  * The image hrefs of an HTML file.
- * @param file
+ *
+ * @param {string} file - The path of the HTML file.
+ * @returns {string[]} - The `xlink:href` values of the `<image>` elements, in document order.
  */
 function imageHrefs(file) {
     return [...fs.readFileSync(file, "utf8").matchAll(/<image\b[^>]*?\sxlink:href="([^"]*)"/g)].map(

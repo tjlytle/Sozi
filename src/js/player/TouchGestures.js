@@ -547,7 +547,7 @@ class DummyGesture extends Gesture {
 
 /** Updates all parameters depending on screen dimensions.
  *
- * @listens resize
+ * @listens event:resize
  */
 function updateScreenValues() {
     MIN_SLOW_TRAVEL_X = Math.floor(window.innerWidth / 2);
@@ -598,7 +598,7 @@ function updateGesture(touches) {
  *
  * @param {TouchEvent} evt - The DOM event to process.
  *
- * @listens touchstart
+ * @listens event:touchstart
  */
 function onTouchStart(evt) {
     evt.preventDefault();
@@ -609,7 +609,7 @@ function onTouchStart(evt) {
  *
  * @param {TouchEvent} evt - The DOM event to process.
  *
- * @listens touchmove
+ * @listens event:touchmove
  */
 function onTouchMove(evt) {
     updateGesture(evt.touches);
@@ -620,7 +620,7 @@ function onTouchMove(evt) {
  *
  * @param {TouchEvent} evt - The DOM event to process.
  *
- * @listens touchend
+ * @listens event:touchend
  */
 function onTouchEnd(evt) {
     if (currentGesture) {

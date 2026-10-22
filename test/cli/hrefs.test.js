@@ -18,7 +18,9 @@ const SOZI = 'xmlns:sozi="http://sozi.baierouge.fr"';
 
 /**
  * An SVG document with the given content and the xlink and sozi namespaces.
- * @param content
+ *
+ * @param {string} content - The SVG markup to put inside the root element.
+ * @returns {string} - The SVG document.
  */
 function svg(content) {
     return `<svg xmlns="http://www.w3.org/2000/svg" ${XLINK} ${SOZI}>${content}</svg>`;

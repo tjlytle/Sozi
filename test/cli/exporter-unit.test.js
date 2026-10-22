@@ -18,6 +18,8 @@ const exporterModule = path.join(appDir, "src", "js", "exporter", "index-electro
  *
  * The compiled module copies the functions of `fs` when it is loaded,
  * so stubs of `fs` must be in place before this call.
+ *
+ * @returns {object} - The exports of the built exporter module.
  */
 function loadExporter() {
     delete require.cache[require.resolve(exporterModule)];

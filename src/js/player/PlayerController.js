@@ -6,6 +6,9 @@
 
 import {EventEmitter} from "events";
 
+/** @typedef {import("./Viewport.js").Viewport} Viewport */
+/** @typedef {import("../model/Presentation.js").Presentation} Presentation */
+
 /** The mouse button for the drag action.
  *
  * 0 is the left button.
@@ -208,7 +211,7 @@ export class PlayerController extends EventEmitter {
          *
          * @param {MouseEvent} evt - A DOM event.
          * @returns {void}
-         * @listens mousemove
+         * @listens event:mousemove
          */
         this.dragHandler = evt => this.onDrag(evt);
 
@@ -219,7 +222,7 @@ export class PlayerController extends EventEmitter {
          *
          * @param {MouseEvent} evt - A DOM event.
          * @returns {void}
-         * @listens mouseup
+         * @listens event:mouseup
          */
         this.dragEndHandler = evt => this.onDragEnd(evt);
 
@@ -229,22 +232,25 @@ export class PlayerController extends EventEmitter {
         }
     }
 
-    /**
+    /** The viewport of the player attached to this controller.
      *
+     * @returns {Viewport} - The viewport.
      */
     get viewport() {
         return this.player.viewport;
     }
 
-    /**
+    /** The presentation of the player attached to this controller.
      *
+     * @returns {Presentation} - The presentation.
      */
     get presentation() {
         return this.player.presentation;
     }
 
-    /**
+    /** Is the viewport of the player in the editor?
      *
+     * @returns {boolean} - `true` in the editor, `false` in the player.
      */
     get editMode() {
         return this.player.viewport.editMode;
@@ -273,7 +279,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {MouseEvent} evt - A DOM event.
      *
-     * @listens mousemove
+     * @listens event:mousemove
      */
     onMouseMove(evt) {
         this.viewport.updateClipCursor(evt.clientX, evt.clientY);
@@ -286,7 +292,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {MouseEvent} evt - A DOM event.
      *
-     * @listens mousedown
+     * @listens event:mousedown
      * @fires module:player/PlayerController.mouseDown
      */
     onMouseDown(evt) {
@@ -314,7 +320,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {MouseEvent} evt - A DOM event.
      *
-     * @listens mousemove
+     * @listens event:mousemove
      * @fires module:player/PlayerController.dragStart
      */
     onDrag(evt) {
@@ -432,7 +438,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {MouseEvent} evt - A DOM event
      *
-     * @listens mouseup
+     * @listens event:mouseup
      * @fires module:player/PlayerController.localViewportChange
      * @fires module:player/PlayerController.dragEnd
      * @fires module:player/PlayerController.click
@@ -489,7 +495,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {WheelEvent} evt - A DOM event.
      *
-     * @listens wheel
+     * @listens event:wheel
      * @fires module:player/PlayerController.localViewportChange
      */
     onWheel(evt) {
@@ -586,7 +592,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {MouseEvent} evt - A DOM event.
      *
-     * @listens contextmenu
+     * @listens event:contextmenu
      * @fires module:player/PlayerController.click
      */
     onContextMenu(evt) {
@@ -603,7 +609,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {KeyboardEvent} evt - The DOM event to process.
      *
-     * @listens keydown
+     * @listens event:keydown
      */
     onKeyDown(evt) {
         // Keys with Alt/Ctrl/Meta modifiers are ignored
@@ -672,7 +678,7 @@ export class PlayerController extends EventEmitter {
      *
      * @param {KeyboardEvent} evt - The DOM event to process.
      *
-     * @listens keypress
+     * @listens event:keypress
      */
     onKeyPress(evt) {
         // Keys with modifiers are ignored

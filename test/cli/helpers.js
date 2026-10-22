@@ -20,16 +20,26 @@ const fixturesDir = path.join(repoDir, "test", "fixtures");
 // The electron npm package exports the path of its binary.
 const electronBinary = require("electron");
 
+/** A fixture deck copied into a temporary directory, as `withTempDeck` returns it.
+ *
+ * @typedef {{dir: string, svg: string, json: string, cleanup: Function}} Deck
+ */
+
+/** The result of a CLI run, as `runSozi` returns it: the exit code, the output streams,
+ * and stdout parsed as JSON (null when it is not JSON).
+ *
+ * @typedef {{code: number|null, stdout: string, stderr: string, json: object|null}} SoziRun
+ */
+
 /** Run `electron build/electron --cli ...args`.
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
- * @param {object} [opts] - `cwd` (default: the repository), `env` (default: process.env),
- *  `timeout` in milliseconds (default: 60000), `switches`: Chromium switches placed before `--cli`.
- * @param opts.cwd
- * @param opts.env
- * @param opts.timeout
- * @param opts.switches
- * @returns {{code: number|null, stdout: string, stderr: string, json: object|null}}
+ * @param {object} [opts] - Options for the run.
+ * @param {string} [opts.cwd] - The working directory (default: the repository).
+ * @param {object} [opts.env] - The environment variables (default: process.env).
+ * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000).
+ * @param {string[]} [opts.switches] - Chromium switches placed before `--cli` (default: none).
+ * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
  */
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
     const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...args], {
@@ -59,9 +69,10 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
  * (it must contain exactly one `.svg`).
  *
  * @param {string} fixtureName - The fixture name.
- * @param {object} [opts] - `fixturesDir` (default: test/fixtures).
- * @param opts.fixturesDir
- * @returns {{dir: string, svg: string, json: string, cleanup: Function}}
+ * @param {object} [opts] - Options.
+ * @param {string} [opts.fixturesDir] - The directory of the fixtures (default: test/fixtures).
+ * @returns {Deck} - The temporary directory, the paths of the SVG and JSON files in it,
+ *  and a function that removes it.
  */
 function withTempDeck(fixtureName, {fixturesDir: root = fixturesDir} = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
@@ -95,7 +106,7 @@ function withTempDeck(fixtureName, {fixturesDir: root = fixturesDir} = {}) {
 
 /** Decode an 8-bit, non-interlaced RGB or RGBA PNG (what Chrome writes).
  *
- * @param buf
+ * @param {Buffer} buf - The content of the PNG file.
  * @returns {{width: number, height: number, pixel: Function}} - `pixel(x, y)` gives `[r, g, b]`.
  */
 function decodePng(buf) {
@@ -154,9 +165,12 @@ function decodePng(buf) {
 /** Decode a PNG file and check its size, and that its pixels are not all the same colour.
  *
  * Every fourth row and column is sampled.
- * @param file
- * @param width
- * @param height
+ *
+ * @param {string} file - The path of the PNG file.
+ * @param {number} width - The expected width in pixels.
+ * @param {number} height - The expected height in pixels.
+ * @returns {{png: {width: number, height: number, pixel: Function}, colours: number}} - The
+ *  decoded image and the number of distinct colours among the sampled pixels.
  */
 function checkPng(file, width, height) {
     assert.ok(fs.existsSync(file), `${file} exists`);
@@ -176,9 +190,11 @@ function checkPng(file, width, height) {
  *
  * The frames of the basic fixture are filled by the orange rectangle r2 (#cc6633),
  * and the frame number of the player is hidden by default: every sampled pixel is orange.
- * @param file
- * @param width
- * @param height
+ *
+ * @param {string} file - The path of the PNG file.
+ * @param {number} width - The expected width in pixels.
+ * @param {number} height - The expected height in pixels.
+ * @returns {{width: number, height: number, pixel: Function}} - The decoded image.
  */
 function checkBasicPng(file, width, height) {
     assert.ok(fs.existsSync(file), `${file} exists`);
@@ -199,7 +215,10 @@ function checkBasicPng(file, width, height) {
 /** The number of dark pixels in the top left corner of a PNG file, where the player draws the frame number.
  *
  * The frame number is a dark box; the frames of the basic fixture are orange there.
- * @param file
+ *
+ * @param {string} file - The path of the PNG file.
+ * @returns {number} - The number of pixels darker than 100 on each channel in the
+ *  top left 100 by 40 pixels.
  */
 function darkInCorner(file) {
     const png = decodePng(fs.readFileSync(file));

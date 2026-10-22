@@ -88,7 +88,7 @@ export class Preview {
      * This method will update the geometry of the preview area,
      * realign all cameras and repaint the viewport.
      *
-     * @listens resize
+     * @listens event:resize
      * @listens module:Controller.repaint
      *
      * @see {@linkcode module:player/Viewport.Viewport#repaint}
@@ -134,7 +134,7 @@ export class Preview {
      *
      * @param {MouseEvent} evt - A DOM event.
      *
-     * @listens click
+     * @listens event:click
      */
     onClick(evt) {
         if (evt.button === 0 && evt.altKey) {
@@ -147,7 +147,7 @@ export class Preview {
 
     /** When the mouse hovers the preview area, reveal the clipping rectangle.
      *
-     * @listens mouseenter
+     * @listens event:mouseenter
      *
      * @see {@linkcode module:player/Camera.Camera#revealClipping}
      */
@@ -163,7 +163,7 @@ export class Preview {
 
     /** When the mouse leaves the preview area, conceal the clipping rectangle.
      *
-     * @listens mouseleave
+     * @listens event:mouseleave
      *
      * @see {@linkcode module:player/Camera.Camera#concealClipping}
      */
