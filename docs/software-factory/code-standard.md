@@ -2,7 +2,8 @@
 
 Status: agreed section by section with Tim on 2026-10-20 and 2026-10-21; every rule
 below says so and names what enforces it. Binding once the `software-factory` branch
-merges (`CLAUDE.md` already points here).
+merges. Agents read the condensed version, `.claude/skills/code-standard/SKILL.md` and
+its `references/`; this file is the record of why.
 
 Applies to the fork (`src/js`, `src/css`, `src/templates`, `test`) and to sozi-channel
 (`worker/src`, `deck`). Written so that any model produces the same code. Each rule says
