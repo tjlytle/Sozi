@@ -258,18 +258,19 @@ export class Controller extends EventEmitter {
         // Casts: index.html holds the message panel with its title and body.
         const msg = /** @type {HTMLElement} */ (document.getElementById("message"));
         if (this.notificationTimeout === null) {
-            /** @type {Element} */ (msg.querySelector(".body")).innerHTML = "";
+            /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body")).innerHTML = "";
         } else {
             clearTimeout(this.notificationTimeout);
         }
 
-        /** @type {Element} */ (msg.querySelector(".title")).innerHTML =
+        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-title")).innerHTML =
             severity === "error"
                 ? _('<i class="fa fa-exclamation-triangle"></i> Error')
                 : _('<i class="fa fa-info-circle"></i> Information');
 
-        /** @type {Element} */ (msg.querySelector(".body")).innerHTML += `<div>${body}</div>`;
-        msg.classList.add("visible", severity);
+        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body")).innerHTML +=
+            `<div>${body}</div>`;
+        msg.classList.add("sozi-editor__message--visible", `sozi-editor__message--${severity}`);
         this.notificationTimeout = setTimeout(() => this.hideNotification(), 5000);
     }
 
@@ -277,7 +278,11 @@ export class Controller extends EventEmitter {
     hideNotification() {
         // Casts: index.html holds the message panel; clearTimeout accepts null at run time.
         const msg = /** @type {HTMLElement} */ (document.getElementById("message"));
-        msg.classList.remove("visible", "info", "error");
+        msg.classList.remove(
+            "sozi-editor__message--visible",
+            "sozi-editor__message--info",
+            "sozi-editor__message--error"
+        );
         clearTimeout(/** @type {ReturnType<typeof setTimeout>} */ (this.notificationTimeout));
         this.notificationTimeout = null;
     }

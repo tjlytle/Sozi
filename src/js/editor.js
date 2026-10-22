@@ -72,12 +72,16 @@ window.addEventListener(
         }
 
         const body = /** @type {HTMLBodyElement} */ (document.querySelector("body"));
-        const left = /** @type {HTMLElement} */ (document.querySelector(".left"));
-        const right = /** @type {HTMLElement} */ (document.querySelector(".right"));
-        const top = /** @type {HTMLElement} */ (document.querySelector(".top"));
-        const bottom = /** @type {HTMLElement} */ (document.querySelector(".bottom"));
-        const hsplitter = /** @type {HTMLElement} */ (document.querySelector(".hsplitter"));
-        const vsplitter = /** @type {HTMLElement} */ (document.querySelector(".vsplitter"));
+        const left = /** @type {HTMLElement} */ (document.querySelector(".sozi-editor__left"));
+        const right = /** @type {HTMLElement} */ (document.querySelector(".sozi-editor__right"));
+        const top = /** @type {HTMLElement} */ (document.querySelector(".sozi-editor__top"));
+        const bottom = /** @type {HTMLElement} */ (document.querySelector(".sozi-editor__bottom"));
+        const hsplitter = /** @type {HTMLElement} */ (
+            document.querySelector(".sozi-editor__hsplitter")
+        );
+        const vsplitter = /** @type {HTMLElement} */ (
+            document.querySelector(".sozi-editor__vsplitter")
+        );
 
         /** @type {HTMLElement} */ (document.getElementById("message")).addEventListener(
             "click",

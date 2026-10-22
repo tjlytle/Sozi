@@ -58,9 +58,9 @@ export class Toolbar extends VirtualDOMView {
         this.state["aspect-height"] = {value: this.presentation.aspectHeight};
 
         return h("div", [
-            h("span.group", [
+            h("span.sozi-toolbar__group", [
                 _("Aspect ratio: "),
-                h("input.aspect", {
+                h("input.sozi-toolbar__aspect", {
                     id: "field-aspect-width",
                     type: "number",
                     pattern: "\\d+",
@@ -76,7 +76,7 @@ export class Toolbar extends VirtualDOMView {
                     }
                 }),
                 " : ",
-                h("input.aspect", {
+                h("input.sozi-toolbar__aspect", {
                     id: "field-aspect-height",
                     type: "number",
                     pattern: "\\d+",
@@ -92,12 +92,15 @@ export class Toolbar extends VirtualDOMView {
                     }
                 })
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.sozi-editor__button-group", [
                 h(
                     "button",
                     {
                         title: _("Move the selected layers (hold Alt to zoom, Shift to rotate)"),
-                        className: this.viewport.dragMode === "translate" ? "active" : "",
+                        className:
+                            this.viewport.dragMode === "translate"
+                                ? "sozi-editor__button--active"
+                                : "",
                         onclick() {
                             controller.setDragMode("translate");
                         }
@@ -110,7 +113,8 @@ export class Toolbar extends VirtualDOMView {
                         title: _(
                             "Zoom in/out on the selected layers (you can also hold the Alt key in Move mode)"
                         ),
-                        className: this.viewport.dragMode === "scale" ? "active" : "",
+                        className:
+                            this.viewport.dragMode === "scale" ? "sozi-editor__button--active" : "",
                         onclick() {
                             controller.setDragMode("scale");
                         }
@@ -123,7 +127,10 @@ export class Toolbar extends VirtualDOMView {
                         title: _(
                             "Rotate the selected layers (you can also hold the Shift key in Move mode)"
                         ),
-                        className: this.viewport.dragMode === "rotate" ? "active" : "",
+                        className:
+                            this.viewport.dragMode === "rotate"
+                                ? "sozi-editor__button--active"
+                                : "",
                         onclick() {
                             controller.setDragMode("rotate");
                         }
@@ -134,7 +141,8 @@ export class Toolbar extends VirtualDOMView {
                     "button",
                     {
                         title: _("Edit the clipping area"),
-                        className: this.viewport.dragMode === "clip" ? "active" : "",
+                        className:
+                            this.viewport.dragMode === "clip" ? "sozi-editor__button--active" : "",
                         onclick() {
                             controller.setDragMode("clip");
                         }
@@ -142,7 +150,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-crop")
                 )
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.sozi-editor__button-group", [
                 h(
                     "button",
                     {
@@ -166,7 +174,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-share")
                 ) // "share" icon preferred to the official "redo" icon
             ]),
-            h("span.group", [
+            h("span.sozi-toolbar__group", [
                 h(
                     "button",
                     {
@@ -174,7 +182,9 @@ export class Toolbar extends VirtualDOMView {
                             ? _("Disable full-screen mode")
                             : _("Enable full-screen mode"),
                         id: "btn-fullscreen",
-                        className: screenfull.isFullscreen ? "active" : undefined,
+                        className: screenfull.isFullscreen
+                            ? "sozi-editor__button--active"
+                            : undefined,
                         disabled: !screenfull.isEnabled,
                         onclick() {
                             screenfull.toggle(document.documentElement);
@@ -183,7 +193,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-desktop")
                 )
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.sozi-editor__button-group", [
                 h(
                     "button",
                     {
@@ -213,7 +223,10 @@ export class Toolbar extends VirtualDOMView {
                     "button",
                     {
                         title: _("Export the presentation"),
-                        className: properties.mode === "export" ? "active" : undefined,
+                        className:
+                            properties.mode === "export"
+                                ? "sozi-editor__button--active"
+                                : undefined,
                         onclick() {
                             properties.toggleMode("export");
                         }
@@ -221,12 +234,15 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-file")
                 ) // "file-export" is missing in Fork-Awesome
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.sozi-editor__button-group", [
                 h(
                     "button",
                     {
                         title: _("Preferences"),
-                        className: properties.mode === "preferences" ? "active" : undefined,
+                        className:
+                            properties.mode === "preferences"
+                                ? "sozi-editor__button--active"
+                                : undefined,
                         onclick() {
                             properties.toggleMode("preferences");
                         }

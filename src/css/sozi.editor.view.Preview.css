@@ -1,15 +1,15 @@
-#sozi-editor-view-preview {
+.sozi-preview {
     position: absolute;
     left: 10%;
     top: 10%;
     width: 80%;
     height: 80%;
-    background: white;
-    box-shadow: 0 0 20px 5px rgb(32 32 32);
+    background: var(--sozi-preview-bg);
+    box-shadow: 0 0 20px 5px var(--sozi-shadow-preview);
     text-align: center;
 }
 
-#sozi-editor-view-preview svg {
+.sozi-preview svg {
     position: absolute;
     left: 0;
     top: 0;
@@ -17,18 +17,18 @@
     height: 100%;
 }
 
-#sozi-editor-view-preview svg a {
+.sozi-preview svg a {
     cursor: default;
 }
 
-#sozi-editor-view-preview p,
-#sozi-editor-view-preview ul {
-    margin: 2rem;
+.sozi-preview p,
+.sozi-preview ul {
+    margin: var(--sozi-space-6);
     padding: 0;
 }
 
-#sozi-editor-view-preview ul li {
+.sozi-preview ul li {
     list-style-type: none;
     display: inline-block;
-    margin: 0 1rem 0.5rem;
+    margin: 0 var(--sozi-space-4) var(--sozi-space-3);
 }

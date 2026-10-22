@@ -4,11 +4,11 @@
 
 // Steps for the editor: open a deck in the Electron app, act on the timeline and the
 // properties panel, read back the DOM and the files on disk.
-// The selectors come from src/js/view/Timeline.js (th.frame-index, th.frame-title, and the
-// buttons titled "Create a new frame" and "Delete the selected frames", both defined in the
-// timeline's header, not in src/js/view/Toolbar.js), src/js/view/Properties.js (#field-title)
-// and the key map in src/js/model/Preferences.js. The buttons are found by their English
-// titles, so the run needs the default (English) locale.
+// The selectors come from src/js/view/Timeline.js (th.sozi-timeline__frame-index,
+// th.sozi-timeline__frame-title, and the buttons titled "Create a new frame" and "Delete the
+// selected frames", both defined in the timeline's header, not in src/js/view/Toolbar.js),
+// src/js/view/Properties.js (#field-title) and the key map in src/js/model/Preferences.js.
+// The buttons are found by their English titles, so the run needs the default (English) locale.
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import fs from "node:fs";
@@ -21,7 +21,7 @@ import {launchEditor} from "../support/electron.js";
  * @returns {import("playwright").Locator} - The cells.
  */
 function frameIndexCells(window) {
-    return window.locator(".timeline-top-right th.frame-index");
+    return window.locator(".sozi-timeline__top-right th.sozi-timeline__frame-index");
 }
 
 /** The frame title cells of the timeline, one per frame.
@@ -30,7 +30,7 @@ function frameIndexCells(window) {
  * @returns {import("playwright").Locator} - The cells.
  */
 function frameTitleCells(window) {
-    return window.locator(".timeline-top-right th.frame-title");
+    return window.locator(".sozi-timeline__top-right th.sozi-timeline__frame-title");
 }
 
 /** Read the presentation file of the deck from disk.
@@ -75,7 +75,7 @@ When("the selection is inserted before frame {int}", async function (index) {
     const cell = frameIndexCells(this.window).nth(index - 1);
     // The insert icons are shown only while the cell is hovered.
     await cell.hover();
-    await cell.locator("i.insert-before").click();
+    await cell.locator("i.sozi-timeline__insert-before").click();
 });
 
 Then("the timeline shows {int} frames", async function (count) {
@@ -88,12 +88,22 @@ Then("the timeline titles are {string}", async function (titles) {
 });
 
 Then("frame {int} is the selected frame", async function (index) {
-    await expect(frameTitleCells(this.window).nth(index - 1)).toHaveClass(/\bselected\b/);
-    await expect(this.window.locator(".timeline-top-right th.frame-title.selected")).toHaveCount(1);
+    await expect(frameTitleCells(this.window).nth(index - 1)).toHaveClass(
+        /(^|\s)sozi-timeline__cell--selected(\s|$)/
+    );
+    await expect(
+        this.window.locator(
+            ".sozi-timeline__top-right th.sozi-timeline__frame-title.sozi-timeline__cell--selected"
+        )
+    ).toHaveCount(1);
 });
 
 Then("no frame is selected", async function () {
-    await expect(this.window.locator(".timeline-top-right th.frame-title.selected")).toHaveCount(0);
+    await expect(
+        this.window.locator(
+            ".sozi-timeline__top-right th.sozi-timeline__frame-title.sozi-timeline__cell--selected"
+        )
+    ).toHaveCount(0);
 });
 
 Then("the selected frame's title field reads {string}", async function (title) {

@@ -1,20 +1,20 @@
-#sozi-editor-view-toolbar {
+.sozi-toolbar {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     height: 2.5rem;
-    padding: 0.5rem 1rem;
-    color: white;
-    background: linear-gradient(to bottom, rgb(64 64 64), rgb(80 80 80) 2rem);
+    padding: var(--sozi-space-3) var(--sozi-space-4);
+    color: var(--sozi-text);
+    background: linear-gradient(to bottom, var(--sozi-bg-dark), var(--sozi-bg) 2rem);
 }
 
-.aspect {
+.sozi-toolbar__aspect {
     width: 4rem;
-    padding: 0.2rem 0.5rem;
-    border: 1px solid rgb(80 80 80);
+    padding: var(--sozi-space-1) var(--sozi-space-3);
+    border: 1px solid var(--sozi-bg);
 }
 
-.group {
-    margin-right: 1.5rem;
+.sozi-toolbar__group {
+    margin-right: var(--sozi-space-5);
 }

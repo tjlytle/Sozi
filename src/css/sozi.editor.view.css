@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* ------------------------------------------------------------------------- *
- * Layout
+ * Page
  * ------------------------------------------------------------------------- */
 
 /*
@@ -14,114 +14,99 @@
 *::before,
 *::after {
     box-sizing: border-box;
-    box-sizing: border-box;
-    box-sizing: border-box;
+}
+
+html {
+    font-family: InterVariable, sans-serif;
 }
 
 body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    background: var(--sozi-bg);
+    font-size: var(--sozi-font-size);
+    user-select: none;
 }
 
-.top {
+/* ------------------------------------------------------------------------- *
+ * Panes and splitters
+ * ------------------------------------------------------------------------- */
+
+.sozi-editor__top {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
-    height: calc(70% - 2px);
+    height: calc(70% - 0.125rem);
 }
 
-.bottom {
+.sozi-editor__bottom {
     position: absolute;
     left: 0;
     bottom: 0;
     width: 100%;
-    height: calc(30% - 2px);
+    height: calc(30% - 0.125rem);
 }
 
-.left {
+.sozi-editor__left {
     position: absolute;
     left: 0;
     top: 0;
-    width: calc(70% - 2px);
+    width: calc(70% - 0.125rem);
     height: 100%;
 }
 
-.right {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: calc(30% - 2px);
-    height: 100%;
-}
-
-.hsplitter {
-    position: absolute;
-    left: 0;
-    top: calc(70% - 3px);
-    width: 100%;
-    height: 6px;
-}
-
-.vsplitter {
-    position: absolute;
-    left: calc(70% - 3px);
-    top: 0;
-    width: 6px;
-    height: 100%;
-}
-
-.right {
-    overflow: hidden auto;
-}
-
-.btn-group {
-    white-space: nowrap;
-}
-
-.message {
-    position: fixed;
-    width: 100%;
-    top: 0;
-    left: 0;
-    padding: 0.5rem 1rem;
-}
-
-/* ------------------------------------------------------------------------- *
- * Colors and borders
- * ------------------------------------------------------------------------- */
-
-body {
-    background: rgb(80 80 80);
-}
-
-.top .left {
+.sozi-editor__top .sozi-editor__left {
     background-image: linear-gradient(
         -45deg,
-        rgb(80 80 80) 25%,
-        rgb(64 64 64) 25%,
-        rgb(64 64 64) 50%,
-        rgb(80 80 80) 50%,
-        rgb(80 80 80) 75%,
-        rgb(64 64 64) 75%,
-        rgb(64 64 64)
+        var(--sozi-bg) 25%,
+        var(--sozi-bg-dark) 25%,
+        var(--sozi-bg-dark) 50%,
+        var(--sozi-bg) 50%,
+        var(--sozi-bg) 75%,
+        var(--sozi-bg-dark) 75%,
+        var(--sozi-bg-dark)
     );
     background-size: 1rem 1rem;
 }
 
-.right {
-    background: rgb(64 64 64);
+.sozi-editor__right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: calc(30% - 0.125rem);
+    height: 100%;
+    overflow: hidden auto;
+    background: var(--sozi-bg-dark);
 }
 
-.hsplitter,
-.vsplitter {
-    background: rgb(64 64 64);
+.sozi-editor__hsplitter {
+    position: absolute;
+    left: 0;
+    top: calc(70% - 0.1875rem);
+    width: 100%;
+    height: 0.375rem;
+    cursor: ns-resize;
 }
 
-.hsplitter:hover,
-.vsplitter:hover {
-    background: rgb(80 80 80);
+.sozi-editor__vsplitter {
+    position: absolute;
+    left: calc(70% - 0.1875rem);
+    top: 0;
+    width: 0.375rem;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+.sozi-editor__hsplitter,
+.sozi-editor__vsplitter {
+    background: var(--sozi-bg-dark);
+}
+
+.sozi-editor__hsplitter:hover,
+.sozi-editor__vsplitter:hover {
+    background: var(--sozi-bg);
 }
 
 /*
@@ -135,114 +120,104 @@ select,
 button {
     border-radius: 0.5rem;
     border: none;
-    padding: 0.3rem 0.5rem;
-    color: black;
+    padding: var(--sozi-space-2) var(--sozi-space-3);
+    color: var(--sozi-text-dark);
 }
 
 input[type="text"],
 input[type="number"],
 section[contenteditable="true"] {
-    box-shadow: 0 1px 1px rgb(0 0 0 / 50%) inset;
-    background-color: white;
+    box-shadow: 0 1px 1px var(--sozi-shadow) inset;
+    background-color: var(--sozi-field-bg);
 }
 
 select,
 button {
-    background: linear-gradient(to bottom, rgb(220 220 220), rgb(180 180 180) 100%);
+    background: linear-gradient(to bottom, var(--sozi-control), var(--sozi-control-dark) 100%);
 }
 
 select:active,
 button:active {
-    background: linear-gradient(to bottom, rgb(200 200 200), rgb(160 160 160) 100%);
+    background: linear-gradient(
+        to bottom,
+        var(--sozi-control-pressed),
+        var(--sozi-control-pressed-dark) 100%
+    );
 }
 
 option {
-    background: rgb(220 220 220);
+    background: var(--sozi-control);
 }
 
 input:disabled {
-    background: rgb(220 220 220);
+    background: var(--sozi-control);
 }
 
 input:disabled,
 button:disabled {
-    color: rgb(150 150 150);
+    color: var(--sozi-text-disabled);
 }
 
-.active {
-    background: linear-gradient(to bottom, rgb(150 200 200), rgb(180 220 220) 100%);
+.sozi-editor__button--active {
+    background: linear-gradient(to bottom, var(--sozi-accent), var(--sozi-accent-light) 100%);
 }
 
-button.active:active {
-    background: linear-gradient(to bottom, rgb(135 180 180), rgb(160 200 200) 100%);
+button.sozi-editor__button--active:active {
+    background: linear-gradient(
+        to bottom,
+        var(--sozi-accent-pressed),
+        var(--sozi-accent-pressed-light) 100%
+    );
 }
 
-.multiple {
+.sozi-editor__field--multiple {
     background-image: linear-gradient(
         -45deg,
-        rgb(150 200 200) 25%,
-        rgb(220 220 220) 25%,
-        rgb(220 220 220) 50%,
-        rgb(150 200 200) 50%,
-        rgb(150 200 200) 75%,
-        rgb(220 220 220) 75%,
-        rgb(220 220 220)
+        var(--sozi-accent) 25%,
+        var(--sozi-control) 25%,
+        var(--sozi-control) 50%,
+        var(--sozi-accent) 50%,
+        var(--sozi-accent) 75%,
+        var(--sozi-control) 75%,
+        var(--sozi-control)
     );
     background-size: 1rem 1rem;
 }
 
-.btn-group button:first-child:not(:last-child) {
-    border-radius: 0.5rem 0 0 0.5rem;
-    border-right: 1px solid rgb(80 80 80);
+/*
+ * Button groups. The three rules match disjoint sets of buttons, so their
+ * order does not decide anything; :where(button) keeps the specificity at
+ * three classes.
+ */
+
+.sozi-editor__button-group {
+    white-space: nowrap;
 }
 
-.btn-group button:last-child:not(:first-child) {
+.sozi-editor__button-group :where(button):not(:first-child, :last-child) {
+    border-radius: 0;
+    border-right: 1px solid var(--sozi-bg);
+}
+
+.sozi-editor__button-group :where(button):first-child:not(:last-child) {
+    border-radius: 0.5rem 0 0 0.5rem;
+    border-right: 1px solid var(--sozi-bg);
+}
+
+.sozi-editor__button-group :where(button):last-child:not(:first-child) {
     border-radius: 0 0.5rem 0.5rem 0;
 }
 
-.btn-group button:not(:first-child, :last-child) {
-    border-radius: 0;
-    border-right: 1px solid rgb(80 80 80);
-}
-
-.message.info {
-    background-color: rgb(150 200 200 / 80%);
-}
-
-.message.error {
-    background-color: rgb(255 100 100 / 80%);
-}
-
 /* ------------------------------------------------------------------------- *
- * Fonts
+ * Notifications
  * ------------------------------------------------------------------------- */
 
-html {
-    font-family: InterVariable, sans-serif;
-}
-
-body {
-    font-size: small;
-}
-
-.top-left p {
-    font-size: 200%;
-    text-align: center;
-}
-
-.message .title {
-    font-weight: bold;
-}
-
-/* ------------------------------------------------------------------------- *
- * Actions and animations
- * ------------------------------------------------------------------------- */
-
-body {
-    user-select: none;
-}
-
-.message {
+.sozi-editor__message {
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
+    padding: var(--sozi-space-3) var(--sozi-space-4);
     opacity: 0;
     visibility: hidden;
     transition:
@@ -250,7 +225,7 @@ body {
         opacity 0.5s ease;
 }
 
-.message.visible {
+.sozi-editor__message--visible {
     opacity: 1;
     visibility: visible;
     transition:
@@ -258,12 +233,16 @@ body {
         opacity 0.5s ease;
 }
 
-.hsplitter {
-    cursor: ns-resize;
+.sozi-editor__message--info {
+    background-color: var(--sozi-info-bg);
 }
 
-.vsplitter {
-    cursor: ew-resize;
+.sozi-editor__message--error {
+    background-color: var(--sozi-error-bg);
+}
+
+.sozi-editor__message-title {
+    font-weight: bold;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -271,21 +250,21 @@ body {
  * ------------------------------------------------------------------------- */
 
 input[type="range"] {
-    background: rgb(64 64 64);
+    background: var(--sozi-bg-dark);
 }
 
 input[type="range"]::-moz-range-track {
     border-radius: 8px;
-    height: 7px;
-    border: 1px solid #bdc3c7;
-    background-color: #fff;
+    height: 0.4375rem;
+    border: 1px solid var(--sozi-range-border);
+    background-color: var(--sozi-range-track);
 }
 
 input[type="range"]::-moz-range-thumb {
-    background: #ecf0f1;
-    border: 1px solid #bdc3c7;
-    width: 14px;
-    height: 14px;
+    background: var(--sozi-range-thumb);
+    border: 1px solid var(--sozi-range-border);
+    width: 0.875rem;
+    height: 0.875rem;
     border-radius: 10px;
     cursor: pointer;
 }

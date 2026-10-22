@@ -118,9 +118,9 @@ export class Properties extends VirtualDOMView {
 
         const toDefaultMode = () => this.toggleMode("default");
 
-        return h("div.properties", [
+        return h("div.sozi-properties", [
             h(
-                "div.back",
+                "div.sozi-properties__back",
                 {
                     title: _("Back to presentation properties"),
                     onClick() {
@@ -151,7 +151,7 @@ export class Properties extends VirtualDOMView {
                 1
             ),
 
-            h("label.side-by-side", {for: "field-enableNotifications"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-enableNotifications"}, [
                 _("Enable notifications on save and reload"),
                 this.renderToggleField(
                     h("i.fa.fa-info"),
@@ -182,7 +182,7 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Behavior")),
 
-            h("label.side-by-side", {for: "field-animateTransitions"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-animateTransitions"}, [
                 _("Preview transition animations"),
                 this.renderToggleField(
                     h("i.fa.fa-film"),
@@ -199,7 +199,7 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Rendering")),
 
-            h("label.side-by-side", {for: "field-enableHardwareAcceleration"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-enableHardwareAcceleration"}, [
                 _("Hardware acceleration"),
                 this.renderToggleField(
                     h("i.fa.fa-microchip"),
@@ -210,7 +210,7 @@ export class Properties extends VirtualDOMView {
                 )
             ]),
 
-            h("label.side-by-side", {for: "field-enableColorCorrectRendering"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-enableColorCorrectRendering"}, [
                 _("Color correct rendering"),
                 this.renderToggleField(
                     h("i.fa.fa-paint-brush"),
@@ -266,10 +266,10 @@ export class Properties extends VirtualDOMView {
             layersToCopy[layer.groupId] = layer.label;
         }
 
-        return h("div.properties", [
+        return h("div.sozi-properties", [
             h("h1", _("Frame")),
 
-            h("div.btn-group", [
+            h("div.sozi-editor__button-group", [
                 this.renderToggleField(
                     h("i.fa.fa-list"),
                     _("Show in frame list"),
@@ -315,7 +315,7 @@ export class Properties extends VirtualDOMView {
                 false
             ),
 
-            h("label.side-by-side", {for: "field-timeoutMs"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-timeoutMs"}, [
                 _("Timeout (seconds)"),
                 this.renderToggleField(
                     h("i.fa.fa-clock-o"),
@@ -337,7 +337,7 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Layer")),
 
-            h("div.btn-group", [
+            h("div.sozi-editor__button-group", [
                 this.renderToggleField(
                     h("i.fa.fa-link"),
                     _("Link to previous frame"),
@@ -379,9 +379,9 @@ export class Properties extends VirtualDOMView {
                 layersToCopy
             ),
 
-            h("label.side-by-side", {for: "field-outlineElementId"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-outlineElementId"}, [
                 _("Outline element Id"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     h(
                         "button",
                         {
@@ -474,7 +474,7 @@ export class Properties extends VirtualDOMView {
                 0.01
             ),
 
-            h("label.side-by-side", {for: "field-transitionPathId"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-transitionPathId"}, [
                 _("Path Id"),
                 this.renderToggleField(
                     h("i.fa.fa-eye-slash"),
@@ -510,7 +510,7 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Custom stylesheets and scripts")),
 
-            h("input.custom-css-js", {
+            h("input.sozi-properties__custom-css-js-input", {
                 type: "file",
                 accept: "text/css, text/javascript",
                 onChange(evt) {
@@ -519,7 +519,7 @@ export class Properties extends VirtualDOMView {
                     }
                 }
             }),
-            h("table.custom-css-js", [
+            h("table.sozi-properties__custom-css-js", [
                 h("tr", [
                     h(
                         "th",
@@ -535,7 +535,9 @@ export class Properties extends VirtualDOMView {
                                 onClick() {
                                     // Open the file chooser.
                                     /** @type {HTMLInputElement} */ (
-                                        document.querySelector(".properties input.custom-css-js")
+                                        document.querySelector(
+                                            ".sozi-properties__custom-css-js-input"
+                                        )
                                     ).dispatchEvent(new MouseEvent("click"));
                                 }
                             },
@@ -574,7 +576,7 @@ export class Properties extends VirtualDOMView {
                 controller.presentation.svgTitle || "Untitled"
             ),
 
-            h("div.side-by-side", [
+            h("div.sozi-properties__side-by-side", [
                 _('Support the browser\'s "Back" button to move to the previous frame'),
                 this.renderToggleField(
                     h("i.fa.fa-arrow-circle-left"),
@@ -587,9 +589,9 @@ export class Properties extends VirtualDOMView {
                 )
             ]),
 
-            h("div.side-by-side", [
+            h("div.sozi-properties__side-by-side", [
                 _("Allow to control the presentation"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     this.renderToggleField(
                         h("i.fa.fa-mouse-pointer"),
                         _("using the mouse"),
@@ -607,7 +609,7 @@ export class Properties extends VirtualDOMView {
                 ])
             ]),
 
-            h("div.side-by-side", [
+            h("div.sozi-properties__side-by-side", [
                 _("Allow to move the camera"),
                 this.renderToggleField(
                     h("i.fa.fa-mouse-pointer"),
@@ -618,9 +620,9 @@ export class Properties extends VirtualDOMView {
                 )
             ]),
 
-            h("div.side-by-side", [
+            h("div.sozi-properties__side-by-side", [
                 _("Allow to rotate the camera"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     this.renderToggleField(
                         h("i.fa.fa-mouse-pointer"),
                         _("using the mouse"),
@@ -638,9 +640,9 @@ export class Properties extends VirtualDOMView {
                 ])
             ]),
 
-            h("div.side-by-side", [
+            h("div.sozi-properties__side-by-side", [
                 _("Allow to zoom"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     this.renderToggleField(
                         h("i.fa.fa-mouse-pointer"),
                         _("using the mouse"),
@@ -706,9 +708,9 @@ export class Properties extends VirtualDOMView {
 
         const toDefaultMode = () => this.toggleMode("default");
 
-        return h("div.properties", [
+        return h("div.sozi-properties", [
             h(
-                "div.back",
+                "div.sozi-properties__back",
                 {
                     title: _("Back to presentation properties"),
                     onClick() {
@@ -734,7 +736,7 @@ export class Properties extends VirtualDOMView {
 
             exportFields,
 
-            h("div.btn-group", [
+            h("div.sozi-editor__button-group", [
                 h(
                     "button",
                     {
@@ -744,7 +746,7 @@ export class Properties extends VirtualDOMView {
                             exportFn.call(controller);
                         }
                     },
-                    [_("Export"), controller.exporting ? h("span.spinner") : null]
+                    [_("Export"), controller.exporting ? h("span.sozi-properties__spinner") : null]
                 )
             ])
         ]);
@@ -785,7 +787,7 @@ export class Properties extends VirtualDOMView {
                 }
             ),
 
-            h("label.side-by-side", {for: "field-exportToPDFInclude"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-exportToPDFInclude"}, [
                 _("List of frames to include"),
                 this.renderHelp(
                     _("Click here to see the syntax for this field"),
@@ -800,7 +802,7 @@ export class Properties extends VirtualDOMView {
                 true
             ),
 
-            h("label.side-by-side", {for: "field-exportToPDFExclude"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-exportToPDFExclude"}, [
                 _("List of frames to exclude"),
                 this.renderHelp(
                     _("Click here to see the syntax for this field"),
@@ -849,7 +851,7 @@ export class Properties extends VirtualDOMView {
                 }
             ),
 
-            h("label.side-by-side", {for: "field-exportToPPTXInclude"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-exportToPPTXInclude"}, [
                 _("List of frames to include"),
                 this.renderHelp(
                     _("Click here to see the syntax for this field"),
@@ -864,7 +866,7 @@ export class Properties extends VirtualDOMView {
                 true
             ),
 
-            h("label.side-by-side", {for: "field-exportToPPTXExclude"}, [
+            h("label.sozi-properties__side-by-side", {for: "field-exportToPPTXExclude"}, [
                 _("List of frames to exclude"),
                 this.renderHelp(
                     _("Click here to see the syntax for this field"),
@@ -963,7 +965,11 @@ export class Properties extends VirtualDOMView {
                 this.controller.hideNotification();
                 this.controller.info(info, true);
             });
-        return h("span.help", {title: text, onclick}, h("i.fa.fa-question-circle"));
+        return h(
+            "span.sozi-properties__help",
+            {title: text, onclick},
+            h("i.fa.fa-question-circle")
+        );
     }
 
     /** Create a text input field.
@@ -982,7 +988,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {value: values.length >= 1 ? values[values.length - 1] : ""};
 
         return h("input", {
@@ -1016,7 +1022,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {innerHTML: values.length >= 1 ? values[values.length - 1] : ""};
 
         return h("section", {
@@ -1094,7 +1100,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {value: values.length >= 1 ? values[values.length - 1] / factor : 0}; // TODO use default value
 
         return h("input", {
@@ -1129,7 +1135,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {
             value: values.length >= 1 ? values[values.length - 1] : (min + max) / 2
         }; // TODO use default value
@@ -1165,10 +1171,10 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        let className = values.length > 1 ? "multiple" : "";
+        let className = values.length > 1 ? "sozi-editor__field--multiple" : "";
         const value = values.length >= 1 ? values[values.length - 1] : false; // TODO use default value
         if (value) {
-            className += " active";
+            className += " sozi-editor__button--active";
         }
 
         return h(
@@ -1196,7 +1202,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         const value = values.length >= 1 ? values[values.length - 1] : options[0];
 
         return h(

@@ -1,83 +1,80 @@
-.properties {
-    margin: 0.5rem 1rem;
+.sozi-properties {
+    margin: var(--sozi-space-3) var(--sozi-space-4);
+    color: var(--sozi-text);
 }
 
-.properties h1 {
+.sozi-properties h1 {
     text-align: center;
-    font-size: 120%;
+    font-size: var(--sozi-font-size-h1);
 }
 
-.properties h2 {
-    font-size: 110%;
+.sozi-properties h2 {
+    font-size: var(--sozi-font-size-h2);
 }
 
-.properties h3 {
-    font-size: 100%;
+.sozi-properties h3 {
+    font-size: var(--sozi-font-size-h3);
 }
 
-.properties > div {
-    margin-top: 0.5rem;
-    margin-bottom: 0.3rem;
+.sozi-properties > div {
+    margin-top: var(--sozi-space-3);
+    margin-bottom: var(--sozi-space-2);
 }
 
-.properties > div.btn-group {
+.sozi-properties > div.sozi-editor__button-group {
     text-align: center;
 }
 
-.properties .back {
+.sozi-properties__back {
     position: absolute;
     top: 0;
     left: 0;
     cursor: pointer;
 }
 
-.properties .side-by-side {
+.sozi-properties .sozi-properties__side-by-side {
     display: flex;
     align-items: center;
 }
 
-.properties label {
+.sozi-properties label {
     display: block;
-    margin-top: 0.5rem;
-    margin-bottom: 0.3rem;
+    margin-top: var(--sozi-space-3);
+    margin-bottom: var(--sozi-space-2);
 }
 
-.properties input,
-.properties select {
+.sozi-properties input,
+.sozi-properties select {
     width: 100%;
 }
 
-.properties span.btn-group,
-.properties :not(.btn-group, td) > button {
-    margin-left: 1rem;
+.sozi-properties span.sozi-editor__button-group,
+.sozi-properties :not(.sozi-editor__button-group, td) > button {
+    margin-left: var(--sozi-space-4);
 }
 
-.properties {
-    color: white;
+.sozi-properties__help {
+    margin-left: var(--sozi-space-4);
 }
 
-.properties .help {
-    margin-left: 1rem;
-}
-
-.properties table.custom-css-js {
+.sozi-properties__custom-css-js {
     width: 100%;
     border-radius: 0.5rem;
-    box-shadow: 0 1px 1px rgb(0 0 0 / 50%) inset;
-    background-color: white;
-    color: black;
+    box-shadow: 0 1px 1px var(--sozi-shadow) inset;
+    background-color: var(--sozi-field-bg);
+    color: var(--sozi-text-dark);
 }
 
-.properties .custom-css-js tr th {
+.sozi-properties__custom-css-js th {
     width: 100%;
 }
 
-.properties .custom-css-js td:first-child {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+.sozi-properties__custom-css-js td:first-child {
+    padding-left: var(--sozi-space-3);
+    padding-right: var(--sozi-space-3);
 }
 
-.properties input.custom-css-js {
+.sozi-properties__custom-css-js-input {
     display: none;
 }
 
@@ -87,12 +84,12 @@
     }
 }
 
-.spinner {
-    margin-left: 1rem;
-    margin-right: 1rem;
+.sozi-properties__spinner {
+    margin-left: var(--sozi-space-4);
+    margin-right: var(--sozi-space-4);
 }
 
-.spinner::before {
+.sozi-properties__spinner::before {
     content: "";
     box-sizing: border-box;
     position: absolute;
@@ -100,6 +97,6 @@
     height: 1rem;
     border-radius: 50%;
     border: 4px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--sozi-spinner);
     animation: spinner 0.8s linear infinite;
 }

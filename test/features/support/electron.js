@@ -47,7 +47,10 @@ export async function launchEditor(fixture) {
     const window = await app.firstWindow();
     const editor = {app, window, deck, home};
     openEditors.add(editor);
-    await window.locator(".timeline-top-right th.frame-index").first().waitFor();
+    await window
+        .locator(".sozi-timeline__top-right th.sozi-timeline__frame-index")
+        .first()
+        .waitFor();
     return editor;
 }
 

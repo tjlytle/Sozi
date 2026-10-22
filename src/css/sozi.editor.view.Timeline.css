@@ -6,18 +6,18 @@
  * Layout
  */
 
-#sozi-editor-view-timeline {
+.sozi-timeline {
     position: absolute;
     left: 0;
     bottom: 0;
     width: 100%;
     height: calc(100% - 2.5rem);
     overflow-y: auto;
-    color: white;
-    background: rgb(80 80 80);
+    color: var(--sozi-text);
+    background: var(--sozi-bg);
 }
 
-#sozi-editor-view-timeline > div {
+.sozi-timeline > div {
     position: absolute;
     top: 0;
     right: 0;
@@ -26,23 +26,23 @@
     overflow: hidden;
 }
 
-.timeline-top-left,
-.timeline-top-right,
-.timeline-bottom-left,
-.timeline-bottom-right {
+.sozi-timeline__top-left,
+.sozi-timeline__top-right,
+.sozi-timeline__bottom-left,
+.sozi-timeline__bottom-right {
     position: absolute;
     width: 50%;
     height: 50%;
     overflow: hidden;
 }
 
-.timeline-top-left,
-.timeline-top-right {
+.sozi-timeline__top-left,
+.sozi-timeline__top-right {
     top: 0;
 }
 
-.timeline-bottom-left,
-.timeline-bottom-right {
+.sozi-timeline__bottom-left,
+.sozi-timeline__bottom-right {
     bottom: 0;
 
     /* Always-visible horizontal scrollbar in left and right bottom tables.
@@ -50,99 +50,99 @@
     overflow-x: scroll;
 }
 
-.timeline-top-left,
-.timeline-bottom-left {
+.sozi-timeline__top-left,
+.sozi-timeline__bottom-left {
     left: 0;
 }
 
-.timeline-top-right,
-.timeline-bottom-right {
+.sozi-timeline__top-right,
+.sozi-timeline__bottom-right {
     right: 0;
-}
 
-.timeline-top-right,
-.timeline-bottom-right {
     /* Always-visible vertical scrollbar in top and bottom right tables.
      * Required for alignment between columns. */
     overflow-y: scroll;
 }
 
-.timeline {
+.sozi-timeline__table {
     border-collapse: separate;
     border-spacing: 0 2px;
+    user-select: none;
 }
 
-.timeline input,
-.timeline button,
-.timeline select {
+.sozi-timeline__table input,
+.sozi-timeline__table button,
+.sozi-timeline__table select {
     width: 100%;
 }
 
-.timeline td,
-.timeline th.frame-index,
-.timeline th.frame-title,
-.timeline th.layer-label {
+.sozi-timeline__table td,
+.sozi-timeline__table th.sozi-timeline__frame-index,
+.sozi-timeline__table th.sozi-timeline__frame-title,
+.sozi-timeline__table th.sozi-timeline__layer-label {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     width: 8rem;
     min-width: 3rem;
     max-width: 8rem;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: var(--sozi-space-3);
+    padding-right: var(--sozi-space-3);
+    font-weight: normal;
+    cursor: default;
 }
 
-.timeline th.layer-icons {
+.sozi-timeline__table th.sozi-timeline__layer-icons {
     width: auto;
     text-align: left;
     white-space: nowrap;
 }
 
-.timeline .layer-label {
+.sozi-timeline__table .sozi-timeline__layer-label {
     text-align: left;
     border-bottom-left-radius: 0.5rem;
     border-top-left-radius: 0.5rem;
 }
 
-.timeline .layer-icons .visibility,
-.timeline .layer-icons .remove {
-    margin-right: 0.5rem;
+.sozi-timeline__table .sozi-timeline__layer-icons .sozi-timeline__visibility,
+.sozi-timeline__table .sozi-timeline__layer-icons .sozi-timeline__remove {
+    margin-right: var(--sozi-space-3);
 }
 
-.timeline .layer-label .remove {
+.sozi-timeline__table .sozi-timeline__layer-label .sozi-timeline__remove {
     display: none;
 }
 
-.timeline .layer-label:hover .remove {
+.sozi-timeline__layer-label:hover .sozi-timeline__remove {
     display: inline;
 }
 
-.timeline .frame-title {
+.sozi-timeline__table .sozi-timeline__frame-title {
     border-top-left-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
 }
 
-.timeline .frame-index .insert-before {
+.sozi-timeline__table .sozi-timeline__frame-index .sozi-timeline__insert-before {
     float: left;
     position: relative;
     top: 0.5rem;
 }
 
-.timeline .frame-index .insert-after {
+.sozi-timeline__table .sozi-timeline__frame-index .sozi-timeline__insert-after {
     float: right;
     position: relative;
     top: 0.5rem;
 }
 
-.timeline .frame-index i {
+.sozi-timeline__table .sozi-timeline__frame-index i {
     display: none;
 }
 
-.timeline .frame-index:hover i {
+.sozi-timeline__frame-index:hover i {
     display: inline;
 }
 
-.timeline .collapse {
+.sozi-timeline__table .sozi-timeline__row--collapsed {
     visibility: collapse;
 }
 
@@ -150,75 +150,42 @@
  * Colors
  */
 
-.timeline-bottom-right td {
-    color: rgb(80 80 80);
+.sozi-timeline__bottom-right td {
+    color: var(--sozi-bg);
 }
 
-.timeline td,
-.timeline th.frame-index,
-.timeline th.frame-title {
-    border-left: 2px solid rgb(80 80 80);
+.sozi-timeline__table td,
+.sozi-timeline__table th.sozi-timeline__frame-index,
+.sozi-timeline__table th.sozi-timeline__frame-title {
+    border-left: 2px solid var(--sozi-bg);
 }
 
-.timeline .even {
-    background: rgb(200 200 200);
+.sozi-timeline__table .sozi-timeline__cell--even {
+    background: var(--sozi-row-even);
 }
 
-.timeline .odd {
-    background: rgb(230 230 230);
+.sozi-timeline__table .sozi-timeline__cell--odd {
+    background: var(--sozi-row-odd);
 }
 
-.timeline .link {
+.sozi-timeline__table .sozi-timeline__cell--link {
     border-left: none;
 }
 
-.timeline .selected {
-    background: rgb(200 220 220);
+.sozi-timeline__table .sozi-timeline__cell--selected {
+    background: var(--sozi-accent-pale);
 }
 
-.timeline th.selected {
-    color: black;
+.sozi-timeline__table th.sozi-timeline__cell--selected {
+    color: var(--sozi-text-dark);
 }
 
-.timeline .selected.current {
-    background: rgb(150 200 200);
+.sozi-timeline__table .sozi-timeline__cell--selected.sozi-timeline__cell--current {
+    background: var(--sozi-accent);
 }
 
-.timeline .frame-index.selected {
-    color: rgb(200 220 220);
+.sozi-timeline__table .sozi-timeline__frame-index.sozi-timeline__cell--selected {
+    color: var(--sozi-accent-pale);
     background: transparent;
-}
-
-/*
- * Fonts
- */
-
-.timeline td,
-.timeline th.frame-index,
-.timeline th.frame-title,
-.timeline th.layer-label {
-    font-weight: normal;
-}
-
-.timeline .frame-index.selected {
     font-weight: bold;
-}
-
-/*
- * Behavior
- */
-
-.timeline {
-    user-select: none;
-    user-select: none;
-    user-select: none;
-    user-select: none;
-    user-select: none;
-}
-
-.timeline td,
-.timeline th.frame-index,
-.timeline th.frame-title,
-.timeline th.layer-label {
-    cursor: default;
 }
