@@ -43,11 +43,11 @@ let player;
  *
  * @param {Event} evt - The DOM event to stop.
  *
- * @listens click
- * @listens mousedown
- * @listens mouseup
- * @listens mousemove
- * @listens contextmenu
+ * @listens event:click
+ * @listens event:mousedown
+ * @listens event:mouseup
+ * @listens event:mousemove
+ * @listens event:contextmenu
  */
 function defaultEventHandler(evt) {
     evt.stopPropagation();

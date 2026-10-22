@@ -123,7 +123,6 @@ export function upgradeFromSVG(pres, controller) {
     if (!soziNsAttrs.length) {
         return;
     }
-    const soziPrefix = soziNsAttrs[0].name.replace(/^xmlns:/, "") + ":";
 
     // Get an ordered array of sozi:frame elements
     const frameElts = Array.from(pres.document.root.getElementsByTagNameNS(SOZI_NS, "frame"));
@@ -287,16 +286,16 @@ export function upgradeFromStorable(storable) {
     for (const frame of storable.frames) {
         for (const layerId in frame.layerProperties) {
             const layer = frame.layerProperties[layerId];
-            if (layer.hasOwnProperty("referenceElementAuto")) {
+            if (Object.hasOwn(layer, "referenceElementAuto")) {
                 delete layer.referenceElementAuto;
             }
-            if (layer.hasOwnProperty("referenceElementHide")) {
+            if (Object.hasOwn(layer, "referenceElementHide")) {
                 layer.outlineElementHide = layer.referenceElementHide;
                 delete layer.referenceElementHide;
             }
             if (
-                layer.hasOwnProperty("referenceElementId") &&
-                !layer.hasOwnProperty("outlineElementId")
+                Object.hasOwn(layer, "referenceElementId") &&
+                !Object.hasOwn(layer, "outlineElementId")
             ) {
                 layer.outlineElementId = layer.referenceElementId;
             }

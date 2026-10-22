@@ -89,18 +89,16 @@ function presentationBase(presentation) {
  *  The file paths, and the directory of the HTML files.
  */
 export function presentationFiles(svg, presentation, {outputDir} = {}) {
-    if (!presentation) {
-        presentation = replaceFileExtWith(svg, PRESENTATION_EXT);
-    }
-    let base = presentationBase(presentation);
+    const presentationPath = presentation || replaceFileExtWith(svg, PRESENTATION_EXT);
+    let base = presentationBase(presentationPath);
     if (outputDir) {
-        const presentationDir = path.dirname(presentation);
+        const presentationDir = path.dirname(presentationPath);
         const dir = path.isAbsolute(outputDir) ? outputDir : path.join(presentationDir, outputDir);
         base = path.join(dir, path.basename(base));
     }
     return {
         svg,
-        presentation,
+        presentation: presentationPath,
         html: base + ".sozi.html",
         presenter: base + "-presenter.sozi.html",
         outputDir: path.dirname(base)

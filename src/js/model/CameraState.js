@@ -14,7 +14,7 @@
  * @param {string} prop - The name of the property to copy.
  */
 function copyIfSet(dest, src, prop) {
-    if (src.hasOwnProperty(prop)) {
+    if (Object.hasOwn(src, prop)) {
         dest[prop] = src[prop];
     }
 }

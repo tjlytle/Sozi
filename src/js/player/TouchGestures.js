@@ -351,7 +351,7 @@ class SingleGesture extends Gesture {
     }
 
     rejects(touches) {
-        return this.swipeDone || touches.length != 1;
+        return this.swipeDone || touches.length !== 1;
     }
 
     /** Check quick swipe when the touchpoint is released from the screen.
@@ -515,7 +515,7 @@ class DoubleGesture extends Gesture {
      * @override
      */
     rejects(touches) {
-        return touches.length != 2;
+        return touches.length !== 2;
     }
 }
 
@@ -541,13 +541,13 @@ class DummyGesture extends Gesture {
      * @override
      */
     rejects(touches) {
-        return touches.length != this.touchNum;
+        return touches.length !== this.touchNum;
     }
 }
 
 /** Updates all parameters depending on screen dimensions.
  *
- * @listens resize
+ * @listens event:resize
  */
 function updateScreenValues() {
     MIN_SLOW_TRAVEL_X = Math.floor(window.innerWidth / 2);
@@ -583,7 +583,11 @@ function createGesture(touches) {
  * @param {object[]} touches - Array of currently active touches.
  */
 function updateGesture(touches) {
-    if (currentGesture == null || currentGesture.rejects(touches)) {
+    if (
+        currentGesture === null ||
+        currentGesture === undefined ||
+        currentGesture.rejects(touches)
+    ) {
         currentGesture = createGesture(touches);
     }
 }
@@ -594,7 +598,7 @@ function updateGesture(touches) {
  *
  * @param {TouchEvent} evt - The DOM event to process.
  *
- * @listens touchstart
+ * @listens event:touchstart
  */
 function onTouchStart(evt) {
     evt.preventDefault();
@@ -605,7 +609,7 @@ function onTouchStart(evt) {
  *
  * @param {TouchEvent} evt - The DOM event to process.
  *
- * @listens touchmove
+ * @listens event:touchmove
  */
 function onTouchMove(evt) {
     updateGesture(evt.touches);
@@ -616,7 +620,7 @@ function onTouchMove(evt) {
  *
  * @param {TouchEvent} evt - The DOM event to process.
  *
- * @listens touchend
+ * @listens event:touchend
  */
 function onTouchEnd(evt) {
     if (currentGesture) {

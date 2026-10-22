@@ -9,10 +9,15 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck, fixturesDir} = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+
 /**
  * Run `build` on a temp deck and check the output is a single JSON line.
- * @param deck
- * @param {...any} flags
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} flags - CLI flags placed before the SVG file name.
+ * @returns {SoziRun} - The result of the run.
  */
 function build(deck, ...flags) {
     const run = runSozi(["build", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
@@ -27,7 +32,9 @@ function build(deck, ...flags) {
 
 /**
  * The `soziPresentationData` object embedded in a presentation HTML file.
- * @param file
+ *
+ * @param {string} file - The path of the HTML file.
+ * @returns {object} - The parsed presentation data.
  */
 function presentationData(file) {
     const match = /var soziPresentationData = (.*);<\/script>/.exec(fs.readFileSync(file, "utf8"));
@@ -246,9 +253,10 @@ describe("runner", () => {
 
     /**
      * Run with bad arguments: exit 2, a usage error, and no file written.
-     * @param deck
-     * @param args
-     * @param error
+     *
+     * @param {Deck} deck - A temp deck from `withTempDeck`.
+     * @param {string[]} args - The CLI arguments after `--cli`.
+     * @param {string} error - The expected `error` field of the result.
      */
     function usageError(deck, args, error) {
         const before = fs.readdirSync(deck.dir).sort();

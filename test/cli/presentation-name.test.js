@@ -12,10 +12,15 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck, fixturesDir} = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+
 /**
  * Run a command in the directory of a temp deck and check the output is one JSON document.
- * @param deck
- * @param {...any} args
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} args - The CLI arguments after `--cli`.
+ * @returns {SoziRun} - The result of the run.
  */
 function sozi(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
@@ -30,8 +35,10 @@ function sozi(deck, ...args) {
 
 /**
  * Like {@link sozi}, and check that the command succeeded.
- * @param deck
- * @param {...any} args
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} args - The CLI arguments after `--cli`.
+ * @returns {SoziRun} - The result of the run.
  */
 function soziOk(deck, ...args) {
     const run = sozi(deck, ...args);
@@ -42,7 +49,9 @@ function soziOk(deck, ...args) {
 
 /**
  * Read a JSON file.
- * @param file
+ *
+ * @param {string} file - The path of the file.
+ * @returns {object} - The parsed content.
  */
 function readJson(file) {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -50,8 +59,9 @@ function readJson(file) {
 
 /**
  * Write a presentation JSON: the basic fixture data with extra keys.
- * @param file
- * @param extra
+ *
+ * @param {string} file - The path of the presentation file to write.
+ * @param {object} [extra] - Keys to add to the fixture data.
  */
 function writePresentation(file, extra = {}) {
     fs.mkdirSync(path.dirname(file), {recursive: true});
@@ -61,7 +71,9 @@ function writePresentation(file, extra = {}) {
 
 /**
  * The HTML files named after a presentation file.
- * @param presentation
+ *
+ * @param {string} presentation - The path of the presentation file.
+ * @returns {{html: string, presenter: string}} - The paths of the player and presenter HTML files.
  */
 function htmlOf(presentation) {
     const base = presentation.replace(/\.sozi\.json$/, "");
@@ -287,7 +299,9 @@ describe("presentation file errors", () => {
 
 /**
  * The names of the files in a directory, recursively, with their contents.
- * @param dir
+ *
+ * @param {string} dir - The directory.
+ * @returns {object} - The base64 content of each file, keyed by its relative path.
  */
 function snapshot(dir) {
     const result = {};

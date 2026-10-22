@@ -11,12 +11,18 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck} = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+/** @typedef {import("node:test").TestContext} TestContext */
+
 const CHROME = "/usr/bin/google-chrome";
 
 /**
  * Run `build` on a temp deck and check that it succeeded.
- * @param deck
- * @param {...any} flags
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} flags - CLI flags placed before the SVG file name.
+ * @returns {SoziRun} - The result of the run.
  */
 function build(deck, ...flags) {
     const run = runSozi(["build", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
@@ -32,7 +38,9 @@ function htmlPaths(deck) {
 
 /**
  * The text of the `<title>` element in the head of an HTML file.
- * @param file
+ *
+ * @param {string} file - The path of the HTML file.
+ * @returns {string} - The raw text of the element, character references left as they are.
  */
 function htmlTitle(file) {
     const match = /<head>[\s\S]*?<title>([^<]*)<\/title>/.exec(fs.readFileSync(file, "utf8"));
@@ -42,7 +50,9 @@ function htmlTitle(file) {
 
 /**
  * The `soziPresentationData` object embedded in a presentation HTML file.
- * @param file
+ *
+ * @param {string} file - The path of the HTML file.
+ * @returns {object} - The parsed presentation data.
  */
 function presentationData(file) {
     const match = /var soziPresentationData = (.*);<\/script>/.exec(fs.readFileSync(file, "utf8"));
@@ -52,8 +62,10 @@ function presentationData(file) {
 
 /**
  * Add an explicit title to the JSON of a temp deck, keeping the editor's formatting.
- * @param deck
- * @param title
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {unknown} title - The value to write as the title: any JSON value, since tests also
+ *  write a non-string to check that it is ignored.
  */
 function setJsonTitle(deck, title) {
     const data = {title, ...JSON.parse(fs.readFileSync(deck.json, "utf8"))};
@@ -65,7 +77,9 @@ const TRICKY = '<b>&"';
 
 /**
  * Decode the character references that the HTML serializer emits in text.
- * @param text
+ *
+ * @param {string} text - Text with character references.
+ * @returns {string} - The decoded text.
  */
 function decodeHtml(text) {
     return text.replace(
@@ -78,8 +92,10 @@ function decodeHtml(text) {
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
  * a Chrome run that fails is a test failure.
- * @param t
- * @param file
+ *
+ * @param {TestContext} t - The context of the running test, to skip it.
+ * @param {string} file - The path of the HTML file.
+ * @returns {?string} - The decoded document title, or null when the test was skipped.
  */
 function browserTitle(t, file) {
     if (!fs.existsSync(CHROME)) {
@@ -115,9 +131,11 @@ function browserTitle(t, file) {
 
 /**
  * Run a command on a temp deck; return the result without checking it.
- * @param deck
- * @param command
- * @param {...any} flags
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {string} command - The CLI command (`build`, `set`, ...).
+ * @param {...string} flags - CLI flags placed before the SVG file name.
+ * @returns {SoziRun} - The result of the run.
  */
 function run(deck, command, ...flags) {
     const result = runSozi([command, ...flags, path.basename(deck.svg)], {cwd: deck.dir});

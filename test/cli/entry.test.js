@@ -25,7 +25,8 @@ const USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg>
 
 /**
  * The fields that every CLI result carries.
- * @param json
+ *
+ * @param {object} json - A CLI result.
  */
 function assertBaseFields(json) {
     for (const key of ["ok", "command", "svg", "presentation", "warnings", "errors", "error"]) {

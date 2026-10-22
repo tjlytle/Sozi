@@ -558,7 +558,7 @@ export class Controller extends EventEmitter {
                 // Remove the selected frames and clear the selection.
                 // We don't use the saved index here because the actual index
                 // will change as frames are deleted.
-                for (const [frame, index] of framesByIndex) {
+                for (const [frame] of framesByIndex) {
                     this.presentation.frames.splice(frame.index, 1);
                 }
                 this.selection.selectedFrames = [];
@@ -591,12 +591,12 @@ export class Controller extends EventEmitter {
         const framesByIndex = this.selection.selectedFrames
             .slice()
             .sort((a, b) => a.index - b.index);
-        const frameIndices = framesByIndex.map(frame => frame.index);
 
         // Compute the new target frame index after the selection has been removed.
+        let targetIndex = toFrameIndex;
         for (const frame of framesByIndex) {
-            if (frame.index < toFrameIndex) {
-                toFrameIndex--;
+            if (frame.index < targetIndex) {
+                targetIndex--;
             }
         }
 
@@ -608,7 +608,7 @@ export class Controller extends EventEmitter {
         const reorderedFrames = this.presentation.frames.filter(
             frame => !this.selection.hasFrames([frame])
         );
-        Array.prototype.splice.apply(reorderedFrames, [toFrameIndex, 0].concat(framesByIndex));
+        Array.prototype.splice.apply(reorderedFrames, [targetIndex, 0].concat(framesByIndex));
 
         // Identify the frames and layers that must be unlinked after the move operation.
         // If a linked frame is moved after a frame to which it was not previously linked,
@@ -849,10 +849,8 @@ export class Controller extends EventEmitter {
      * @fires module:Controller.repaint
      */
     selectFrame(index) {
-        if (index < 0) {
-            index = this.presentation.frames.length + index;
-        }
-        this.updateLayerAndFrameSelection(false, false, this.selection.selectedLayers, index);
+        const frameIndex = index < 0 ? this.presentation.frames.length + index : index;
+        this.updateLayerAndFrameSelection(false, false, this.selection.selectedLayers, frameIndex);
     }
 
     /** Select all frames.
@@ -1110,7 +1108,7 @@ export class Controller extends EventEmitter {
      *
      * This action supports undo and redo.
      *
-     * @param {number} groupId - The ID of the SVG group for the layer to copy.
+     * @param {string} groupId - The ID of the SVG group for the layer to copy.
      *
      * @fires module:Controller.presentationChange
      * @fires module:Controller.repaint
@@ -1131,7 +1129,7 @@ export class Controller extends EventEmitter {
         // choose the first layer that contains an SVG element.
         // Otherwise, choose the layer with the given id.
         const layerToCopy =
-            groupId == "__default__"
+            groupId === "__default__"
                 ? this.defaultLayers.filter(layer => layer.svgNodes.length > 0)[0]
                 : this.presentation.getLayerWithId(groupId);
         if (!layerToCopy || !layerToCopy.svgNodes.length) {
@@ -1142,7 +1140,7 @@ export class Controller extends EventEmitter {
             function onDo() {
                 for (const frame of selectedFrames) {
                     for (const layer of selectedLayers) {
-                        if (layer != layerToCopy) {
+                        if (layer !== layerToCopy) {
                             frame.layerProperties[layer.index].copy(
                                 frame.layerProperties[layerToCopy.index]
                             );
@@ -1320,7 +1318,7 @@ export class Controller extends EventEmitter {
 
         this.perform(
             function onDo() {
-                for (const [frame, value] of savedValues) {
+                for (const [frame] of savedValues) {
                     frame[property] = newValue;
                 }
             },
@@ -1775,25 +1773,28 @@ export class Controller extends EventEmitter {
         const shift = /\bShift\s*\+/i.test(newValue);
 
         // Remove all occurrences of modifier keys and spaces in the given value.
-        newValue = newValue.replace(/\bCtrl\s*\+\s*/gi, "");
-        newValue = newValue.replace(/\bAlt\s*\+\s*/gi, "");
-        newValue = newValue.replace(/\bShift\s*\+\s*/gi, "");
-        newValue = newValue.replace(/\s/g, "").toUpperCase();
-        if (newValue.length === 0) {
+        const key = newValue
+            .replace(/\bCtrl\s*\+\s*/gi, "")
+            .replace(/\bAlt\s*\+\s*/gi, "")
+            .replace(/\bShift\s*\+\s*/gi, "")
+            .replace(/\s/g, "")
+            .toUpperCase();
+        if (key.length === 0) {
             return;
         }
 
         // Rewrite the shortcut in standard order.
+        let shortcut = key;
         if (shift) {
-            newValue = "Shift+" + newValue;
+            shortcut = "Shift+" + shortcut;
         }
         if (alt) {
-            newValue = "Alt+" + newValue;
+            shortcut = "Alt+" + shortcut;
         }
         if (ctrl) {
-            newValue = "Ctrl+" + newValue;
+            shortcut = "Ctrl+" + shortcut;
         }
-        this.preferences.keys[action] = newValue;
+        this.preferences.keys[action] = shortcut;
     }
 
     /** Update the user interface after modifying the preferences.

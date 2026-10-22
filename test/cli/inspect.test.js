@@ -9,10 +9,15 @@ const path = require("node:path");
 
 const {runSozi, withTempDeck} = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+
 /**
  * Run `inspect` on a temp deck and check the output is a single JSON line.
- * @param deck
- * @param {...any} flags
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {...string} flags - CLI flags placed before the SVG file name.
+ * @returns {SoziRun} - The result of the run.
  */
 function inspect(deck, ...flags) {
     const run = runSozi(["inspect", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
@@ -27,7 +32,9 @@ function inspect(deck, ...flags) {
 
 /**
  * The names, sizes and mtimes of the files in a directory.
- * @param dir
+ *
+ * @param {string} dir - The directory.
+ * @returns {{name: string, size: number, mtimeMs: number}[]} - One entry per file, sorted by name.
  */
 function snapshot(dir) {
     return fs

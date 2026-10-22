@@ -19,11 +19,16 @@ const {
     darkInCorner
 } = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+
 /**
  * Run a command in the directory of a temp deck and check that it succeeded.
- * @param deck
- * @param args
- * @param opts
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @param {object} [opts] - More options for `runSozi` (`env`, `timeout`, `switches`).
+ * @returns {SoziRun} - The result of the run.
  */
 function soziOk(deck, args, opts = {}) {
     const run = runSozi(args, Object.assign({cwd: deck.dir}, opts));
@@ -36,9 +41,11 @@ function soziOk(deck, args, opts = {}) {
 
 /**
  * Run a command in the directory of a temp deck and check its exit code.
- * @param deck
- * @param code
- * @param args
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {number} code - The expected exit code.
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @returns {SoziRun} - The result of the run.
  */
 function soziFails(deck, code, args) {
     const run = runSozi(args, {cwd: deck.dir});
@@ -51,7 +58,9 @@ function soziFails(deck, code, args) {
 
 /**
  * The number of pixels of an image that are clearly green.
- * @param png
+ *
+ * @param {{width: number, height: number, pixel: Function}} png - An image from `decodePng`.
+ * @returns {number} - The number of pixels whose green channel exceeds red by 80 and blue by 40.
  */
 function greenPixels(png) {
     let count = 0;
@@ -66,8 +75,9 @@ function greenPixels(png) {
 
 /**
  * Set the modification time of a file, in seconds from now.
- * @param file
- * @param secondsFromNow
+ *
+ * @param {string} file - The path of the file.
+ * @param {number} secondsFromNow - The offset from the current time (negative for the past).
  */
 function touch(file, secondsFromNow) {
     const t = new Date(Date.now() + secondsFromNow * 1000);

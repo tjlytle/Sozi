@@ -20,6 +20,9 @@
  */
 
 import {BrowserWindow, nativeImage} from "electron";
+
+/** @typedef {import("electron").NativeImage} NativeImage */
+/** @typedef {import("electron").Debugger} Debugger */
 import path from "path";
 import process from "process";
 import * as tmp from "tmp";
@@ -67,18 +70,16 @@ function markInterval(list, first, last, step, value) {
  * @param {boolean} value - The value to assign for each frame to mark.
  */
 function markFrames(list, expr, value) {
-    expr = (expr || "").trim();
-    if (!expr.length) {
-        expr = value ? "all" : "none";
-    }
-    switch (expr) {
+    const trimmed = (expr || "").trim();
+    const frameExpr = trimmed.length ? trimmed : value ? "all" : "none";
+    switch (frameExpr) {
         case "all":
             markInterval(list, 0, list.length - 1, 1, value);
             break;
         case "none":
             break;
         default:
-            for (const intervalDef of expr.split(",")) {
+            for (const intervalDef of frameExpr.split(",")) {
                 const interval = intervalDef.split(":").map(s => s.trim());
                 if (interval.length > 0) {
                     const first = interval[0] !== "" ? parseInt(interval[0]) - 1 : 0;
@@ -521,7 +522,7 @@ function pngSize(png) {
 
 /** Check whether all the pixels of an image have the same colour.
  *
- * @param {Electron.NativeImage} img - An image.
+ * @param {NativeImage} img - An image.
  * @returns {boolean} - `true` if the image is uniform.
  */
 function isUniform(img) {
@@ -540,8 +541,8 @@ function isUniform(img) {
 
 /** Are two images uniform, of the same colour?
  *
- * @param {Electron.NativeImage} a - An image.
- * @param {Electron.NativeImage} b - Another image.
+ * @param {NativeImage} a - An image.
+ * @param {NativeImage} b - Another image.
  * @returns {boolean} - `true` if both images are uniform with the same pixel value.
  */
 function sameUniformColour(a, b) {
@@ -695,7 +696,7 @@ export class ExportWindow {
 
     /** Attach the Chrome DevTools Protocol debugger if not done yet.
      *
-     * @returns {Electron.Debugger} - The debugger of the window.
+     * @returns {Promise<Debugger>} - The debugger of the window.
      */
     async attachDebugger() {
         const dbg = this.window.webContents.debugger;
@@ -1498,6 +1499,6 @@ async function frameRender(presentation, htmlPath, opts) {
 /** The export functions that a renderer can call through {@linkcode module:exporter.runExport|runExport}.
  *
  * @readonly
- * @type {object.<string, Function>}
+ * @type {{[name: string]: Function}}
  */
 const exportFunctions = {exportToPDF, exportToPPTX, exportToVideo, renderFrames};

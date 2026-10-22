@@ -24,11 +24,16 @@ const {
     which
 } = require("./helpers.js");
 
+/** @typedef {import("./helpers.js").Deck} Deck */
+/** @typedef {import("./helpers.js").SoziRun} SoziRun */
+
 /**
  * Run a command in the directory of a temp deck and check that it succeeded.
- * @param deck
- * @param args
- * @param opts
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @param {object} [opts] - More options for `runSozi` (`env`, `timeout`, `switches`).
+ * @returns {SoziRun} - The result of the run.
  */
 function soziOk(deck, args, opts = {}) {
     const run = runSozi(args, Object.assign({cwd: deck.dir}, opts));
@@ -41,10 +46,12 @@ function soziOk(deck, args, opts = {}) {
 
 /**
  * Run a command in the directory of a temp deck and check its exit code.
- * @param deck
- * @param code
- * @param args
- * @param opts
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {number} code - The expected exit code.
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @param {object} [opts] - More options for `runSozi` (`env`, `timeout`, `switches`).
+ * @returns {SoziRun} - The result of the run.
  */
 function soziFails(deck, code, args, opts = {}) {
     const run = runSozi(args, Object.assign({cwd: deck.dir}, opts));
@@ -58,8 +65,9 @@ function soziFails(deck, code, args, opts = {}) {
 
 /**
  * Change the export settings in the presentation file of a deck.
- * @param deck
- * @param settings
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @param {object} settings - The properties to set in the presentation file.
  */
 function setExportSettings(deck, settings) {
     const data = JSON.parse(fs.readFileSync(deck.json, "utf8"));
@@ -68,7 +76,9 @@ function setExportSettings(deck, settings) {
 
 /**
  * The number of pages of a PDF file.
- * @param file
+ *
+ * @param {string} file - The path of the PDF file.
+ * @returns {Promise<number>} - The page count.
  */
 async function pdfPages(file) {
     return (await PDFDocument.load(fs.readFileSync(file))).getPageCount();
@@ -76,7 +86,9 @@ async function pdfPages(file) {
 
 /**
  * The number of slides of a PPTX file.
- * @param file
+ *
+ * @param {string} file - The path of the PPTX file.
+ * @returns {number} - The number of `ppt/slides/slideN.xml` entries in the archive.
  */
 function pptxSlides(file) {
     return zipEntries(fs.readFileSync(file)).filter(e =>
@@ -89,8 +101,11 @@ function pptxSlides(file) {
  * Each frame is held for its timeout (at least one image), then the transition
  * to the next frame plays, one image per step. After the last frame, the video
  * loops back to the first frame only if the last frame's timeout is enabled.
- * @param frames
- * @param fps
+ *
+ * @param {{timeoutMs: number, timeoutEnable: boolean, transitionDurationMs: number}[]} frames -
+ *  The frames of the presentation file.
+ * @param {number} fps - The number of images per second of the video.
+ * @returns {number} - The expected number of images.
  */
 function expectedImages(frames, fps) {
     const stepMs = 1000 / fps;
@@ -112,7 +127,9 @@ function expectedImages(frames, fps) {
 
 /**
  * The frames of the presentation file of a deck.
- * @param deck
+ *
+ * @param {Deck} deck - A temp deck from `withTempDeck`.
+ * @returns {object[]} - The `frames` array of the presentation file.
  */
 function framesOf(deck) {
     return JSON.parse(fs.readFileSync(deck.json, "utf8")).frames;

@@ -255,11 +255,13 @@ function mainExport(args) {
     if (result.error) {
         throw result.error;
     }
+    let report;
     try {
-        return JSON.parse(result.stdout);
+        report = JSON.parse(result.stdout);
     } catch {
         assert.fail(`harness output is not JSON: ${result.stdout}\n${result.stderr}`);
     }
+    return report;
 }
 
 describe("exporter in the main process", () => {

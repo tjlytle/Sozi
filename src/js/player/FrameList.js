@@ -43,13 +43,6 @@ let player;
  */
 let animator;
 
-/** The current open status of the frame list.
- *
- * @default
- * @type {boolean}
- */
-const isOpen = false;
-
 /** The start location of the frame list with respect to the left border of the viewport.
  *
  * 1 represents the width of the frame list.
@@ -111,7 +104,7 @@ export function init(p, controller) {
     window.addEventListener("keypress", onKeyPress, false);
     window.addEventListener("resize", () => setCurrentOffset(currentOffset));
     controller.on("mouseDown", onMouseDown);
-    player.viewport.svgRoot.addEventListener("touchstart", evt => onTouchStart);
+    player.viewport.svgRoot.addEventListener("touchstart", () => onTouchStart);
     frameList.addEventListener("mouseout", onMouseOut, false);
     p.on("frameChange", onFrameChange);
     setCurrentOffset(startOffset);
@@ -162,7 +155,7 @@ export function toggle() {
  *
  * @param {KeyboardEvent} evt - The DOM event representing the keypress.
  *
- * @listens keypress
+ * @listens event:keypress
  */
 function onKeyPress(evt) {
     // Keys with modifiers are ignored
@@ -218,11 +211,9 @@ function onMouseDown(button) {
  *
  * Closes the Frame List on any touch outside of the list itself.
  *
- * @param {TouchEvent} evt - the touch event.
- *
- * @listens touchstart
+ * @listens event:touchstart
  */
-function onTouchStart(evt) {
+function onTouchStart() {
     close();
 }
 
@@ -233,7 +224,7 @@ function onTouchStart(evt) {
  *
  * @param {MouseEvent} evt - The DOM event representing the mouse gesture.
  *
- * @listens mouseout
+ * @listens event:mouseout
  */
 function onMouseOut(evt) {
     let rel = evt.relatedTarget;

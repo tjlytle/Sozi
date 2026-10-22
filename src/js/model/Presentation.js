@@ -18,7 +18,7 @@ import {hasReliableBoundaries} from "../player/Camera";
  * @param {string} prop - The name of the property to copy.
  */
 function copyIfSet(dest, src, prop) {
-    if (src.hasOwnProperty(prop)) {
+    if (Object.hasOwn(src, prop)) {
         dest[prop] = src[prop];
     }
 }
@@ -274,13 +274,13 @@ export class Frame {
              *
              * @type {module:model/Presentation.LayerProperties[]}
              */
-            this.layerProperties = obj.layers.map(lp => new LayerProperties(this));
+            this.layerProperties = obj.layers.map(() => new LayerProperties(this));
 
             /** The camera states of this frame for each layer.
              *
              * @type {module:model/Presentation.CameraState[]}
              */
-            this.cameraStates = obj.layers.map(cs => new CameraState(obj.document.root));
+            this.cameraStates = obj.layers.map(() => new CameraState(obj.document.root));
 
             /** The title of this frame.
              *
@@ -618,12 +618,6 @@ export class Layer {
         return this.svgNodes.some(node => node.contains(svgElement));
     }
 }
-
-/** Constant: the SVG namespace
- *
- * @type {string}
- */
-const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Type for SVG documents.
  *
@@ -1018,19 +1012,19 @@ export class Presentation extends EventEmitter {
         this.ignoredStorableKeys = [];
         if (typeof storable.title === "string") {
             this.explicitTitle = storable.title;
-        } else if (storable.hasOwnProperty("title")) {
+        } else if (Object.hasOwn(storable, "title")) {
             this.ignoredStorableKeys.push("title");
         }
         this.svgPath = "";
         if (typeof storable.svg === "string") {
             this.svgPath = storable.svg;
-        } else if (storable.hasOwnProperty("svg")) {
+        } else if (Object.hasOwn(storable, "svg")) {
             this.ignoredStorableKeys.push("svg");
         }
         this.outputDir = "";
         if (typeof storable.outputDir === "string") {
             this.outputDir = storable.outputDir.trim();
-        } else if (storable.hasOwnProperty("outputDir")) {
+        } else if (Object.hasOwn(storable, "outputDir")) {
             this.ignoredStorableKeys.push("outputDir");
         }
         copyIfSet(this, storable, "aspectWidth");

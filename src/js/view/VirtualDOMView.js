@@ -57,7 +57,7 @@ export class VirtualDOMView extends EventEmitter {
      *
      * This will render the current view using the result of {@linkcode module:view/VirtualDOMView.VirtualDOMView#render|render}.
      *
-     * @listens resize
+     * @listens event:resize
      * @listens module:Controller.repaint
      */
     repaint() {

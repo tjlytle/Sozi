@@ -37,7 +37,7 @@ window.addEventListener(
 
         const preferences = new Preferences();
         const controller = new Controller(preferences, presentation, selection, viewport, player);
-        const preview = new Preview(
+        new Preview(
             document.getElementById("sozi-editor-view-preview"),
             presentation,
             selection,
@@ -50,14 +50,14 @@ window.addEventListener(
             selection,
             controller
         );
-        const toolbar = new Toolbar(
+        new Toolbar(
             document.getElementById("sozi-editor-view-toolbar"),
             properties,
             presentation,
             viewport,
             controller
         );
-        const timeline = new Timeline(
+        new Timeline(
             document.getElementById("sozi-editor-view-timeline"),
             presentation,
             selection,
