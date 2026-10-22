@@ -52,7 +52,12 @@ function host({statuses, onSleep = () => {}}) {
             start: async () => "c25",
             status: async () => statuses.shift() ?? "exited",
             stop: silent,
-            remove: async () => void events.push("remove")
+            remove: async () => void events.push("remove"),
+            inspectProfile: async () => ({
+                claude: {present: true, loggedIn: true, servers: []},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            })
         },
         sleep: async () => onSleep(++sleeps),
         onSignal: (/** @type {() => void} */ handler) => {

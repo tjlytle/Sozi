@@ -30,6 +30,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * @property {PassContext["digest"]} digest - The digest, whose add takes {issue, text}.
  * @property {{now: () => number}} clock - The clock, in epoch milliseconds.
  * @property {(line: string) => void} log - The log.
+ * @property {Record<string, string | undefined>} env - The loop's environment, as the sandbox gets it.
  * @property {string} [root] - The repository root, where pipeline/*.md live; this checkout when absent.
  * @property {() => void} [save] - Writes the state; called at the end of every pass.
  */
@@ -121,12 +122,14 @@ export function createPass({root = REPO_ROOT, save = () => {}, ...parts}) {
         changed: new Set(),
         syncs: 0,
         tried: new Set(),
+        profiles: new Map(),
         summary: emptySummary()
     };
     return {
         async pass({start: starts = true} = {}) {
             ctx.summary = emptySummary();
             ctx.tried.clear();
+            ctx.profiles.clear();
             await drainIfFree(ctx);
             await reap(ctx);
             try {

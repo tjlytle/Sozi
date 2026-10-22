@@ -161,6 +161,7 @@ function loopPass({state, settings, sandbox, env, root, log, save, deps}) {
         board: deps.board ?? {sync: options => boardSync(options, ctx)},
         digest: noteDigest(state, env),
         clock: {now: () => Date.now()},
+        env,
         log,
         root,
         save

@@ -5,6 +5,20 @@ import path from "node:path";
 import {createPass} from "../../pipeline/lib/pass.js";
 import {emptyState, applyIssue} from "../../pipeline/lib/state.js";
 import {loadConfig} from "../../pipeline/lib/config.js";
+import {PERSONAS} from "../../pipeline/lib/profile.js";
+
+/**
+ * A logged-in profile with no MCP servers.
+ *
+ * @returns {any} - The profile info.
+ */
+export function loggedIn() {
+    return {
+        claude: {present: true, loggedIn: true, servers: []},
+        codex: {present: false, loggedIn: false},
+        writable: true
+    };
+}
 
 /**
  * A pass over fakes.
@@ -32,6 +46,10 @@ export function world({
     const logs = [];
     /** @type {any[]} */
     const outboxes = [];
+    /** @type {any[]} */
+    const starts = [];
+    /** @type {Record<string, any>} */
+    const profiles = Object.fromEntries(PERSONAS.map(p => [p, loggedIn()]));
     const github = {
         searchIssues: async () => issues,
         labelsOf: async (/** @type {number} */ n) => {
@@ -55,8 +73,10 @@ export function world({
             const id = `c${o.issue}`;
             containers[id] = "running";
             calls.push(["start", o.issue, o.stage]);
+            starts.push(o);
             return id;
         },
+        inspectProfile: async (/** @type {string} */ persona) => profiles[persona] ?? null,
         status: async (/** @type {string} */ id) => containers[id] ?? "gone",
         stop: async (/** @type {string} */ id) => {
             containers[id] = "exited";
@@ -81,6 +101,7 @@ export function world({
         board,
         digest,
         clock,
+        env,
         log: line => logs.push(line),
         save: () => save(state)
     });
@@ -92,6 +113,8 @@ export function world({
         clock,
         logs,
         outboxes,
+        starts,
+        profiles,
         github,
         issues,
         settings,
