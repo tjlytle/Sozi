@@ -324,6 +324,45 @@ async function boardMeta(ctx, book, save) {
     return meta;
 }
 
+/** Read and change the state: in place for a given book, else through the file, which is
+ * re-read just before each write so only the changed keys are set. A file that does not
+ * exist is never created.
+ *
+ * @param {{state?: string, book?: any}} where - The file and the in-memory state.
+ * @param {Context} ctx - The context.
+ * @returns {{local: any, save: (change: (b: any) => void) => void}} - The state as read and a writer.
+ */
+function stateAccess({state, book}, ctx) {
+    const fromFile = () =>
+        state && fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : null;
+    const local = book ?? fromFile();
+    let warned = false;
+    /** @param {(b: any) => void} change - The change. */
+    const save = change => {
+        if (book) {
+            change(book);
+            return;
+        }
+        if (!state) {
+            return;
+        }
+        const fresh = fromFile();
+        if (!fresh) {
+            if (!warned) {
+                warned = true;
+                (ctx.err ?? (() => {}))(`warning: ${state} does not exist; state not written\n`);
+            }
+            return;
+        }
+        change(fresh);
+        fs.writeFileSync(state, `${JSON.stringify(fresh, null, 2)}\n`);
+        if (local) {
+            change(local);
+        }
+    };
+    return {local, save};
+}
+
 /**
  * @typedef {object} SyncOptions
  * @property {number[]} [issues] - Only these issues, unless `all`.
@@ -342,26 +381,8 @@ async function boardMeta(ctx, book, save) {
 export async function sync({issues = [], all = false, state, book}, ctx) {
     const {repo, run, out} = ctx;
     const [owner] = repo.split("/");
-    const fromFile = () =>
-        state && fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : null;
-    const local = book ?? fromFile();
-    /** Apply a change to the state: in place for a given book, else to a fresh read of the file.
-     * @param {(b: any) => void} change - The change.
-     */
-    const save = change => {
-        if (book) {
-            change(book);
-        } else if (state) {
-            const fresh = fromFile() ?? {};
-            change(fresh);
-            fs.writeFileSync(state, `${JSON.stringify(fresh, null, 2)}\n`);
-        }
-        if (local && local !== book) {
-            change(local);
-        }
-    };
-    const meta = await boardMeta(ctx, local, save);
-    const projectId = meta.project.id;
+    const {local, save} = stateAccess({state, book}, ctx);
+    let meta = await boardMeta(ctx, local, save);
     /** @type {Map<number, {id: string, status: string, at: string}>} */
     const cards = new Map();
     /** @type {any[]} */
@@ -374,7 +395,7 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
                 "api",
                 "graphql",
                 "-f",
-                `id=${projectId}`,
+                `id=${meta.project.id}`,
                 "-f",
                 `query=query($id: ID!) { node(id: $id) { ... on ProjectV2 { items(first: 100) { nodes { ${ITEM_FIELDS} } } } } }`
             ])
@@ -418,7 +439,7 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
                     state: String(rest.state).toUpperCase(),
                     labels: rest.labels ?? []
                 };
-                card = await findCard(ctx, local, n, projectId);
+                card = await findCard(ctx, local, n, meta.project.id);
             }
             const names = (issue.labels ?? []).map((/** @type {any} */ l) => l.name);
             const stage = names.find((/** @type {string} */ x) => x.startsWith("stage:")) ?? "";
@@ -472,24 +493,44 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
                 id = String(added.id);
             }
             remember(local, save, n, id);
-            const option = meta.field.options[decision.board ?? ""];
-            if (!option) {
+            /** @param {BoardMeta} m - The board details to edit with.
+             * @returns {Promise<{code: number, stdout: string, stderr: string}>} - The result.
+             */
+            const edit = m =>
+                run([
+                    "gh-as",
+                    "-",
+                    "project",
+                    "item-edit",
+                    "--project-id",
+                    m.project.id,
+                    "--id",
+                    String(id),
+                    "--field-id",
+                    m.field.id,
+                    "--single-select-option-id",
+                    m.field.options[decision.board ?? ""] ?? ""
+                ]);
+            if (!meta.field.options[decision.board ?? ""]) {
                 throw new Error(`the board has no column ${decision.board}`);
             }
-            await exec(run, [
-                "gh-as",
-                "-",
-                "project",
-                "item-edit",
-                "--project-id",
-                projectId,
-                "--id",
-                id,
-                "--field-id",
-                meta.field.id,
-                "--single-select-option-id",
-                option
-            ]);
+            let result = await edit(meta);
+            if (result.code !== 0) {
+                // The cached ids may be dead (the columns were recreated): resolve them once more.
+                save(b => {
+                    delete b.boardMeta;
+                });
+                meta = await boardMeta(ctx, null, save);
+                if (!meta.field.options[decision.board ?? ""]) {
+                    throw new Error(`the board has no column ${decision.board}`);
+                }
+                result = await edit(meta);
+                if (result.code !== 0) {
+                    throw new Error(
+                        `project item-edit failed (${result.code}): ${result.stderr.trim()}`
+                    );
+                }
+            }
             out(`#${n} board ← label: ${decision.board}\n`);
         } catch (error) {
             failed++;
@@ -577,9 +618,10 @@ async function findCard({repo, run}, book, n, projectId) {
  * column is missing, and a full sync follows to fill the cards back in.
  *
  * @param {Context} ctx - The context.
+ * @param {{state?: string, book?: any}} [where] - The state, whose cached board details are dropped.
  * @returns {Promise<void>}
  */
-async function create(ctx) {
+async function create(ctx, where = {}) {
     const {repo, run, out} = ctx;
     const owner = repo.split("/")[0];
     let project = await findProject(ctx);
@@ -627,6 +669,10 @@ async function create(ctx) {
             "-f",
             `query=mutation { updateProjectV2Field(input:{fieldId:"${field.id}", singleSelectOptions:[${options}]}) { projectV2Field { ... on ProjectV2SingleSelectField { options { name } } } } }`
         ]);
+        // The option ids changed, so any cached board details are dead.
+        stateAccess(where, ctx).save(b => {
+            delete b.boardMeta;
+        });
         await sync({all: true}, ctx);
     } else {
         out("columns already in place\n");
@@ -678,7 +724,7 @@ export async function main(argv, {env = process.env, run = defaultRun, out, err}
         if (command === "labels") {
             await makeLabels(ctx);
         } else if (command === "create") {
-            await create(ctx);
+            await create(ctx, {state: values.state});
         } else if (command === "url") {
             const project = await findProject(ctx);
             if (!project) {

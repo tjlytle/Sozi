@@ -428,4 +428,91 @@ describe("board", () => {
         assert.equal(calls.filter(c => c[2] === "project").length, 0);
         assert.equal(calls.filter(c => c.includes("view")).length, 0);
     });
+    test("create drops the cached board details, because recreating the columns changes the option ids", async () => {
+        const file = stateFile({issues: {}, boardMeta: META});
+        const {run, calls} = fake({
+            "gh-as - project list": PROJECT,
+            "gh-as - project field-list": JSON.stringify({
+                fields: [{name: "Status", id: "F1", options: [{name: "Todo", id: "o-Todo"}]}]
+            }),
+            "gh-as - api graphql": JSON.stringify({data: {node: {items: {nodes: []}}}}),
+            "gh-as - issue list": "[]"
+        });
+        const code = await main(["create", "--state", file], {env, run, ...quiet});
+        assert.equal(code, 0);
+        assert.ok(calls.some(c => c.join(" ").includes("updateProjectV2Field")));
+        assert.equal("boardMeta" in JSON.parse(fs.readFileSync(file, "utf8")), false);
+    });
+    test("an item-edit that fails with a stale option id is retried once with fresh board details", async () => {
+        let edits = 0;
+        const fresh = JSON.stringify({
+            fields: [
+                {name: "Status", id: "F2", options: NAMES.map(name => ({name, id: `n-${name}`}))}
+            ]
+        });
+        let fieldLists = 0;
+        const {run, calls} = fake(
+            {
+                "gh-as ops api repos": restIssue(["stage:review"]),
+                "gh-as - api graphql": item("Todo", "2026-10-21T01:00:00Z"),
+                "gh-as - project list": PROJECT,
+                "gh-as - api --paginate": timeline("2026-10-21T02:00:00Z")
+            },
+            cmd => {
+                if (cmd[3] === "item-edit") {
+                    edits++;
+                }
+            }
+        );
+        const wrapped = async cmd => {
+            if (cmd[3] === "field-list") {
+                fieldLists++;
+                calls.push(cmd);
+                return {code: 0, stdout: fresh, stderr: ""};
+            }
+            if (cmd[3] === "item-edit" && edits === 0) {
+                edits++;
+                calls.push(cmd);
+                return {code: 1, stdout: "", stderr: "bad option"};
+            }
+            return run(cmd);
+        };
+        const file = stateFile({...known, boardMeta: META});
+        const lines = [];
+        const code = await main(["sync", "--issues", "25", "--state", file], {
+            env,
+            run: wrapped,
+            out: t => lines.push(t),
+            err() {}
+        });
+        assert.equal(code, 0);
+        assert.equal(fieldLists, 1);
+        const tries = calls.filter(c => c[3] === "item-edit");
+        assert.equal(tries.length, 2);
+        assert.equal(tries[0].at(-1), "o-Review");
+        assert.equal(tries[1].at(-1), "n-Review");
+        assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).boardMeta.field.id, "F2");
+        assert.deepEqual(lines, ["#25 board ← label: Review\n"]);
+    });
+    test("a --state path that does not exist is not created; a warning is printed", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "board-"));
+        scratch.push(dir);
+        const file = path.join(dir, "missing.json");
+        const {run} = fake({
+            "gh-as - project list": PROJECT,
+            "gh-as - project field-list": FIELDS,
+            "gh-as ops api repos": restIssue(["stage:review"]),
+            "gh-as - api graphql": lookup("Review", "2026-10-21T01:00:00Z")
+        });
+        const errors = [];
+        const code = await main(["sync", "--issues", "25", "--state", file], {
+            env,
+            run,
+            out() {},
+            err: t => errors.push(t)
+        });
+        assert.equal(code, 0);
+        assert.equal(fs.existsSync(file), false);
+        assert.ok(errors.some(e => /missing\.json/.test(e)));
+    });
 });
