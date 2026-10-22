@@ -66,6 +66,23 @@ export class SoziWorld {
         this.presenter = null;
         /** @type {import("playwright").Page} */
         this.audience = null;
+        /** @type {any} */
+        this.deck = null;
+        /** @type {string} */
+        this.fixture = "";
+    }
+
+    /** Open the exported player page of a built deck and wait for window.sozi.
+     *
+     * @param {string} fixture - The fixture name.
+     */
+    async openDeck(fixture) {
+        const deck = builtDeck(fixture);
+        this.deck = await this.context.newPage();
+        await this.deck.goto(pathToFileURL(deck.html).href);
+        await this.deck.waitForFunction(() =>
+            Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame)
+        );
     }
 
     /** Open the presenter page of a built deck and wait for the audience window it opens.
