@@ -1,0 +1,44 @@
+# Tools a headless stage session may use, one per line. Read at every launch, so an edit here
+# applies to the next stage without restarting the loop. Bash(...) patterns match a command
+# prefix. The session runs inside the stage container, so this list bounds what the model
+# asks for, not what the host allows.
+Read
+Edit
+Write
+MultiEdit
+Glob
+Grep
+Agent
+Skill
+TodoWrite
+Bash(gh-as *)
+Bash(gh-personas *)
+Bash(gh *)
+Bash(git *)
+Bash(npm *)
+Bash(npx *)
+Bash(node *)
+Bash(bin/check*)
+Bash(python3 .claude/hooks/*)
+Bash(xvfb-run *)
+Bash(curl *)
+Bash(rm -rf .agents/tmp/*)
+Bash(ls *)
+Bash(cat *)
+Bash(head *)
+Bash(tail *)
+Bash(sed *)
+Bash(grep *)
+Bash(find *)
+Bash(wc *)
+Bash(jq *)
+Bash(diff *)
+Bash(mkdir *)
+Bash(cp *)
+Bash(cd *)
+Bash(pwd)
+Bash(echo *)
+Bash(date *)
+Bash(test *)
+Bash(true)
+Bash(sleep *)
