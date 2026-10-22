@@ -131,7 +131,7 @@ export class Storage {
          * `null` if the file was loaded or did not exist.
          *
          * @default
-         * @type {?Error}
+         * @type {unknown}
          */
         this.jsonLoadError = null;
 
@@ -172,7 +172,10 @@ export class Storage {
     activate() {
         for (const backend of backendList) {
             const listItem = document.createElement("li");
-            document.querySelector("#sozi-editor-view-preview ul").appendChild(listItem);
+            // Cast: index.html holds the backend list in the preview area.
+            /** @type {Element} */ (
+                document.querySelector("#sozi-editor-view-preview ul")
+            ).appendChild(listItem);
 
             this.backends.push(new backend(this.controller, listItem));
         }
@@ -260,7 +263,7 @@ export class Storage {
             data = await backend.load(fileDescriptor);
             reason = presentationDataError(data);
         } catch (err) {
-            reason = String((err && err.message) || err);
+            reason = String((err && /** @type {{message?: string}} */ (err).message) || err);
         }
         if (reason) {
             this.controller.error(

@@ -50,6 +50,7 @@ export class InkscapeHandler extends DefaultSVGHandler {
         }
 
         // Extract RGB assuming page color is in 6-digit hex format
+        // @ts-expect-error A pagecolor other than 6-digit hex (e.g. "white", "#fff") makes exec return null, and this throws.
         const [, red, green, blue] = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(pageColor);
 
         const style = document.createElement("style");
