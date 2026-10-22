@@ -1,7 +1,7 @@
 # The factory loop: design
 
-Status: design agreed in conversation with Tim on 2026-10-21; this document is what a
-builder plans from. The code standard (`code-standard.md`) says how the code looks and
+Status: design agreed with Tim on 2026-10-21, after two rounds of notes; this document is
+what a builder plans from. The code standard (`code-standard.md`) says how the code looks and
 what CI checks; this says how issues move through the personas unattended.
 
 ## Intent
@@ -422,16 +422,16 @@ may add more (an advanced presenter, interactive pieces, each a plugin). Two rou
 on the table: one repository with the extra pieces as directories, or a loop that spans a
 list of repositories with the lock and the tokens widened to match.
 
-Decision (my recommendation, for Tim to confirm): **one repository.** Everything that is
+Decision (confirmed by Tim, 2026-10-21): **one repository.** Everything that is
 not upstream Sozi lives under `packages/<name>/` (the channel Worker, each plugin), with
 its own `package.json` where it needs one, and the issues of sozi-channel #7 to #9 move
 here. One pipeline, one board, one CI, one run per issue; a PR closes the issue it
 belongs to, and branch protection and the reviewer apply the same way everywhere. The
 cross-repository shape fails exactly where it matters: a PR cannot close an issue in
 another repository, one issue cannot have one PR across two, and every tool from the
-board to `Closes #n` assumes one. Licensing holds: MPL 2.0 is per file, so files we
-create under `packages/` carry the licence Tim chooses and the upstream files keep theirs;
-the standard's section 4 facts already cover packages we add.
+board to `Closes #n` assumes one. Licensing is not a concern: the whole repository is
+open source and files under `packages/` carry MPL 2.0 like the rest (Tim, 2026-10-21:
+what he would sell is the hosted convenience, not the code).
 
 What stays open so a second repository could be added later without a redesign: the repo
 lock takes a list of allowed repositories, the mint endpoint mints for each repository
