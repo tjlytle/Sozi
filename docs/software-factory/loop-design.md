@@ -359,21 +359,34 @@ section carries the alternatives and the reasoning, and that is what makes it th
 thing to hand a model (Tim, 2026-10-21: it "would confuse agents because it has
 alternatives"). It stays as the process artifact and nothing a persona reads cites it.
 
-The standard agents read is `.claude/skills/code-standard/SKILL.md`, in the Agent Skills
-shape (frontmatter `name` and `description`, then the body): declarative, present tense,
-one line per rule, no alternatives, no reasoning. Rules a tool enforces are one line
-naming the tool ("Prettier formats; `bin/check --fix` applies it"); the rules that are
-judgment calls (the size guidelines, one concern per module, the summary comment rule,
-when a feature file changes first) are the body of the skill, since those are the lines
-a model needs in words. Every message the hooks and `bin/` scripts print cites the skill
-by section, not `code-standard.md`. `CLAUDE.md` points at the skill as the standard and at
-the record as its history.
+The standard agents read is the skill `.claude/skills/code-standard/`, in the Agent Skills
+shape: `SKILL.md` (frontmatter `name` and `description`, then a short body every session
+loads) and `references/<section>.md` files an agent loads when it touches that part
+(JavaScript, CSS, dependencies, change discipline, tests). One skill rather than several
+(Tim asked, 2026-10-21): each skill costs its description in every session's context,
+the rules cross-reference each other, and the reference files give the same split
+without that cost. Declarative, present tense, one line per rule, no alternatives, no
+reasoning. Rules a tool enforces are one line naming the tool ("Prettier formats;
+`bin/check --fix` applies it"); the rules that are judgment calls (the size guidelines,
+one concern per module, the summary comment rule, when a feature file changes first) are
+the body of `SKILL.md`, since those are the lines a model needs in words. Every message
+the hooks and `bin/` scripts print cites the skill by section, not `code-standard.md`.
+`CLAUDE.md` points at the skill as the standard and at the record as its history.
 
-Harness-neutral by the same means as the hooks: the file lives in that one place; the
-`claude` adapter loads it as a skill, and the other adapters point their harness at it
-(`AGENTS.md` names it for Codex and OpenCode, and the builder verifies per harness whether
-a skills directory link is also needed). The skill is written as part of the foundation
-PR, from the record, so the loop starts with it.
+Harness-neutral by the same means as the hooks: the files live in that one place; the
+`claude` adapter loads it as a skill, Codex finds it through the `.agents/skills` link,
+and the builder verifies per harness whether more is needed. The skill is written as part
+of the foundation PR, from the record, so the loop starts with it.
+
+### Files for agents, files for people
+
+Agent-only artifacts live under `.agents/` (Tim's convention, 2026-10-21): `plans/` for
+implementation plans, `skills` as a link to `.claude/skills` for harnesses that look
+there, and `tmp/` (gitignored) as the one scratch directory every harness and every
+stage prompt can name, since only Claude Code gives a session a scratchpad of its own.
+`AGENTS.md` is a link to `CLAUDE.md`. `docs/` stays for documents people read too, which
+is where this design and the code-standard record stay. The loop's own runtime files
+(`var/pipeline/`) are the loop's, not an agent's, and stay where they are.
 
 ## Cloud path (designed for, built later)
 
@@ -486,4 +499,7 @@ of issues and PRs. Cross-repository issues stay out of scope.
 - The local state file as the schedule's source of truth, the ten-minute sync, the
   per-change board sync.
 - One repository with `packages/`, over a multi-repository loop.
-- The skill as what agents read; the record as history.
+- The skill as what agents read; the record as history; one skill with reference files
+  rather than several skills.
+- `.agents/` for plans, the skills link and scratch; `docs/` for people.
+- The loop in Node rather than bash, so its state and pass logic are unit-tested.
