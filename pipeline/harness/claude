@@ -12,30 +12,7 @@
 # PLUGIN_DIR (/opt/gh-personas; passed as --plugin-dir only when it exists).
 set -u
 
-USAGE="Usage: claude run --prompt FILE --model M --allow FILE --checkout DIR --out DIR | resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR"
-MODE=""; PROMPT=""; MODEL=""; ALLOW_FILE=""; CHECKOUT=""; OUT=""; SESSION=""; MESSAGE=""
-
-usage_exit() { echo "$USAGE" >&2; exit 64; }
-
-# Parse the arguments into the variables above; exit 64 on anything unexpected.
-parse_args() {
-    MODE="${1:-}"; [ $# -gt 0 ] && shift
-    while [ $# -gt 0 ]; do
-        [ $# -ge 2 ] || usage_exit
-        case "$1" in
-            --prompt) PROMPT="$2" ;; --model) MODEL="$2" ;; --allow) ALLOW_FILE="$2" ;;
-            --checkout) CHECKOUT="$2" ;; --out) OUT="$2" ;; --session) SESSION="$2" ;;
-            --message) MESSAGE="$2" ;; *) usage_exit ;;
-        esac
-        shift 2
-    done
-    [ -n "$MODEL" ] && [ -n "$ALLOW_FILE" ] && [ -n "$CHECKOUT" ] && [ -n "$OUT" ] || usage_exit
-    case "$MODE" in
-        run) [ -n "$PROMPT" ] || usage_exit ;;
-        resume) [ -n "$SESSION" ] && [ -n "$MESSAGE" ] || usage_exit ;;
-        *) usage_exit ;;
-    esac
-}
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 new_uuid() {
     cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null ||
@@ -55,19 +32,26 @@ live() {
     else empty end'
 }
 
+# The allow list rules: comments and blank lines dropped, whitespace and CR trimmed.
+read_allow() {
+    mapfile -t ALLOW < <(tr -d '\r' <"$ALLOW_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^#' | grep -v '^$')
+}
+
 # Run the CLI in the checkout; returns the CLI's exit status.
 launch() {
     local text session_flag plugin="${PLUGIN_DIR:-/opt/gh-personas}" cmd ALLOW
-    mapfile -t ALLOW < <(grep -v '^#' "$ALLOW_FILE" | grep -v '^[[:space:]]*$')
+    read_allow
     if [ "$MODE" = run ]; then
         text=$(cat "$PROMPT"); session_flag=(--session-id "$SESSION")
     else
         text=$(cat "$MESSAGE"); session_flag=(--resume "$SESSION")
     fi
     cmd=("${CLAUDE_BIN:-claude}" -p "$text" "${session_flag[@]}" --model "$MODEL"
-        --permission-mode acceptEdits --allowedTools "${ALLOW[@]}" --output-format stream-json --verbose)
+        --permission-mode acceptEdits --output-format stream-json --verbose)
     case "${PIPELINE_SESSION_BUDGET_USD:-0}" in 0) ;; *) cmd+=(--max-budget-usd "$PIPELINE_SESSION_BUDGET_USD") ;; esac
     [ -d "$plugin" ] && cmd+=(--plugin-dir "$plugin")
+    # Last, so a bare flag can never swallow another.
+    [ "${#ALLOW[@]}" -eq 0 ] || cmd+=(--allowedTools "${ALLOW[@]}")
     cd "$CHECKOUT" || return 1
     "${cmd[@]}" 2>&1 | tee -a "$OUT/stream.jsonl" | live
     return "${PIPESTATUS[0]}"
@@ -80,7 +64,7 @@ write_usage() {
     [ -n "$result" ] || result='null'
     jq -n --argjson r "$result" '
         ($r // {}) as $x |
-        (($x.subtype // "") + " " + (($x.error // "") | tostring) + " " + (($x.result // "") | tostring)) as $text |
+        (($x.subtype // "") + " " + (($x.error // "") | tostring) + (if $x.is_error == true then " " + (($x.result // "") | tostring) else "" end)) as $text |
         {tokensIn: ($x.usage.input_tokens // 0), tokensOut: ($x.usage.output_tokens // 0),
          costUsd: ($x.total_cost_usd // 0), turns: ($x.num_turns // 0),
          status: (if $r == null then "error"
@@ -92,6 +76,7 @@ write_usage() {
 main() {
     local rc before
     parse_args "$@"
+    [ -r "$ALLOW_FILE" ] || usage_exit
     mkdir -p "$OUT"; touch "$OUT/stream.jsonl"
     if [ "$MODE" = run ]; then SESSION=$(new_uuid); echo "$SESSION" >"$OUT/session"; fi
     before=$(wc -l <"$OUT/stream.jsonl" 2>/dev/null || echo 0)

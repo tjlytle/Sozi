@@ -3,7 +3,7 @@
 # an assistant event and a result event, and exits like the real CLI would.
 #
 # Env: FAKE_ARGS (file; one line of arguments appended per call),
-# FAKE_MODE (ratelimit | budget | noresult; default is a clean success).
+# FAKE_MODE (ratelimit | budget | noresult | mention; default is a clean success).
 set -u
 
 echo "$*" >>"${FAKE_ARGS:-/dev/null}"
@@ -21,6 +21,9 @@ echo '{"type":"assistant","message":{"content":[{"type":"text","text":"hello fro
 mode="${FAKE_MODE:-}"
 case "$mode" in
     noresult) exit 0 ;;
+    mention)
+        echo '{"type":"result","subtype":"success","is_error":false,"result":"Fixed the 429 handling and the rate limit docs","num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
+        exit 0 ;;
     ratelimit)
         echo '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"API rate limit reached","num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
         exit 1 ;;

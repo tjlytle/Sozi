@@ -83,7 +83,7 @@ describe("harness adapters", () => {
         });
         assert.match(fs.readFileSync(path.join(out, "session"), "utf8"), /^[0-9a-f-]{36}\n?$/);
         const seen = fs.readFileSync(args, "utf8");
-        assert.match(seen, /--allowedTools Read Bash\(npm \*\) --output-format/);
+        assert.match(seen, /--allowedTools Read Bash\(npm \*\)\s*$/);
         assert.match(seen, /--permission-mode acceptEdits/);
         assert.match(seen, /--session-id [0-9a-f-]{36}/);
         assert.doesNotMatch(seen, /--max-budget-usd/);
@@ -187,6 +187,105 @@ describe("harness adapters", () => {
         const args2 = path.join(out, "args2");
         adapter("claude", runArgs(out), {FAKE_ARGS: args2, PLUGIN_DIR: path.join(out, "plugin")});
         assert.match(fs.readFileSync(args2, "utf8"), /--plugin-dir .*plugin/);
+    });
+
+    test("claude: a success that mentions 429 and rate limit stays ok", () => {
+        const out = scratch();
+        const r = adapter("claude", runArgs(out), {FAKE_MODE: "mention"});
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(usageOf(out).status, "ok");
+    });
+
+    test("claude: a missing allow file exits 64", () => {
+        const out = scratch();
+        const a = runArgs(out);
+        a[a.indexOf("--allow") + 1] = path.join(out, "nope.txt");
+        assert.equal(adapter("claude", a).status, 64);
+    });
+
+    test("claude: an allow file with no rules omits --allowedTools and keeps it last otherwise", () => {
+        const out = scratch();
+        fs.writeFileSync(path.join(out, "allow.txt"), "# only a comment\n  \n");
+        const args = path.join(out, "args");
+        assert.equal(adapter("claude", runArgs(out), {FAKE_ARGS: args}).status, 0);
+        assert.doesNotMatch(fs.readFileSync(args, "utf8"), /--allowedTools/);
+        const out2 = scratch();
+        const args2 = path.join(out2, "args");
+        fs.writeFileSync(
+            path.join(out2, "allow.txt"),
+            "  Read \r\n  # indented comment\nBash(npm *)\r\n"
+        );
+        adapter("claude", runArgs(out2), {FAKE_ARGS: args2, PIPELINE_SESSION_BUDGET_USD: "2"});
+        const seen = fs.readFileSync(args2, "utf8").trim();
+        assert.ok(seen.endsWith("--allowedTools Read Bash(npm *)"), seen);
+    });
+
+    test("claude: relative paths still work after the cd", () => {
+        const out = scratch();
+        const sub = path.join(out, "sub");
+        fs.mkdirSync(sub);
+        const r = spawnSync(
+            "bash",
+            [
+                path.join(root, "pipeline/harness/claude"),
+                "run",
+                "--prompt",
+                "prompt.md",
+                "--model",
+                "m",
+                "--allow",
+                "allow.txt",
+                "--checkout",
+                "sub",
+                "--out",
+                "o"
+            ],
+            {
+                cwd: out,
+                env: {...process.env, CLAUDE_BIN: fake},
+                encoding: "utf8"
+            }
+        );
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(usageOf(path.join(out, "o")).status, "ok");
+    });
+
+    test("claude: resume does not reuse an old result", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out));
+        const id = fs.readFileSync(path.join(out, "session"), "utf8").trim();
+        const r = adapter(
+            "claude",
+            [
+                "resume",
+                "--session",
+                id,
+                "--message",
+                path.join(out, "message.md"),
+                "--model",
+                "m",
+                "--allow",
+                path.join(out, "allow.txt"),
+                "--checkout",
+                out,
+                "--out",
+                out
+            ],
+            {
+                FAKE_MODE: "noresult"
+            }
+        );
+        assert.equal(r.status, 0);
+        assert.equal(usageOf(out).status, "error");
+    });
+
+    test("claude: the prompt reaches the CLI verbatim", () => {
+        const out = scratch();
+        const prompt = 'cost is $HOME and `id` and "quoted" \\ done';
+        fs.writeFileSync(path.join(out, "prompt.md"), prompt);
+        const args = path.join(out, "args");
+        adapter("claude", runArgs(out), {FAKE_ARGS: args});
+        assert.ok(fs.readFileSync(args, "utf8").startsWith(`-p ${prompt} `));
     });
 
     test("stubs exit 69 and say so", () => {
