@@ -21,7 +21,7 @@ import Jed from "jed";
  *  - create/delete/reorder frames
  *  - add/remove layers and frames to/from the selection
  *
- * @extends module:view/VirtualDOMView.VirtualDOMView
+ * @extends VirtualDOMView
  * @todo Add documentation
  */
 export class Timeline extends VirtualDOMView {
@@ -124,14 +124,23 @@ export class Timeline extends VirtualDOMView {
     repaint() {
         super.repaint();
 
-        const topLeft = this.container.querySelector(".timeline-top-left");
-        const topRight = this.container.querySelector(".timeline-top-right");
-        const bottomLeft = this.container.querySelector(".timeline-bottom-left");
-        const bottomRight = this.container.querySelector(".timeline-bottom-right");
+        // Casts: render() always creates these four panes, each holding one table.
+        const topLeft = /** @type {HTMLElement} */ (
+            this.container.querySelector(".timeline-top-left")
+        );
+        const topRight = /** @type {HTMLElement} */ (
+            this.container.querySelector(".timeline-top-right")
+        );
+        const bottomLeft = /** @type {HTMLElement} */ (
+            this.container.querySelector(".timeline-bottom-left")
+        );
+        const bottomRight = /** @type {HTMLElement} */ (
+            this.container.querySelector(".timeline-bottom-right")
+        );
 
-        const topLeftTable = topLeft.querySelector("table");
-        const topRightTable = topRight.querySelector("table");
-        const bottomLeftTable = bottomLeft.querySelector("table");
+        const topLeftTable = /** @type {HTMLTableElement} */ (topLeft.querySelector("table"));
+        const topRightTable = /** @type {HTMLTableElement} */ (topRight.querySelector("table"));
+        const bottomLeftTable = /** @type {HTMLTableElement} */ (bottomLeft.querySelector("table"));
 
         const leftWidth = Math.max(topLeftTable.clientWidth, bottomLeftTable.clientWidth);
         const rightWidth = this.container.clientWidth - leftWidth;
@@ -160,9 +169,11 @@ export class Timeline extends VirtualDOMView {
             ".timeline-top-right tr, .timeline-bottom-right tr"
         );
         leftRows.forEach((leftRow, rowIndex) => {
-            const rightRow = rightRows[rowIndex];
+            // Casts: these are table rows.
+            const rightRow = /** @type {HTMLTableRowElement} */ (rightRows[rowIndex]);
             const maxHeight = Math.max(leftRow.clientHeight, rightRow.clientHeight);
-            leftRow.style.height = rightRow.style.height = maxHeight + "px";
+            /** @type {HTMLTableRowElement} */ (leftRow).style.height = rightRow.style.height =
+                maxHeight + "px";
         });
     }
 
@@ -402,10 +413,12 @@ export class Timeline extends VirtualDOMView {
                 "div.timeline-bottom-right",
                 {
                     onscroll: evt => {
-                        this.container.querySelector(".timeline-top-right").scrollLeft =
-                            evt.target.scrollLeft;
-                        this.container.querySelector(".timeline-bottom-left").scrollTop =
-                            evt.target.scrollTop;
+                        /** @type {Element} */ (
+                            this.container.querySelector(".timeline-top-right")
+                        ).scrollLeft = evt.target.scrollLeft;
+                        /** @type {Element} */ (
+                            this.container.querySelector(".timeline-bottom-left")
+                        ).scrollTop = evt.target.scrollTop;
                     }
                 },
                 h("table.timeline", [

@@ -58,7 +58,9 @@ export class Preview {
 
         presentation.on("svgChange", () => this.onLoad());
         window.addEventListener("resize", () => this.repaint());
-        playerController.on("mouseDown", () => document.activeElement.blur());
+        playerController.on("mouseDown", () =>
+            /** @type {HTMLElement} */ (document.activeElement).blur()
+        );
         playerController.on("click", evt => this.onClick(evt));
         playerController.on("localViewportChange", () => controller.updateCameraStates());
         controller.on("repaint", () => this.repaint());
@@ -71,7 +73,7 @@ export class Preview {
     onLoad() {
         // Replace the content of the preview area with the SVG document
         while (this.container.hasChildNodes()) {
-            this.container.removeChild(this.container.firstChild);
+            this.container.removeChild(/** @type {Node} */ (this.container.firstChild));
         }
         this.container.appendChild(this.presentation.document.root);
 
@@ -97,12 +99,14 @@ export class Preview {
         // Set the window title to the presentation title.
         // The title can change when the presentation data is loaded or edited.
         if (this.presentation.document) {
-            document.querySelector("html head title").textContent = this.presentation.title;
+            /** @type {HTMLTitleElement} */ (
+                document.querySelector("html head title")
+            ).textContent = this.presentation.title;
         }
 
         // this.container is assumed to have padding: 0
-        const parentWidth = this.container.parentNode.clientWidth;
-        const parentHeight = this.container.parentNode.clientHeight;
+        const parentWidth = /** @type {HTMLElement} */ (this.container.parentNode).clientWidth;
+        const parentHeight = /** @type {HTMLElement} */ (this.container.parentNode).clientHeight;
 
         const maxWidth = parentWidth - 2 * PREVIEW_MARGIN;
         const maxHeight = parentHeight - 2 * PREVIEW_MARGIN;
@@ -138,7 +142,7 @@ export class Preview {
      */
     onClick(evt) {
         if (evt.button === 0 && evt.altKey) {
-            const outlineElement = evt.target;
+            const outlineElement = /** @type {Element & {getBBox?: Function}} */ (evt.target);
             if (outlineElement.hasAttribute("id") && outlineElement.getBBox) {
                 this.controller.setOutlineElement(outlineElement);
             }

@@ -8,10 +8,7 @@ import {render} from "inferno";
 import {h} from "inferno-hyperscript";
 import {EventEmitter} from "events";
 
-/** Type for Virtual DOM nodes.
- *
- * @external VNode
- */
+/** @typedef {import("inferno").VNode} VNode - A virtual DOM node. */
 
 /** Base class for editor views using the virtual DOM.
  *
