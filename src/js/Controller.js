@@ -1110,7 +1110,7 @@ export class Controller extends EventEmitter {
      *
      * This action supports undo and redo.
      *
-     * @param {number} groupId - The ID of the SVG group for the layer to copy.
+     * @param {string} groupId - The ID of the SVG group for the layer to copy.
      *
      * @fires module:Controller.presentationChange
      * @fires module:Controller.repaint
@@ -1131,7 +1131,7 @@ export class Controller extends EventEmitter {
         // choose the first layer that contains an SVG element.
         // Otherwise, choose the layer with the given id.
         const layerToCopy =
-            groupId == "__default__"
+            groupId === "__default__"
                 ? this.defaultLayers.filter(layer => layer.svgNodes.length > 0)[0]
                 : this.presentation.getLayerWithId(groupId);
         if (!layerToCopy || !layerToCopy.svgNodes.length) {
@@ -1142,7 +1142,7 @@ export class Controller extends EventEmitter {
             function onDo() {
                 for (const frame of selectedFrames) {
                     for (const layer of selectedLayers) {
-                        if (layer != layerToCopy) {
+                        if (layer !== layerToCopy) {
                             frame.layerProperties[layer.index].copy(
                                 frame.layerProperties[layerToCopy.index]
                             );

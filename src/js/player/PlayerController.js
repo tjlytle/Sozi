@@ -350,7 +350,7 @@ export class PlayerController extends EventEmitter {
 
         if (this.mouseDragged) {
             let mode = this.viewport.dragMode;
-            if (mode == "translate") {
+            if (mode === "translate") {
                 if (evt.altKey) {
                     mode = "scale";
                 } else if (evt.shiftKey) {
