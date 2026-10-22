@@ -150,7 +150,7 @@ export function applyIssue(state, issue) {
         stage: stageOf(issue.labels),
         parkedFrom: existing?.parkedFrom ?? null,
         closed: issue.state === "CLOSED",
-        tries: existing?.tries ?? 0,
+        tries: existing && existing.stage === stageOf(issue.labels) ? existing.tries : 0,
         session: existing?.session ?? null,
         blockers: issue.blockedBy ?? existing?.blockers ?? [],
         epic: epic ? Number(epic[1]) : null,
@@ -169,6 +169,21 @@ function blockersClosed(state, record) {
     return record.blockers.every(n => state.issues[n]?.closed === true);
 }
 
+/** Tells whether a session can start for an issue now.
+ *
+ * @param {State} state - The state.
+ * @param {IssueRecord} r - The issue.
+ * @returns {boolean} - True when the issue is startable.
+ */
+function isStartable(state, r) {
+    if (r.closed || r.session || r.labels.includes("working")) {
+        return false;
+    }
+    const startable =
+        promptFor(r.stage) !== null || (r.stage === "stage:blocked" && r.blockers.length > 0);
+    return startable && blockersClosed(state, r);
+}
+
 /** Lists the issues a session can start for now, by number. A blocked issue whose
  * blockers are all closed counts; the pass moves it on before starting it.
  *
@@ -180,15 +195,7 @@ function blockersClosed(state, record) {
 // eslint-disable-next-line no-unused-vars -- the pass calls every scheduler with (state, settings, now)
 export function dueIssues(state, _settings, _now) {
     return Object.entries(state.issues)
-        .filter(([, r]) => {
-            if (r.closed || r.session || r.labels.includes("working")) {
-                return false;
-            }
-            const startable =
-                promptFor(r.stage) !== null ||
-                (r.stage === "stage:blocked" && r.blockers.length > 0);
-            return startable && blockersClosed(state, r);
-        })
+        .filter(([, r]) => isStartable(state, r))
         .map(([n]) => Number(n))
         .sort((a, b) => a - b);
 }
@@ -219,7 +226,7 @@ export function isQuiet(state, scopeNumbers) {
         if (!r) {
             return true;
         }
-        if (r.session) {
+        if (r.session || isStartable(state, r)) {
             return false;
         }
         if (r.closed || r.stage === "stage:done" || r.stage === "stage:parked") {
@@ -228,7 +235,10 @@ export function isQuiet(state, scopeNumbers) {
         if (r.stage === null) {
             return r.labels.includes("triage") || r.labels.includes("idea");
         }
-        return r.stage === "stage:blocked" && r.blockers.every(b => !scopeNumbers.includes(b));
+        return (
+            r.stage === "stage:blocked" &&
+            r.blockers.some(b => !scopeNumbers.includes(b) && state.issues[b]?.closed !== true)
+        );
     });
 }
 
@@ -245,6 +255,20 @@ export function recordTry(state, n, maxTries = DEFAULT_MAX_TRIES) {
     return {tries: record.tries, park: record.tries >= maxTries};
 }
 
+/** Sets an issue's stage: the stage field, the stage label, and a fresh count of tries.
+ *
+ * @param {State} state - The state.
+ * @param {number} n - The issue number.
+ * @param {string} stage - The new stage label.
+ * @returns {void}
+ */
+export function setStage(state, n, stage) {
+    const record = state.issues[n];
+    record.labels = [...record.labels.filter(l => !STAGES.includes(l)), stage];
+    record.stage = stage;
+    record.tries = 0;
+}
+
 /** Parks an issue, remembering the stage it came from.
  *
  * @param {State} state - The state.
@@ -256,7 +280,7 @@ export function park(state, n) {
     if (record.stage !== "stage:parked") {
         record.parkedFrom = record.stage;
     }
-    record.stage = "stage:parked";
+    setStage(state, n, "stage:parked");
 }
 
 /** Wakes a parked issue at the stage it parked from, with its tries reset.
@@ -268,9 +292,8 @@ export function park(state, n) {
 export function wake(state, n) {
     const record = state.issues[n];
     const stage = record.parkedFrom ?? "stage:todo";
-    record.stage = stage;
     record.parkedFrom = null;
-    record.tries = 0;
+    setStage(state, n, stage);
     return stage;
 }
 
