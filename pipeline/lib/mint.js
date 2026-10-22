@@ -24,7 +24,8 @@ const VALID_FOR_MS = 50 * 60 * 1000;
  * @property {string} key - The bearer credential containers present.
  * @property {string[]} repos - The `owner/name` repositories tokens may be minted for.
  * @property {(bot: string, repo: string) => Promise<string>} [mint] - Produces a token; defaults to `bot-token`.
- * @property {(entry: {bot: string, repo: string, status: number}) => void} [log] - Called once per request.
+ * @property {number} [mintTimeoutMs] - How long `mint` may take before the request gets a 502; defaults to 30000.
+ * @property {(entry: {bot: string, repo: string, status: number, reason?: string}) => void} [log] - Called once per request.
  */
 
 /**
@@ -55,7 +56,7 @@ export function defaultMint(bot, repo) {
     }
     const env = {...process.env, PATH: [...dirs, process.env.PATH ?? ""].join(path.delimiter)};
     return new Promise((resolve, reject) => {
-        execFile("bot-token", [bot, repo], {env}, (err, stdout, stderr) => {
+        execFile("bot-token", [bot, repo], {env, timeout: 30000}, (err, stdout, stderr) => {
             if (err) {
                 reject(
                     new Error(`bot-token failed: ${String(stderr).trim() || "no error output"}`)
@@ -75,7 +76,10 @@ export function defaultMint(bot, repo) {
  * @returns {boolean} Whether they match.
  */
 function authorised(header, key) {
-    const given = Buffer.from((header ?? "").replace(/^Bearer /, ""));
+    if (!header?.startsWith("Bearer ")) {
+        return false;
+    }
+    const given = Buffer.from(header.slice(7));
     const wanted = Buffer.from(key);
     return given.length === wanted.length && crypto.timingSafeEqual(given, wanted);
 }
@@ -86,28 +90,41 @@ function authorised(header, key) {
  * @param {MintOptions} options - Where to listen, the credential, the allowed repositories and hooks.
  * @returns {Promise<MintServer>} The running server.
  */
-export function startMint({port, host, key, repos, mint = defaultMint, log = () => {}}) {
+export function startMint({
+    port,
+    host,
+    key,
+    repos,
+    mint = defaultMint,
+    log = () => {},
+    mintTimeoutMs = 30000
+}) {
     const server = http.createServer((req, res) => {
         /** @type {{bot: string, repo: string}} */
         const seen = {bot: "", repo: ""};
         /**
          * @param {number} status - The HTTP status.
          * @param {object} body - The JSON reply.
+         * @param {string} [reason] - A fixed code for the log, never an error message.
          */
-        const reply = (status, body) => {
+        const reply = (status, body, reason) => {
             res.writeHead(status, {"Content-Type": "application/json", Connection: "close"});
             res.end(JSON.stringify(body));
-            log({...seen, status});
+            try {
+                log(reason ? {...seen, status, reason} : {...seen, status});
+            } catch {
+                // The endpoint never dies for its logger.
+            }
         };
 
         if (!authorised(req.headers.authorization, key)) {
             req.resume();
-            reply(401, {error: "unknown credential"});
+            reply(401, {error: "unknown credential"}, "bad-credential");
             return;
         }
         if (req.method !== "POST") {
             req.resume();
-            reply(400, {error: "POST only"});
+            reply(400, {error: "POST only"}, "bad-method");
             return;
         }
         const chunks = [];
@@ -118,7 +135,7 @@ export function startMint({port, host, key, repos, mint = defaultMint, log = () 
             if (size > MAX_BODY) {
                 if (!tooBig) {
                     tooBig = true;
-                    reply(413, {error: "request too large"});
+                    reply(413, {error: "request too large"}, "too-large");
                 }
                 return;
             }
@@ -132,37 +149,65 @@ export function startMint({port, host, key, repos, mint = defaultMint, log = () 
             try {
                 parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
             } catch {
-                reply(400, {error: "body is not JSON"});
+                reply(400, {error: "body is not JSON"}, "bad-body");
                 return;
             }
             const {repo, bot} = parsed ?? {};
             seen.bot = typeof bot === "string" ? bot : "";
             seen.repo = typeof repo === "string" ? repo : "";
             if (typeof repo !== "string" || typeof bot !== "string") {
-                reply(400, {error: "repo and bot must be strings"});
-            } else if (!REPO_PATTERN.test(repo)) {
-                reply(400, {error: "repo must be owner/name"});
-            } else if (!BOTS.includes(bot)) {
-                reply(400, {error: "unknown bot"});
-            } else if (!repos.includes(repo)) {
-                reply(403, {error: "repository not allowed"});
-            } else {
-                try {
-                    const token = await mint(bot, repo);
-                    reply(200, {
-                        token,
-                        expires_at: new Date(Date.now() + VALID_FOR_MS).toISOString()
-                    });
-                } catch {
-                    reply(502, {error: "mint failed"});
-                }
+                reply(400, {error: "repo and bot must be strings"}, "bad-body");
+                return;
             }
+            if (!REPO_PATTERN.test(repo)) {
+                reply(400, {error: "repo must be owner/name"}, "bad-repo");
+                return;
+            }
+            if (!BOTS.includes(bot)) {
+                reply(400, {error: "unknown bot"}, "bad-bot");
+                return;
+            }
+            if (!repos.includes(repo)) {
+                reply(403, {error: "repository not allowed"}, "repo-not-allowed");
+                return;
+            }
+            /** @type {unknown} */
+            let token;
+            let timer;
+            try {
+                token = await Promise.race([
+                    mint(bot, repo),
+                    new Promise((_, reject) => {
+                        timer = setTimeout(() => reject(new Error("timeout")), mintTimeoutMs);
+                    })
+                ]);
+            } catch (err) {
+                reply(
+                    502,
+                    {error: "mint failed"},
+                    err instanceof Error && err.message === "timeout" ? "timeout" : "mint-error"
+                );
+                return;
+            } finally {
+                clearTimeout(timer);
+            }
+            if (typeof token !== "string" || token.trim() === "") {
+                reply(502, {error: "mint failed"}, "empty-token");
+                return;
+            }
+            reply(200, {
+                token: token.trim(),
+                expires_at: new Date(Date.now() + VALID_FOR_MS).toISOString()
+            });
         });
     });
+    server.headersTimeout = 10000;
+    server.requestTimeout = 30000;
 
     return new Promise((resolve, reject) => {
         server.once("error", reject);
         server.listen(port, host, () => {
+            server.off("error", reject);
             const bound = /** @type {import("node:net").AddressInfo} */ (server.address()).port;
             resolve({
                 url: `http://${host}:${bound}/`,

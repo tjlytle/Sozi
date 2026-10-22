@@ -184,3 +184,100 @@ describe("the mint endpoint edge cases", () => {
         await assert.rejects(fetch(server.url, {method: "POST", headers: auth, body: good}));
     });
 });
+
+describe("the mint endpoint hardening", () => {
+    const auth = {Authorization: "Bearer secret"};
+    const good = JSON.stringify({repo: "tjlytle/Sozi", bot: "builder"});
+    /**
+     * @param {object} extra - Option overrides.
+     * @returns {Promise<Awaited<ReturnType<typeof startMint>>>} The server.
+     */
+    const start = extra =>
+        startMint({
+            port: 0,
+            host: "127.0.0.1",
+            key: "secret",
+            repos: ["tjlytle/Sozi"],
+            mint: async () => "ghs_fake",
+            ...extra
+        });
+
+    test("a log that throws neither blocks a 200 nor kills the server", async () => {
+        const server = await start({
+            log: () => {
+                throw new Error("log broke");
+            }
+        });
+        try {
+            assert.equal(
+                (await fetch(server.url, {method: "POST", headers: auth, body: good})).status,
+                200
+            );
+            assert.equal(
+                (await fetch(server.url, {method: "POST", headers: auth, body: good})).status,
+                200
+            );
+        } finally {
+            await server.close();
+        }
+    });
+    test("a mint that never resolves gets 502 within the timeout", async () => {
+        const logs = [];
+        const server = await start({
+            mint: () => new Promise(() => {}),
+            mintTimeoutMs: 50,
+            log: e => logs.push(e)
+        });
+        try {
+            const r = await fetch(server.url, {method: "POST", headers: auth, body: good});
+            assert.equal(r.status, 502);
+            assert.equal(logs[0].reason, "timeout");
+        } finally {
+            await server.close();
+        }
+    });
+    test("an empty or non-string token gets 502", async () => {
+        for (const token of ["", "  \n", undefined, 42]) {
+            const logs = [];
+            const server = await start({mint: async () => token, log: e => logs.push(e)});
+            try {
+                const r = await fetch(server.url, {method: "POST", headers: auth, body: good});
+                assert.equal(r.status, 502);
+                assert.equal(logs[0].reason, "empty-token");
+            } finally {
+                await server.close();
+            }
+        }
+    });
+    test("a bearer without the Bearer prefix gets 401", async () => {
+        const server = await start({});
+        try {
+            const r = await fetch(server.url, {
+                method: "POST",
+                headers: {Authorization: "secret"},
+                body: good
+            });
+            assert.equal(r.status, 401);
+        } finally {
+            await server.close();
+        }
+    });
+    test("failures log a fixed reason code, never the error message", async () => {
+        const logs = [];
+        const server = await start({
+            mint: async () => {
+                throw new Error("leaky ghs_x");
+            },
+            log: e => logs.push(e)
+        });
+        try {
+            await fetch(server.url, {method: "POST", headers: auth, body: good});
+            await fetch(server.url, {method: "POST", headers: auth, body: "nope"});
+            assert.equal(logs[0].reason, "mint-error");
+            assert.equal(logs[1].reason, "bad-body");
+            assert.ok(!JSON.stringify(logs).includes("leaky"));
+        } finally {
+            await server.close();
+        }
+    });
+});
