@@ -6,6 +6,7 @@ Feature: Editing frames in the editor
   the keyboard, and undo a title edit. Reordering goes through the "insert selection
   before frame N" icon of the timeline, which calls Controller.moveFrames like a drop.
   Not covered: timeline drag.
+  The timeline buttons are found by their English titles.
 
   Background:
     Given the editor is open on a copy of the basic deck
@@ -24,11 +25,11 @@ Feature: Editing frames in the editor
     Then frame 1 is the selected frame
 
   @issue-36
-  Scenario: A frame added with the toolbar button can be deleted again
-    When the toolbar button "Create a new frame" is pressed
+  Scenario: A frame added with the timeline button can be deleted again
+    When the timeline button "Create a new frame" is pressed
     Then the timeline shows 3 frames
     And frame 2 is the selected frame
-    When the toolbar button "Delete the selected frames" is pressed
+    When the timeline button "Delete the selected frames" is pressed
     Then the timeline shows 2 frames
     And the timeline titles are "One, Two"
     And no frame is selected

@@ -4,14 +4,16 @@
 
 // Steps for the editor: open a deck in the Electron app, act on the timeline and the
 // properties panel, read back the DOM and the files on disk.
-// The selectors come from src/js/view/Timeline.js (th.frame-index, th.frame-title and
-// the button titles), src/js/view/Properties.js (#field-title) and the key map in
-// src/js/model/Preferences.js.
+// The selectors come from src/js/view/Timeline.js (th.frame-index, th.frame-title, and the
+// buttons titled "Create a new frame" and "Delete the selected frames", both defined in the
+// timeline's header, not in src/js/view/Toolbar.js), src/js/view/Properties.js (#field-title)
+// and the key map in src/js/model/Preferences.js. The buttons are found by their English
+// titles, so the run needs the default (English) locale.
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import fs from "node:fs";
 import {expect} from "playwright/test";
-import {closeEditor, launchEditor} from "../support/electron.js";
+import {launchEditor} from "../support/electron.js";
 
 /** The frame number cells of the timeline, one per frame.
  *
@@ -55,7 +57,7 @@ When("frame {int} is clicked in the timeline", async function (index) {
         .click();
 });
 
-When("the toolbar button {string} is pressed", async function (title) {
+When("the timeline button {string} is pressed", async function (title) {
     await this.window.locator(`button[title="${title}"]`).click();
 });
 
@@ -74,10 +76,6 @@ When("the selection is inserted before frame {int}", async function (index) {
     // The insert icons are shown only while the cell is hovered.
     await cell.hover();
     await cell.locator("i.insert-before").click();
-});
-
-When("the editor is closed", async function () {
-    await closeEditor(this.editor);
 });
 
 Then("the timeline shows {int} frames", async function (count) {

@@ -22,6 +22,9 @@ const root = path.resolve(import.meta.dirname, "..", "..", "..");
 /** How long closeEditor waits for Ctrl+S to rewrite the presentation file. */
 const SAVE_WAIT_MS = 5000;
 
+/** How long closeEditor waits for the app to quit before killing it. */
+const CLOSE_WAIT_MS = 5000;
+
 /** @typedef {{dir: string, svg: string, json: string, cleanup: Function}} TempDeck */
 /** @typedef {{app: import("playwright").ElectronApplication, window: import("playwright").Page, deck: TempDeck, home: string}} Editor */
 
@@ -51,7 +54,9 @@ export async function launchEditor(fixture) {
 /** Save the deck with Ctrl+S, wait for the presentation file to change, then quit.
  *
  * Saving first means the close never reaches the save dialog of backend/Electron.js.
- * The wait gives up after a few seconds: an unmodified deck is not rewritten.
+ * Opening a deck marks it as needing a save, so Ctrl+S rewrites the presentation file
+ * even when the scenario changed nothing; the wait is bounded in case it does not.
+ * The app is closed whatever happens to the save, and killed if it does not quit in time.
  *
  * @param {Editor} editor - An editor returned by launchEditor.
  */
@@ -67,11 +72,35 @@ export async function closeEditor(editor) {
         while (fs.statSync(deck.json).mtimeMs === before && Date.now() < deadline) {
             await new Promise(resolve => setTimeout(resolve, 50));
         }
-        await app.close();
+    } catch (err) {
+        console.warn(`closeEditor: save before close failed: ${err}`);
     } finally {
+        await closeApp(app);
         deck.cleanup();
         fs.rmSync(home, {recursive: true, force: true});
     }
+}
+
+/** Quit the app, or kill its process if it has not quit within CLOSE_WAIT_MS.
+ *
+ * A quit dialog would otherwise hold the step until cucumber's timeout and leak the process.
+ *
+ * @param {import("playwright").ElectronApplication} app - The running app.
+ */
+async function closeApp(app) {
+    let timer;
+    const timedOut = new Promise(resolve => {
+        timer = setTimeout(() => resolve(true), CLOSE_WAIT_MS);
+    });
+    const closed = app.close().then(
+        () => false,
+        () => false
+    );
+    if (await Promise.race([closed, timedOut])) {
+        console.warn(`closeEditor: the editor did not quit within ${CLOSE_WAIT_MS} ms; killing it`);
+        app.process().kill("SIGKILL");
+    }
+    clearTimeout(timer);
 }
 
 After(async function () {
