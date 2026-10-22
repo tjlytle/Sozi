@@ -13,8 +13,8 @@
     width: 100%;
     height: calc(100% - 2.5rem);
     overflow-y: auto;
-    color: white;
-    background: rgb(80 80 80);
+    color: var(--sozi-text);
+    background: var(--sozi-bg);
 }
 
 #sozi-editor-view-timeline > div {
@@ -88,8 +88,8 @@
     width: 8rem;
     min-width: 3rem;
     max-width: 8rem;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: var(--sozi-space-3);
+    padding-right: var(--sozi-space-3);
 }
 
 .timeline th.layer-icons {
@@ -106,7 +106,7 @@
 
 .timeline .layer-icons .visibility,
 .timeline .layer-icons .remove {
-    margin-right: 0.5rem;
+    margin-right: var(--sozi-space-3);
 }
 
 .timeline .layer-label .remove {
@@ -151,21 +151,21 @@
  */
 
 .timeline-bottom-right td {
-    color: rgb(80 80 80);
+    color: var(--sozi-bg);
 }
 
 .timeline td,
 .timeline th.frame-index,
 .timeline th.frame-title {
-    border-left: 2px solid rgb(80 80 80);
+    border-left: 2px solid var(--sozi-bg);
 }
 
 .timeline .even {
-    background: rgb(200 200 200);
+    background: var(--sozi-row-even);
 }
 
 .timeline .odd {
-    background: rgb(230 230 230);
+    background: var(--sozi-row-odd);
 }
 
 .timeline .link {
@@ -173,19 +173,19 @@
 }
 
 .timeline .selected {
-    background: rgb(200 220 220);
+    background: var(--sozi-accent-pale);
 }
 
 .timeline th.selected {
-    color: black;
+    color: var(--sozi-text-dark);
 }
 
 .timeline .selected.current {
-    background: rgb(150 200 200);
+    background: var(--sozi-accent);
 }
 
 .timeline .frame-index.selected {
-    color: rgb(200 220 220);
+    color: var(--sozi-accent-pale);
     background: transparent;
 }
 

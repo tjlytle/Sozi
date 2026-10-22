@@ -1,23 +1,23 @@
 .properties {
-    margin: 0.5rem 1rem;
+    margin: var(--sozi-space-3) var(--sozi-space-4);
 }
 
 .properties h1 {
     text-align: center;
-    font-size: 120%;
+    font-size: var(--sozi-font-size-h1);
 }
 
 .properties h2 {
-    font-size: 110%;
+    font-size: var(--sozi-font-size-h2);
 }
 
 .properties h3 {
-    font-size: 100%;
+    font-size: var(--sozi-font-size-h3);
 }
 
 .properties > div {
-    margin-top: 0.5rem;
-    margin-bottom: 0.3rem;
+    margin-top: var(--sozi-space-3);
+    margin-bottom: var(--sozi-space-2);
 }
 
 .properties > div.btn-group {
@@ -38,8 +38,8 @@
 
 .properties label {
     display: block;
-    margin-top: 0.5rem;
-    margin-bottom: 0.3rem;
+    margin-top: var(--sozi-space-3);
+    margin-bottom: var(--sozi-space-2);
 }
 
 .properties input,
@@ -49,23 +49,23 @@
 
 .properties span.btn-group,
 .properties :not(.btn-group, td) > button {
-    margin-left: 1rem;
+    margin-left: var(--sozi-space-4);
 }
 
 .properties {
-    color: white;
+    color: var(--sozi-text);
 }
 
 .properties .help {
-    margin-left: 1rem;
+    margin-left: var(--sozi-space-4);
 }
 
 .properties table.custom-css-js {
     width: 100%;
     border-radius: 0.5rem;
-    box-shadow: 0 1px 1px rgb(0 0 0 / 50%) inset;
-    background-color: white;
-    color: black;
+    box-shadow: 0 1px 1px var(--sozi-shadow) inset;
+    background-color: var(--sozi-field-bg);
+    color: var(--sozi-text-dark);
 }
 
 .properties .custom-css-js tr th {
@@ -73,8 +73,8 @@
 }
 
 .properties .custom-css-js td:first-child {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: var(--sozi-space-3);
+    padding-right: var(--sozi-space-3);
 }
 
 .properties input.custom-css-js {
@@ -88,8 +88,8 @@
 }
 
 .spinner {
-    margin-left: 1rem;
-    margin-right: 1rem;
+    margin-left: var(--sozi-space-4);
+    margin-right: var(--sozi-space-4);
 }
 
 .spinner::before {
@@ -100,6 +100,6 @@
     height: 1rem;
     border-radius: 50%;
     border: 4px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--sozi-spinner);
     animation: spinner 0.8s linear infinite;
 }

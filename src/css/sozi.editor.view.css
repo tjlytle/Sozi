@@ -85,7 +85,7 @@ body {
     width: 100%;
     top: 0;
     left: 0;
-    padding: 0.5rem 1rem;
+    padding: var(--sozi-space-3) var(--sozi-space-4);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -93,35 +93,35 @@ body {
  * ------------------------------------------------------------------------- */
 
 body {
-    background: rgb(80 80 80);
+    background: var(--sozi-bg);
 }
 
 .top .left {
     background-image: linear-gradient(
         -45deg,
-        rgb(80 80 80) 25%,
-        rgb(64 64 64) 25%,
-        rgb(64 64 64) 50%,
-        rgb(80 80 80) 50%,
-        rgb(80 80 80) 75%,
-        rgb(64 64 64) 75%,
-        rgb(64 64 64)
+        var(--sozi-bg) 25%,
+        var(--sozi-bg-dark) 25%,
+        var(--sozi-bg-dark) 50%,
+        var(--sozi-bg) 50%,
+        var(--sozi-bg) 75%,
+        var(--sozi-bg-dark) 75%,
+        var(--sozi-bg-dark)
     );
     background-size: 1rem 1rem;
 }
 
 .right {
-    background: rgb(64 64 64);
+    background: var(--sozi-bg-dark);
 }
 
 .hsplitter,
 .vsplitter {
-    background: rgb(64 64 64);
+    background: var(--sozi-bg-dark);
 }
 
 .hsplitter:hover,
 .vsplitter:hover {
-    background: rgb(80 80 80);
+    background: var(--sozi-bg);
 }
 
 /*
@@ -135,65 +135,73 @@ select,
 button {
     border-radius: 0.5rem;
     border: none;
-    padding: 0.3rem 0.5rem;
-    color: black;
+    padding: var(--sozi-space-2) var(--sozi-space-3);
+    color: var(--sozi-text-dark);
 }
 
 input[type="text"],
 input[type="number"],
 section[contenteditable="true"] {
-    box-shadow: 0 1px 1px rgb(0 0 0 / 50%) inset;
-    background-color: white;
+    box-shadow: 0 1px 1px var(--sozi-shadow) inset;
+    background-color: var(--sozi-field-bg);
 }
 
 select,
 button {
-    background: linear-gradient(to bottom, rgb(220 220 220), rgb(180 180 180) 100%);
+    background: linear-gradient(to bottom, var(--sozi-control), var(--sozi-control-dark) 100%);
 }
 
 select:active,
 button:active {
-    background: linear-gradient(to bottom, rgb(200 200 200), rgb(160 160 160) 100%);
+    background: linear-gradient(
+        to bottom,
+        var(--sozi-control-pressed),
+        var(--sozi-control-pressed-dark) 100%
+    );
 }
 
 option {
-    background: rgb(220 220 220);
+    background: var(--sozi-control);
 }
 
 input:disabled {
-    background: rgb(220 220 220);
+    background: var(--sozi-control);
 }
 
 input:disabled,
 button:disabled {
-    color: rgb(150 150 150);
+    color: var(--sozi-text-disabled);
 }
 
 .active {
-    background: linear-gradient(to bottom, rgb(150 200 200), rgb(180 220 220) 100%);
+    background: linear-gradient(to bottom, var(--sozi-accent), var(--sozi-accent-light) 100%);
 }
 
 button.active:active {
-    background: linear-gradient(to bottom, rgb(135 180 180), rgb(160 200 200) 100%);
+    background: linear-gradient(
+        to bottom,
+        var(--sozi-accent-pressed),
+        var(--sozi-accent-pressed-light) 100%
+    );
 }
 
 .multiple {
     background-image: linear-gradient(
         -45deg,
-        rgb(150 200 200) 25%,
-        rgb(220 220 220) 25%,
-        rgb(220 220 220) 50%,
-        rgb(150 200 200) 50%,
-        rgb(150 200 200) 75%,
-        rgb(220 220 220) 75%,
-        rgb(220 220 220)
+        var(--sozi-accent) 25%,
+        var(--sozi-control) 25%,
+        var(--sozi-control) 50%,
+        var(--sozi-accent) 50%,
+        var(--sozi-accent) 75%,
+        var(--sozi-control) 75%,
+        var(--sozi-control)
     );
     background-size: 1rem 1rem;
 }
 
 .btn-group button:first-child:not(:last-child) {
     border-radius: 0.5rem 0 0 0.5rem;
-    border-right: 1px solid rgb(80 80 80);
+    border-right: 1px solid var(--sozi-bg);
 }
 
 .btn-group button:last-child:not(:first-child) {
@@ -202,15 +210,15 @@ button.active:active {
 
 .btn-group button:not(:first-child, :last-child) {
     border-radius: 0;
-    border-right: 1px solid rgb(80 80 80);
+    border-right: 1px solid var(--sozi-bg);
 }
 
 .message.info {
-    background-color: rgb(150 200 200 / 80%);
+    background-color: var(--sozi-info-bg);
 }
 
 .message.error {
-    background-color: rgb(255 100 100 / 80%);
+    background-color: var(--sozi-error-bg);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -222,11 +230,11 @@ html {
 }
 
 body {
-    font-size: small;
+    font-size: var(--sozi-font-size);
 }
 
 .top-left p {
-    font-size: 200%;
+    font-size: var(--sozi-font-size-lead);
     text-align: center;
 }
 
@@ -271,19 +279,19 @@ body {
  * ------------------------------------------------------------------------- */
 
 input[type="range"] {
-    background: rgb(64 64 64);
+    background: var(--sozi-bg-dark);
 }
 
 input[type="range"]::-moz-range-track {
     border-radius: 8px;
     height: 7px;
-    border: 1px solid #bdc3c7;
-    background-color: #fff;
+    border: 1px solid var(--sozi-range-border);
+    background-color: var(--sozi-range-track);
 }
 
 input[type="range"]::-moz-range-thumb {
-    background: #ecf0f1;
-    border: 1px solid #bdc3c7;
+    background: var(--sozi-range-thumb);
+    border: 1px solid var(--sozi-range-border);
     width: 14px;
     height: 14px;
     border-radius: 10px;

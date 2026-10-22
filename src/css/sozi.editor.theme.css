@@ -1,0 +1,63 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* ------------------------------------------------------------------------- *
+ * Design tokens of the editor: every colour, spacing step and font size
+ * the editor stylesheets use. Loaded before the component stylesheets.
+ * ------------------------------------------------------------------------- */
+
+:root {
+    /* Workspace */
+    --sozi-bg: rgb(80 80 80);
+    --sozi-bg-dark: rgb(64 64 64);
+    --sozi-shadow: rgb(0 0 0 / 50%);
+    --sozi-shadow-preview: rgb(32 32 32);
+    --sozi-preview-bg: white;
+
+    /* Text */
+    --sozi-text: white;
+    --sozi-text-dark: black;
+    --sozi-text-disabled: rgb(150 150 150);
+
+    /* Form controls */
+    --sozi-field-bg: white;
+    --sozi-control: rgb(220 220 220);
+    --sozi-control-dark: rgb(180 180 180);
+    --sozi-control-pressed: rgb(200 200 200);
+    --sozi-control-pressed-dark: rgb(160 160 160);
+    --sozi-spinner: #333;
+
+    /* Accent: active buttons, selection, notifications */
+    --sozi-accent: rgb(150 200 200);
+    --sozi-accent-light: rgb(180 220 220);
+    --sozi-accent-pressed: rgb(135 180 180);
+    --sozi-accent-pressed-light: rgb(160 200 200);
+    --sozi-accent-pale: rgb(200 220 220);
+    --sozi-info-bg: rgb(150 200 200 / 80%);
+    --sozi-error-bg: rgb(255 100 100 / 80%);
+
+    /* Timeline rows */
+    --sozi-row-even: rgb(200 200 200);
+    --sozi-row-odd: rgb(230 230 230);
+
+    /* Range input in Firefox (the browser build) */
+    --sozi-range-border: #bdc3c7;
+    --sozi-range-track: #fff;
+    --sozi-range-thumb: #ecf0f1;
+
+    /* Spacing steps */
+    --sozi-space-1: 0.2rem;
+    --sozi-space-2: 0.3rem;
+    --sozi-space-3: 0.5rem;
+    --sozi-space-4: 1rem;
+    --sozi-space-5: 1.5rem;
+    --sozi-space-6: 2rem;
+
+    /* Font sizes */
+    --sozi-font-size: small;
+    --sozi-font-size-lead: 200%;
+    --sozi-font-size-h1: 120%;
+    --sozi-font-size-h2: 110%;
+    --sozi-font-size-h3: 100%;
+}
