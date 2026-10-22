@@ -97,3 +97,33 @@ jobs:
                   name: electron-${{ github.sha }}
                   path: build/electron
                   retention-days: 30
+            - name: Package the AppImage
+              if: github.event_name == 'push'
+              run: npx gulp packageLinux
+            - name: Keep the AppImage of this commit
+              if: github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: appimage-${{ github.sha }}
+                  path: build/dist/*.AppImage
+                  retention-days: 30
+            - name: Build the pages of the fixture deck
+              if: github.event_name == 'push'
+              run: xvfb-run -a node_modules/.bin/electron build/electron --cli build --out-dir build/pages test/fixtures/basic.svg
+            - name: Publish the pages of this commit
+              if: github.event_name == 'push'
+              continue-on-error: true
+              env:
+                  PIPELINE_EVIDENCE_ACCOUNT: ${{ secrets.PIPELINE_EVIDENCE_ACCOUNT }}
+                  PIPELINE_EVIDENCE_BUCKET: ${{ secrets.PIPELINE_EVIDENCE_BUCKET }}
+                  PIPELINE_EVIDENCE_TOKEN: ${{ secrets.PIPELINE_EVIDENCE_TOKEN }}
+                  PIPELINE_EVIDENCE_URL: ${{ secrets.PIPELINE_EVIDENCE_URL }}
+              run: |
+                  presenter=$(node bin/evidence.js put build/pages/basic-presenter.sozi.html --key builds/${{ github.sha }}/presenter.html)
+                  index=$(node bin/evidence.js put build/pages/basic.sozi.html --key builds/${{ github.sha }}/index.html)
+                  {
+                      echo "## Builds"
+                      echo "- [Presenter page]($presenter)"
+                      echo "- [Presentation page]($index)"
+                      echo "- AppImage: artifact appimage-${{ github.sha }}"
+                  } >> "$GITHUB_STEP_SUMMARY"
