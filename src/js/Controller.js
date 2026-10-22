@@ -595,7 +595,7 @@ export class Controller extends EventEmitter {
         // Compute the new target frame index after the selection has been removed.
         let targetIndex = toFrameIndex;
         for (const frame of framesByIndex) {
-            if (frame.index < toFrameIndex) {
+            if (frame.index < targetIndex) {
                 targetIndex--;
             }
         }
