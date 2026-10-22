@@ -30,6 +30,9 @@ const BY_NAME = [
     "GH_MINT_KEY"
 ];
 
+/** The fallback credentials a mounted profile's login replaces. */
+const PROFILE_REPLACES = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"];
+
 const MAX_RESUMES = "3";
 
 /**
@@ -74,7 +77,7 @@ function spawnInteractive(cmd) {
  * @property {(persona: string) => Promise<import("./profile.js").ProfileInfo | null>} inspectProfile - What a persona's profile holds; null when it has no volume.
  * @property {(opts: {persona: string, harness: string}) => string[]} loginArgs - The docker run arguments of an interactive login.
  * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
- * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume into a new volume for another; refuses when that volume exists.
+ * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume into a new volume for another; refuses when the source has no volume or the target has one, and removes the target when the copy fails.
  * @property {(opts: {issue: number, stage: string, prompt: string, allow: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path.
  */
 
@@ -208,7 +211,6 @@ export function createSandbox({
             "-e",
             `PIPELINE_LOGIN_HARNESS=${harness}`,
             settings.image,
-            "bash",
             "/pipeline/login.sh"
         ];
     }
@@ -252,24 +254,32 @@ export function createSandbox({
         async copyProfile({from, to}) {
             const source = volumeName(from);
             const target = volumeName(to);
+            if ((await run(["docker", "volume", "inspect", source])).code !== 0) {
+                throw new Error(`no profile for ${from}: run npm run pipeline -- --login ${from}`);
+            }
             if ((await run(["docker", "volume", "inspect", target])).code === 0) {
                 throw new Error(`profile of ${to} exists; remove the volume first`);
             }
             await must(["docker", "volume", "create", target]);
-            await must([
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                `${source}:/from:ro`,
-                "-v",
-                `${target}:/to`,
-                settings.image,
-                "cp",
-                "-a",
-                "/from/.",
-                "/to/"
-            ]);
+            // The target mounts at /profile, which the image creates for the factory user, so the
+            // fresh volume takes that owner; the entrypoint is bash, hence -c.
+            try {
+                await must([
+                    "docker",
+                    "run",
+                    "--rm",
+                    "-v",
+                    `${source}:/from:ro`,
+                    "-v",
+                    `${target}:/profile`,
+                    settings.image,
+                    "-c",
+                    "cp -a /from/. /profile/"
+                ]);
+            } catch (err) {
+                await run(["docker", "volume", "rm", target]);
+                throw err;
+            }
         },
         inspectProfile(persona) {
             return inspectProfile(run, {image: settings.image, persona});
@@ -278,9 +288,11 @@ export function createSandbox({
             const ev = settings.evidence;
             /** @type {Record<string, string>} */
             const env = {};
+            // With a profile its login is what the CLI uses; a token would take precedence over it.
+            const skip = opts.profile ? PROFILE_REPLACES : [];
             for (const name of BY_NAME) {
                 const value = loopEnv[name];
-                if (value) {
+                if (value && !skip.includes(name)) {
                     env[name] = value;
                 }
             }

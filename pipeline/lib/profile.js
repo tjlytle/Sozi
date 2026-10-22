@@ -100,7 +100,6 @@ export async function inspectProfile(run, {image, persona}) {
         "-v",
         `${volume}:/profile:ro`,
         image,
-        "bash",
         "/pipeline/profile-inspect.sh"
     ]);
     try {
