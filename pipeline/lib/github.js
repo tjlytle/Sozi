@@ -215,8 +215,16 @@ export function createGithub({repo, run = defaultRun}) {
      * @param {number} n - The issue number.
      * @returns {Promise<any[]>} The comments, oldest first.
      */
-    function comments(n) {
-        return json(["gh-as", "ops", "api", `repos/${repo}/issues/${n}/comments`]);
+    async function comments(n) {
+        const pages = await json([
+            "gh-as",
+            "ops",
+            "api",
+            "--paginate",
+            "--slurp",
+            `repos/${repo}/issues/${n}/comments?per_page=100`
+        ]);
+        return pages.flat();
     }
 
     return {
@@ -302,12 +310,14 @@ export function createGithub({repo, run = defaultRun}) {
                 repo,
                 "--state",
                 "open",
+                "--limit",
+                "100",
                 "--search",
                 `${n} in:body`,
                 "--json",
                 "number,headRefName,body"
             ]);
-            const re = new RegExp(`\\b(?:Closes|Fixes|Resolves)\\s+#${n}\\b`, "i");
+            const re = new RegExp(`\\b(?:Close[sd]?|Fix(?:es|ed)?|Resolve[sd]?)\\s+#${n}\\b`, "i");
             const pr = prs.find((/** @type {any} */ p) => re.test(p.body ?? ""));
             return pr ? {number: pr.number, headRefName: pr.headRefName} : null;
         }

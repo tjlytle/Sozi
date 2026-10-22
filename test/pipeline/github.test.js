@@ -4,7 +4,7 @@
 
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
-import {createGithub, RateLimited, blockedBy} from "../../pipeline/lib/github.js";
+import {createGithub, RateLimited, blockedBy, defaultRun} from "../../pipeline/lib/github.js";
 
 /** @type {{cmd: string[], opts: any}[]} */
 const calls = [];
@@ -57,8 +57,10 @@ describe("github", () => {
     test("the newest human comment wakes a parked issue", async () => {
         const gh = make([
             json([
-                {user: {login: "ll-ops[bot]", type: "Bot"}},
-                {user: {login: "tjlytle", type: "User"}}
+                [
+                    {user: {login: "ll-ops[bot]", type: "Bot"}},
+                    {user: {login: "tjlytle", type: "User"}}
+                ]
             ])
         ]);
         assert.equal(await gh.lastCommentIsHuman(25), true);
@@ -232,15 +234,17 @@ describe("github", () => {
     });
 
     test("lastCommentIsHuman is false for a bot and for no comments", async () => {
-        let gh = make([json([{user: {type: "User"}}, {user: {type: "Bot"}}])]);
+        let gh = make([json([[{user: {type: "User"}}, {user: {type: "Bot"}}]])]);
         assert.equal(await gh.lastCommentIsHuman(4), false);
         assert.deepEqual(calls[0].cmd, [
             "gh-as",
             "ops",
             "api",
-            "repos/tjlytle/Sozi/issues/4/comments"
+            "--paginate",
+            "--slurp",
+            "repos/tjlytle/Sozi/issues/4/comments?per_page=100"
         ]);
-        gh = make([json([])]);
+        gh = make([json([[]])]);
         assert.equal(await gh.lastCommentIsHuman(4), false);
     });
 
@@ -258,11 +262,13 @@ describe("github", () => {
             "gh-as",
             "ops",
             "api",
-            "repos/tjlytle/Sozi/issues/8/comments"
+            "--paginate",
+            "--slurp",
+            "repos/tjlytle/Sozi/issues/8/comments?per_page=100"
         ]);
     });
     test("planComment is null when there is none", async () => {
-        const gh = make([json([{body: "hello"}])]);
+        const gh = make([json([[{body: "hello"}]])]);
         assert.equal(await gh.planComment(8), null);
     });
 
@@ -283,6 +289,8 @@ describe("github", () => {
             "tjlytle/Sozi",
             "--state",
             "open",
+            "--limit",
+            "100",
             "--search",
             "12 in:body",
             "--json",
@@ -292,6 +300,39 @@ describe("github", () => {
     test("openPrFor is null when no PR closes it", async () => {
         const gh = make([json([{number: 40, headRefName: "x", body: "Mentions #12"}])]);
         assert.equal(await gh.openPrFor(12), null);
+    });
+
+    test("openPrFor accepts every closing keyword, any case", async () => {
+        for (const kw of ["Close", "closed", "FIX", "Fixed", "resolve", "Resolved"]) {
+            const gh = make([json([{number: 3, headRefName: "b", body: `${kw} #12`}])]);
+            assert.equal((await gh.openPrFor(12))?.number, 3, kw);
+        }
+    });
+
+    test("comments are read across every page and the newest overall decides", async () => {
+        const gh = make([
+            json([[{user: {type: "Bot"}}], [{user: {type: "Bot"}}, {user: {type: "User"}}]])
+        ]);
+        assert.equal(await gh.lastCommentIsHuman(4), true);
+        const gh2 = make([
+            json([
+                [{body: "## Implementation Plan\nold"}],
+                [{body: "**Implementation Plan**\nnew"}]
+            ])
+        ]);
+        assert.equal(await gh2.planComment(4), "**Implementation Plan**\nnew");
+    });
+
+    test("defaultRun delivers stdin, captures stderr and resolves a non-zero code", async () => {
+        const script =
+            "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{process.stdout.write(d);process.stderr.write('err');process.exit(3)})";
+        const r = await defaultRun([process.execPath, "-e", script], {input: "hello"});
+        assert.deepEqual(r, {code: 3, stdout: "hello", stderr: "err"});
+    });
+    test("defaultRun resolves a missing binary with a non-zero code and the error", async () => {
+        const r = await defaultRun(["/nonexistent/binary"]);
+        assert.notEqual(r.code, 0);
+        assert.match(r.stderr, /ENOENT|nonexistent/);
     });
 
     test("a plain failure names the command and carries stderr", async () => {
