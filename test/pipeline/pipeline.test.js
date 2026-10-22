@@ -7,6 +7,63 @@ import path from "node:path";
 import {emptyState, applyIssue} from "../../pipeline/lib/state.js";
 import {main} from "../../bin/pipeline.js";
 
+const REPO = path.resolve(import.meta.dirname, "..", "..");
+
+/**
+ * A repository root with the prompts, and fakes for everything outside the loop.
+ *
+ * @param {{statuses: string[], onSleep?: (calls: number) => void}} options - The container
+ *     states the fake docker reports in turn, and a hook on each wait.
+ * @returns {any} - The root, the recorded events, the fakes and the captured handler.
+ */
+function host({statuses, onSleep = () => {}}) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "pl-"));
+    fs.mkdirSync(path.join(root, "pipeline"));
+    for (const f of ["plan.md", "allow.txt"]) {
+        fs.copyFileSync(path.join(REPO, "pipeline", f), path.join(root, "pipeline", f));
+    }
+    /** @type {string[]} */
+    const events = [];
+    const h = {root, events, handler: () => {}, exits: /** @type {number[]} */ ([])};
+    let sleeps = 0;
+    const issues = [{...issue(25, ["stage:todo"])}];
+    const silent = async () => {};
+    h.deps = {
+        run: async () => ({code: 1, stdout: "", stderr: ""}),
+        startMint: async () => ({
+            url: "u",
+            port: 7311,
+            close: async () => void events.push("close")
+        }),
+        github: {
+            searchIssues: async () => issues,
+            labelsOf: async () => ["stage:todo"],
+            label: silent,
+            comment: silent,
+            planComment: async () => null,
+            lastCommentIsHuman: async () => false,
+            lastHumanCommentAt: async () => null,
+            openPrFor: async () => null
+        },
+        board: {sync: silent},
+        sandbox: {
+            refreshMirror: silent,
+            prepareOutbox: () => fs.mkdtempSync(path.join(os.tmpdir(), "ob-")),
+            start: async () => "c25",
+            status: async () => statuses.shift() ?? "exited",
+            stop: silent,
+            remove: async () => void events.push("remove")
+        },
+        sleep: async () => onSleep(++sleeps),
+        onSignal: (/** @type {() => void} */ handler) => {
+            h.handler = handler;
+            return () => {};
+        },
+        exit: (/** @type {number} */ code) => void h.exits.push(code)
+    };
+    return h;
+}
+
 const issue = (/** @type {number} */ number, /** @type {string[]} */ labels) => ({
     number,
     title: `t${number}`,
@@ -23,17 +80,44 @@ describe("bin/pipeline.js", () => {
         applyIssue(state, issue(25, ["stage:in-progress"]));
         state.issues[25].session = {container: "c25", started: "t", stage: "build", outbox: "o"};
         state.queued.push({issue: 25, add: ["stage:review"], remove: []});
+        state.queued.push({comment: {persona: "ops", issue: 25, body: "b"}});
+        state.deadLetters = [{op: {issue: 99, add: ["triage"], remove: []}, error: "HTTP 404"}];
         fs.mkdirSync(path.join(root, "var", "pipeline"), {recursive: true});
         fs.writeFileSync(path.join(root, "var", "pipeline", "state.json"), JSON.stringify(state));
         let text = "";
         const code = await main(["--status"], {root, env: {}, out: t => (text += t)});
         assert.equal(code, 0);
         assert.match(text, /#25 build: c25/);
-        assert.match(text, /queued labels: 1/);
+        assert.match(text, /queued labels: 2/);
+        assert.match(text, /#25 comment as ops/);
+        assert.match(text, /dead letters: 1\n.*HTTP 404/);
     });
     test("an unknown argument prints the usage", async () => {
         let text = "";
         assert.equal(await main(["nope"], {env: {}, err: t => (text += t)}), 2);
         assert.match(text, /usage/);
+    });
+    test("--once waits for its sessions before it closes the mint", async () => {
+        const h = host({statuses: ["running", "exited"]});
+        const code = await main(["--once"], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        assert.equal(code, 0);
+        assert.deepEqual(h.events, ["remove", "close"]);
+    });
+    test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
+        const h = host({
+            statuses: ["running", "running", "exited"],
+            onSleep: n => {
+                if (n <= 2) {
+                    h.handler();
+                }
+            }
+        });
+        const code = await main([], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        assert.equal(code, 0);
+        assert.deepEqual(h.exits, [130]);
+        const saved = JSON.parse(
+            fs.readFileSync(path.join(h.root, "var", "pipeline", "state.json"), "utf8")
+        );
+        assert.equal(saved.run.stopped, false, "an interrupted run goes on at the next start");
     });
 });

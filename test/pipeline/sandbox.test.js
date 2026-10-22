@@ -32,6 +32,8 @@ describe("sandbox", () => {
         assert.ok(args.includes("GH_MINT_URL=http://host.docker.internal:7311/"));
         assert.ok(args.includes("CLAUDE_CODE_OAUTH_TOKEN"), "passed by name only");
         assert.ok(!args.some(a => a.startsWith("CLAUDE_CODE_OAUTH_TOKEN=")));
+        assert.ok(args.includes("GH_MINT_KEY"), "the mint key by name too");
+        assert.ok(!args.some(a => a.startsWith("GH_MINT_KEY=")));
         assert.deepEqual(
             args.slice(-3),
             ["sozi-factory", "/pipeline/stage.sh", "25", "build"].slice(-3)
@@ -61,7 +63,7 @@ describe("sandbox", () => {
     /**
      * A sandbox whose runner records commands and answers from a table.
      *
-     * @param {(cmd: string[]) => {code: number, stdout?: string}} answer - The reply per command.
+     * @param {(cmd: string[]) => {code: number, stdout?: string, stderr?: string}} answer - The reply per command.
      * @param {string} [root] - The repository root.
      * @returns {{sb: any, calls: {cmd: string[], opts: any}[]}} - The sandbox and its calls.
      */
@@ -71,22 +73,27 @@ describe("sandbox", () => {
         const run = async (/** @type {string[]} */ cmd, /** @type {any} */ opts) => {
             calls.push({cmd, opts});
             const a = answer(cmd);
-            return {code: a.code, stdout: a.stdout ?? "", stderr: ""};
+            return {code: a.code, stdout: a.stdout ?? "", stderr: a.stderr ?? ""};
         };
         return {sb: createSandbox({settings, root, run}), calls};
     }
 
-    test("status: running, exited, or gone when docker does not know it", async () => {
-        const {sb: s} = recording(cmd =>
-            cmd.at(-1) === "a"
-                ? {code: 0, stdout: "running\n"}
-                : cmd.at(-1) === "b"
-                  ? {code: 0, stdout: "exited\n"}
-                  : {code: 1}
-        );
+    test("status: running, exited, gone when docker does not know it, unknown when docker fails", async () => {
+        /** @type {Record<string, {code: number, stdout?: string, stderr?: string}>} */
+        const replies = {
+            a: {code: 0, stdout: "running\n"},
+            b: {code: 0, stdout: "exited\n"},
+            c: {code: 1, stderr: "Error: No such object: c\n"},
+            d: {
+                code: 1,
+                stderr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock\n"
+            }
+        };
+        const {sb: s} = recording(cmd => replies[/** @type {string} */ (cmd.at(-1))]);
         assert.equal(await s.status("a"), "running");
         assert.equal(await s.status("b"), "exited");
         assert.equal(await s.status("c"), "gone");
+        assert.equal(await s.status("d"), "unknown");
     });
     test("start passes credentials through the environment and returns the id", async () => {
         const {sb: s, calls} = recording(() => ({code: 0, stdout: "abc123\n"}));
@@ -101,6 +108,7 @@ describe("sandbox", () => {
         assert.equal(id, "abc123");
         assert.equal(calls[0].cmd[0], "docker");
         assert.equal(calls[0].opts.env.PIPELINE_ISSUE, "25");
+        assert.equal(calls[0].opts.env.GH_MINT_KEY, "k");
     });
     test("refreshMirror clones once, then updates", async () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));

@@ -42,6 +42,7 @@ const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
  * @property {(opts: {issue: number, add?: string[], remove?: string[]}) => Promise<void>} label - Edit labels in one call.
  * @property {(persona: string, n: number, body: string) => Promise<void>} comment - Comment as a persona.
  * @property {(n: number) => Promise<boolean>} lastCommentIsHuman - Whether the newest comment is from a user.
+ * @property {(n: number) => Promise<string|null>} lastHumanCommentAt - When the newest comment was written, if a user wrote it.
  * @property {(n: number) => Promise<string|null>} planComment - The newest implementation plan comment body.
  * @property {(n: number) => Promise<{number: number, headRefName: string}|null>} openPrFor - The open PR that closes the issue.
  */
@@ -286,6 +287,11 @@ export function createGithub({repo, run = defaultRun}) {
         async lastCommentIsHuman(n) {
             const all = await comments(n);
             return all.length > 0 && all[all.length - 1]?.user?.type === "User";
+        },
+        async lastHumanCommentAt(n) {
+            const all = await comments(n);
+            const last = all[all.length - 1];
+            return last?.user?.type === "User" ? String(last.created_at ?? "") || null : null;
         },
         async planComment(n) {
             const all = await comments(n);

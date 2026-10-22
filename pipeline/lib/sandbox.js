@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import {defaultRun} from "./github.js";
 
-/** Credentials and per-session values passed by name, so Docker reads them from the
+/** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
  * environment of the docker command and they never appear in a process listing.
  */
 const BY_NAME = [
@@ -24,7 +24,8 @@ const BY_NAME = [
     "PIPELINE_EVIDENCE_TOKEN",
     "PIPELINE_EVIDENCE_URL",
     "PIPELINE_RUN",
-    "PIPELINE_ISSUE"
+    "PIPELINE_ISSUE",
+    "GH_MINT_KEY"
 ];
 
 const MAX_RESUMES = "3";
@@ -53,7 +54,7 @@ const MAX_RESUMES = "3";
  * @property {() => Promise<void>} buildImage - Builds the stage image.
  * @property {(opts: StartOptions) => string[]} startArgs - The docker run arguments.
  * @property {(opts: StartOptions) => Promise<string>} start - Starts a container; resolves to its id.
- * @property {(container: string) => Promise<"running" | "exited" | "gone">} status - A container's state.
+ * @property {(container: string) => Promise<"running" | "exited" | "gone" | "unknown">} status - A container's state; unknown when docker itself fails.
  * @property {(container: string) => Promise<void>} stop - Stops a container, ten seconds' grace.
  * @property {(container: string) => Promise<void>} remove - Removes a container.
  * @property {(opts: {issue: number, stage: string, prompt: string, allow: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path.
@@ -116,7 +117,7 @@ export function createSandbox({settings, root, run = defaultRun}) {
     }
 
     /** @type {Sandbox["startArgs"]} */
-    function startArgs({issue, stage, outbox, mintUrl, mintKey, harness, model, tag, now}) {
+    function startArgs({issue, stage, outbox, mintUrl, harness, model, tag, now}) {
         const at = now ?? new Date();
         const name = `factory-${issue}-${stage}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
         const args = ["run", "-d", "--name", tag ? `${name}-${tag}` : name];
@@ -133,7 +134,6 @@ export function createSandbox({settings, root, run = defaultRun}) {
         }
         const values = {
             GH_MINT_URL: mintUrl,
-            GH_MINT_KEY: mintKey,
             PIPELINE_REPO: settings.repo,
             PIPELINE_HARNESS: harness ?? settings.harnessFor(stage),
             PIPELINE_MODEL: model ?? settings.modelFor(stage),
@@ -189,13 +189,15 @@ export function createSandbox({settings, root, run = defaultRun}) {
                     env[key] = value;
                 }
             }
-            const out = await must(["docker", ...startArgs(opts)], {env: {...env, ...opts.env}});
+            const out = await must(["docker", ...startArgs(opts)], {
+                env: {...env, ...opts.env, GH_MINT_KEY: opts.mintKey}
+            });
             return out.trim();
         },
         async status(container) {
             const r = await run(["docker", "inspect", "-f", "{{.State.Status}}", container]);
             if (r.code !== 0) {
-                return "gone";
+                return /No such (object|container)/i.test(r.stderr) ? "gone" : "unknown";
             }
             return ["exited", "dead"].includes(r.stdout.trim()) ? "exited" : "running";
         },

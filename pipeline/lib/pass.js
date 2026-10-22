@@ -35,11 +35,11 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  */
 
 /**
- * Find out whether a session ended, stopping it past the wall-clock cap.
+ * Find out how a session ended, stopping it past the wall-clock cap.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {{container: string, started: string}} session - The session.
- * @returns {Promise<boolean>} True when it ended and should be judged.
+ * @returns {Promise<import("./finish.js").Outcome | null>} How it ended, or null while it runs or docker cannot say.
  */
 async function ended(ctx, session) {
     const minutes = ctx.settings.sessionMinutes;
@@ -49,32 +49,38 @@ async function ended(ctx, session) {
     if (status === "running" && overdue) {
         ctx.log(`${session.container}: past ${minutes} minutes; stopping`);
         await ctx.sandbox.stop(session.container);
-        return true;
+        return "overdue";
     }
-    return status !== "running";
+    if (status === "unknown") {
+        ctx.log(`${session.container}: docker cannot say; next pass`);
+    }
+    return status === "exited" || status === "gone" ? status : null;
 }
 
 /**
- * Judge every session that ended, for issues and spawned ones.
+ * Judge every session that ended, for issues and spawned ones, with how it ended.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
  */
 async function reap(ctx) {
     for (const [key, record] of Object.entries(ctx.state.issues)) {
-        if (record.session && (await ended(ctx, record.session))) {
-            await finishIssue(ctx, Number(key));
+        const outcome = record.session ? await ended(ctx, record.session) : null;
+        if (outcome) {
+            await finishIssue(ctx, Number(key), outcome);
         }
     }
     for (const session of [...ctx.state.run.sessions]) {
-        if (await ended(ctx, session)) {
-            await finishSpawn(ctx, session);
+        const outcome = await ended(ctx, session);
+        if (outcome) {
+            await finishSpawn(ctx, session, outcome);
         }
     }
 }
 
 /**
- * Test the stop condition: nothing due in scope, or no more starts and nothing running.
+ * Test the stop condition: nothing due in scope (once GitHub has been read), or no more
+ * starts and nothing running.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {{noStarts: boolean, stopped: string | null}} Whether starts are over and why the run stops.
@@ -85,7 +91,8 @@ function stopCheck(ctx) {
     const noStarts = untilPassed || ceiling(state, settings) === "hard";
     const idle = running(ctx) === 0;
     const scoped = scope(state, {epic: state.run.epic});
-    if (idle && state.run.spawns.length === 0 && isQuiet(state, scoped)) {
+    const synced = state.sync.last !== null;
+    if (idle && synced && state.run.spawns.length === 0 && isQuiet(state, scoped)) {
         return {noStarts, stopped: "nothing is due"};
     }
     if (idle && noStarts) {
@@ -105,8 +112,16 @@ export function createPass({root = REPO_ROOT, save = () => {}, ...parts}) {
     state.run.spawns ??= [];
     state.run.sessions ??= [];
     state.run.only ??= null;
+    state.deadLetters ??= [];
     /** @type {PassContext} */
-    const ctx = {...parts, root, changed: new Set(), tried: new Set(), summary: emptySummary()};
+    const ctx = {
+        ...parts,
+        root,
+        save,
+        changed: new Set(),
+        tried: new Set(),
+        summary: emptySummary()
+    };
     return {
         async pass({start: starts = true} = {}) {
             ctx.summary = emptySummary();

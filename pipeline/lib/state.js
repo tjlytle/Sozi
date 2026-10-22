@@ -35,6 +35,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string[]} labels - All labels on the issue.
  * @property {string | null} stage - The stage label, if any.
  * @property {string | null} [parkedFrom] - The stage the issue was parked from.
+ * @property {string | null} [parkedAt] - When the loop parked the issue; null when a person did.
  * @property {boolean} closed - Whether the issue is closed on GitHub.
  * @property {number} tries - Sessions started at the current stage without success.
  * @property {object | null} session - The running session, if any.
@@ -57,7 +58,9 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {Record<string, any>} run - Totals and flags of the current run.
  * @property {Record<number, IssueRecord>} issues - Known issues by number.
  * @property {{last: string | null, backoffUntil: string | null}} sync - GitHub sync bookkeeping.
- * @property {LabelOp[]} queued - Label changes not yet written to GitHub.
+ * @property {(LabelOp | {comment: {persona: string, issue: number, body: string}})[]} queued - Label changes and comments not yet written to GitHub.
+ * @property {{op: object, error: string}[]} [deadLetters] - Queued writes GitHub refused for good.
+ * @property {any} [boardMeta] - The board details bin/board.js caches.
  */
 
 /** Creates a state with no issues.
@@ -98,7 +101,8 @@ export function loadState(file) {
     }
 }
 
-/** Writes the state file atomically: a temporary file, then a rename.
+/** Writes the state file atomically: a temporary file, then a rename. Only the owner may
+ * read it, since it holds the run's mint key.
  *
  * @param {string} file - The path.
  * @param {State} state - The state.
@@ -107,7 +111,8 @@ export function loadState(file) {
 export function saveState(file, state) {
     fs.mkdirSync(path.dirname(file), {recursive: true});
     const temporary = `${file}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify(state, null, 2) + "\n");
+    fs.writeFileSync(temporary, JSON.stringify(state, null, 2) + "\n", {mode: 0o600});
+    fs.chmodSync(temporary, 0o600);
     fs.renameSync(temporary, file);
 }
 
@@ -130,7 +135,7 @@ export function promptFor(stage) {
 }
 
 /** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
- * waiting while its stage holds and it stays open.
+ * waiting while its stage holds and it stays open; a parked one keeps its park time.
  *
  * @param {State} state - The state.
  * @param {object} issue - The issue.
@@ -151,6 +156,7 @@ export function applyIssue(state, issue) {
         labels: [...issue.labels],
         stage: stageOf(issue.labels),
         parkedFrom: existing?.parkedFrom ?? null,
+        parkedAt: stageOf(issue.labels) === "stage:parked" ? (existing?.parkedAt ?? null) : null,
         closed: issue.state === "CLOSED",
         tries: existing && existing.stage === stageOf(issue.labels) ? existing.tries : 0,
         session: existing?.session ?? null,
@@ -293,7 +299,7 @@ export function park(state, n) {
     setStage(state, n, "stage:parked");
 }
 
-/** Wakes a parked issue at the stage it parked from, with its tries reset.
+/** Wakes a parked issue at the stage it parked from, with its tries reset and no park time.
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
@@ -303,6 +309,7 @@ export function wake(state, n) {
     const record = state.issues[n];
     const stage = record.parkedFrom ?? "stage:todo";
     record.parkedFrom = null;
+    record.parkedAt = null;
     setStage(state, n, stage);
     return stage;
 }
@@ -323,7 +330,7 @@ export function queueLabel(state, {issue, add = [], remove = []}) {
 /** Empties the label queue and returns what was in it.
  *
  * @param {State} state - The state.
- * @returns {LabelOp[]} - The queued changes, oldest first.
+ * @returns {State["queued"]} - The queued changes, oldest first.
  */
 export function takeQueuedLabels(state) {
     return state.queued.splice(0);

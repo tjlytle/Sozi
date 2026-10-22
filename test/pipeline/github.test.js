@@ -248,6 +248,17 @@ describe("github", () => {
         assert.equal(await gh.lastCommentIsHuman(4), false);
     });
 
+    test("lastHumanCommentAt gives the time of a newest comment by a person, else null", async () => {
+        let gh = make([
+            json([
+                [{user: {type: "Bot"}}, {user: {type: "User"}, created_at: "2026-10-21T10:00:00Z"}]
+            ])
+        ]);
+        assert.equal(await gh.lastHumanCommentAt(4), "2026-10-21T10:00:00Z");
+        gh = make([json([[{user: {type: "User"}, created_at: "x"}, {user: {type: "Bot"}}]])]);
+        assert.equal(await gh.lastHumanCommentAt(4), null);
+    });
+
     test("planComment returns the newest plan body", async () => {
         const gh = make([
             json([

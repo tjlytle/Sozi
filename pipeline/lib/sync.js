@@ -6,7 +6,7 @@
 // stage moves, the timed sync, and unblocking issues whose blockers closed.
 
 import {RateLimited, blockedBy} from "./github.js";
-import {applyIssue, queueLabel, setStage, stageOf, takeQueuedLabels, wake} from "./state.js";
+import {applyIssue, queueLabel, scope, setStage, stageOf, takeQueuedLabels, wake} from "./state.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FIRST_SYNC_DAYS = 90;
@@ -36,6 +36,7 @@ const STAGE_LABELS = /^stage:/;
  * @property {Set<number>} changed - Issues whose stage changed since the last board sync.
  * @property {Set<number>} tried - Issues that used a try this pass; they wait for the next.
  * @property {Summary} summary - The summary of the running pass.
+ * @property {() => void} save - Writes the state.
  */
 
 /**
@@ -140,7 +141,8 @@ export async function applyLabels(ctx, op) {
 }
 
 /**
- * Write the queued label changes; stops and keeps the rest at a rate limit.
+ * Write the queued label changes and comments. A rate limit stops the drain and keeps the
+ * rest; any other refusal moves that one write to the dead letters and the drain goes on.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<boolean>} True when the queue is empty.
@@ -148,24 +150,42 @@ export async function applyLabels(ctx, op) {
 async function drainQueue(ctx) {
     const queued = takeQueuedLabels(ctx.state);
     for (let i = 0; i < queued.length; i++) {
+        const op = queued[i];
         try {
-            await ctx.github.label(queued[i]);
+            if ("comment" in op) {
+                await ctx.github.comment(op.comment.persona, op.comment.issue, op.comment.body);
+            } else {
+                await ctx.github.label(op);
+            }
         } catch (error) {
-            ctx.state.queued.push(...queued.slice(i));
             if (error instanceof RateLimited) {
+                ctx.state.queued.push(...queued.slice(i));
                 backOff(ctx, error);
                 return false;
             }
-            ctx.log(`#${queued[i].issue}: queued label change failed again: ${String(error)}`);
-            return false;
+            const message = error instanceof Error ? error.message : String(error);
+            ctx.log(`dead letter ${JSON.stringify(op)}: ${message}`);
+            (ctx.state.deadLetters ??= []).push({op, error: message});
         }
     }
     return true;
 }
 
 /**
+ * Tell whether a write about an issue is still waiting in the queue.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @returns {boolean} True when the queue holds a label change or comment for it.
+ */
+export function hasQueued(ctx, n) {
+    return ctx.state.queued.some(op => ("comment" in op ? op.comment.issue : op.issue) === n);
+}
+
+/**
  * Take one issue from a GitHub search into the state: read the blockers of a newly
- * blocked issue, and wake a parked one whose newest comment is a person's.
+ * blocked issue, and wake a parked one whose newest comment is a person's and, when the
+ * loop parked it, came after the parking.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {import("./github.js").Issue} issue - The issue as GitHub has it.
@@ -184,10 +204,13 @@ async function readIssue(ctx, issue) {
     ) {
         read.blockedBy = blockedBy((await github.planComment(n)) ?? "");
     }
+    const parkedAt = existing?.parkedAt ?? null;
+    const humanAt =
+        stage === "stage:parked" && (!existing || existing.seen !== issue.updatedAt)
+            ? await github.lastHumanCommentAt(n)
+            : null;
     const answered =
-        stage === "stage:parked" &&
-        (!existing || existing.seen !== issue.updatedAt) &&
-        (await github.lastCommentIsHuman(n));
+        humanAt !== null && (parkedAt === null || Date.parse(humanAt) > Date.parse(parkedAt));
     applyIssue(state, read);
     if (!existing || existing.stage !== stage) {
         ctx.changed.add(n);
@@ -244,15 +267,18 @@ export async function syncIfDue(ctx) {
 }
 
 /**
- * Move every blocked issue whose blockers are all closed to stage:tests, where it is due.
+ * Move every blocked issue in scope whose blockers are all closed to stage:tests, where it
+ * is due.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
  */
 export async function unblock(ctx) {
     const {state} = ctx;
+    const scoped = state.run.epic ? scope(state, {epic: state.run.epic}) : null;
     for (const [key, record] of Object.entries(state.issues)) {
         if (
+            (!scoped || scoped.includes(Number(key))) &&
             record.stage === "stage:blocked" &&
             !record.closed &&
             record.blockers.length > 0 &&

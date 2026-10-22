@@ -4,7 +4,8 @@
 
 // The --status report of the factory loop: the run, its sessions, and what waits.
 
-/** Describe the state for --status: the run, sessions, tries, waits and queues.
+/** Describe the state for --status: the run, sessions, tries, waits, queues and dead
+ * letters.
  *
  * @param {any} state - The loop state.
  * @returns {string} - The report.
@@ -38,7 +39,15 @@ export function statusText(state) {
     }
     lines.push(`queued labels: ${state.queued.length}`);
     for (const q of state.queued) {
-        lines.push(`  #${q.issue} +${q.add.join(",")} -${q.remove.join(",")}`);
+        lines.push(
+            q.comment
+                ? `  #${q.comment.issue} comment as ${q.comment.persona}`
+                : `  #${q.issue} +${q.add.join(",")} -${q.remove.join(",")}`
+        );
+    }
+    lines.push(`dead letters: ${(state.deadLetters ?? []).length}`);
+    for (const d of state.deadLetters ?? []) {
+        lines.push(`  ${JSON.stringify(d.op)}: ${d.error}`);
     }
     lines.push(`queued spawns: ${(run.spawns ?? []).length}`);
     return `${lines.join("\n")}\n`;

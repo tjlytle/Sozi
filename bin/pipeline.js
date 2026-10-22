@@ -25,6 +25,7 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 import {loadConfig} from "../pipeline/lib/config.js";
 import {createGithub, defaultRun} from "../pipeline/lib/github.js";
 import {startMint} from "../pipeline/lib/mint.js";
+import {createControl, drain, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
@@ -33,9 +34,6 @@ import {sync as boardSync} from "./board.js";
 import {main as digestMain, notion, runs} from "./digest.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FIRST_DELAY_S = 30;
-const MAX_DELAY_S = 600;
-const POLL_S = 15;
 const DEFAULT_MINT_PORT = 7311;
 const BRIDGE_FALLBACK = "172.17.0.1";
 
@@ -43,6 +41,30 @@ const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
     "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]"
 ];
+
+/**
+ * @typedef {object} Deps
+ * @property {import("../pipeline/lib/github.js").Runner} run - Runs commands on the host.
+ * @property {typeof startMint} startMint - Starts the mint endpoint.
+ * @property {any} [github] - The GitHub client; the real one when absent.
+ * @property {any} [board] - The board; the real one when absent.
+ * @property {any} [sandbox] - The sandbox; the real one when absent.
+ * @property {((seconds: number) => Promise<void>) | undefined} sleep - A wait instead of a timer.
+ * @property {(handler: () => void) => () => void} onSignal - Hooks Ctrl-C; returns the unhook.
+ * @property {(code: number) => void} exit - Ends the process.
+ */
+
+/** @type {Deps} */
+const DEFAULT_DEPS = {
+    run: defaultRun,
+    startMint,
+    sleep: undefined,
+    onSignal: handler => {
+        process.on("SIGINT", handler);
+        return () => void process.off("SIGINT", handler);
+    },
+    exit: code => process.exit(code)
+};
 
 /** Read an --until value: a duration from now (6h, 90m) or the next time of day (07:00).
  *
@@ -67,15 +89,6 @@ export function parseUntil(text, now) {
         return at;
     }
     throw new Error(`--until takes 6h, 90m or HH:MM, not ${JSON.stringify(text)}`);
-}
-
-/** Wait.
- *
- * @param {number} seconds - How long.
- * @returns {Promise<void>}
- */
-function sleep(seconds) {
-    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 
 /** The address of the Docker bridge, which the mint binds to.
@@ -167,18 +180,19 @@ async function finishDigest(state, reason, env, log) {
  * @param {any} settings - The settings.
  * @param {Record<string, string|undefined>} env - The environment.
  * @param {(line: string) => void} log - The log.
+ * @param {Deps} deps - The outside world.
  * @returns {Promise<{close: () => Promise<void>}>} - The mint endpoint.
  */
-async function openRun(state, settings, env, log) {
+async function openRun(state, settings, env, log, deps) {
     const adopting =
         Object.values(state.issues).some((/** @type {any} */ r) => r.session) ||
         (state.run.sessions ?? []).length > 0;
     if (!adopting || !state.run.mintKey) {
         state.run.mintKey = crypto.randomBytes(32).toString("hex");
     }
-    const mint = await startMint({
+    const mint = await deps.startMint({
         port: settings.mintPort || DEFAULT_MINT_PORT,
-        host: await bridgeAddress(defaultRun),
+        host: await bridgeAddress(deps.run),
         key: state.run.mintKey,
         repos: [settings.repo],
         log: e => log(`mint ${e.bot} ${e.status}${e.reason ? ` ${e.reason}` : ""}`)
@@ -235,40 +249,23 @@ function noteDigest(state, env) {
  * @param {string} parts.root - The repository root.
  * @param {(line: string) => void} parts.log - The log.
  * @param {() => void} parts.save - Writes the state.
+ * @param {Deps} parts.deps - The outside world.
  * @returns {{pass: (options?: {start?: boolean}) => Promise<any>}} - The pass.
  */
-function loopPass({state, settings, sandbox, env, root, log, save}) {
-    const ctx = {repo: settings.repo, run: defaultRun, out: log, err: log};
+function loopPass({state, settings, sandbox, env, root, log, save, deps}) {
+    const ctx = {repo: settings.repo, run: deps.run, out: log, err: log};
     return createPass({
         settings,
         state,
-        github: createGithub({repo: settings.repo}),
+        github: deps.github ?? createGithub({repo: settings.repo}),
         sandbox,
-        board: {sync: options => boardSync(options, ctx)},
+        board: deps.board ?? {sync: options => boardSync(options, ctx)},
         digest: noteDigest(state, env),
         clock: {now: () => Date.now()},
         log,
         root,
         save
     });
-}
-
-/** Pass after pass until the stop condition holds, backing off while nothing happens.
- *
- * @param {(options?: {start?: boolean}) => Promise<any>} pass - The pass.
- * @returns {Promise<string>} - Why the run stopped.
- */
-async function watch(pass) {
-    let delay = FIRST_DELAY_S;
-    for (;;) {
-        const s = await pass();
-        if (s.stopped) {
-            return s.stopped;
-        }
-        const busy = s.started.length + s.finished.length + s.spawns > 0;
-        delay = busy ? FIRST_DELAY_S : Math.min(delay * 2, MAX_DELAY_S);
-        await sleep(delay);
-    }
 }
 
 /** Run the command line.
@@ -279,9 +276,15 @@ async function watch(pass) {
  * @param {string} [io.root] - The repository root.
  * @param {(text: string) => void} [io.out] - Standard output.
  * @param {(text: string) => void} [io.err] - Standard error.
+ * @param {Partial<Deps>} [io.deps] - Fakes for the outside world, for tests.
  * @returns {Promise<number>} - The exit status.
  */
-export async function main(argv, {env = process.env, root = ROOT, out, err} = {}) {
+export async function main(
+    argv,
+    {env = process.env, root = ROOT, out, err, deps: fakes = {}} = {}
+) {
+    /** @type {Deps} */
+    const deps = {...DEFAULT_DEPS, ...fakes};
     const write = out ?? (text => void process.stdout.write(text));
     const writeErr = err ?? (text => void process.stderr.write(text));
     const file = path.join(root, "var", "pipeline", "state.json");
@@ -313,7 +316,7 @@ export async function main(argv, {env = process.env, root = ROOT, out, err} = {}
             : finishDigest(state, "finished by hand", env, log));
         return 0;
     }
-    const sandbox = createSandbox({settings, root});
+    const sandbox = deps.sandbox ?? createSandbox({settings, root});
     if (opt["build-image"]) {
         await sandbox.buildImage();
         return 0;
@@ -324,66 +327,37 @@ export async function main(argv, {env = process.env, root = ROOT, out, err} = {}
     state.run.epic = opt.epic ? Number(opt.epic) : state.run.epic;
     state.run.only = target === "watch" ? null : Number(target);
     const save = () => saveState(file, state);
-    const mint = await openRun(state, settings, env, log);
+    const mint = await openRun(state, settings, env, log, deps);
     save();
-    const {pass} = loopPass({state, settings, sandbox, env, root, log, save});
-    process.on("SIGINT", () => {
-        save();
-        log("interrupted; state saved, containers keep running");
-        process.exit(0);
-    });
+    const {pass} = loopPass({state, settings, sandbox, env, root, log, save, deps});
+    const control = createControl({sleep: deps.sleep, save, exit: deps.exit, log});
+    const unhook = deps.onSignal(() => control.interrupt());
+    let code = 0;
     try {
-        if (opt.once) {
-            const s = await pass();
-            log(`started ${s.started.join(",") || "-"}; finished ${s.finished.join(",") || "-"}`);
-            return 0;
+        if (target !== "watch" || opt.once) {
+            await pass();
+            const n = state.run.only;
+            state.run.only = null;
+            if (n !== null && !state.issues[n]?.session) {
+                log(`#${n} has no session: it is not due, or the start failed`);
+                code = 1;
+            }
+        } else {
+            const reason = await watch(pass, control, log, save);
+            if (reason !== null) {
+                state.run.stopped = true;
+                save();
+                await finishDigest(state, reason, env, log);
+                write(`stopped: ${reason}\n`);
+            }
         }
-        if (target !== "watch") {
-            return await one(Number(target), {pass, state, sandbox, settings, log});
-        }
-        const reason = await watch(pass);
-        state.run.stopped = true;
+        await drain(pass, state, control, log);
         save();
-        await finishDigest(state, reason, env, log);
-        write(`stopped: ${reason}\n`);
-        return 0;
+        return code;
     } finally {
+        unhook();
         await mint.close();
     }
-}
-
-/** Run one issue in the foreground: start it, wait for its container, judge it.
- *
- * @param {number} n - The issue number.
- * @param {object} loop - The loop parts.
- * @param {(options?: {start?: boolean}) => Promise<any>} loop.pass - The pass.
- * @param {any} loop.state - The state.
- * @param {any} loop.sandbox - The sandbox.
- * @param {any} loop.settings - The settings.
- * @param {(line: string) => void} loop.log - The log.
- * @returns {Promise<number>} - The exit status.
- */
-async function one(n, {pass, state, sandbox, settings, log}) {
-    await pass();
-    const session = state.issues[n]?.session;
-    if (!session) {
-        log(`#${n} has no session: it is not due, or the start failed`);
-        state.run.only = null;
-        return 1;
-    }
-    const cap = Date.parse(session.started) + settings.sessionMinutes * 60 * 1000;
-    while (
-        (await sandbox.status(session.container)) === "running" &&
-        (settings.sessionMinutes === 0 || Date.now() <= cap)
-    ) {
-        await sleep(POLL_S);
-    }
-    state.run.only = null;
-    const s = await pass({start: false});
-    for (const [issue, from, to] of s.moved) {
-        log(`#${issue}: ${from} -> ${to}`);
-    }
-    return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

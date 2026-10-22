@@ -148,6 +148,7 @@ describe("state", () => {
         saveState(file, s);
         assert.deepEqual(loadState(file), s);
         assert.deepEqual(fs.readdirSync(path.dirname(file)), ["state.json"]);
+        assert.equal(fs.statSync(file).mode & 0o777, 0o600, "it holds the mint key");
         fs.rmSync(dir, {recursive: true});
     });
     test("loading a missing file gives an empty state", () => {
@@ -204,5 +205,14 @@ describe("state", () => {
         s.issues[25].waiting = true;
         setStage(s, 25, "stage:in-progress");
         assert.equal(s.issues[25].waiting, false);
+    });
+    test("the time the loop parked an issue lasts while it stays parked", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:parked"]));
+        s.issues[25].parkedAt = "2026-10-21T19:00:00Z";
+        applyIssue(s, issue(25, ["stage:parked"]));
+        assert.equal(s.issues[25].parkedAt, "2026-10-21T19:00:00Z");
+        applyIssue(s, issue(25, ["stage:todo"]));
+        assert.equal(s.issues[25].parkedAt, null);
     });
 });
