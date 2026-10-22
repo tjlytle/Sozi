@@ -87,6 +87,26 @@ describe("pipeline settings", () => {
             /PIPELINE_SESSION_BUDGET_USD/
         );
     });
+    test("profiles, per-persona limit and MCP allowlists", () => {
+        const s = loadConfig({
+            root: "/nonexistent",
+            env: {PIPELINE_MCP_ARCHITECT: "mobbin, context7"}
+        });
+        assert.equal(s.profiles, "auto");
+        assert.equal(s.perPersona, 1);
+        assert.deepEqual(s.mcpFor("architect"), ["mobbin", "context7"]);
+        assert.deepEqual(s.mcpFor("builder"), []);
+    });
+    test("PIPELINE_PROFILES takes auto or off", () => {
+        assert.throws(
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_PROFILES: "yes"}}),
+            /PIPELINE_PROFILES must be one of auto\|off/
+        );
+        assert.equal(
+            loadConfig({root: "/nonexistent", env: {PIPELINE_PROFILES: "off"}}).profiles,
+            "off"
+        );
+    });
     test("the repository's pipeline/config loads", () => {
         const s = loadConfig({root: fileURLToPath(new URL("../..", import.meta.url)), env: {}});
         assert.equal(s.image, "sozi-factory");
