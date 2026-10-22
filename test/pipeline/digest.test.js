@@ -2,7 +2,7 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {spawnSync} from "node:child_process";
 import path from "node:path";
-import {pageRequest, entryBlocks, finishBlocks, notion, main} from "../../bin/digest.js";
+import {pageRequest, entryBlocks, finishBlocks, notion, main, runs} from "../../bin/digest.js";
 
 const script = path.resolve("bin/digest.js");
 const ISSUE = "https://github.com/tjlytle/Sozi/issues/25";
@@ -163,6 +163,108 @@ describe("digest", () => {
         const r = await run(["bogus"], {NOTION_TOKEN: "t"});
         assert.equal(r.code, 2);
         assert.match(r.err, /usage/);
+    });
+    test("long text splits into runs of at most 2000 characters, the first carrying the link", () => {
+        const text = "x".repeat(4500);
+        const parts = runs(text, {link: "https://l"});
+        assert.equal(parts.length, 3);
+        assert.ok(parts.every(r => r.text.content.length <= 2000));
+        assert.equal(parts.map(r => r.text.content).join(""), text);
+        assert.equal(parts[0].text.link.url, "https://l");
+        assert.equal(parts[1].text.link, undefined);
+    });
+    test("a 2500 character --text is split on the wire", async () => {
+        const text = "y".repeat(2500);
+        const r = await run(["add", "--issue", "1", "--text", text, "--url", ISSUE], {
+            NOTION_TOKEN: "t",
+            PIPELINE_NOTION_PAGE: "pg"
+        });
+        const rich = JSON.parse(r.calls[0].init.body).children[0].to_do.rich_text;
+        assert.ok(rich.every((/** @type {any} */ x) => x.text.content.length <= 2000));
+        assert.equal(rich.map((/** @type {any} */ x) => x.text.content).join(""), `#1 ${text}`);
+    });
+    test("start with no page id in the reply exits 1", async () => {
+        const r = await run(["start", "--title", "T", "--parent", "p"], {NOTION_TOKEN: "t"}, {});
+        assert.equal(r.code, 1);
+        assert.match(r.err, /no page id/);
+        assert.equal(r.out, "");
+    });
+    test("add sends exactly this JSON", async () => {
+        const r = await run(
+            ["add", "--issue", "25", "--text", "Do it", "--url", ISSUE, "--image", "https://i"],
+            {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: "pg"}
+        );
+        assert.deepEqual(JSON.parse(r.calls[0].init.body), {
+            children: [
+                {
+                    object: "block",
+                    type: "to_do",
+                    to_do: {
+                        rich_text: [
+                            {text: {content: "#25", link: {url: ISSUE}}},
+                            {text: {content: " Do it"}}
+                        ],
+                        checked: false
+                    }
+                },
+                {
+                    object: "block",
+                    type: "image",
+                    image: {type: "external", external: {url: "https://i"}}
+                }
+            ]
+        });
+    });
+    test("finish sends exactly this JSON", async () => {
+        const r = await run(
+            [
+                "finish",
+                "--summary",
+                "done",
+                "--build",
+                "https://b",
+                "--presenter",
+                "https://p",
+                "--page",
+                "pg"
+            ],
+            {NOTION_TOKEN: "t"}
+        );
+        assert.deepEqual(JSON.parse(r.calls[0].init.body), {
+            children: [
+                {
+                    object: "block",
+                    type: "callout",
+                    callout: {rich_text: [{text: {content: "done"}}], icon: {emoji: "\u2705"}}
+                },
+                {object: "block", type: "bookmark", bookmark: {url: "https://b"}},
+                {object: "block", type: "bookmark", bookmark: {url: "https://p"}}
+            ]
+        });
+    });
+    test("empty --image, --build and --presenter add no block", async () => {
+        const add = await run(["add", "--issue", "1", "--text", "x", "--url", "u", "--image", ""], {
+            NOTION_TOKEN: "t",
+            PIPELINE_NOTION_PAGE: "pg"
+        });
+        assert.equal(JSON.parse(add.calls[0].init.body).children.length, 1);
+        const fin = await run(["finish", "--summary", "s", "--build", "", "--presenter", ""], {
+            NOTION_TOKEN: "t",
+            PIPELINE_NOTION_PAGE: "pg"
+        });
+        assert.equal(JSON.parse(fin.calls[0].init.body).children.length, 1);
+    });
+    test("a non-numeric --issue or a page id with a slash or question mark exits 1", async () => {
+        const env = {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: "pg"};
+        const issue = await run(["add", "--issue", "2a", "--text", "x", "--url", "u"], env);
+        assert.equal(issue.code, 1);
+        assert.match(issue.err, /--issue/);
+        for (const page of ["a/b", "a?b"]) {
+            const r = await run(["finish", "--summary", "s", "--page", page], {NOTION_TOKEN: "t"});
+            assert.equal(r.code, 1);
+            assert.match(r.err, /page id/);
+            assert.equal(r.calls.length, 0);
+        }
     });
     test("the script exits 2 on an unknown subcommand", () => {
         const r = spawnSync(process.execPath, [script, "bogus"], {

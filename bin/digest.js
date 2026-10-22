@@ -28,14 +28,23 @@ const USAGE = [
 
 const API = "https://api.notion.com/v1";
 
-/** A rich text run, optionally linked.
+/** The longest rich text run Notion accepts. */
+const MAX_RUN = 2000;
+
+/** Rich text runs for a text, split so none passes Notion's length limit.
  *
- * @param {string} content - The text.
- * @param {string} [link] - The URL to link to.
- * @returns {object} - The rich text object.
+ * @param {string} text - The text.
+ * @param {object} [options] - How to mark it up.
+ * @param {string} [options.link] - A URL for the first run to link to.
+ * @returns {any[]} - The rich text runs, at least one.
  */
-function run(content, link) {
-    return {text: link ? {content, link: {url: link}} : {content}};
+export function runs(text, {link} = {}) {
+    const parts = [];
+    for (let at = 0; at < text.length || parts.length === 0; at += MAX_RUN) {
+        const content = text.slice(at, at + MAX_RUN);
+        parts.push({text: parts.length === 0 && link ? {content, link: {url: link}} : {content}});
+    }
+    return parts;
 }
 
 /** The body of the request that creates a run page.
@@ -48,12 +57,12 @@ function run(content, link) {
 export function pageRequest({title, parent}) {
     return {
         parent: {page_id: parent},
-        properties: {title: {title: [run(title)]}},
+        properties: {title: {title: runs(title)}},
         children: [
             {
                 object: "block",
                 type: "paragraph",
-                paragraph: {rich_text: [run("Checklist for this run; the trail is on GitHub.")]}
+                paragraph: {rich_text: [...runs("Checklist for this run; the trail is on GitHub.")]}
             }
         ]
     };
@@ -74,7 +83,10 @@ export function entryBlocks({issue, text, url, image}) {
         {
             object: "block",
             type: "to_do",
-            to_do: {rich_text: [run(`#${issue}`, url), run(` ${text}`)], checked: false}
+            to_do: {
+                rich_text: [...runs(`#${issue}`, {link: url}), ...runs(` ${text}`)],
+                checked: false
+            }
         }
     ];
     if (image) {
@@ -101,7 +113,7 @@ export function finishBlocks({summary, build, presenter}) {
         {
             object: "block",
             type: "callout",
-            callout: {rich_text: [run(summary)], icon: {emoji: "✅"}}
+            callout: {rich_text: runs(summary), icon: {emoji: "✅"}}
         }
     ];
     for (const url of [build, presenter]) {
@@ -116,8 +128,8 @@ export function finishBlocks({summary, build, presenter}) {
  * @typedef {object} NotionResponse
  * @property {boolean} ok - Whether the request succeeded.
  * @property {number} status - The HTTP status.
- * @property {() => Promise<any>} [json] - The parsed body.
- * @property {() => Promise<string>} [text] - The body as text.
+ * @property {() => Promise<any>} json - The parsed body.
+ * @property {() => Promise<string>} text - The body as text.
  */
 
 /** Call the Notion API.
@@ -148,13 +160,13 @@ export async function notion(
         signal: AbortSignal.timeout(timeoutMs)
     });
     if (!response.ok) {
-        const text = typeof response.text === "function" ? await response.text() : "";
+        const text = await response.text();
         const redacted = text.split(token).join("***");
         throw new Error(
             `notion ${method} ${path} failed: ${response.status} ${redacted.slice(0, 200)}`.trim()
         );
     }
-    return response.json ? response.json() : {};
+    return response.json();
 }
 
 /** Read the options of a subcommand.
@@ -207,6 +219,12 @@ export async function main(argv, {env = process.env, fetch: doFetch = fetch, out
             }
             return value;
         };
+        const numeric = (/** @type {string} */ value) => {
+            if (!/^\d+$/.test(value)) {
+                throw new Error(`--issue must be a number: ${JSON.stringify(value)}`);
+            }
+            return value;
+        };
         const token = need(env.NOTION_TOKEN, "NOTION_TOKEN");
         const call = {token, fetch: doFetch};
         if (command === "start") {
@@ -216,14 +234,20 @@ export async function main(argv, {env = process.env, fetch: doFetch = fetch, out
                 "--parent or PIPELINE_NOTION_PARENT"
             );
             const page = await notion("POST", "/pages", pageRequest({title, parent}), call);
+            if (!page?.id) {
+                throw new Error("Notion returned no page id");
+            }
             write(`${page.id}\n`);
             return 0;
         }
         const page = need(opt.page ?? env.PIPELINE_NOTION_PAGE, "--page or PIPELINE_NOTION_PAGE");
+        if (/[/?#\s]/.test(page)) {
+            throw new Error(`invalid page id: ${JSON.stringify(page)}`);
+        }
         const children =
             command === "add"
                 ? entryBlocks({
-                      issue: need(opt.issue, "--issue"),
+                      issue: numeric(need(opt.issue, "--issue")),
                       text: need(opt.text, "--text"),
                       url: need(opt.url, "--url"),
                       image: opt.image
