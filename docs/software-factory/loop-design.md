@@ -211,23 +211,23 @@ the login and the MCP servers authorised in it.
   interactive container on that volume (`pipeline/login.sh` prints the steps: `claude`,
   `/login`, `/mcp`, exit). It runs on the host network only during the login, so an MCP
   OAuth callback to a localhost port reaches it.
-- Tim's decision: six profiles, one per persona. Log in once, then
-  `--copy-profile <from> <to>` to the other five; if a token refresh ever invalidates the
-  copies, fix it then.
-- `PIPELINE_PROFILES=auto|off` turns the profiles on or off. With a profile, the stage
-  uses it. With no volume but a `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, the
-  stage uses the token as the fallback. With neither, or with a volume that is not
-  logged in, the stage is refused with the login hint.
+- Tim's decision: six profiles. Log in once (`/login`, no `/mcp`), `--copy-profile
+  <from> <to>` to the other five, then `--login` again per persona with an allowlist to
+  `/mcp` exactly its servers (a copy carries all of its source's). If a token refresh
+  invalidates the copies, fix it then.
+- `PIPELINE_PROFILES=auto|off`. With a profile, the stage uses it. With no volume but a
+  `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, the token is the fallback. With
+  neither, the stage is refused with the `--login <persona>` command; a volume that is
+  not logged in is refused as "profile of <persona> is not logged in", without it.
 - `PIPELINE_MCP_<PERSONA>` (in `pipeline/config`) is the allowlist: architect
   `mobbin,context7`, advocate `mobbin`, builder `context7`. A profile holding a server
   outside its list is refused, naming the servers. `profile-inspect.sh` reports names and
-  booleans only, never credentials; `--status` prints one line per profile.
+  booleans only; `--status` prints one line per profile.
 - `PIPELINE_PER_PERSONA` (default 1) allows one session per persona at a time, since a
   profile is one account's login; an issue that has to wait logs
   `waits, <persona> at its limit`.
-- Hosted cloud sessions (Claude Code cloud, Codex cloud) cannot mount a volume, so they
-  are a follow-on. The candidate: export the profile as an encrypted blob and restore it
-  at container start.
+- Hosted cloud sessions (Claude Code cloud, Codex cloud) cannot mount a volume: a
+  follow-on (candidate: the profile as an encrypted blob restored at container start).
 
 **Ceilings** (Tim: limits per agent and per machine, and the loop throttles near a usage
 limit). A fixed number of containers at a time (`PIPELINE_PARALLEL`, default two; a build

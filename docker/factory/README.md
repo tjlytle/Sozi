@@ -34,7 +34,7 @@ and filled as `factory`, so no layer re-owns it.
 
 `/profile` is the mount point of a persona's profile volume (`sozi-factory-profile-<persona>`,
 one per persona, created by `--login` or `--copy-profile`). The image creates it owned by
-`factory`, so rebuild the image after this change or the volume is not writable.
+`factory`, so an image built before profiles existed lacks a writable `/profile`; rebuild it.
 `/pipeline/profile-inspect.sh` and `/pipeline/login.sh` live in the image.
 
 Electron and Playwright Chromium cannot start their own sandboxes under Docker's default
