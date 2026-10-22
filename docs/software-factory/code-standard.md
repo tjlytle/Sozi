@@ -768,9 +768,38 @@ the idea the same path as every other change. The merge bias also keeps the loop
 moving: a PR that waits on a judgment call is a PR you end up merging by hand during
 a talk.
 
+### 6.6 Tests first, written by someone other than the builder
+
+**Decided 2026-10-21.** The acceptance test is written before the code, by QA, not by
+the builder. After the architect's plan, the issue goes to a tests stage: QA writes the
+feature file from the plan's Scenarios heading (and the step definitions it needs) on the
+issue branch, runs it, sees it fail, pushes, and hands the issue to the builder. The
+builder makes those scenarios green and, inside the build, writes each unit test before
+the function it pins and pastes the red run of the suite in the PR body. A test and the
+code it covers arriving in one commit is something the reviewer asks about, and the
+edit hook's "changing together" note is the same question asked earlier. QA does not
+touch `src/`; the builder does not create the feature file.
+
+**Alternatives.** (a) The builder writes the scenarios first, then the code: cheaper by
+one session, and what 6.2 said until now; but the test's author and the code's author are
+the same model with the same reading of the issue, so a misreading passes its own test.
+(b) QA writes the scenarios in parallel with the build, on the same branch with disjoint
+file ownership: possible through the loop's spawn requests, and noted under Future; it
+saves a few minutes per issue at the cost of two sessions per issue, a waiting rule in the
+build prompt and a merge discipline on one branch, while the loop is already parallel
+across issues.
+
+**Why.** The value of test-first is the red run: a scenario that fails before the change
+and passes after it proves the change did something, and a scenario written from the
+plan by a second reader proves the plan was readable. The stage costs minutes on a loop
+that runs for hours.
+
 ---
 
 ## Future, not in the first pipeline
+
+- **QA's scenarios in parallel with the build**, through a spawn request from the
+  architect, if a run ever shows the tests stage as the bottleneck (6.6, alternative b).
 
 - **Triage before planning with a decision model.** Today every issue gets a plan. A
   decision model (TypeSafe's Jev, or Cloudflare's open-weight Clef / Clef-flash, which

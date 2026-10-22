@@ -15,7 +15,7 @@
 - The loop never writes to a checkout a person uses: all stage work happens in a container on a clone of `var/pipeline/mirror.git`; the host loop touches only `var/pipeline/` and GitHub.
 - Every GitHub write goes through `gh-as <persona>`; the loop's own writes are `gh-as ops`, the board's are `gh-as -`. The repo is `tjlytle/Sozi` (`PIPELINE_REPO`); never sozi-projects/Sozi.
 - No App private key enters a container; credentials reach a container as environment variables only; no token is ever printed or logged.
-- Labels (from the design): `stage:todo`, `stage:blocked`, `stage:in-progress`, `stage:review`, `stage:qa`, `stage:done`, `stage:parked`, `triage`, `idea`, `working`. Prompts: `stage:todo → plan`, `stage:in-progress → build`, `stage:review → review`, `stage:qa → qa`. Three tries park an issue.
+- Labels (from the design): `stage:todo`, `stage:blocked`, `stage:tests`, `stage:in-progress`, `stage:review`, `stage:qa`, `stage:done`, `stage:parked`, `triage`, `idea`, `working`. Prompts: `stage:todo → plan`, `stage:tests → tests`, `stage:in-progress → build`, `stage:review → review`, `stage:qa → qa`. Three tries park an issue. The board shows `stage:tests` and `stage:in-progress` as one column, "In progress".
 - Defaults: `PIPELINE_PARALLEL=2`, `PIPELINE_SESSION_MINUTES=45`, `PIPELINE_SYNC_MINUTES=10`, `PIPELINE_RATE_LIMIT_BACKOFF_MINUTES=15`, `PIPELINE_MAX_TRIES=3`, resumes per stage 3, idle back-off 30 s doubling to 600 s; models `PIPELINE_MODEL_PLAN=claude-fable-5-1`, the other three `claude-opus-5-5`.
 - The obviousness test, verbatim in every prompt: "It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better."
 - Code under `pipeline/lib` and `bin/*.js` follows the standard: ES modules, named exports, JSDoc on exports, `npm run check` green on these new files.
@@ -85,7 +85,7 @@ Expected: FAIL, cannot find module.
 
 - [ ] **Step 3: Implement `pipeline/lib/config.js`**
 
-`export function parseConfigText(text) → Record<string,string>`; `export function loadConfig({root, env, files}) → Settings` (when `files` is absent, read `pipeline/config` and `var/pipeline/env` under `root` if they exist). Validation: `merge` and `plans` in `auto|review`, `findings` in `obvious|triage`, numbers are integers ≥ 0. `harnessFor(stage)` reads `PIPELINE_HARNESS_<STAGE>` then `PIPELINE_HARNESS`; `modelFor` the same with `PIPELINE_MODEL_`.
+`export function parseConfigText(text) → Record<string,string>`; `export function loadConfig({root, env, files}) → Settings` (when `files` is absent, read `pipeline/config` and `var/pipeline/env` under `root` if they exist). Validation: `merge` and `plans` in `auto|review`, `findings` in `obvious|triage`, numbers are integers ≥ 0. `harnessFor(stage)` reads `PIPELINE_HARNESS_<STAGE>` then `PIPELINE_HARNESS`; `modelFor` the same with `PIPELINE_MODEL_` (`tests` defaults to the QA model, `claude-opus-5-5`).
 
 - [ ] **Step 4: Write `pipeline/config` with the defaults as comments and the three policy lines set**
 
@@ -171,6 +171,7 @@ describe("state", () => {
         assert.equal(stageOf(["enhancement", "stage:review"]), "stage:review");
         assert.equal(stageOf(["idea"]), null);
         assert.equal(promptFor("stage:todo"), "plan");
+        assert.equal(promptFor("stage:tests"), "tests");
         assert.equal(promptFor("stage:blocked"), null);
     });
     test("an issue is added with its epic and blockers", () => {
@@ -244,7 +245,7 @@ gh-as builder --git commit -m "Loop state: issues, scope, due, tries, queued lab
 - Test: `test/pipeline/requests.test.js`
 
 **Interfaces:**
-- Produces: `readRequests(dir, {issue}) → {accepted: Request[], refused: {file, reason}[]}` reading `req-*.json` files in name order; `validateRequest(obj, {issue}) → Request` throwing with a reason. Request kinds: `{done: {issue, to}}` (`issue` must equal the session's; `to` in `stage:in-progress|stage:review|stage:qa|stage:done|stage:blocked|stage:parked|triage`), `{label: {issue, add?, remove?}}` (never adds `stage:done` or `working`; labels from the design's list only), `{spawn: {persona, prompt, issue?, harness?}}` (persona in the six; prompt non-empty; harness in `claude|codex|opencode` when given), `{note: string}`. Also `readResult(dir) → Result|null` for `result.json`: `{exit, session, usage: {tokensIn, tokensOut, costUsd, turns, status}, changed: string[], commits: string[], resumes}`.
+- Produces: `readRequests(dir, {issue}) → {accepted: Request[], refused: {file, reason}[]}` reading `req-*.json` files in name order; `validateRequest(obj, {issue}) → Request` throwing with a reason. Request kinds: `{done: {issue, to}}` (`issue` must equal the session's; `to` in `stage:tests|stage:in-progress|stage:review|stage:qa|stage:done|stage:blocked|stage:parked|triage`), `{label: {issue, add?, remove?}}` (never adds `stage:done` or `working`; labels from the design's list only), `{spawn: {persona, prompt, issue?, harness?}}` (persona in the six; prompt non-empty; harness in `claude|codex|opencode` when given), `{note: string}`. Also `readResult(dir) → Result|null` for `result.json`: `{exit, session, usage: {tokensIn, tokensOut, costUsd, turns, status}, changed: string[], commits: string[], resumes}`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -515,7 +516,7 @@ gh-as builder --git commit -m "bin/digest: the Notion checklist page per run"
 - Test: `test/pipeline/board.test.js`
 
 **Interfaces:**
-- Produces: CLI `node bin/board.js labels` (creates the ten labels with `gh-as ops label create --force`, colours fixed in `LABELS`), `create` (board "Sozi pipeline" via `gh-as -`, columns Triage, Ideas, Todo, Blocked, In progress, Review, QA, Done, Parked; ported from the snake's `bin/board create`), `sync [--all] [--issues n,m]` (the snake's two-way sync, restricted to the given issues unless `--all`; prints `#n board ← label: X` / `#n label ← board: X`), `url`. Exports: `LABELS` (name, colour, description), `stageToColumn(stage|"closed"|"idea"|"triage") → string`, `columnToStage(column) → string|null`, `decide({state, stage, idea, triage, have, boardAt, labelAt}) → {board: column}|{label: {add, remove}}|null` (the snake's "whichever changed last wins" rule as a pure function).
+- Produces: CLI `node bin/board.js labels` (creates the eleven labels with `gh-as ops label create --force`, colours fixed in `LABELS`), `create` (board "Sozi pipeline" via `gh-as -`, columns Triage, Ideas, Todo, Blocked, In progress, Review, QA, Done, Parked; ported from the snake's `bin/board create`), `sync [--all] [--issues n,m]` (the snake's two-way sync, restricted to the given issues unless `--all`; prints `#n board ← label: X` / `#n label ← board: X`), `url`. Exports: `LABELS` (name, colour, description), `stageToColumn(stage|"closed"|"idea"|"triage") → string` (many-to-one: `stage:tests` and `stage:in-progress` both give "In progress"), `columnToStage(column) → string|null` (the column's entry stage: "In progress" gives `stage:tests`), `decide({state, stage, idea, triage, have, boardAt, labelAt}) → {board: column}|{label: {add, remove}}|null` (the snake's "whichever changed last wins" rule as a pure function; a card in the column its stage maps to is agreement, whatever the sub-stage).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -526,21 +527,25 @@ import assert from "node:assert/strict";
 import {LABELS, stageToColumn, columnToStage, decide} from "../../bin/board.js";
 
 describe("board", () => {
-    test("the ten labels", () => {
-        assert.deepEqual(LABELS.map(l => l.name).sort(), ["idea", "stage:blocked", "stage:done", "stage:in-progress", "stage:parked", "stage:qa", "stage:review", "stage:todo", "triage", "working"]);
+    test("the eleven labels", () => {
+        assert.deepEqual(LABELS.map(l => l.name).sort(), ["idea", "stage:blocked", "stage:done", "stage:in-progress", "stage:parked", "stage:qa", "stage:review", "stage:tests", "stage:todo", "triage", "working"]);
     });
-    test("stage to column and back", () => {
+    test("stage to column is many-to-one; column to stage is the entry stage", () => {
         assert.equal(stageToColumn("stage:blocked"), "Blocked");
+        assert.equal(stageToColumn("stage:tests"), "In progress");
+        assert.equal(stageToColumn("stage:in-progress"), "In progress");
         assert.equal(stageToColumn("triage"), "Triage");
         assert.equal(stageToColumn("closed"), "Done");
-        assert.equal(columnToStage("In progress"), "stage:in-progress");
+        assert.equal(columnToStage("In progress"), "stage:tests");
         assert.equal(columnToStage("Ideas"), null);
     });
-    test("the label wins unless the card moved after it", () => {
+    test("the label wins unless the card moved after it; a sub-stage in its column is agreement", () => {
         const base = {state: "OPEN", stage: "stage:review", idea: false, triage: false};
         assert.deepEqual(decide({...base, have: "Todo", boardAt: "2026-10-21T01:00:00Z", labelAt: "2026-10-21T02:00:00Z"}), {board: "Review"});
         assert.deepEqual(decide({...base, have: "QA", boardAt: "2026-10-21T03:00:00Z", labelAt: "2026-10-21T02:00:00Z"}), {label: {add: ["stage:qa"], remove: ["stage:review"]}});
         assert.equal(decide({...base, have: "Review", boardAt: "", labelAt: ""}), null);
+        assert.equal(decide({...base, stage: "stage:in-progress", have: "In progress", boardAt: "2026-10-21T03:00:00Z", labelAt: "2026-10-21T02:00:00Z"}), null);
+        assert.deepEqual(decide({...base, stage: "stage:todo", have: "In progress", boardAt: "2026-10-21T03:00:00Z", labelAt: "2026-10-21T02:00:00Z"}), {label: {add: ["stage:tests"], remove: ["stage:todo"]}});
     });
 });
 ```
@@ -559,12 +564,12 @@ gh-as builder --git commit -m "bin/board: labels, the board and a per-issue sync
 ### Task 9: Prompts, allow list, prompt test
 
 **Files:**
-- Create: `pipeline/plan.md`, `pipeline/build.md`, `pipeline/review.md`, `pipeline/qa.md`, `pipeline/spawn.md`, `pipeline/allow.txt`
+- Create: `pipeline/plan.md`, `pipeline/tests.md`, `pipeline/build.md`, `pipeline/review.md`, `pipeline/qa.md`, `pipeline/spawn.md`, `pipeline/allow.txt`
 - Test: `test/pipeline/prompts.test.js`
 
 **Interfaces:**
-- Produces: the five prompt files the loop renders with `renderPrompt` (Task 1); every one ends by writing a `done` request (the exact instruction: "Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`"), tells the persona to load the `code-standard` skill (Claude) or read `.claude/skills/code-standard/SKILL.md` (others), names `.agents/tmp/` as the only place for temporary files, contains the obviousness test verbatim, the decide-and-record rule, the `Part of #<epic>` line for any issue it files ("copy the `Part of` line of the issue you are on"), `gh-as <persona>` for every write, and never the string `code-standard.md`.
-- Per prompt: `plan.md` (architect): read the issue and the epic; the Implementation Plan comment with headings Behaviour, Scenarios, Shape, Tests, Dependencies, Decisions taken, Blocked by; the thin-issue rule (post what is needed, `done` to `triage`); `Blocked by #n` sets `done` to `stage:blocked`; otherwise `done` to `stage:in-progress`; no code. `build.md` (builder): branch `{N}-<slug>` from `origin/master` in `/work`; the feature file first; `bin/check`, `npm test`, `npm run test:features`, `check:pr`, `check:coverage`, `check:deps`; commits and push as builder; draft PR from the template with `Closes #{N}`; `done` to `stage:review`; a return from review or QA resumes the branch. `review.md` (reviewer): read only; approve or request changes; file improvements as `idea` issues or, when obvious, as `stage:todo`; `done` to `stage:qa` or `stage:in-progress`. `qa.md`: merge master into the branch first (the talk's lesson); run every check; screenshots with Playwright for a UI change, uploaded with `node bin/evidence.js put`; one QA comment per 6.3; approval = the comment; when every job green on master is green on the PR and the reviewer approved: `gh-as builder pr merge --squash --delete-branch`, `node bin/digest.js add ...`, `done` to `stage:done`; else `done` to `stage:in-progress` with the output. `spawn.md`: the generic prompt for a `spawn` request; `{PROMPT}` is the requester's text and `{PERSONA}` the persona.
+- Produces: the six prompt files the loop renders with `renderPrompt` (Task 1); every one ends by writing a `done` request (the exact instruction: "Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`"), tells the persona to load the `code-standard` skill (Claude) or read `.claude/skills/code-standard/SKILL.md` (others), names `.agents/tmp/` as the only place for temporary files, contains the obviousness test verbatim, the decide-and-record rule, the `Part of #<epic>` line for any issue it files ("copy the `Part of` line of the issue you are on"), `gh-as <persona>` for every write, and never the string `code-standard.md`.
+- Per prompt: `plan.md` (architect): read the issue and the epic; the Implementation Plan comment with headings Behaviour, Scenarios, Shape, Tests, Dependencies, Decisions taken, Blocked by; the thin-issue rule (post what is needed, `done` to `triage`); `Blocked by #n` sets `done` to `stage:blocked`; otherwise `done` to `stage:tests`; no code. `tests.md` (qa, standard 6.6): branch `{N}-<slug>` from `origin/master` (create it, or reuse it if it exists); the feature file under `test/features/` from the plan's Scenarios heading, `# covers:` naming the files the plan's Shape lists, `@issue-{N}` tags, step definitions as needed; run `npm run test:features` and see the new scenarios fail (paste the red run in the issue comment); commit and push as qa; nothing under `src/`; `done` to `stage:in-progress`. `build.md` (builder): the branch `{N}-<slug>` QA pushed (or from `origin/master` if none); never create or rewrite the feature file, only its step definitions when a step is missing; each unit test before its function, the red run of `npm test` pasted in the PR body; `bin/check`, `npm test`, `npm run test:features`, `check:pr`, `check:coverage`, `check:deps`; commits and push as builder; draft PR from the template with `Closes #{N}`; `done` to `stage:review`; a return from review or QA resumes the branch. `review.md` (reviewer): read only; approve or request changes; file improvements as `idea` issues or, when obvious, as `stage:todo`; `done` to `stage:qa` or `stage:in-progress`. `qa.md`: merge master into the branch first (the talk's lesson); run every check; screenshots with Playwright for a UI change, uploaded with `node bin/evidence.js put`; one QA comment per 6.3; approval = the comment; when every job green on master is green on the PR and the reviewer approved: `gh-as builder pr merge --squash --delete-branch`, `node bin/digest.js add ...`, `done` to `stage:done`; else `done` to `stage:in-progress` with the output. `spawn.md`: the generic prompt for a `spawn` request; `{PROMPT}` is the requester's text and `{PERSONA}` the persona.
 - `pipeline/allow.txt`: the snake's list with `bin/play`, `battlesnake`, `make`, `docker` lines removed and these added: `Bash(npm *)`, `Bash(npx *)`, `Bash(node *)`, `Bash(bin/check*)`, `Bash(python3 .claude/hooks/*)`, `Bash(xvfb-run *)`, `Bash(curl *)`.
 
 - [ ] **Step 1: Write the failing test**
@@ -576,7 +581,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const OBVIOUS = "It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.";
-const prompts = ["plan", "build", "review", "qa"].map(p => [p, fs.readFileSync(`pipeline/${p}.md`, "utf8")]);
+const prompts = ["plan", "tests", "build", "review", "qa"].map(p => [p, fs.readFileSync(`pipeline/${p}.md`, "utf8")]);
 
 describe("stage prompts", () => {
     for (const [name, text] of prompts) {
@@ -591,6 +596,16 @@ describe("stage prompts", () => {
             assert.match(text, /\.agents\/tmp\//);
         });
     }
+    test("tests first: QA writes the feature file and sees it fail, the builder never creates it", () => {
+        const tests = fs.readFileSync("pipeline/tests.md", "utf8");
+        const build = fs.readFileSync("pipeline/build.md", "utf8");
+        assert.match(tests, /see (them|it) fail/i);
+        assert.match(tests, /"to": "stage:in-progress"/);
+        assert.doesNotMatch(tests, /edit anything under src\//i);
+        assert.match(build, /never create .*feature file/i);
+        assert.match(build, /unit test before/i);
+        assert.match(build, /red run/i);
+    });
     test("the allow list has the project's commands and no docker", () => {
         const allow = fs.readFileSync("pipeline/allow.txt", "utf8");
         for (const line of ["Bash(npm *)", "Bash(npx *)", "Bash(bin/check*)", "Bash(gh-as *)", "Bash(xvfb-run *)"]) {
@@ -836,11 +851,11 @@ describe("a pass", () => {
         await w.p.pass();
         const outbox = w.state.issues[25].session.outbox;
         fs.writeFileSync(path.join(outbox, "result.json"), JSON.stringify({exit: 0, session: "s", usage: {tokensIn: 10, tokensOut: 5, costUsd: 0.01, turns: 2, status: "ok"}, changed: [], commits: [], resumes: 0}));
-        fs.writeFileSync(path.join(outbox, "req-done.json"), JSON.stringify({done: {issue: 25, to: "stage:in-progress"}}));
+        fs.writeFileSync(path.join(outbox, "req-done.json"), JSON.stringify({done: {issue: 25, to: "stage:tests"}}));
         w.containers.c25 = "exited";
         const s = await w.p.pass();
-        assert.deepEqual(s.moved, [[25, "stage:todo", "stage:in-progress"]]);
-        assert.equal(w.state.issues[25].stage, "stage:in-progress");
+        assert.deepEqual(s.moved, [[25, "stage:todo", "stage:tests"]]);
+        assert.equal(w.state.issues[25].stage, "stage:tests");
         assert.equal(w.state.run.tokens, 15);
         assert.deepEqual(s.started, [25], "the next stage starts in the same pass");
     });
@@ -872,7 +887,7 @@ describe("a pass", () => {
         assert.deepEqual(s.started, []);
         assert.equal(s.stopped, null, "25 still runs");
         fs.writeFileSync(path.join(w.state.issues[25].session.outbox, "result.json"), JSON.stringify({exit: 0, session: "s", usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"}, changed: [], commits: [], resumes: 0}));
-        fs.writeFileSync(path.join(w.state.issues[25].session.outbox, "req-done.json"), JSON.stringify({done: {issue: 25, to: "stage:in-progress"}}));
+        fs.writeFileSync(path.join(w.state.issues[25].session.outbox, "req-done.json"), JSON.stringify({done: {issue: 25, to: "stage:tests"}}));
         w.containers.c25 = "exited";
         s = await w.p.pass();
         assert.match(s.stopped, /until/);
@@ -897,12 +912,12 @@ describe("a pass", () => {
         await w.p.pass();
         const outbox = w.state.issues[25].session.outbox;
         fs.writeFileSync(path.join(outbox, "result.json"), JSON.stringify({exit: 0, session: "s", usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"}, changed: [], commits: [], resumes: 0}));
-        fs.writeFileSync(path.join(outbox, "req-done.json"), JSON.stringify({done: {issue: 25, to: "stage:in-progress"}}));
+        fs.writeFileSync(path.join(outbox, "req-done.json"), JSON.stringify({done: {issue: 25, to: "stage:tests"}}));
         w.containers.c25 = "exited";
         w.state.sync.backoffUntil = new Date(w.clock.now() + 60000).toISOString();
         await w.p.pass();
         assert.equal(w.state.queued.length >= 1, true);
-        assert.equal(w.state.issues[25].stage, "stage:in-progress", "state moves even while GitHub waits");
+        assert.equal(w.state.issues[25].stage, "stage:tests", "state moves even while GitHub waits");
         w.clock.advance(11 * 60 * 1000);
         await w.p.pass();
         assert.equal(w.state.queued.length, 0);

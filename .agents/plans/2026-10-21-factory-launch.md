@@ -64,7 +64,7 @@ node bin/board.js labels
 node bin/board.js create
 node bin/board.js url
 ```
-Expected: ten labels on the repo (`gh label list -R tjlytle/Sozi` shows them), a board "Sozi pipeline" with nine columns, its URL printed.
+Expected: eleven labels on the repo (`gh label list -R tjlytle/Sozi` shows them), a board "Sozi pipeline" with nine columns (tests and build share "In progress"), its URL printed.
 
 - [ ] **Step 2: Label the planned backlog**
 
@@ -148,7 +148,7 @@ Expected: the merge is allowed with the reviewer App's approval. If protection r
 node bin/pipeline.js --build-image
 node bin/pipeline.js 25
 ```
-Expected: the architect's container runs, an Implementation Plan comment lands on #25 as `ll-architect[bot]`, the issue moves to `stage:in-progress` or `stage:blocked`, the outbox shows `result.json` and `req-done.json`, the board card moves. Fix anything that breaks before continuing.
+Expected: the architect's container runs, an Implementation Plan comment lands on #25 as `ll-architect[bot]`, the issue moves to `stage:tests` or `stage:blocked`, the outbox shows `result.json` and `req-done.json`, the board card moves. Fix anything that breaks before continuing.
 
 - [ ] **Step 2: One pass, then a short watch**
 
@@ -156,7 +156,7 @@ Expected: the architect's container runs, an Implementation Plan comment lands o
 node bin/pipeline.js --once
 node bin/pipeline.js --until 2h --epic 24
 ```
-Watch the first build stage end to end: the PR opens as builder, review runs, QA runs the scenarios in the container and posts evidence with a URL from R2, the merge lands, the Notion page gets its entry.
+Watch the first issue end to end: QA pushes a red feature file and the comment shows it failing, the PR opens as builder with the scenarios green and the unit tests' red run in the body, review runs, QA runs the scenarios in the container and posts evidence with a URL from R2, the merge lands, the Notion page gets its entry.
 
 - [ ] **Step 3: Record what Tim should expect next time he looks**
 

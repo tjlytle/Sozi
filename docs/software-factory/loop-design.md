@@ -65,9 +65,10 @@ the label. What changes is below.
 
 | Label | Persona | Prompt | Moves to |
 |---|---|---|---|
-| `stage:todo` | architect | `pipeline/plan.md`: triage and plan | `stage:in-progress`, or `stage:blocked`, or `triage` |
-| `stage:blocked` | nobody | waits for the issues its plan names | `stage:in-progress` when they are closed (the loop checks each pass) |
-| `stage:in-progress` | builder | `pipeline/build.md` | `stage:review` |
+| `stage:todo` | architect | `pipeline/plan.md`: triage and plan | `stage:tests`, or `stage:blocked`, or `triage` |
+| `stage:blocked` | nobody | waits for the issues its plan names | `stage:tests` when they are closed (the loop checks each pass) |
+| `stage:tests` | qa | `pipeline/tests.md`: the feature file from the plan's Scenarios, red, pushed (standard 6.6) | `stage:in-progress` |
+| `stage:in-progress` | builder | `pipeline/build.md`: makes the scenarios green, unit tests first | `stage:review` |
 | `stage:review` | reviewer | `pipeline/review.md` | `stage:qa`, or back to `stage:in-progress` |
 | `stage:qa` | qa | `pipeline/qa.md`: scenarios, evidence, merge | `stage:done` (closed by the merge), or back to `stage:in-progress` |
 | `stage:done` | | merged | |
@@ -77,7 +78,16 @@ the label. What changes is below.
 | `working` | ops | a session holds the issue right now | |
 
 There is no `stage:planned`: `Plans: auto` (interview decision), the architect moves a
-planned issue straight to `stage:in-progress`.
+planned issue straight to `stage:tests`. A return from review or QA goes to
+`stage:in-progress`, not back through tests; the scenarios already exist.
+
+**The board is a projection of the labels, not a copy** (Tim, 2026-10-21). The labels
+are the loop's state machine and can be as fine as the loop needs; the board shows what
+a person wants to know, so its mapping is many-to-one: `stage:tests` and
+`stage:in-progress` are both the column "In progress". A dragged card is read the other
+way with two rules: a card sitting in the column its label maps to is agreement, and a
+card dragged into a column takes that column's entry stage (`stage:tests` for "In
+progress").
 
 ### Run settings, read by the loop, told to the agents
 
@@ -339,12 +349,13 @@ routine all call:
 `bin/check*`, `node bin/*`, `xvfb-run *`, `gh-as *`, `git *`, and the read-only shell
 tools. No `docker *` inside the container.
 
-`bin/board`, ported: the board "Sozi pipeline" with columns Todo, Blocked, In progress,
-Review, QA, Done, Parked, Triage, Ideas; `sync` each pass.
+`bin/board`, ported: the board "Sozi pipeline" with columns Triage, Ideas, Todo, Blocked,
+In progress (tests and build), Review, QA, Done, Parked; `sync` for the issues whose stage
+changed since the last sync.
 
 ### Prompts
 
-`pipeline/plan.md`, `build.md`, `review.md`, `qa.md`, ported from the snake and rewritten
+`pipeline/plan.md`, `tests.md`, `build.md`, `review.md`, `qa.md`, ported from the snake and rewritten
 for this repo: the obviousness test, the decide-and-record rule, the `# covers:` and
 tagging conventions, the checks to run (`bin/check`, `npm test`, `npm run test:features`,
 `check:pr`, `check:deps`, `check:coverage`), the PR template sections, QA's checklist
@@ -457,6 +468,9 @@ of issues and PRs. Cross-repository issues stay out of scope.
   its stages (build on X, review on Y), building on the per-stage harness setting the
   first version has. Nothing in the first version depends on it.
 - A decision model in front of the merge, as the code standard's 6.4 anticipates.
+- QA's scenarios written in parallel with the build through a spawn request from the
+  architect, with disjoint file ownership on one branch (standard 6.6, alternative b),
+  if the tests stage ever shows as the bottleneck.
 - The cloud path above.
 
 ## What is left to the builder
@@ -503,3 +517,6 @@ of issues and PRs. Cross-repository issues stay out of scope.
   rather than several skills.
 - `.agents/` for plans, the skills link and scratch; `docs/` for people.
 - The loop in Node rather than bash, so its state and pass logic are unit-tested.
+- The tests stage as a sequential stage rather than a parallel session (Tim chose it
+  from the two shapes offered); the board's many-to-one mapping and the entry-stage rule
+  for dragged cards.
