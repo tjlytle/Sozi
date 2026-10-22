@@ -20,34 +20,42 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+# The factory user, created before anything is written to /cache so no layer
+# re-owns files. The uid must match the host user for bind-mounted files
+# (docker build --build-arg FACTORY_UID=$(id -u)); the base image's node user
+# holds 1000, so it goes.
+ARG FACTORY_UID=1000
+RUN userdel -r node \
+    && useradd -m -u ${FACTORY_UID} -s /bin/bash factory \
+    && mkdir -p /work /outbox /mirror /cache \
+    && chown factory:factory /work /outbox /mirror /cache
+
 # The agent harness CLIs, unpinned: a rebuild picks the newest.
 RUN npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai \
     && npm cache clean --force
 
-# The gh-personas plugin (build context "ghp"): hooks and skill, bin on PATH.
-COPY --from=ghp / /opt/gh-personas
-ENV PATH="/opt/gh-personas/bin:${PATH}"
+# Chromium's system libraries (needs apt, so root), at the lockfile's version.
+COPY --chown=factory:factory package.json package-lock.json /cache/
+RUN npx --yes playwright@"$(node -p "require('/cache/package-lock.json').packages['node_modules/playwright'].version")" \
+      install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 
-# Dependency cache: node_modules for the lockfile, and its hash for stage.sh.
-COPY package.json package-lock.json /cache/
+# Dependency cache as factory: node_modules for the lockfile, and its hash.
+USER factory
 RUN cd /cache && npm ci --no-audit --no-fund \
     && sha256sum package-lock.json | cut -d' ' -f1 > lock-sha
 
-# Playwright's Chromium, at the version the lockfile pins, with its own libraries.
+# Playwright's Chromium at the pinned version (libraries are already in).
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/ms-playwright
-RUN cd /cache && npx playwright install --with-deps chromium \
-    && rm -rf /var/lib/apt/lists/*
+RUN cd /cache && npx playwright install chromium
 
-# The runner and the harness adapters, executable.
-COPY pipeline /pipeline
-RUN chmod +x /pipeline/stage.sh /pipeline/hooks-outside.sh /pipeline/harness/*
+# The gh-personas plugin (build context "ghp"): hooks and skill, bin on PATH.
+USER root
+COPY --from=ghp / /opt/gh-personas
+ENV PATH="/opt/gh-personas/bin:${PATH}"
 
-# Non-root user on uid 1000 (frees the base image's node user) so bind-mounted
-# outbox files match a typical host user; owns the mount points and the cache.
-RUN userdel -r node \
-    && useradd -m -u 1000 -s /bin/bash factory \
-    && mkdir -p /work /outbox /mirror \
-    && chown -R factory:factory /work /cache /outbox /mirror
+# The runner and the harness adapters, executable; last, as it changes most.
+COPY --chown=factory:factory --chmod=755 pipeline /pipeline
 
 USER factory
 WORKDIR /work

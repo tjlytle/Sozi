@@ -12,8 +12,9 @@ ghp=<gh-personas plugin dir> .` from the repo root, so the Dockerfile can `COPY 
 and the lockfile. `.dockerignore` keeps `node_modules`, `build`, `dist`, `var`, `.git`,
 `.agents/tmp` and `.superpowers` out of the context.
 
-Measured on the dev machine (cold cache): about 8 minutes, image size 8.57 GB (Chromium,
-Electron's libraries, the three harness CLIs and `node_modules`).
+Measured on the dev machine (cold cache): about 6 minutes, image size 6.48 GB (Chromium,
+Electron's libraries, the three harness CLIs and `node_modules`). `/cache` is created
+and filled as `factory`, so no layer re-owns it.
 
 ## What is in it
 
@@ -26,8 +27,9 @@ Electron's libraries, the three harness CLIs and `node_modules`).
   `stage.sh` compares with the checkout's lockfile), and Playwright's Chromium in
   `/cache/ms-playwright`.
 - `/pipeline`: a copy of the repo's `pipeline/` directory (the runner and the adapters).
-- User `factory` (uid 1000, so files written to the bind-mounted outbox belong to a typical
-  host user). The base image's `node` user is removed to free that uid.
+- User `factory` (build arg `FACTORY_UID`, default 1000; `buildImage()` passes the host
+  user's uid). The host user must have that uid, or the bind-mounted outbox is not writable;
+  override by hand with `docker build --build-arg FACTORY_UID=$(id -u) ...`. The base image's `node` user is removed to free uid 1000.
   Mount points: `/mirror`, `/outbox`, `/work`.
 
 ## When to rebuild

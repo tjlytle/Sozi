@@ -117,6 +117,10 @@ describe("sandbox", () => {
         assert.deepEqual(cmd.slice(0, 3), ["docker", "build", "-t"]);
         assert.ok(cmd.includes("--build-context"));
         assert.match(cmd[cmd.indexOf("--build-context") + 1], /^ghp=/);
+        assert.equal(
+            cmd[cmd.indexOf("--build-arg") + 1],
+            `FACTORY_UID=${process.getuid?.() ?? 1000}`
+        );
         assert.equal(cmd[cmd.indexOf("-f") + 1], "/repo/docker/factory/Dockerfile");
         assert.equal(cmd.at(-1), "/repo");
     });
