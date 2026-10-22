@@ -415,21 +415,24 @@ const builderOpts = {
 function electronLinuxPackageTask() {
     return builder.build({
         targets: builder.Platform.LINUX.createTarget(),
-        config: builderOpts
+        config: builderOpts,
+        publish: "never"
     });
 }
 
 function electronWindowsPackageTask() {
     return builder.build({
         targets: builder.Platform.WINDOWS.createTarget(),
-        config: builderOpts
+        config: builderOpts,
+        publish: "never"
     });
 }
 
 function electronMacOSPackageTask() {
     return builder.build({
         targets: builder.Platform.MAC.createTarget(),
-        config: builderOpts
+        config: builderOpts,
+        publish: "never"
     });
 }
 
