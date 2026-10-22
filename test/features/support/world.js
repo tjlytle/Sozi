@@ -66,7 +66,7 @@ export class SoziWorld {
         this.presenter = null;
         /** @type {import("playwright").Page} */
         this.audience = null;
-        /** @type {any} */
+        /** @type {import("playwright").Page} */
         this.deck = null;
         /** @type {string} */
         this.fixture = "";

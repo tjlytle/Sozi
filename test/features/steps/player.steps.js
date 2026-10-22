@@ -43,7 +43,7 @@ Then("the player is on frame {string}", async function (title) {
 });
 
 Then("the page title contains {string}", async function (text) {
-    assert.ok((await this.deck.title()).includes(text));
+    assert.match(await this.deck.title(), new RegExp(text));
 });
 
 Then("the URL hash names frame {string}", async function (frameId) {

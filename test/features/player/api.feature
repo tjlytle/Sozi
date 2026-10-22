@@ -28,3 +28,10 @@ Feature: Driving the player from code
     When a message "noSuchMethod" with no arguments is posted to the page
     And the key "ArrowRight" is pressed
     Then the player is on frame "Two"
+
+  @issue-36
+  Scenario: The presenter's own messages move the frame
+    When a message "moveToNext" with no arguments is posted to the page
+    Then the player is on frame "Two"
+    When a message "moveToPrevious" with no arguments is posted to the page
+    Then the player is on frame "One"

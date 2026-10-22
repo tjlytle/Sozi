@@ -28,6 +28,10 @@ When("the previous button is pressed", async function () {
     await this.presenter.locator("#sozi-previous-btn").click();
 });
 
+When("the key {string} is pressed on the presenter page", async function (key) {
+    await this.presenter.keyboard.press(key);
+});
+
 Then("the frame counter reads {string}", async function (text) {
     const [index, length] = text.split("/").map(s => s.trim());
     await expect(this.presenter.locator(".sozi-current-index")).toHaveText(index);
