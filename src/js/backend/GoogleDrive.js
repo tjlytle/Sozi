@@ -10,7 +10,7 @@ import {AbstractBackend, addBackend} from "./AbstractBackend";
 
 /** Google Drive backend.
  *
- * @extends module:backend/AbstractBackend.AbstractBackend
+ * @extends AbstractBackend
  */
 export class GoogleDrive extends AbstractBackend {
     /** Initialize a Sozi  backend based on the Google Drive API.
@@ -36,7 +36,8 @@ export class GoogleDrive extends AbstractBackend {
 
     /** @inheritdoc */
     openFileChooser() {
-        this.picker.setVisible(true);
+        // Cast: the button calls this only once createPicker has run.
+        /** @type {NonNullable<GoogleDrive["picker"]>} */ (this.picker).setVisible(true);
     }
 
     /** Authorize access to the Google Drive API.
@@ -64,7 +65,10 @@ export class GoogleDrive extends AbstractBackend {
      * @param {object} authResult - The authorization result.
      */
     onAuthResult(onInit, authResult) {
-        const inputButton = document.getElementById("sozi-editor-backend-GoogleDrive-input");
+        // Cast: AbstractBackend created this button in the constructor.
+        const inputButton = /** @type {HTMLElement} */ (
+            document.getElementById("sozi-editor-backend-GoogleDrive-input")
+        );
 
         if (authResult && !authResult.error) {
             this.accessToken = authResult.access_token;

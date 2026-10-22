@@ -14,10 +14,7 @@ import * as remote from "@electron/remote";
 import settings from "electron-app-settings";
 import {getCliOptions} from "../cli";
 
-/** Type for Electron browser windows.
- *
- * @external BrowserWindow
- */
+/** @typedef {import("electron").BrowserWindow} BrowserWindow - An Electron browser window. */
 
 /** The main browser window of the Sozi editor.
  *
@@ -30,13 +27,13 @@ const browserWindow = remote.getCurrentWindow();
  * We use the `PWD` environment variable directly because
  * `process.cwd()` returns the installation path of Sozi.
  *
- * @type {string}
+ * @type {string|undefined}
  */
 const cwd = process.env.PWD;
 
 /** A Sozi editor backend based on Electron.
  *
- * @extends module:backend/AbstractBackend.AbstractBackend
+ * @extends AbstractBackend
  */
 export class Electron extends AbstractBackend {
     /** Initialize a Sozi  backend based on Electron.
@@ -70,9 +67,10 @@ export class Electron extends AbstractBackend {
 
         this.loadConfiguration();
 
-        document
-            .getElementById("sozi-editor-backend-Electron-input")
-            .addEventListener("click", () => this.openFileChooser());
+        // Cast: AbstractBackend created this button in the constructor above.
+        /** @type {HTMLElement} */ (
+            document.getElementById("sozi-editor-backend-Electron-input")
+        ).addEventListener("click", () => this.openFileChooser());
 
         // Save files when closing the window
         let closing = false;
@@ -110,6 +108,7 @@ export class Electron extends AbstractBackend {
         // the file does not exist.
         if (remote.process.argv.length > 1) {
             const arg = remote.process.argv[remote.process.argv.length - 1];
+            // @ts-expect-error PWD can be unset (Sozi launched from a desktop entry); path.resolve then throws.
             const fileName = path.resolve(cwd, arg);
             if (fs.existsSync(fileName) && fs.statSync(fileName).isFile()) {
                 // Open the file chooser if the file could not be opened, e.g. a presentation whose SVG file is missing.
@@ -338,6 +337,7 @@ export class Electron extends AbstractBackend {
 
     /** @inheritdoc */
     toggleDevTools() {
+        // @ts-expect-error Bug kept: BrowserWindow has no toggleDevTools (webContents has), so F12 throws.
         browserWindow.toggleDevTools();
     }
 

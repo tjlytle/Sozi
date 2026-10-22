@@ -8,7 +8,7 @@ import {addSVGHandler, DefaultSVGHandler} from "./SVGDocumentWrapper";
 
 /** Adobe Illustrator SVG handler.
  *
- * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
+ * @extends DefaultSVGHandler
  */
 export class AiHandler extends DefaultSVGHandler {
     /** @inheritdoc */

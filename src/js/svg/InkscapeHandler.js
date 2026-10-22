@@ -24,7 +24,7 @@ const SODIPODI_NS = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd";
 
 /** Inkscape SVG handler.
  *
- * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
+ * @extends DefaultSVGHandler
  */
 export class InkscapeHandler extends DefaultSVGHandler {
     /** @inheritdoc */
