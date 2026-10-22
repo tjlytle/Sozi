@@ -4,7 +4,7 @@ FROM node:24-bookworm
 
 # Tools the stage runner and the agents use, plus Electron's shared libraries.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git jq python3 curl xvfb ca-certificates \
+      git jq python3 curl xvfb xauth ca-certificates \
       libasound2 libgbm1 libgtk-3-0 libnss3 libxss1 libatk-bridge2.0-0 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libcups2 \
       libpango-1.0-0 libcairo2 libatspi2.0-0 \

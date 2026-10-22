@@ -32,6 +32,14 @@ and filled as `factory`, so no layer re-owns it.
   override by hand with `docker build --build-arg FACTORY_UID=$(id -u) ...`. The base image's `node` user is removed to free uid 1000.
   Mount points: `/mirror`, `/outbox`, `/work`.
 
+Electron and Playwright Chromium cannot start their own sandboxes under Docker's default
+seccomp profile (verified 2026-10-22: Electron aborts with "Failed to move to new namespace"
+even with the setuid helper in place; `--no-sandbox` works). The choice between
+`--security-opt seccomp=unconfined` on the container, a custom seccomp profile that allows
+user namespaces (Playwright publishes one), or `--no-sandbox` in the stage runner is open.
+Until it is made, stages that run `npm test` or the scenarios inside a container will fail
+at the Electron launch.
+
 ## When to rebuild
 
 - `package-lock.json` changed: the cached `node_modules` and Chromium are stale (a stage
