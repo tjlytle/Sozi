@@ -14,8 +14,9 @@ const PLANS = {
     review: "review (stop after posting the plan; a person approves it)"
 };
 const FINDINGS = {
-    obvious: "obvious (fix the obvious findings yourself; file the rest as issues)",
-    triage: "triage (file every finding as an issue for a person to triage)"
+    obvious:
+        "obvious (file every finding as its own issue; an obvious one gets stage:todo and starts on its own, the rest get triage)",
+    triage: "triage (file every finding as its own issue with the triage label)"
 };
 
 /** Builds the run-settings block.

@@ -34,10 +34,66 @@ describe("stage prompts", () => {
         const build = fs.readFileSync("pipeline/build.md", "utf8");
         assert.match(tests, /see (them|it) fail/i);
         assert.match(tests, /"to": "stage:in-progress"/);
-        assert.doesNotMatch(tests, /edit anything under src\//i);
+        assert.match(tests, /Change nothing under `src\/`/);
         assert.match(build, /never create .*feature file/i);
         assert.match(build, /unit test before/i);
         assert.match(build, /red run/i);
+    });
+    const text = Object.fromEntries(prompts);
+    const persona = {
+        plan: "architect",
+        tests: "qa",
+        build: "builder",
+        review: "reviewer",
+        qa: "qa"
+    };
+    const labels = {
+        plan: ["triage", "stage:blocked", "stage:tests"],
+        tests: ["stage:in-progress"],
+        build: ["stage:review"],
+        review: ["stage:qa", "stage:in-progress"],
+        qa: ["stage:done", "stage:in-progress"]
+    };
+    for (const [name, who] of Object.entries(persona)) {
+        test(`${name}: writes as ${who} and names every label it moves to`, () => {
+            assert.ok(text[name].includes(`gh-as ${who} `), `gh-as ${who}`);
+            for (const label of labels[name]) {
+                assert.ok(text[name].includes(`\`${label}\``), label);
+            }
+        });
+    }
+    test("findings: every one is filed, obvious ones to stage:todo, the rest to triage", () => {
+        for (const [name, body] of [...prompts, ["spawn", spawn]]) {
+            assert.match(body, /file every finding/i, name);
+            assert.doesNotMatch(body, /fix the obvious/i, name);
+        }
+    });
+    test("a review policy stops with a note, and never alongside a done request", () => {
+        for (const name of ["plan", "qa"]) {
+            assert.match(text[name], /req-done\.json.*unless a step above told you to stop/s);
+            assert.match(text[name], /never write both/);
+        }
+        const finish = text.plan.slice(text.plan.indexOf("**Finish.**"));
+        const review = finish.indexOf("`Plans: review`");
+        assert.ok(review > 0, "Plans: review in the finish step");
+        assert.ok(finish.indexOf("is `triage`") < review, "thin goes to triage first");
+        assert.ok(finish.indexOf("is `stage:blocked`") < review, "blocked comes first");
+    });
+    test("qa merges as builder, gated on the reviewer's newest review", () => {
+        assert.ok(
+            text.qa.includes("gh-as builder pr merge <pr> -R tjlytle/Sozi --squash --delete-branch")
+        );
+        assert.match(text.qa, /--json reviews/);
+        assert.match(text.qa, /reviewer\[bot\]/);
+        assert.doesNotMatch(text.qa, /reviewDecision/);
+        assert.match(text.qa, /req-missing-evidence\.json/);
+        assert.match(text.qa, /req-missing-digest\.json/);
+    });
+    test("the PR is found by its branch", () => {
+        for (const name of ["build", "review", "qa"]) {
+            assert.ok(text[name].includes("--head {N}-<slug>"), name);
+            assert.doesNotMatch(text[name], /in:body/, name);
+        }
     });
     test("the allow list has the project's commands and no docker", () => {
         const allow = fs.readFileSync("pipeline/allow.txt", "utf8");
@@ -46,7 +102,8 @@ describe("stage prompts", () => {
             "Bash(npx *)",
             "Bash(bin/check*)",
             "Bash(gh-as *)",
-            "Bash(xvfb-run *)"
+            "Bash(xvfb-run *)",
+            "Bash(tee *)"
         ]) {
             assert.ok(allow.includes(line), line);
         }

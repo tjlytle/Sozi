@@ -15,20 +15,22 @@ restyle, you do not edit, commit or push anything.
   body there first and pass it with `--body-file`.
 - Questions do not stop the line. A choice you would have made differently is not a defect:
   say it in one line, file it as an `idea` issue, and judge the PR on its merits.
-- Anything you notice that is not a defect of this PR (a cleaner shape, an edge outside the
-  acceptance criteria, a refactor) is its own issue and never blocks. Apply one test:
+- A finding is anything you notice that is not a defect of this PR (a cleaner shape, an
+  edge outside the acceptance criteria, a refactor). File every finding as its own issue;
+  it never blocks the PR. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
-  Obvious: file it with `--label stage:todo`. Not obvious: `--label idea` (standard 6.5).
-  Under `Findings: triage` above, every finding gets `triage` instead. The body starts
-  "Seen while reviewing #<pr>: ".
+  Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label idea`, the
+  label standard 6.5 gives a reviewer's improvement. Under `Findings: triage` above, every
+  finding gets `triage` instead. The body starts "Seen while reviewing #<pr>: ".
 - Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
   issue you are on; if it has none, write nothing.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 
 ## Steps
 
-1. **Read the trail.** Find the PR:
-   `gh-as reviewer pr list -R tjlytle/Sozi --state open --search "Closes #{N} in:body"`.
+1. **Read the trail.** You sit on the issue's branch, `{N}-<slug>`
+   (`git branch --show-current`). Find its PR:
+   `gh-as reviewer pr list -R tjlytle/Sozi --state open --head {N}-<slug>`.
    Read the issue (`gh-as reviewer issue view {N} -R tjlytle/Sozi --comments`), its newest
    **Implementation Plan** comment, QA's scenarios comment, the PR body and comments
    (`gh-as reviewer pr view <pr> -R tjlytle/Sozi --comments`), the diff

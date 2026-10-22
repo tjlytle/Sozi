@@ -19,11 +19,11 @@ request is about; read it first (`gh-as {PERSONA} issue view <n> -R tjlytle/Sozi
 - Questions do not stop the line. When the request leaves a choice open, take the better
   route, say which and why where you record your work, and file the alternative as an
   `idea` issue.
-- Anything you notice outside the request (a bug, an improvement) is its own issue. Apply
-  one test:
+- A finding is a bug or an improvement you notice outside the request. File every finding
+  as its own issue; never fix it here. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
-  Obvious: file it with `--label stage:todo`. Not obvious: `--label triage`. Under
-  `Findings: triage` above, every finding gets `triage`.
+  Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
+  Under `Findings: triage` above, every finding gets `triage`.
 - Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
   issue you are on; if it has none, write nothing.
 

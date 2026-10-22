@@ -16,11 +16,11 @@ the policy for this session; obey them.
 - Questions do not stop the line. When the plan does not settle a decision, take the better
   route, record it and why under Plan in the PR body, file the alternative as an `idea`
   issue, and keep going.
-- Anything you notice outside this issue (a bug, an improvement) is its own issue, not part
-  of this PR. Apply one test:
+- A finding is a bug or an improvement you notice outside this issue. File every finding as
+  its own issue; never fix it in this PR. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
-  Obvious: file it with `--label stage:todo`. Not obvious: `--label triage`. Under
-  `Findings: triage` above, every finding gets `triage`. List it under Ideas filed.
+  Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
+  Under `Findings: triage` above, every finding gets `triage`. List it under Ideas filed.
 - Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
   issue you are on; if it has none, write nothing.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
@@ -32,17 +32,16 @@ the policy for this session; obey them.
    **Implementation Plan** comment is the contract: its Shape is where the code goes, its
    Dependencies the only packages you may add. QA's comment names the feature file and the
    red run. Depart from the plan only with a reason, stated in the PR body.
-2. **Returned from review or QA?** If a PR for this issue exists
-   (`gh-as builder pr list -R tjlytle/Sozi --state open --search "Closes #{N} in:body"`),
-   the issue came back. Read the newest reviewer or qa comment on the issue and the PR
+2. **Branch.** `git fetch origin`. Work on the `{N}-<slug>` branch QA pushed: you usually
+   sit on it (`git branch --show-current`); otherwise find it with
+   `git branch -r --list "origin/{N}-*"` and `git switch <branch>` (the name without
+   `origin/`), then `git merge --ff-only origin/<branch>`. If there is none (the plan names
+   no scenarios), create it: `git switch -c {N}-<slug> origin/master --no-track`.
+3. **Returned from review or QA?** If a PR for this branch exists
+   (`gh-as builder pr list -R tjlytle/Sozi --state open --head {N}-<slug>`), the issue came
+   back. Read the newest reviewer or qa comment on the issue and the PR
    (`gh-as builder pr view <pr> -R tjlytle/Sozi --comments`); it says what to fix. Fix
-   exactly that on the existing branch (step 3) and PR, run the checks in step 5, then
-   continue at step 6.
-3. **Branch.** `git fetch origin`. Work on the `{N}-<slug>` branch QA pushed: you usually
-   sit on it; otherwise find it with `git branch -r --list "origin/{N}-*"` and
-   `git switch <branch>` (the name without `origin/`), then
-   `git merge --ff-only origin/<branch>`. If there is none (the plan names no scenarios),
-   create it: `git switch -c {N}-<slug> origin/master --no-track`.
+   exactly that on this branch and PR, run the checks in step 5, then continue at step 6.
 4. **Unit tests first.** For each function or class the Shape names, write the
    unit test before the function it pins, named after the module (standard 6.1). Run
    `npm test 2>&1 | tee .agents/tmp/red-{N}.txt` and see the new tests fail for the right
@@ -76,7 +75,8 @@ the policy for this session; obey them.
      {N}-<slug> --title "<what it does, imperative>" --body-file .agents/tmp/pr-{N}.md`.
    - Existing PR: `gh-as builder pr edit <pr> -R tjlytle/Sozi --body-file
      .agents/tmp/pr-{N}.md` if the body changed, and one PR comment saying what you fixed.
-8. **Finish.** Post one short comment on the issue with the PR link. The issue goes to
-   review.
+8. **Finish.** Post one short comment on the issue with the PR link:
+   `gh-as builder issue comment {N} -R tjlytle/Sozi --body-file <file>`. The issue goes to
+   `stage:review`.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "stage:review"}}`

@@ -11,11 +11,11 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
   there first and pass it with `--body-file`.
 - Questions do not stop the line. Where the issue leaves a real fork, pick the better route,
   write it and why under Decisions taken, and file the other route as an `idea` issue.
-- Anything you notice outside this issue (a bug, an improvement) is its own issue. Apply one
-  test:
+- A finding is a bug or an improvement you notice outside this issue. File every finding as
+  its own issue; never fold it into this plan. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
-  Obvious: file it with `--label stage:todo`. Not obvious: `--label triage`. Under
-  `Findings: triage` above, every finding gets `triage`.
+  Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
+  Under `Findings: triage` above, every finding gets `triage`.
 - Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
   issue you are on; if it has none, write nothing.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
@@ -67,12 +67,15 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 5. **Post the plan.** If you posted an Implementation Plan on this issue before, replace it:
    `gh-as architect issue comment {N} -R tjlytle/Sozi --edit-last --body-file
    .agents/tmp/plan-{N}.md`. Otherwise post it with the same command without `--edit-last`.
-6. **Finish.** Read the Plans line in the Run settings above.
-   - `Plans: review`: a person approves the plan. Do not write a done request. Write
-     `/outbox/req-note.json` with `{"note": "plan posted for #{N}; waiting for review"}`
-     and stop; the loop leaves the issue where it is and a person moves it.
-   - Too thin to plan (step 2): `<label>` is `triage`.
-   - The plan has a `Blocked by #n` line: `<label>` is `stage:blocked`.
-   - Otherwise: `<label>` is `stage:tests`.
+6. **Finish.** Pick the first case that applies:
+   - Too thin to plan (step 2): `<label>` is `triage`, whatever the Plans line says.
+   - The plan has a `Blocked by #n` line: `<label>` is `stage:blocked`, whatever the Plans
+     line says.
+   - The plan is posted and the Plans line above says `Plans: review`: a person approves
+     the plan. Write `/outbox/req-note.json` with
+     `{"note": "plan posted for #{N}; waiting for review"}` and stop, with no done request;
+     the loop leaves the issue where it is and a person moves it.
+   - Otherwise (`Plans: auto`): `<label>` is `stage:tests`.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`
+unless a step above told you to stop with a note instead; never write both.

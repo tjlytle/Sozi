@@ -13,11 +13,11 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
 - Change nothing under `src/`. The code is the builder's; you write tests only.
 - Questions do not stop the line. When the plan leaves a scenario unclear, write the one a
   person would expect, say so in your comment, and file the alternative as an `idea` issue.
-- Anything you notice outside this issue (a bug, an improvement) is its own issue. Apply one
-  test:
+- A finding is a bug or an improvement you notice outside this issue. File every finding as
+  its own issue; never test or fix it here. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
-  Obvious: file it with `--label stage:todo`. Not obvious: `--label triage`. Under
-  `Findings: triage` above, every finding gets `triage`.
+  Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
+  Under `Findings: triage` above, every finding gets `triage`.
 - Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
   issue you are on; if it has none, write nothing.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
@@ -28,13 +28,15 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
    **Implementation Plan** comment is the contract: its Scenarios heading is what you
    write, its Tests heading names the feature file and the `# covers:` line, its Shape
    heading names the files those scenarios cover.
-2. **Branch.** `git fetch origin`. If you already sit on a branch named `{N}-<slug>`, or
+2. **Nothing to write?** If the Scenarios heading says "None: unit tests only", there are no
+   scenarios in the plan: create no branch, post one comment saying so (the builder's unit
+   tests are the test plan) with `gh-as qa issue comment {N} -R tjlytle/Sozi --body-file
+   <file>`, and go to step 8.
+3. **Branch.** `git fetch origin`. If you already sit on a branch named `{N}-<slug>`, or
    `git branch -r --list "origin/{N}-*"` shows one, use it (`git switch <branch>`, the name
-   without `origin/`, then `git merge --ff-only origin/<branch>`). Otherwise create it from master:
-   `git switch -c {N}-<slug> origin/master --no-track`, the slug three or four words of
-   the issue title, lowercase, joined by hyphens.
-3. **Nothing to write?** If the Scenarios heading says "None: unit tests only", post one
-   comment saying so (the builder's unit tests are the test plan) and go to step 8.
+   without `origin/`, then `git merge --ff-only origin/<branch>`). Otherwise create it from
+   master: `git switch -c {N}-<slug> origin/master --no-track`, the slug three or four
+   words of the issue title, lowercase, joined by hyphens.
 4. **Write the feature file.** Copy the shape of `test/features/presenter/previews.feature`:
    - The file named under Tests, under `test/features/` by topic. If it exists, add your
      scenarios to it and add any missing path to its first line.
@@ -59,6 +61,6 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
    `gh-as qa --push {N}-<slug> -u`. Post one comment on the issue as qa: the branch, the
    feature file, the scenario names, and the red run (the failing part of
    `.agents/tmp/red-{N}.txt` in a fenced block).
-8. **Finish.** The issue goes to the builder.
+8. **Finish.** The issue goes to the builder, `stage:in-progress`.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "stage:in-progress"}}`
