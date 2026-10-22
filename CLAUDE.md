@@ -19,8 +19,13 @@ Upstream (`upstream` remote) is maintenance-only; we do not open PRs there.
   `npm run check:pr` checks the branch name, the Closes line and build noise;
   `npm run check:coverage` lists which test covers each changed source file;
   `npm run test:features` runs the browser scenarios (needs a build and a display). The standard is
-  `docs/software-factory/code-standard.md`. Existing code is red by design until the
+  the `code-standard` skill (`.claude/skills/code-standard/`); `docs/software-factory/code-standard.md`
+  is the record of why each rule was chosen. Existing code is red by design until the
   cleanup issues land.
+- Agent files: `AGENTS.md` is a link to this file for Codex and OpenCode. Agent-only files
+  live under `.agents/`: plans in `.agents/plans/` (superpowers writes them there, not
+  `docs/superpowers/`), temporary work in `.agents/tmp/` (gitignored), skills through
+  `.agents/skills`.
 - Test decks: copy an `.svg` + `.sozi.json` pair into a scratch dir first. Opening a
   deck writes `*.sozi.html` and `*-presenter.sozi.html` next to it.
 
