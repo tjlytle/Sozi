@@ -13,7 +13,7 @@
         "check": "bin/check",
         "check:fix": "bin/check --fix",
         "format": "bin/check --fix",
-        "lint": "eslint --config config/eslintrc.mjs --max-warnings 0 src/js test bin/*.js",
+        "lint": "eslint --config config/eslintrc.mjs --max-warnings 0 src/js pipeline/lib test bin/*.js",
         "lint:css": "stylelint --config config/stylelintrc.json --max-warnings 0 \"src/css/**/*.css\"",
         "types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.checkjs.json",
         "build": "gulp",

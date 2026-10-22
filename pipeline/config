@@ -1,0 +1,11 @@
+# Settings of the factory loop; each is overridable by an environment variable of the same
+# name, and secrets go in var/pipeline/env (git-ignored), never here.
+PIPELINE_MERGE=auto
+PIPELINE_PLANS=auto
+PIPELINE_FINDINGS=obvious
+PIPELINE_REPO=tjlytle/Sozi
+PIPELINE_HUMAN=tjlytle
+PIPELINE_PARALLEL=2
+PIPELINE_SESSION_MINUTES=45
+PIPELINE_SYNC_MINUTES=10
+PIPELINE_IMAGE=sozi-factory

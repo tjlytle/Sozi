@@ -24,12 +24,12 @@ run() {
     fi
 }
 
-PRETTIER_PATHS=("src/js/**/*.{js,ts,tsx}" "src/css/**/*.css" "test/**/*.{js,ts,tsx}" "bin/*.js" "config/**/*" ".github/**/*.yml" "*.json")
+PRETTIER_PATHS=("src/js/**/*.{js,ts,tsx}" "src/css/**/*.css" "test/**/*.{js,ts,tsx}" "bin/*.js" "pipeline/lib/**/*.js" "config/**/*" ".github/**/*.yml" "*.json")
 STYLE_PATHS=("src/css/**/*.css")
 
 if [ $# -eq 0 ]; then
     run "prettier"  npx prettier --check "${PRETTIER_PATHS[@]}"
-    run "eslint"    npx eslint --config config/eslintrc.mjs --max-warnings 0 src/js test bin/*.js
+    run "eslint"    npx eslint --config config/eslintrc.mjs --max-warnings 0 src/js pipeline/lib test bin/*.js
     run "stylelint" npx stylelint --config config/stylelintrc.json --max-warnings 0 "${STYLE_PATHS[@]}"
     run "tsc"       npx tsc --noEmit -p tsconfig.json
     run "tsc (js)"  npx tsc --noEmit -p tsconfig.checkjs.json
