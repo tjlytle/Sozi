@@ -56,20 +56,20 @@ export class AbstractBackend {
 
     /** Return the base name of a file.
      *
-     * @param {any} fileDescriptor - A file descriptor (backend-dependent).
+     * @param {any} _fileDescriptor - A file descriptor (backend-dependent).
      * @returns {string} The file name.
      */
-    getName(fileDescriptor) {
+    getName(_fileDescriptor) {
         // Not implemented
         return "";
     }
 
     /** Return the location of a file.
      *
-     * @param {any} fileDescriptor - A file descriptor (backend-dependent).
+     * @param {any} _fileDescriptor - A file descriptor (backend-dependent).
      * @returns {?string} The file location.
      */
-    getLocation(fileDescriptor) {
+    getLocation(_fileDescriptor) {
         // Not implemented
         return null;
     }
@@ -86,11 +86,11 @@ export class AbstractBackend {
 
     /** Find a file.
      *
-     * @param {string} name - The base name of the file.
-     * @param {any} location - The location of the file (backend-dependent).
+     * @param {string} _name - The base name of the file.
+     * @param {any} _location - The location of the file (backend-dependent).
      * @returns {Promise} - A promise that resolves to a file descriptor, rejected if not found.
      */
-    find(name, location) {
+    find(_name, _location) {
         return Promise.resolve("Not implemented");
     }
 
@@ -98,42 +98,42 @@ export class AbstractBackend {
      *
      * This method loads a file and returns a promise with the content of this file.
      *
-     * @param {any} fileDescriptor - A file to load (backend-dependent).
+     * @param {any} _fileDescriptor - A file to load (backend-dependent).
      * @returns {Promise<string>} - A promise that resolves to the content of the file.
      */
-    load(fileDescriptor) {
+    load(_fileDescriptor) {
         return Promise.resolve("Not implemented");
     }
 
     /** Load a file synchronously.
      *
-     * @param {any} fileDescriptor - A file to load (backend-dependent).
+     * @param {any} _fileDescriptor - A file to load (backend-dependent).
      * @returns {string} - The content of the file.
      */
-    loadSync(fileDescriptor) {
+    loadSync(_fileDescriptor) {
         // Not implemented
         return "";
     }
 
     /** Create a new file.
      *
-     * @param {string} name - The name of the file to create.
-     * @param {any} location - The location of the file to create (backend-dependent).
-     * @param {string} mimeType - The MIME type of the file to create.
-     * @param {string} data - The content of the file to create.
+     * @param {string} _name - The name of the file to create.
+     * @param {any} _location - The location of the file to create (backend-dependent).
+     * @param {string} _mimeType - The MIME type of the file to create.
+     * @param {string} _data - The content of the file to create.
      * @returns {Promise} - A promise that resolves to a file descriptor.
      */
-    create(name, location, mimeType, data) {
+    create(_name, _location, _mimeType, _data) {
         return Promise.resolve("Not implemented");
     }
 
     /** Save data to an existing file.
      *
-     * @param {any} fileDescriptor - The file to save (backend-dependent).
-     * @param {string} data - The new content of the file.
+     * @param {any} _fileDescriptor - The file to save (backend-dependent).
+     * @param {string} _data - The new content of the file.
      * @returns {Promise} - A promise that resolves to the given file descriptor.
      */
-    save(fileDescriptor, data) {
+    save(_fileDescriptor, _data) {
         return Promise.resolve("Not implemented");
     }
 
@@ -201,10 +201,10 @@ export class AbstractBackend {
      * This method is used in the {@linkcode module:view/Properties.Properties|Properties} view to assign getters
      * to HTML fields that represent preferences.
      *
-     * @param {string} key - The name of the property to get.
+     * @param {string} _key - The name of the property to get.
      * @returns {any} - The value of the property in the application settings.
      */
-    getAppSetting(key) {
+    getAppSetting(_key) {
         // Not implemented
     }
 
@@ -215,10 +215,10 @@ export class AbstractBackend {
      *
      * This operation cannot be undone.
      *
-     * @param {string} key - The name of the property to set.
-     * @param {any} newValue - The new value of the property.
+     * @param {string} _key - The name of the property to set.
+     * @param {any} _newValue - The new value of the property.
      */
-    setAppSetting(key, newValue) {
+    setAppSetting(_key, _newValue) {
         // Not implemented
     }
 }

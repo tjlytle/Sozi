@@ -202,9 +202,9 @@ class Gesture {
      *
      * Specific behaviour to be implemented by derived classes
      *
-     * @param {TouchList} touches - Array of touchpoints from the touch event.
+     * @param {TouchList} _touches - Array of touchpoints from the touch event.
      */
-    move(touches) {
+    move(_touches) {
         // Not implemented
     }
 
@@ -212,11 +212,11 @@ class Gesture {
      *
      * Must be implemented by derived classes.
      *
-     * @param {TouchList} touches - Array of touchpoints from the touch event.
+     * @param {TouchList} _touches - Array of touchpoints from the touch event.
      * @returns {boolean} - `true`, if touches are rejected, `false` if accepted.
      *
      */
-    rejects(touches) {
+    rejects(_touches) {
         // Not implemented
         return true;
     }
@@ -225,9 +225,9 @@ class Gesture {
      *
      * Specific behaviour to be implemented by derived classes
      *
-     * @param {Event} evt - The touch event that triggered this method call.
+     * @param {Event} _evt - The touch event that triggered this method call.
      */
-    finish(evt) {
+    finish(_evt) {
         // Not implemented
     }
 
