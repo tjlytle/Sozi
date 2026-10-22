@@ -62,7 +62,7 @@ function advise(file, diffFile) {
     return result.stdout.split("\n").filter(Boolean);
 }
 
-describe("edit hook: advice, not failure (code-standard.md 2.8)", () => {
+describe("edit hook: advice, not failure (standard 2.8)", () => {
     test("a file over the size guideline gets a note, in the hook output too", () => {
         const body =
             Array.from({length: 420}, (_, i) => `export const v${i} = ${i};`).join("\n") + "\n";

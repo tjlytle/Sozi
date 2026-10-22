@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Test coverage by annotation, code-standard.md 6.2. For each changed source file:
+// Test coverage by annotation, standard 6.2. For each changed source file:
 //
 //   - a unit test covers it when a test file under test/ (outside test/features) has
 //     the same base name: test/cli/naming.test.js covers src/js/naming.js;

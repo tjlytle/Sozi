@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Pull request shape, code-standard.md section 5:
+// Pull request shape, standard 5 (.claude/skills/code-standard/SKILL.md):
 //
 //   - the branch is named for its issue: <number>-<slug>,
 //   - the body closes that issue ("Closes #<number>"),
@@ -64,7 +64,7 @@ export function problems({branch, body, changed}) {
     const out = [];
     const issue = issueOfBranch(branch);
     if (issue === null) {
-        out.push(`branch "${branch}" is not <issue number>-<slug> (code-standard.md 5)`);
+        out.push(`branch "${branch}" is not <issue number>-<slug> (standard 5)`);
     }
     if (body !== null) {
         const closes = closedIssues(body);

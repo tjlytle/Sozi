@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Tests of the coverage-by-annotation check (code-standard.md 6.2): the pure parts.
+// Tests of the coverage-by-annotation check (standard 6.2): the pure parts.
 
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";

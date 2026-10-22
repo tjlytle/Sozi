@@ -52,4 +52,19 @@ describe("the code standard skill", () => {
         assert.doesNotMatch(all, /alternative|we could have|instead of|decided/i);
         assert.doesNotMatch(all, /code-standard\.md/);
     });
+    test("no hook, script or lint message cites the record", () => {
+        const files = [
+            "config/eslintrc.mjs",
+            "config/stylelintrc.json",
+            ".claude/hooks/check-file.py",
+            "bin/check-pr.js",
+            "bin/check-deps.js",
+            "bin/check-coverage.js",
+            ".github/workflows/ci.yml",
+            ".github/PULL_REQUEST_TEMPLATE.md"
+        ];
+        for (const f of files) {
+            assert.doesNotMatch(fs.readFileSync(f, "utf8"), /code-standard\.md/, f);
+        }
+    });
 });

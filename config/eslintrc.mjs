@@ -15,8 +15,8 @@ const compat = new FlatCompat({
     allConfig: js.configs.all
 });
 
-// See docs/software-factory/code-standard.md. Zero warnings: every rule here is an
-// error, and the check script runs with --max-warnings 0.
+// See .claude/skills/code-standard/SKILL.md (the record of why is in docs/software-factory/).
+// Zero warnings: every rule here is an error, and the check script runs with --max-warnings 0.
 
 // Section 1.2: rules that catch bugs.
 const bugRules = {
@@ -58,42 +58,41 @@ const BAN = {
     // 2.3: the published API is the only global; only the publishers assign window.*
     windowAssign: {
         selector: "AssignmentExpression[left.object.name='window']",
-        message: "Only player.js and presenter.js publish on window (code-standard.md 2.3)"
+        message: "Only player.js and presenter.js publish on window (standard 2.3)"
     },
     // 2.4: event names come from the emitter's exported table, never a bare string.
     eventString: {
         selector:
             "CallExpression[callee.property.name=/^(on|once|off|emit|addListener|removeListener|prependListener)$/] > Literal.arguments:first-child",
-        message:
-            "Event names come from the emitter's exported table, not a string (code-standard.md 2.4)"
+        message: "Event names come from the emitter's exported table, not a string (standard 2.4)"
     },
     // 2.5: the protocol module is the one place that sends messages.
     postMessage: {
         selector: "CallExpression[callee.property.name='postMessage']",
-        message: "Messages are built and sent by src/js/protocol/ only (code-standard.md 2.5)"
+        message: "Messages are built and sent by src/js/protocol/ only (standard 2.5)"
     },
     // 3.3: JavaScript writes inline styles only for geometry it computed, never appearance.
     styleAppearance: {
         selector:
             "AssignmentExpression[left.object.property.name='style'][left.property.name!=/^(width|height|minWidth|minHeight|maxWidth|maxHeight|top|left|right|bottom|inset|transform|translate|scale|rotate)$/]",
         message:
-            "Inline styles only for computed geometry (width, height, offsets, transform); appearance lives in CSS (code-standard.md 3.3)"
+            "Inline styles only for computed geometry (width, height, offsets, transform); appearance lives in CSS (standard 3.3)"
     },
     // 2.6: HTML from data is parsed only in the sanitizer module.
     jsxHtml: {
         selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
-        message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
+        message: "Only src/js/html/ parses HTML from data (standard 2.6)"
     }
 };
 // 2.7: a blocking dialog freezes the page mid-talk; failures go to the notice panel.
 const DIALOGS = ["alert", "confirm", "prompt"].map(name => ({
     name,
-    message: "No blocking dialogs; report through the notice panel (code-standard.md 2.7)"
+    message: "No blocking dialogs; report through the notice panel (standard 2.7)"
 }));
 // 2.2: function modules take the DOM as a parameter instead of reaching for it.
 const DOM_GLOBALS = ["window", "document", "navigator"].map(name => ({
     name,
-    message: "Function modules do not touch the DOM (code-standard.md 2.2); take it as a parameter"
+    message: "Function modules do not touch the DOM (standard 2.2); take it as a parameter"
 }));
 const ALL_BANS = [
     BAN.windowAssign,
@@ -138,13 +137,13 @@ export default [
                         {
                             target: DECK,
                             from: SURFACES,
-                            message: "The deck never depends on a surface (code-standard.md 2.3)"
+                            message: "The deck never depends on a surface (standard 2.3)"
                         },
                         {
                             target: SURFACES,
                             from: DECK,
                             message:
-                                "A surface reaches the deck only through the API and the protocol (code-standard.md 2.3)"
+                                "A surface reaches the deck only through the API and the protocol (standard 2.3)"
                         }
                     ]
                 }
@@ -176,12 +175,12 @@ export default [
                 ...["innerHTML", "outerHTML", "insertAdjacentHTML"].map(property => ({
                     property,
                     message:
-                        "Only src/js/html/ parses HTML from data; use textContent or a <template> (code-standard.md 2.6)"
+                        "Only src/js/html/ parses HTML from data; use textContent or a <template> (standard 2.6)"
                 })),
                 {
                     object: "document",
                     property: "write",
-                    message: "Only src/js/html/ parses HTML from data (code-standard.md 2.6)"
+                    message: "Only src/js/html/ parses HTML from data (standard 2.6)"
                 }
             ],
             ...syntax(ALL_BANS)

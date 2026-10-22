@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Tests of the pull request shape check (code-standard.md 5).
+// Tests of the pull request shape check (standard 5).
 
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";

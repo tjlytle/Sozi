@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Tests of the ESLint configuration: each rule of code-standard.md section 2 fires in
+// Tests of the ESLint configuration: each rule of standard 2 fires in
 // the files it is meant for and stays quiet in the files that are exempt. Flat config
 // replaces a rule's whole configuration when a later block sets it again, which is how
 // these rules once switched each other off silently.
@@ -27,7 +27,7 @@ const eslint = new ESLint({
  */
 async function standardMessages(filePath, code) {
     const [result] = await eslint.lintText(code, {filePath: path.join(root, filePath)});
-    return result.messages.map(m => m.message).filter(m => m.includes("code-standard.md"));
+    return result.messages.map(m => m.message).filter(m => m.includes("standard "));
 }
 
 const fires = async (filePath, code, section) =>

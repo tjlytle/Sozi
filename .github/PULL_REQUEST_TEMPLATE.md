@@ -11,7 +11,7 @@ Closes #
 ## Dependencies
 
 <!-- "None", or for each package added: name, version, licence, minified size, why
-     a hundred lines of our own code would not do. CI checks the rest (code-standard.md 4). -->
+     a hundred lines of our own code would not do. CI checks the rest (standard 4). -->
 
 ## Ideas filed
 
@@ -20,4 +20,4 @@ Closes #
 ## QA
 
 <!-- Filled by QA: CI link, scenario names, laptop and phone screenshots for a UI
-     change, the doc diff for a protocol or API change (code-standard.md 6.3). -->
+     change, the doc diff for a protocol or API change (standard 6.3). -->

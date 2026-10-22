@@ -4,7 +4,7 @@
 
 // Cucumber support: one Chromium for the run, one browser context per scenario,
 // decks built once by the real CLI and reused. Scenarios drive the built presenter
-// and display pages through Playwright (code-standard.md 6.2).
+// and display pages through Playwright (standard 6.2).
 
 import {
     After,

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Dependency check, code-standard.md section 4. For every package added to or changed
+// Dependency check, standard 4 (.claude/skills/code-standard/SKILL.md). For every package added to or changed
 // in package.json since the base branch:
 //
 //   - the version is pinned exactly (no ^, ~ or range),
@@ -192,7 +192,7 @@ export function main(argv) {
     for (const {name, version, runtime} of changes) {
         console.log(`\n${name}@${version}${runtime ? "" : " (dev)"}`);
         if (!isExactPin(version)) {
-            fail(`${name}: "${version}" is not an exact version (code-standard.md 4)`);
+            fail(`${name}: "${version}" is not an exact version (standard 4)`);
         }
         const locked = lockedVersion(lock, name);
         if (!locked) {
@@ -242,7 +242,7 @@ export function main(argv) {
     const urls = runtimeUrlLoads(path.join(root, "src"));
     for (const file of urls) {
         fail(
-            `${path.relative(root, file)} loads a script or stylesheet from a URL at run time (code-standard.md 4)`
+            `${path.relative(root, file)} loads a script or stylesheet from a URL at run time (standard 4)`
         );
     }
     console.log(failed ? `\n${failed} problem(s)` : "\nok");

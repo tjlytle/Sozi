@@ -35,14 +35,14 @@
                     "/^(0|auto)(\\s+(0|auto))*$/"
                 ],
                 "disableFix": true,
-                "message": "Colours and spacing come from custom properties (var(--\u2026)), see code-standard.md 1.4"
+                "message": "Colours and spacing come from custom properties (var(--\u2026)), see standard 1.4"
             }
         ],
         "selector-class-pattern": [
             "^sozi-[a-z0-9]+(?:-[a-z0-9]+)*(?:__[a-z0-9]+(?:-[a-z0-9]+)*)?(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?$",
             {
                 "resolveNestedSelectors": true,
-                "message": "Class names are sozi-block__element--modifier (code-standard.md 3.1)"
+                "message": "Class names are sozi-block__element--modifier (standard 3.1)"
             }
         ],
         "unit-disallowed-list": [
@@ -51,7 +51,7 @@
                 "ignoreProperties": {
                     "px": ["/^border/", "/^outline/", "box-shadow", "text-shadow", "stroke-width"]
                 },
-                "message": "Sizes are rem; px only for borders, outlines and shadows (code-standard.md 3.2)"
+                "message": "Sizes are rem; px only for borders, outlines and shadows (standard 3.2)"
             }
         ]
     }

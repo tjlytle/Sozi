@@ -1,4 +1,4 @@
-# The gate. See docs/software-factory/code-standard.md, section 1.5.
+# The gate. See .claude/skills/code-standard/SKILL.md, section 1.5.
 # Every job here is marked required in the branch protection of master once it
 # is green; a check is never required while red (section 1, "Cleanups").
 name: CI
@@ -22,7 +22,7 @@ jobs:
             - run: npm run check
 
     pr-shape:
-        name: PR shape (code-standard.md 5)
+        name: PR shape (standard 5)
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
         steps:
@@ -37,7 +37,7 @@ jobs:
                   PR_BODY: ${{ github.event.pull_request.body }}
 
     coverage:
-        name: Tests cover the change (code-standard.md 6.2)
+        name: Tests cover the change (standard 6.2)
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
         steps:
@@ -52,7 +52,7 @@ jobs:
                   PR_BODY: ${{ github.event.pull_request.body }}
 
     deps:
-        name: Dependencies (code-standard.md 4)
+        name: Dependencies (standard 4)
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
         steps:

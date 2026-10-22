@@ -8,7 +8,7 @@ Two jobs, in this order:
    before committing. CI runs the same script over the whole repository and is
    the only gate; this hook is the fast path.
 
-2. Advise. Some rules of code-standard.md are judgment calls, not limits: a file
+2. Advise. Some rules of the standard (the code-standard skill) are judgment calls, not limits: a file
    that has grown past the size guideline (2.8), a function that has, a class with
    many public methods, or code that changed under a summary comment that did not
    (2.8). The hook measures those and hands the model a note (hook
@@ -33,7 +33,7 @@ CHECKED_DIRS = ("src", "test", "bin", "config", ".github")
 CHECKED_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".css", ".json", ".yml", ".yaml", ".html", ".feature")
 CODE_EXT = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".html", ".feature")
 
-# code-standard.md 2.8: guidelines, not limits.
+# standard 2.8: guidelines, not limits.
 MAX_FILE_LINES = 400
 MAX_FUNCTION_LINES = 50
 MAX_PUBLIC_METHODS = 10
@@ -165,7 +165,7 @@ def long_functions(root, rel):
 
 def coverage_notes(root, rel):
     """Notes from bin/check-coverage.js: an edited source file with no covering test,
-    or a test and the code it covers changing together (code-standard.md 6.2)."""
+    or a test and the code it covers changing together (standard 6.2)."""
     if not (rel.startswith("src/") or rel.startswith("test/")):
         return []
     r = run(["node", "bin/check-coverage.js", "--json", "--files", rel], root)
@@ -179,13 +179,13 @@ def coverage_notes(root, rel):
             notes.append(f"No unit test or feature file covers {rel}. Add a scenario to a feature file "
                          f"(tag it with the issue and list {rel} in its '# covers:' line) or a unit test "
                          f"named after it; if the change needs no test, say why in the PR body as "
-                         f"'No test: {rel} - <reason>' (code-standard.md 6.2).")
+                         f"'No test: {rel} - <reason>' (standard 6.2).")
     for t in report.get("together", []):
         if rel == t["test"] or rel in t["sources"]:
             other = ", ".join(t["sources"]) if rel == t["test"] else t["test"]
             notes.append(f"{rel} and {other} are changing together. Was the behaviour meant to change? "
                          f"If so the feature file should have changed first; and which other test still "
-                         f"covers the related behaviour unchanged? (code-standard.md 6.2)")
+                         f"covers the related behaviour unchanged? (standard 6.2)")
     return notes
 
 
@@ -199,15 +199,15 @@ def advice(root, rel, diff_text=None):
     notes = []
     if not rel.endswith((".html", ".feature")) and len(lines) > MAX_FILE_LINES:
         notes.append(f"{rel} is {len(lines)} lines; the guideline is {MAX_FILE_LINES} "
-                     f"(code-standard.md 2.8). Consider whether it holds more than one concern "
+                     f"(standard 2.8). Consider whether it holds more than one concern "
                      f"and should be split. This is a judgment call, not a rule.")
     for name, n in long_functions(root, rel) if not rel.endswith((".html", ".feature")) else []:
         notes.append(f"{rel}: `{name}` is {n} lines of code; the guideline is {MAX_FUNCTION_LINES} "
-                     f"(code-standard.md 2.8). Consider whether part of it is a separate function.")
+                     f"(standard 2.8). Consider whether part of it is a separate function.")
     for cls, n in public_methods(lines):
         if n > MAX_PUBLIC_METHODS:
             notes.append(f"{rel}: class `{cls}` has {n} public methods; the guideline is "
-                         f"{MAX_PUBLIC_METHODS} (code-standard.md 2.8). Consider whether it has "
+                         f"{MAX_PUBLIC_METHODS} (standard 2.8). Consider whether it has "
                          f"more than one job.")
     if diff_text is None:
         tracked = run(["git", "ls-files", "--error-unmatch", rel], root).returncode == 0
@@ -216,7 +216,7 @@ def advice(root, rel, diff_text=None):
     for name, doc_line in stale_comments(lines, diff_text):
         notes.append(f"{rel}: the code of `{name}` changed but the summary comment above it "
                      f"(line {doc_line}) did not. Consider whether the comment still describes "
-                     f"it (code-standard.md 2.8).")
+                     f"it (standard 2.8).")
     return notes
 
 

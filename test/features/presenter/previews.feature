@@ -8,7 +8,7 @@ Feature: Presenter previews and navigation
 
   This file is the template for every feature file: a prose description of what a
   person expects, then the scenarios that prove it, each tagged with its issue. The
-  first line names the source files the scenarios cover (code-standard.md 6.2).
+  first line names the source files the scenarios cover (standard 6.2).
 
   Background:
     Given the "basic" deck is built
