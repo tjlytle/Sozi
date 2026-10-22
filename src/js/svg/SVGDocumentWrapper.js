@@ -58,10 +58,10 @@ export function addSVGHandler(name, handler) {
 export class DefaultSVGHandler {
     /** Check that an SVG document has been created with a given application.
      *
-     * @param {SVGSVGElement} svgRoot - The root SVG element to check.
+     * @param {SVGSVGElement} _svgRoot - The root SVG element to check.
      * @returns {boolean} - `true` if the given SVG root has been created by the application handled by this class.
      */
-    static matches(svgRoot) {
+    static matches(_svgRoot) {
         return true;
     }
 
@@ -73,9 +73,9 @@ export class DefaultSVGHandler {
      * Typical transformations consist in removing unsupported XML elements,
      * or fixing properties that could conflict with Sozi.
      *
-     * @param {SVGSVGElement} svgRoot - The root SVG element to check.
+     * @param {SVGSVGElement} _svgRoot - The root SVG element to check.
      */
-    static transform(svgRoot) {}
+    static transform(_svgRoot) {}
 
     /** Check whether an SVG group represents a layer.
      *
@@ -83,10 +83,10 @@ export class DefaultSVGHandler {
      * This method will check the given element against the implementation
      * of layers according to a given application.
      *
-     * @param {SVGGElement} svgElement - A group to check.
+     * @param {SVGGElement} _svgElement - A group to check.
      * @returns {boolean} - `true` if the given element represents a layer.
      */
-    static isLayer(svgElement) {
+    static isLayer(_svgElement) {
         return true;
     }
 
@@ -95,10 +95,10 @@ export class DefaultSVGHandler {
      * If a group has been identified as a layer, this method will
      * return the name/title/label of this layer if it exists.
      *
-     * @param {SVGGElement} svgElement - A group to check.
+     * @param {SVGGElement} _svgElement - A group to check.
      * @returns {?string} - The label of the layer.
      */
-    static getLabel(svgElement) {
+    static getLabel(_svgElement) {
         return null;
     }
 }

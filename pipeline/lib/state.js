@@ -205,7 +205,6 @@ function isStartable(state, r) {
  * @param {Date} _now - The current time (unused so far).
  * @returns {number[]} - The issue numbers.
  */
-// eslint-disable-next-line no-unused-vars -- the pass calls every scheduler with (state, settings, now)
 export function dueIssues(state, _settings, _now) {
     return Object.entries(state.issues)
         .filter(([, r]) => isStartable(state, r))

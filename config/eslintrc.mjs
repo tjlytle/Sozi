@@ -20,7 +20,8 @@ const compat = new FlatCompat({
 
 // Section 1.2: rules that catch bugs.
 const bugRules = {
-    "no-unused-vars": ["error"],
+    // Interface stubs keep their parameters, named with a leading underscore (standard 1.2, #54).
+    "no-unused-vars": ["error", {argsIgnorePattern: "^_"}],
     "no-prototype-builtins": ["error"],
     eqeqeq: ["error", "always"],
     "no-var": ["error"],
@@ -219,7 +220,7 @@ export default [
             // 2.7: a promise nobody awaits or catches is a failure nobody sees.
             "@typescript-eslint/no-floating-promises": ["error"],
             "no-unused-vars": "off",
-            "@typescript-eslint/no-unused-vars": ["error"],
+            "@typescript-eslint/no-unused-vars": ["error", {argsIgnorePattern: "^_"}],
             "jsdoc/require-jsdoc": [
                 "error",
                 {
