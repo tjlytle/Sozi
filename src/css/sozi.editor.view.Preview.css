@@ -1,4 +1,4 @@
-#sozi-editor-view-preview {
+.sozi-preview {
     position: absolute;
     left: 10%;
     top: 10%;
@@ -9,7 +9,7 @@
     text-align: center;
 }
 
-#sozi-editor-view-preview svg {
+.sozi-preview svg {
     position: absolute;
     left: 0;
     top: 0;
@@ -17,17 +17,17 @@
     height: 100%;
 }
 
-#sozi-editor-view-preview svg a {
+.sozi-preview svg a {
     cursor: default;
 }
 
-#sozi-editor-view-preview p,
-#sozi-editor-view-preview ul {
+.sozi-preview p,
+.sozi-preview ul {
     margin: var(--sozi-space-6);
     padding: 0;
 }
 
-#sozi-editor-view-preview ul li {
+.sozi-preview ul li {
     list-style-type: none;
     display: inline-block;
     margin: 0 var(--sozi-space-4) var(--sozi-space-3);

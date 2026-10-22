@@ -6,7 +6,7 @@
  * Layout
  */
 
-#sozi-editor-view-timeline {
+.sozi-timeline {
     position: absolute;
     left: 0;
     bottom: 0;
@@ -17,7 +17,7 @@
     background: var(--sozi-bg);
 }
 
-#sozi-editor-view-timeline > div {
+.sozi-timeline > div {
     position: absolute;
     top: 0;
     right: 0;
@@ -58,10 +58,7 @@
 .timeline-top-right,
 .timeline-bottom-right {
     right: 0;
-}
 
-.timeline-top-right,
-.timeline-bottom-right {
     /* Always-visible vertical scrollbar in top and bottom right tables.
      * Required for alignment between columns. */
     overflow-y: scroll;
@@ -70,6 +67,7 @@
 .timeline {
     border-collapse: separate;
     border-spacing: 0 2px;
+    user-select: none;
 }
 
 .timeline input,
@@ -90,6 +88,8 @@
     max-width: 8rem;
     padding-left: var(--sozi-space-3);
     padding-right: var(--sozi-space-3);
+    font-weight: normal;
+    cursor: default;
 }
 
 .timeline th.layer-icons {
@@ -113,7 +113,7 @@
     display: none;
 }
 
-.timeline .layer-label:hover .remove {
+.layer-label:hover .remove {
     display: inline;
 }
 
@@ -138,7 +138,7 @@
     display: none;
 }
 
-.timeline .frame-index:hover i {
+.frame-index:hover i {
     display: inline;
 }
 
@@ -187,38 +187,5 @@
 .timeline .frame-index.selected {
     color: var(--sozi-accent-pale);
     background: transparent;
-}
-
-/*
- * Fonts
- */
-
-.timeline td,
-.timeline th.frame-index,
-.timeline th.frame-title,
-.timeline th.layer-label {
-    font-weight: normal;
-}
-
-.timeline .frame-index.selected {
     font-weight: bold;
-}
-
-/*
- * Behavior
- */
-
-.timeline {
-    user-select: none;
-    user-select: none;
-    user-select: none;
-    user-select: none;
-    user-select: none;
-}
-
-.timeline td,
-.timeline th.frame-index,
-.timeline th.frame-title,
-.timeline th.layer-label {
-    cursor: default;
 }

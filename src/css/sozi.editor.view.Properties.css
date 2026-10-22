@@ -1,5 +1,6 @@
 .properties {
     margin: var(--sozi-space-3) var(--sozi-space-4);
+    color: var(--sozi-text);
 }
 
 .properties h1 {
@@ -52,10 +53,6 @@
     margin-left: var(--sozi-space-4);
 }
 
-.properties {
-    color: var(--sozi-text);
-}
-
 .properties .help {
     margin-left: var(--sozi-space-4);
 }
@@ -72,7 +69,7 @@
     width: 100%;
 }
 
-.properties .custom-css-js td:first-child {
+.custom-css-js td:first-child {
     padding-left: var(--sozi-space-3);
     padding-right: var(--sozi-space-3);
 }
