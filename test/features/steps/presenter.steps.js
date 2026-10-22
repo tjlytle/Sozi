@@ -32,6 +32,14 @@ When("the key {string} is pressed on the presenter page", async function (key) {
     await this.presenter.keyboard.press(key);
 });
 
+When("the audience transition has finished", async function () {
+    // Let the audience window handle any message already posted to it before looking.
+    await this.audience.evaluate(() => new Promise(resolve => setTimeout(resolve, 50)));
+    await expect
+        .poll(() => this.audience.evaluate(() => window.sozi.player.animator.running))
+        .toBe(false);
+});
+
 Then("the frame counter reads {string}", async function (text) {
     const [index, length] = text.split("/").map(s => s.trim());
     await expect(this.presenter.locator(".sozi-current-index")).toHaveText(index);
