@@ -159,6 +159,10 @@ Three more from the final review of the loop build, checked on the first session
   `var/pipeline/env` through the loop): `docker exec <container> sh -c 'test -n
   "$CLAUDE_CODE_OAUTH_TOKEN" && echo set'`, never printing the value.
 
+**Decision for Tim before the first QA stage runs:** Electron and Playwright Chromium cannot start their own sandboxes under Docker's default seccomp profile (verified 2026-10-22 in the image; the setuid helper is in place but the kernel refuses the user namespace). Pick one: `--security-opt seccomp=unconfined` on the container (the container stays the boundary; Electron keeps its own sandbox), a custom seccomp profile allowing user namespaces (Playwright publishes one), or `--no-sandbox` in the stage runner. The session that built the loop was not permitted to weaken the container's security settings, so the choice is open; `pipeline/lib/sandbox.js` `startArgs` is where the flag goes, with its test.
+
+Also from the image checks of 2026-10-22: `xvfb-run -a <cmd>` inside the container printed its output but the container did not exit afterwards (Xvfb kept running with no tty; 17 minutes before it was killed), while `timeout 20 xvfb-run -a <cmd>` returned at once. Before the first QA stage, settle whether the stage prompts wrap `xvfb-run` in `timeout`, or the runner starts one Xvfb and exports `DISPLAY` instead; the session wall-clock cap bounds the damage either way.
+
 Also verify `node bin/board.js create` once from a shell outside any Claude session: its `updateProjectV2Field` mutation names no repository, and the repo-lock hook denies such a mutation inside a session; from the loop's own shell no hook runs.
 
 - [ ] **Step 1: One issue in the foreground**

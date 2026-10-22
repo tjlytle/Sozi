@@ -75,7 +75,7 @@ describe("sandbox", () => {
             const a = answer(cmd);
             return {code: a.code, stdout: a.stdout ?? "", stderr: a.stderr ?? ""};
         };
-        return {sb: createSandbox({settings, root, run}), calls};
+        return {sb: createSandbox({settings, root, run, pluginDir: "/plugins/gh-personas"}), calls};
     }
 
     test("status: running, exited, gone when docker does not know it, unknown when docker fails", async () => {
@@ -134,7 +134,7 @@ describe("sandbox", () => {
         const cmd = calls[0].cmd;
         assert.deepEqual(cmd.slice(0, 3), ["docker", "build", "-t"]);
         assert.ok(cmd.includes("--build-context"));
-        assert.match(cmd[cmd.indexOf("--build-context") + 1], /^ghp=/);
+        assert.equal(cmd[cmd.indexOf("--build-context") + 1], "ghp=/plugins/gh-personas");
         assert.equal(
             cmd[cmd.indexOf("--build-arg") + 1],
             `FACTORY_UID=${process.getuid?.() ?? 1000}`

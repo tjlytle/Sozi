@@ -95,9 +95,17 @@ function pluginDir() {
  * @param {Runner} [options.run] - The command runner.
  * @param {Record<string, string | undefined>} [options.env] - The loop's environment with the
  *     secrets of var/pipeline/env; the names docker passes on are taken from it.
+ * @param {string} [options.pluginDir] - The gh-personas plugin directory to build into the
+ *     image; by default the newest version in the Claude plugin cache.
  * @returns {Sandbox} The sandbox.
  */
-export function createSandbox({settings, root, run = defaultRun, env: loopEnv = {}}) {
+export function createSandbox({
+    settings,
+    root,
+    run = defaultRun,
+    env: loopEnv = {},
+    pluginDir: pluginDirGiven
+}) {
     const varDir = path.join(root, "var", "pipeline");
     const mirror = path.join(varDir, "mirror.git");
 
@@ -172,7 +180,7 @@ export function createSandbox({settings, root, run = defaultRun, env: loopEnv = 
                 "-t",
                 settings.image,
                 "--build-context",
-                `ghp=${pluginDir()}`,
+                `ghp=${pluginDirGiven ?? pluginDir()}`,
                 "--build-arg",
                 `FACTORY_UID=${process.getuid?.() ?? 1000}`,
                 "-f",
