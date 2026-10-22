@@ -14,7 +14,7 @@ const DEFAULTS = {
     PIPELINE_PARALLEL: "2",
     PIPELINE_SESSION_MINUTES: "45",
     PIPELINE_SYNC_MINUTES: "10",
-    PIPELINE_RATE_LIMIT_BACKOFF_MINUTES: "30",
+    PIPELINE_RATE_LIMIT_BACKOFF_MINUTES: "15",
     PIPELINE_MAX_TRIES: "3",
     PIPELINE_SOFT_TOKENS: "0",
     PIPELINE_HARD_TOKENS: "0",
@@ -63,6 +63,7 @@ const NUMBERS = [
  * @returns {Record<string, string>} - The values by key.
  */
 export function parseConfigText(text) {
+    /** @type {Record<string, string>} */
     const out = {};
     for (const line of text.split("\n")) {
         const trimmed = line.trim();
@@ -84,7 +85,7 @@ function readConfigFile(file) {
     try {
         return parseConfigText(fs.readFileSync(file, "utf8"));
     } catch (error) {
-        if (error.code === "ENOENT") {
+        if (/** @type {{code?: string}} */ (error).code === "ENOENT") {
             return {};
         }
         throw error;
@@ -124,7 +125,7 @@ export function loadConfig({root, env, files}) {
 
     const num = key => Number(raw[key]);
     const perStage = (prefix, stage, fallback) =>
-        raw[`${prefix}_${stage.toUpperCase()}`] ?? fallback;
+        raw[`${prefix}_${stage.toUpperCase()}`] || fallback;
     return {
         parallel: num("PIPELINE_PARALLEL"),
         sessionMinutes: num("PIPELINE_SESSION_MINUTES"),

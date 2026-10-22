@@ -1,5 +1,6 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
+import {fileURLToPath} from "node:url";
 import {loadConfig, parseConfigText} from "../../pipeline/lib/config.js";
 
 describe("pipeline settings", () => {
@@ -9,6 +10,7 @@ describe("pipeline settings", () => {
         assert.equal(s.sessionMinutes, 45);
         assert.equal(s.syncMinutes, 10);
         assert.equal(s.maxTries, 3);
+        assert.equal(s.rateLimitBackoffMinutes, 15);
         assert.equal(s.merge, "auto");
         assert.equal(s.plans, "auto");
         assert.equal(s.findings, "obvious");
@@ -62,7 +64,7 @@ describe("pipeline settings", () => {
         );
     });
     test("the repository's pipeline/config loads", () => {
-        const s = loadConfig({root: new URL("../..", import.meta.url).pathname, env: {}});
+        const s = loadConfig({root: fileURLToPath(new URL("../..", import.meta.url)), env: {}});
         assert.equal(s.image, "sozi-factory");
         assert.equal(s.human, "tjlytle");
     });

@@ -4,5 +4,5 @@
         "checkJs": true,
         "noImplicitAny": false
     },
-    "include": ["src/js/**/*.js", "src/js/types/*.d.ts", "test/**/*.js"]
+    "include": ["src/js/**/*.js", "src/js/types/*.d.ts", "test/**/*.js", "pipeline/lib/**/*.js"]
 }
