@@ -17,7 +17,8 @@ echo "Logging in $persona; the profile is the volume sozi-factory-profile-$perso
 case "$harness" in
     claude)
         echo "Run \`claude\`, then \`/login\` (open the URL on the host, paste the code),"
-        echo "then \`/mcp\` for each server, then exit."
+        echo "then exit; for each allowed MCP server run \`claude mcp add --scope user <name> ...\`,"
+        echo "then \`claude\` and \`/mcp\` to authorise it, then exit."
         ;;
     codex)
         echo "Run \`codex login\`, then exit."

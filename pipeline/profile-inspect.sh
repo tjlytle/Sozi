@@ -2,7 +2,8 @@
 # Reports what a persona profile holds, for the host to check before a stage runs.
 #
 # Prints one JSON line: {"claude": {"present", "loggedIn", "servers"}, "codex":
-# {"present", "loggedIn"}, "writable"}. Only booleans and MCP server names are printed;
+# {"present", "loggedIn"}, "writable"}. "servers" merges the user-scope and every local-scope
+# (per project) MCP server name. Only booleans and MCP server names are printed;
 # no value from any file in the profile is ever read out.
 #
 # Env read: PROFILE (/profile).
@@ -34,11 +35,19 @@ fi
 servers='[]'
 settings="$PROFILE/claude/.claude.json"
 if [ -e "$settings" ]; then
+    # User-scope servers sit at the top level, local-scope ones under projects.<path>.
     servers=$(node -e '
         try {
             const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-            const m = c && typeof c.mcpServers === "object" && c.mcpServers !== null ? c.mcpServers : {};
-            console.log(JSON.stringify(Object.keys(m).sort()));
+            const isMap = m => m !== null && typeof m === "object" && !Array.isArray(m);
+            const maps = isMap(c) ? [c.mcpServers] : [];
+            if (isMap(c) && isMap(c.projects)) {
+                for (const p of Object.values(c.projects)) {
+                    maps.push(isMap(p) ? p.mcpServers : undefined);
+                }
+            }
+            const names = new Set(maps.filter(isMap).flatMap(m => Object.keys(m)));
+            console.log(JSON.stringify([...names].sort()));
         } catch (_) {
             console.log("[]");
         }' "$settings" 2>/dev/null || echo '[]')

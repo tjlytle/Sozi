@@ -49,7 +49,8 @@ test("the banner names the persona, the volume and the claude steps", () => {
         assert.match(r.stdout, /claude/);
         assert.match(r.stdout, /\/login/);
         assert.match(r.stdout, /open the URL on the host, paste the code/);
-        assert.match(r.stdout, /\/mcp/);
+        assert.match(r.stdout, /claude mcp add --scope user <name>/);
+        assert.match(r.stdout, /\/mcp` to authorise it/);
         assert.match(r.stdout, /exit/);
         for (const sub of ["claude", "codex", "xdg"]) {
             assert.ok(fs.statSync(path.join(dir, sub)).isDirectory(), sub);

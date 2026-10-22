@@ -209,11 +209,15 @@ work unchanged with its URL instead.
 the login and the MCP servers authorised in it.
 - `node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]` opens an
   interactive container on that volume (`pipeline/login.sh` prints the steps: `claude`,
-  `/login`, `/mcp`, exit). It runs on the host network only during the login, so an MCP
+  `/login`, exit; then per allowed server `claude mcp add --scope user <name> ...`, and
+  `claude`, `/mcp` to authorise it, exit). A fresh profile has no servers and `/mcp` only
+  authorises configured ones; user scope, because the default local scope files a server
+  under the login container's working directory, which no stage shares. It runs on the host network only during the login, so an MCP
   OAuth callback to a localhost port reaches it.
 - Tim's decision: six profiles. Log in once (`/login`, no `/mcp`), `--copy-profile
   <from> <to>` to the other five, then `--login` again per persona with an allowlist to
-  `/mcp` exactly its servers (a copy carries all of its source's). If a token refresh
+  `claude mcp add --scope user` and `/mcp` exactly its servers (a copy carries all of its
+  source's). If a token refresh
   invalidates the copies, fix it then.
 - `PIPELINE_PROFILES=auto|off`. With a profile, the stage uses it. With no volume but a
   `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, the token is the fallback. With
@@ -222,7 +226,8 @@ the login and the MCP servers authorised in it.
 - `PIPELINE_MCP_<PERSONA>` (in `pipeline/config`) is the allowlist: architect
   `mobbin,context7`, advocate `mobbin`, builder `context7`. A profile holding a server
   outside its list is refused, naming the servers. `profile-inspect.sh` reports names and
-  booleans only; `--status` prints one line per profile.
+  booleans only, the servers merged from the top-level `mcpServers` of `.claude.json` and
+  every `projects.<path>.mcpServers` (local scope), so the allowlist sees both; `--status` prints one line per profile.
 - `PIPELINE_PER_PERSONA` (default 1) allows one session per persona at a time, since a
   profile is one account's login; an issue that has to wait logs
   `waits, <persona> at its limit`.

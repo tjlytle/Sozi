@@ -58,3 +58,38 @@ test("a logged-in claude profile with two servers", () => {
         fs.rmSync(dir, {recursive: true, force: true});
     }
 });
+
+/** Inspect a profile whose claude/.claude.json holds the given text.
+ *
+ * @param {string} text - The file content.
+ * @returns {{out: string, info: any}} - The raw output and the parsed line.
+ */
+function inspectSettings(text) {
+    const dir = fs.mkdtempSync(path.join(root, ".agents", "tmp", "profile-"));
+    try {
+        fs.mkdirSync(path.join(dir, "claude"));
+        fs.writeFileSync(path.join(dir, "claude", ".claude.json"), text);
+        return inspect(dir);
+    } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+    }
+}
+
+test("local-scope servers under projects are merged with the user-scope ones", () => {
+    const {info} = inspectSettings(
+        JSON.stringify({
+            mcpServers: {mobbin: {}},
+            projects: {
+                "/work": {mcpServers: {context7: {}, mobbin: {}}},
+                "/home/factory": {mcpServers: {notion: {}}},
+                "/empty": {}
+            }
+        })
+    );
+    assert.deepEqual(info.claude.servers, ["context7", "mobbin", "notion"]);
+});
+
+test("an array mcpServers and a malformed file give no servers", () => {
+    assert.deepEqual(inspectSettings('{"mcpServers":["mobbin"]}').info.claude.servers, []);
+    assert.deepEqual(inspectSettings("{not json").info.claude.servers, []);
+});
