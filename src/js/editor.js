@@ -36,9 +36,10 @@ window.addEventListener(
         const playerController = new PlayerController(player);
 
         const preferences = new Preferences();
+        // Casts in this function: index.html holds every element it looks up.
         const controller = new Controller(preferences, presentation, selection, viewport, player);
         new Preview(
-            document.getElementById("sozi-editor-view-preview"),
+            /** @type {HTMLElement} */ (document.getElementById("sozi-editor-view-preview")),
             presentation,
             selection,
             viewport,
@@ -46,19 +47,19 @@ window.addEventListener(
             playerController
         );
         const properties = new Properties(
-            document.getElementById("sozi-editor-view-properties"),
+            /** @type {HTMLElement} */ (document.getElementById("sozi-editor-view-properties")),
             selection,
             controller
         );
         new Toolbar(
-            document.getElementById("sozi-editor-view-toolbar"),
+            /** @type {HTMLElement} */ (document.getElementById("sozi-editor-view-toolbar")),
             properties,
             presentation,
             viewport,
             controller
         );
         new Timeline(
-            document.getElementById("sozi-editor-view-timeline"),
+            /** @type {HTMLElement} */ (document.getElementById("sozi-editor-view-timeline")),
             presentation,
             selection,
             controller
@@ -70,24 +71,32 @@ window.addEventListener(
             return;
         }
 
-        const body = document.querySelector("body");
-        const left = document.querySelector(".left");
-        const right = document.querySelector(".right");
-        const top = document.querySelector(".top");
-        const bottom = document.querySelector(".bottom");
-        const hsplitter = document.querySelector(".hsplitter");
-        const vsplitter = document.querySelector(".vsplitter");
+        const body = /** @type {HTMLBodyElement} */ (document.querySelector("body"));
+        const left = /** @type {HTMLElement} */ (document.querySelector(".left"));
+        const right = /** @type {HTMLElement} */ (document.querySelector(".right"));
+        const top = /** @type {HTMLElement} */ (document.querySelector(".top"));
+        const bottom = /** @type {HTMLElement} */ (document.querySelector(".bottom"));
+        const hsplitter = /** @type {HTMLElement} */ (document.querySelector(".hsplitter"));
+        const vsplitter = /** @type {HTMLElement} */ (document.querySelector(".vsplitter"));
 
-        document.getElementById("message").addEventListener("click", evt => {
-            controller.hideNotification();
-            evt.stopPropagation();
-        });
+        /** @type {HTMLElement} */ (document.getElementById("message")).addEventListener(
+            "click",
+            evt => {
+                controller.hideNotification();
+                evt.stopPropagation();
+            }
+        );
 
         let hsplitterStartY, vsplitterStartX;
 
         const hsplitterHeight = hsplitter.getBoundingClientRect().height;
         const vsplitterWidth = vsplitter.getBoundingClientRect().width;
 
+        /** Resize the panes while the splitter is dragged.
+         *
+         * @param {MouseEvent} evt - The mousemove event.
+         * @returns {boolean} - Always `false`.
+         */
         function hsplitterOnMouseMove(evt) {
             const topHeightPercent = (100 * (hsplitterStartY + evt.clientY)) / window.innerHeight;
             top.style.height = topHeightPercent + "%";
@@ -102,6 +111,11 @@ window.addEventListener(
             body.removeEventListener("mouseup", hsplitterOnMouseUp);
         }
 
+        /** Resize the panes while the splitter is dragged.
+         *
+         * @param {MouseEvent} evt - The mousemove event.
+         * @returns {boolean} - Always `false`.
+         */
         function vsplitterOnMouseMove(evt) {
             const leftWidthPercent = (100 * (vsplitterStartX + evt.clientX)) / window.innerWidth;
             left.style.width = leftWidthPercent + "%";
@@ -159,7 +173,8 @@ window.addEventListener(
                     /input|select|textarea|section/i.test(document.activeElement.tagName);
 
                 if (actionFound && inputFocused) {
-                    document.activeElement.blur();
+                    // Cast: inputFocused means the active element is a form field.
+                    /** @type {HTMLElement} */ (document.activeElement).blur();
                 }
 
                 switch (actionFound) {
@@ -182,13 +197,17 @@ window.addEventListener(
                         controller.undo();
                         break;
                     case "focusTitleField":
-                        document.getElementById("field-title").select();
+                        /** @type {HTMLInputElement} */ (
+                            document.getElementById("field-title")
+                        ).select();
                         break;
                     case "reload":
                         controller.reload();
                         break;
                     case "toggleFullscreen":
-                        document.getElementById("btn-fullscreen").click();
+                        /** @type {HTMLElement} */ (
+                            document.getElementById("btn-fullscreen")
+                        ).click();
                         break;
                     case "toggleDevTools":
                         controller.storage.backend.toggleDevTools();
