@@ -39,6 +39,10 @@ and filled as `factory`, so no layer re-owns it.
 - Anything under `pipeline/` changed: the runner is baked into the image.
 - The gh-personas plugin was updated.
 - You want newer harness CLIs.
+- The sandbox helper's setuid bit (`chrome-sandbox`, root 4755) is set in the image. An
+  in-checkout `npm ci` (lockfile mismatch) produces an Electron without it, so stage runs
+  on a branch whose lockfile differs from the image's cannot run Electron until the image
+  is rebuilt.
 
 ## Adding a harness
 

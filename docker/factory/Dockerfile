@@ -45,6 +45,13 @@ USER factory
 RUN cd /cache && npm ci --no-audit --no-fund \
     && sha256sum package-lock.json | cut -d' ' -f1 > lock-sha
 
+# Electron refuses to start on hosts that restrict unprivileged user namespaces
+# unless its sandbox helper is root-owned and setuid.
+USER root
+RUN chown root:root /cache/node_modules/electron/dist/chrome-sandbox \
+    && chmod 4755 /cache/node_modules/electron/dist/chrome-sandbox
+USER factory
+
 # Playwright's Chromium at the pinned version (libraries are already in).
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/ms-playwright
 RUN cd /cache && npx playwright install chromium
