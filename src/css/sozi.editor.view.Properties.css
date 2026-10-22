@@ -1,63 +1,63 @@
-.properties {
+.sozi-properties {
     margin: var(--sozi-space-3) var(--sozi-space-4);
     color: var(--sozi-text);
 }
 
-.properties h1 {
+.sozi-properties h1 {
     text-align: center;
     font-size: var(--sozi-font-size-h1);
 }
 
-.properties h2 {
+.sozi-properties h2 {
     font-size: var(--sozi-font-size-h2);
 }
 
-.properties h3 {
+.sozi-properties h3 {
     font-size: var(--sozi-font-size-h3);
 }
 
-.properties > div {
+.sozi-properties > div {
     margin-top: var(--sozi-space-3);
     margin-bottom: var(--sozi-space-2);
 }
 
-.properties > div.btn-group {
+.sozi-properties > div.btn-group {
     text-align: center;
 }
 
-.properties .back {
+.sozi-properties__back {
     position: absolute;
     top: 0;
     left: 0;
     cursor: pointer;
 }
 
-.properties .side-by-side {
+.sozi-properties .sozi-properties__side-by-side {
     display: flex;
     align-items: center;
 }
 
-.properties label {
+.sozi-properties label {
     display: block;
     margin-top: var(--sozi-space-3);
     margin-bottom: var(--sozi-space-2);
 }
 
-.properties input,
-.properties select {
+.sozi-properties input,
+.sozi-properties select {
     width: 100%;
 }
 
-.properties span.btn-group,
-.properties :not(.btn-group, td) > button {
+.sozi-properties span.btn-group,
+.sozi-properties :not(.btn-group, td) > button {
     margin-left: var(--sozi-space-4);
 }
 
-.properties .help {
+.sozi-properties__help {
     margin-left: var(--sozi-space-4);
 }
 
-.properties table.custom-css-js {
+.sozi-properties__custom-css-js {
     width: 100%;
     border-radius: 0.5rem;
     box-shadow: 0 1px 1px var(--sozi-shadow) inset;
@@ -65,16 +65,16 @@
     color: var(--sozi-text-dark);
 }
 
-.properties .custom-css-js tr th {
+.sozi-properties__custom-css-js th {
     width: 100%;
 }
 
-.custom-css-js td:first-child {
+.sozi-properties__custom-css-js td:first-child {
     padding-left: var(--sozi-space-3);
     padding-right: var(--sozi-space-3);
 }
 
-.properties input.custom-css-js {
+.sozi-properties__custom-css-js-input {
     display: none;
 }
 
@@ -84,12 +84,12 @@
     }
 }
 
-.spinner {
+.sozi-properties__spinner {
     margin-left: var(--sozi-space-4);
     margin-right: var(--sozi-space-4);
 }
 
-.spinner::before {
+.sozi-properties__spinner::before {
     content: "";
     box-sizing: border-box;
     position: absolute;
