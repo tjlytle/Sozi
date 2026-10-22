@@ -304,6 +304,7 @@ async function trySpawn(ctx, index) {
 async function tryIssue(ctx, n) {
     const persona = personaFor(stageOfIssue(ctx.state.issues[n]));
     if (atPersonaLimit(ctx, persona)) {
+        ctx.log(`#${n}: waits, ${persona} at its limit`);
         ctx.tried.add(n);
         return;
     }
