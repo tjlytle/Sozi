@@ -58,9 +58,9 @@ export class Toolbar extends VirtualDOMView {
         this.state["aspect-height"] = {value: this.presentation.aspectHeight};
 
         return h("div", [
-            h("span.group", [
+            h("span.sozi-toolbar__group", [
                 _("Aspect ratio: "),
-                h("input.aspect", {
+                h("input.sozi-toolbar__aspect", {
                     id: "field-aspect-width",
                     type: "number",
                     pattern: "\\d+",
@@ -76,7 +76,7 @@ export class Toolbar extends VirtualDOMView {
                     }
                 }),
                 " : ",
-                h("input.aspect", {
+                h("input.sozi-toolbar__aspect", {
                     id: "field-aspect-height",
                     type: "number",
                     pattern: "\\d+",
@@ -92,7 +92,7 @@ export class Toolbar extends VirtualDOMView {
                     }
                 })
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.btn-group", [
                 h(
                     "button",
                     {
@@ -142,7 +142,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-crop")
                 )
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.btn-group", [
                 h(
                     "button",
                     {
@@ -166,7 +166,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-share")
                 ) // "share" icon preferred to the official "redo" icon
             ]),
-            h("span.group", [
+            h("span.sozi-toolbar__group", [
                 h(
                     "button",
                     {
@@ -183,7 +183,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-desktop")
                 )
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.btn-group", [
                 h(
                     "button",
                     {
@@ -221,7 +221,7 @@ export class Toolbar extends VirtualDOMView {
                     h("i.fa.fa-file")
                 ) // "file-export" is missing in Fork-Awesome
             ]),
-            h("span.group.btn-group", [
+            h("span.sozi-toolbar__group.btn-group", [
                 h(
                     "button",
                     {

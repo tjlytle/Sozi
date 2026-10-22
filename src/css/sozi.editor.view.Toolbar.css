@@ -9,12 +9,12 @@
     background: linear-gradient(to bottom, var(--sozi-bg-dark), var(--sozi-bg) 2rem);
 }
 
-.aspect {
+.sozi-toolbar__aspect {
     width: 4rem;
     padding: var(--sozi-space-1) var(--sozi-space-3);
     border: 1px solid var(--sozi-bg);
 }
 
-.group {
+.sozi-toolbar__group {
     margin-right: var(--sozi-space-5);
 }
