@@ -269,7 +269,7 @@ export class Properties extends VirtualDOMView {
         return h("div.sozi-properties", [
             h("h1", _("Frame")),
 
-            h("div.btn-group", [
+            h("div.sozi-editor__button-group", [
                 this.renderToggleField(
                     h("i.fa.fa-list"),
                     _("Show in frame list"),
@@ -337,7 +337,7 @@ export class Properties extends VirtualDOMView {
 
             h("h1", _("Layer")),
 
-            h("div.btn-group", [
+            h("div.sozi-editor__button-group", [
                 this.renderToggleField(
                     h("i.fa.fa-link"),
                     _("Link to previous frame"),
@@ -381,7 +381,7 @@ export class Properties extends VirtualDOMView {
 
             h("label.sozi-properties__side-by-side", {for: "field-outlineElementId"}, [
                 _("Outline element Id"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     h(
                         "button",
                         {
@@ -591,7 +591,7 @@ export class Properties extends VirtualDOMView {
 
             h("div.sozi-properties__side-by-side", [
                 _("Allow to control the presentation"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     this.renderToggleField(
                         h("i.fa.fa-mouse-pointer"),
                         _("using the mouse"),
@@ -622,7 +622,7 @@ export class Properties extends VirtualDOMView {
 
             h("div.sozi-properties__side-by-side", [
                 _("Allow to rotate the camera"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     this.renderToggleField(
                         h("i.fa.fa-mouse-pointer"),
                         _("using the mouse"),
@@ -642,7 +642,7 @@ export class Properties extends VirtualDOMView {
 
             h("div.sozi-properties__side-by-side", [
                 _("Allow to zoom"),
-                h("span.btn-group", [
+                h("span.sozi-editor__button-group", [
                     this.renderToggleField(
                         h("i.fa.fa-mouse-pointer"),
                         _("using the mouse"),
@@ -736,7 +736,7 @@ export class Properties extends VirtualDOMView {
 
             exportFields,
 
-            h("div.btn-group", [
+            h("div.sozi-editor__button-group", [
                 h(
                     "button",
                     {
@@ -988,7 +988,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {value: values.length >= 1 ? values[values.length - 1] : ""};
 
         return h("input", {
@@ -1022,7 +1022,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {innerHTML: values.length >= 1 ? values[values.length - 1] : ""};
 
         return h("section", {
@@ -1100,7 +1100,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {value: values.length >= 1 ? values[values.length - 1] / factor : 0}; // TODO use default value
 
         return h("input", {
@@ -1135,7 +1135,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         this.state[property] = {
             value: values.length >= 1 ? values[values.length - 1] : (min + max) / 2
         }; // TODO use default value
@@ -1171,10 +1171,10 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        let className = values.length > 1 ? "multiple" : "";
+        let className = values.length > 1 ? "sozi-editor__field--multiple" : "";
         const value = values.length >= 1 ? values[values.length - 1] : false; // TODO use default value
         if (value) {
-            className += " active";
+            className += " sozi-editor__button--active";
         }
 
         return h(
@@ -1202,7 +1202,7 @@ export class Properties extends VirtualDOMView {
         const controller = this.controller;
 
         const values = asArray(getter.call(controller, property));
-        const className = values.length > 1 ? "multiple" : undefined;
+        const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
         const value = values.length >= 1 ? values[values.length - 1] : options[0];
 
         return h(

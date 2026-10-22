@@ -33,7 +33,7 @@ body {
  * Panes and splitters
  * ------------------------------------------------------------------------- */
 
-.top {
+.sozi-editor__top {
     position: absolute;
     left: 0;
     top: 0;
@@ -41,7 +41,7 @@ body {
     height: calc(70% - 0.125rem);
 }
 
-.bottom {
+.sozi-editor__bottom {
     position: absolute;
     left: 0;
     bottom: 0;
@@ -49,7 +49,7 @@ body {
     height: calc(30% - 0.125rem);
 }
 
-.left {
+.sozi-editor__left {
     position: absolute;
     left: 0;
     top: 0;
@@ -57,7 +57,7 @@ body {
     height: 100%;
 }
 
-.top .left {
+.sozi-editor__top .sozi-editor__left {
     background-image: linear-gradient(
         -45deg,
         var(--sozi-bg) 25%,
@@ -71,7 +71,7 @@ body {
     background-size: 1rem 1rem;
 }
 
-.right {
+.sozi-editor__right {
     position: absolute;
     right: 0;
     top: 0;
@@ -81,7 +81,7 @@ body {
     background: var(--sozi-bg-dark);
 }
 
-.hsplitter {
+.sozi-editor__hsplitter {
     position: absolute;
     left: 0;
     top: calc(70% - 0.1875rem);
@@ -90,7 +90,7 @@ body {
     cursor: ns-resize;
 }
 
-.vsplitter {
+.sozi-editor__vsplitter {
     position: absolute;
     left: calc(70% - 0.1875rem);
     top: 0;
@@ -99,13 +99,13 @@ body {
     cursor: ew-resize;
 }
 
-.hsplitter,
-.vsplitter {
+.sozi-editor__hsplitter,
+.sozi-editor__vsplitter {
     background: var(--sozi-bg-dark);
 }
 
-.hsplitter:hover,
-.vsplitter:hover {
+.sozi-editor__hsplitter:hover,
+.sozi-editor__vsplitter:hover {
     background: var(--sozi-bg);
 }
 
@@ -158,11 +158,11 @@ button:disabled {
     color: var(--sozi-text-disabled);
 }
 
-.active {
+.sozi-editor__button--active {
     background: linear-gradient(to bottom, var(--sozi-accent), var(--sozi-accent-light) 100%);
 }
 
-button.active:active {
+button.sozi-editor__button--active:active {
     background: linear-gradient(
         to bottom,
         var(--sozi-accent-pressed),
@@ -170,7 +170,7 @@ button.active:active {
     );
 }
 
-.multiple {
+.sozi-editor__field--multiple {
     background-image: linear-gradient(
         -45deg,
         var(--sozi-accent) 25%,
@@ -190,21 +190,21 @@ button.active:active {
  * three classes.
  */
 
-.btn-group {
+.sozi-editor__button-group {
     white-space: nowrap;
 }
 
-.btn-group :where(button):not(:first-child, :last-child) {
+.sozi-editor__button-group :where(button):not(:first-child, :last-child) {
     border-radius: 0;
     border-right: 1px solid var(--sozi-bg);
 }
 
-.btn-group :where(button):first-child:not(:last-child) {
+.sozi-editor__button-group :where(button):first-child:not(:last-child) {
     border-radius: 0.5rem 0 0 0.5rem;
     border-right: 1px solid var(--sozi-bg);
 }
 
-.btn-group :where(button):last-child:not(:first-child) {
+.sozi-editor__button-group :where(button):last-child:not(:first-child) {
     border-radius: 0 0.5rem 0.5rem 0;
 }
 
@@ -212,7 +212,7 @@ button.active:active {
  * Notifications
  * ------------------------------------------------------------------------- */
 
-.message {
+.sozi-editor__message {
     position: fixed;
     width: 100%;
     top: 0;
@@ -225,7 +225,7 @@ button.active:active {
         opacity 0.5s ease;
 }
 
-.message.visible {
+.sozi-editor__message--visible {
     opacity: 1;
     visibility: visible;
     transition:
@@ -233,21 +233,16 @@ button.active:active {
         opacity 0.5s ease;
 }
 
-.message.info {
+.sozi-editor__message--info {
     background-color: var(--sozi-info-bg);
 }
 
-.message.error {
+.sozi-editor__message--error {
     background-color: var(--sozi-error-bg);
 }
 
-.message .title {
+.sozi-editor__message-title {
     font-weight: bold;
-}
-
-.top-left p {
-    font-size: var(--sozi-font-size-lead);
-    text-align: center;
 }
 
 /* ------------------------------------------------------------------------- *

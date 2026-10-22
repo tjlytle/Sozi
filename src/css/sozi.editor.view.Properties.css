@@ -21,7 +21,7 @@
     margin-bottom: var(--sozi-space-2);
 }
 
-.sozi-properties > div.btn-group {
+.sozi-properties > div.sozi-editor__button-group {
     text-align: center;
 }
 
@@ -48,8 +48,8 @@
     width: 100%;
 }
 
-.sozi-properties span.btn-group,
-.sozi-properties :not(.btn-group, td) > button {
+.sozi-properties span.sozi-editor__button-group,
+.sozi-properties :not(.sozi-editor__button-group, td) > button {
     margin-left: var(--sozi-space-4);
 }
 
