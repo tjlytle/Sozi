@@ -126,16 +126,16 @@ export class Timeline extends VirtualDOMView {
 
         // Casts: render() always creates these four panes, each holding one table.
         const topLeft = /** @type {HTMLElement} */ (
-            this.container.querySelector(".timeline-top-left")
+            this.container.querySelector(".sozi-timeline__top-left")
         );
         const topRight = /** @type {HTMLElement} */ (
-            this.container.querySelector(".timeline-top-right")
+            this.container.querySelector(".sozi-timeline__top-right")
         );
         const bottomLeft = /** @type {HTMLElement} */ (
-            this.container.querySelector(".timeline-bottom-left")
+            this.container.querySelector(".sozi-timeline__bottom-left")
         );
         const bottomRight = /** @type {HTMLElement} */ (
-            this.container.querySelector(".timeline-bottom-right")
+            this.container.querySelector(".sozi-timeline__bottom-right")
         );
 
         const topLeftTable = /** @type {HTMLTableElement} */ (topLeft.querySelector("table"));
@@ -163,10 +163,10 @@ export class Timeline extends VirtualDOMView {
 
         // Corresponding rows in left and right tables must have the same height
         const leftRows = document.querySelectorAll(
-            ".timeline-top-left tr,  .timeline-bottom-left tr"
+            ".sozi-timeline__top-left tr,  .sozi-timeline__bottom-left tr"
         );
         const rightRows = document.querySelectorAll(
-            ".timeline-top-right tr, .timeline-bottom-right tr"
+            ".sozi-timeline__top-right tr, .sozi-timeline__bottom-right tr"
         );
         leftRows.forEach((leftRow, rowIndex) => {
             // Casts: these are table rows.
@@ -203,8 +203,8 @@ export class Timeline extends VirtualDOMView {
         const defaultLayersAreVisible = controller.defaultLayers.some(layer => layer.isVisible);
 
         return h("div", [
-            h("div.timeline-top-left", [
-                h("table.timeline", [
+            h("div.sozi-timeline__top-left", [
+                h("table.sozi-timeline__table", [
                     h("tr", [
                         h("th", [
                             h(
@@ -275,28 +275,32 @@ export class Timeline extends VirtualDOMView {
                     ])
                 ])
             ]),
-            h("div.timeline-bottom-left", [
-                h("table.timeline", [
+            h("div.sozi-timeline__bottom-left", [
+                h("table.sozi-timeline__table", [
                     controller.hasDefaultLayer
                         ? h("tr", [
-                              h("th.layer-icons", [
+                              h("th.sozi-timeline__layer-icons", [
                                   defaultLayersAreVisible
-                                      ? h("i.visibility.fa.fa-eye", {
+                                      ? h("i.sozi-timeline__visibility.fa.fa-eye", {
                                             title: _("This layer is visible. Click to hide it."),
                                             onclick: evt => this.toggleLayerVisibility(-1, evt)
                                         })
-                                      : h("i.visibility.fa.fa-eye-slash", {
+                                      : h("i.sozi-timeline__visibility.fa.fa-eye-slash", {
                                             title: _("This layer is hidden. Click to show it."),
                                             onclick: evt => this.toggleLayerVisibility(-1, evt)
                                         }),
-                                  h("i.remove.fa.fa-times", {style: {visibility: "hidden"}})
+                                  h("i.sozi-timeline__remove.fa.fa-times", {
+                                      style: {visibility: "hidden"}
+                                  })
                               ]),
                               h(
                                   "th",
                                   {
                                       className:
-                                          "layer-label" +
-                                          (controller.defaultLayersAreSelected ? " selected" : ""),
+                                          "sozi-timeline__layer-label" +
+                                          (controller.defaultLayersAreSelected
+                                              ? " sozi-timeline__cell--selected"
+                                              : ""),
                                       onclick: evt => this.updateLayerSelection(-1, evt)
                                   },
                                   _("Default")
@@ -309,19 +313,19 @@ export class Timeline extends VirtualDOMView {
                         .filter(layer => controller.editableLayers.indexOf(layer) >= 0)
                         .map(layer =>
                             h("tr", [
-                                h("th.layer-icons", [
+                                h("th.sozi-timeline__layer-icons", [
                                     layer.isVisible
-                                        ? h("i.visibility.fa.fa-eye", {
+                                        ? h("i.sozi-timeline__visibility.fa.fa-eye", {
                                               title: _("This layer is visible. Click to hide it."),
                                               onclick: evt =>
                                                   this.toggleLayerVisibility(layer.index, evt)
                                           })
-                                        : h("i.visibility.fa.fa-eye-slash", {
+                                        : h("i.sozi-timeline__visibility.fa.fa-eye-slash", {
                                               title: _("This layer is hidden. Click to show it."),
                                               onclick: evt =>
                                                   this.toggleLayerVisibility(layer.index, evt)
                                           }),
-                                    h("i.remove.fa.fa-times", {
+                                    h("i.sozi-timeline__remove.fa.fa-times", {
                                         title: _("Remove this layer"),
                                         onclick: () => controller.removeLayer(layer.index)
                                     })
@@ -330,9 +334,9 @@ export class Timeline extends VirtualDOMView {
                                     "th",
                                     {
                                         className:
-                                            "layer-label" +
+                                            "sozi-timeline__layer-label" +
                                             (this.selection.selectedLayers.indexOf(layer) >= 0
-                                                ? " selected"
+                                                ? " sozi-timeline__cell--selected"
                                                 : ""),
                                         onclick: evt => this.updateLayerSelection(layer.index, evt)
                                     },
@@ -341,13 +345,13 @@ export class Timeline extends VirtualDOMView {
                             ])
                         ),
                     h("tr", {style: {visibility: "collapse"}}, [
-                        h("th.layer-icons"),
-                        h("th.layer-label", _("Default"))
+                        h("th.sozi-timeline__layer-icons"),
+                        h("th.sozi-timeline__layer-label", _("Default"))
                     ])
                 ])
             ]),
-            h("div.timeline-top-right", [
-                h("table.timeline", [
+            h("div.sozi-timeline__top-right", [
+                h("table.sozi-timeline__table", [
                     h(
                         "tr",
                         this.presentation.frames.map((frame, frameIndex) =>
@@ -355,15 +359,17 @@ export class Timeline extends VirtualDOMView {
                                 "th",
                                 {
                                     className:
-                                        "frame-index" +
+                                        "sozi-timeline__frame-index" +
                                         (this.selection.selectedFrames.indexOf(frame) >= 0
-                                            ? " selected"
+                                            ? " sozi-timeline__cell--selected"
                                             : "") +
-                                        (frame === this.selection.currentFrame ? " current" : ""),
+                                        (frame === this.selection.currentFrame
+                                            ? " sozi-timeline__cell--current"
+                                            : ""),
                                     onclick: evt => this.updateFrameSelection(frameIndex, evt)
                                 },
                                 [
-                                    h("i.insert-before.fa.fa-arrow-circle-down", {
+                                    h("i.sozi-timeline__insert-before.fa.fa-arrow-circle-down", {
                                         title: Jed.sprintf(
                                             _("Insert selection before frame %d"),
                                             frameIndex + 1
@@ -373,7 +379,7 @@ export class Timeline extends VirtualDOMView {
                                             evt.stopPropagation();
                                         }
                                     }),
-                                    h("i.insert-after.fa.fa-arrow-circle-down", {
+                                    h("i.sozi-timeline__insert-after.fa.fa-arrow-circle-down", {
                                         title: Jed.sprintf(
                                             _("Insert selection after frame %d"),
                                             frameIndex + 1
@@ -396,11 +402,13 @@ export class Timeline extends VirtualDOMView {
                                 {
                                     title: frame.title,
                                     className:
-                                        "frame-title" +
+                                        "sozi-timeline__frame-title" +
                                         (this.selection.selectedFrames.indexOf(frame) >= 0
-                                            ? " selected"
+                                            ? " sozi-timeline__cell--selected"
                                             : "") +
-                                        (frame === this.selection.currentFrame ? " current" : ""),
+                                        (frame === this.selection.currentFrame
+                                            ? " sozi-timeline__cell--current"
+                                            : ""),
                                     onclick: evt => this.updateFrameSelection(frameIndex, evt)
                                 },
                                 frame.title
@@ -410,18 +418,18 @@ export class Timeline extends VirtualDOMView {
                 ])
             ]),
             h(
-                "div.timeline-bottom-right",
+                "div.sozi-timeline__bottom-right",
                 {
                     onscroll: evt => {
                         /** @type {Element} */ (
-                            this.container.querySelector(".timeline-top-right")
+                            this.container.querySelector(".sozi-timeline__top-right")
                         ).scrollLeft = evt.target.scrollLeft;
                         /** @type {Element} */ (
-                            this.container.querySelector(".timeline-bottom-left")
+                            this.container.querySelector(".sozi-timeline__bottom-left")
                         ).scrollTop = evt.target.scrollTop;
                     }
                 },
-                h("table.timeline", [
+                h("table.sozi-timeline__table", [
                     controller.hasDefaultLayer
                         ? h(
                               "tr",
@@ -432,17 +440,17 @@ export class Timeline extends VirtualDOMView {
                                           className:
                                               (controller.defaultLayersAreSelected &&
                                               this.selection.selectedFrames.indexOf(frame) >= 0
-                                                  ? "selected"
+                                                  ? "sozi-timeline__cell--selected"
                                                   : "") +
                                               (frame === this.selection.currentFrame
-                                                  ? " current"
+                                                  ? " sozi-timeline__cell--current"
                                                   : "") +
                                               (isLinked(frame, controller.defaultLayers[0])
-                                                  ? " link"
+                                                  ? " sozi-timeline__cell--link"
                                                   : "") +
                                               (updateEven(frame, controller.defaultLayers[0])
-                                                  ? " even"
-                                                  : " odd"),
+                                                  ? " sozi-timeline__cell--even"
+                                                  : " sozi-timeline__cell--odd"),
                                           onclick: evt =>
                                               this.updateLayerAndFrameSelection(-1, frameIndex, evt)
                                       },
@@ -472,13 +480,17 @@ export class Timeline extends VirtualDOMView {
                                                 (this.selection.selectedLayers.indexOf(layer) >=
                                                     0 &&
                                                 this.selection.selectedFrames.indexOf(frame) >= 0
-                                                    ? "selected"
+                                                    ? "sozi-timeline__cell--selected"
                                                     : "") +
                                                 (frame === this.selection.currentFrame
-                                                    ? " current"
+                                                    ? " sozi-timeline__cell--current"
                                                     : "") +
-                                                (isLinked(frame, layer) ? " link" : "") +
-                                                (updateEven(frame, layer) ? " even" : " odd"),
+                                                (isLinked(frame, layer)
+                                                    ? " sozi-timeline__cell--link"
+                                                    : "") +
+                                                (updateEven(frame, layer)
+                                                    ? " sozi-timeline__cell--even"
+                                                    : " sozi-timeline__cell--odd"),
                                             onclick: evt =>
                                                 this.updateLayerAndFrameSelection(
                                                     layer.index,
@@ -498,7 +510,7 @@ export class Timeline extends VirtualDOMView {
                             )
                         ),
                     h(
-                        "tr.collapse",
+                        "tr.sozi-timeline__row--collapsed",
                         this.presentation.frames.map(frame => h("td", frame.title))
                     )
                 ])
