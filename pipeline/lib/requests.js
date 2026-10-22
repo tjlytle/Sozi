@@ -3,11 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Outbox requests: the files a session writes for the loop to act on when it
-// ends, and the result file the stage runner leaves behind. Request files are
-// untrusted input from a model, so every field is checked.
+// ends. Request files are untrusted input from a model, so every field is checked;
+// result.json and the log are read in outbox.js.
 
 import fs from "node:fs";
 import path from "node:path";
+import {readBounded} from "./outbox.js";
+
+export {readResult} from "./outbox.js";
 
 const PERSONAS = ["advocate", "architect", "builder", "qa", "reviewer", "ops"];
 const HARNESSES = ["claude", "codex", "opencode"];
@@ -37,7 +40,7 @@ const LABELS = [
     "working"
 ];
 
-const USAGE_STATUSES = ["ok", "error", "rate-limited", "budget", "unsupported"];
+const MAX_REQUEST_BYTES = 16 * 1024;
 
 const NEVER_ADDED = ["stage:done", "working"];
 const NEVER_REMOVED = ["working"];
@@ -89,23 +92,8 @@ const NEVER_REMOVED = ["working"];
  */
 
 /**
- * @typedef {object} Usage
- * @property {number} tokensIn - Input tokens.
- * @property {number} tokensOut - Output tokens.
- * @property {number} costUsd - Cost in US dollars.
- * @property {number} turns - Conversation turns.
- * @property {string} status - How the usage report ended.
- */
-
-/**
- * @typedef {object} Result
- * @property {number} exit - The session's exit code.
- * @property {string | null} session - The harness session id.
- * @property {Usage} usage - Usage totals.
- * @property {string[]} changed - Files changed.
- * @property {string[]} commits - Commits made.
- * @property {number} resumes - How many times the session was resumed.
- * @property {"ok" | "error" | "skipped"} hooks - Whether the outside hooks ran: "error" when they crashed, "skipped" when they never ran.
+ * @typedef {import("./outbox.js").Usage} Usage
+ * @typedef {import("./outbox.js").Result} Result
  */
 
 /**
@@ -137,6 +125,27 @@ function labelList(value, what) {
         throw new Error(`${what} must be a list of labels`);
     }
     return value;
+}
+
+/**
+ * Check a label request on an issue other than the session's own: no stage label either
+ * way, and no lifting it out of triage. Only the loop and a person move other issues.
+ *
+ * @param {number} target - The issue the request names.
+ * @param {string[]} add - Labels to add.
+ * @param {string[]} remove - Labels to remove.
+ * @returns {void}
+ * @throws {Error} When the request would move the other issue.
+ */
+function otherIssueLabels(target, add, remove) {
+    for (const label of [...add, ...remove]) {
+        if (label.startsWith("stage:")) {
+            throw new Error(`label may not change ${label} on issue ${target}, not this session's`);
+        }
+    }
+    if (remove.includes("triage")) {
+        throw new Error(`label may not lift issue ${target} out of triage`);
+    }
 }
 
 /**
@@ -213,6 +222,9 @@ export function validateRequest(obj, {issue}) {
                 throw new Error(`label may not remove ${label}`);
             }
         }
+        if (body.issue !== issue) {
+            otherIssueLabels(body.issue, add, remove);
+        }
         return {kind: "label", issue: body.issue, add, remove};
     }
 
@@ -277,9 +289,14 @@ export function readRequests(dir, {issue}) {
         return {accepted, refused};
     }
     for (const file of names) {
+        const read = readBounded(path.join(dir, file), MAX_REQUEST_BYTES);
+        if ("refused" in read) {
+            refused.push({file, reason: read.refused});
+            continue;
+        }
         let parsed;
         try {
-            parsed = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+            parsed = JSON.parse(read.text);
         } catch {
             refused.push({file, reason: "not JSON"});
             continue;
@@ -291,55 +308,4 @@ export function readRequests(dir, {issue}) {
         }
     }
     return {accepted, refused};
-}
-
-/**
- * Read the result.json the stage runner wrote, filling in defaults; `hooks` is "ok"
- * unless the runner wrote "error".
- *
- * @param {string} dir - The outbox directory.
- * @returns {Result | null} The result, or null when the file is missing or not JSON.
- */
-export function readResult(dir) {
-    let raw;
-    try {
-        raw = JSON.parse(fs.readFileSync(path.join(dir, "result.json"), "utf8"));
-    } catch {
-        return null;
-    }
-    if (!isObject(raw)) {
-        return null;
-    }
-    const u = isObject(raw.usage) ? raw.usage : {};
-    /**
-     * @param {unknown} v - A usage value.
-     * @returns {number} The value if finite, else 0.
-     */
-    const num = v => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-    /**
-     * @param {unknown} v - A list from the file.
-     * @returns {string[]} Its string elements.
-     */
-    const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
-    return {
-        exit: Number.isInteger(raw.exit) ? /** @type {number} */ (raw.exit) : 1,
-        session: typeof raw.session === "string" ? raw.session : null,
-        usage: {
-            tokensIn: num(u.tokensIn),
-            tokensOut: num(u.tokensOut),
-            costUsd: num(u.costUsd),
-            turns: num(u.turns),
-            status:
-                typeof u.status === "string" && USAGE_STATUSES.includes(u.status)
-                    ? u.status
-                    : "error"
-        },
-        changed: strings(raw.changed),
-        commits: strings(raw.commits),
-        resumes:
-            Number.isInteger(raw.resumes) && /** @type {number} */ (raw.resumes) >= 0
-                ? /** @type {number} */ (raw.resumes)
-                : 0,
-        hooks: raw.hooks === "error" ? "error" : "ok"
-    };
 }

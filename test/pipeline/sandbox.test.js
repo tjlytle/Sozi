@@ -150,6 +150,7 @@ describe("sandbox", () => {
         fs.mkdirSync(path.join(root, "var", "pipeline", "mirror.git"), {recursive: true});
         await s.refreshMirror();
         assert.deepEqual(calls[1].cmd.slice(-3), ["remote", "update", "--prune"]);
+        assert.deepEqual(calls[1].cmd.slice(0, 3), ["git", "-c", "gc.auto=0"]);
     });
     test("prepareOutbox writes the prompt and the allow list in a fresh directory", () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));

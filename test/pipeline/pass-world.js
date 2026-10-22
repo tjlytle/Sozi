@@ -9,10 +9,15 @@ import {loadConfig} from "../../pipeline/lib/config.js";
 /**
  * A pass over fakes.
  *
- * @param {{issues?: any[], now?: number, env?: Record<string, string>}} [options] - The world.
+ * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void}} [options] - The world.
  * @returns {any} - The pass, the state, the recorded calls and the fakes.
  */
-export function world({issues = [], now = Date.parse("2026-10-21T19:00:00Z"), env = {}} = {}) {
+export function world({
+    issues = [],
+    now = Date.parse("2026-10-21T19:00:00Z"),
+    env = {},
+    save = () => {}
+} = {}) {
     const settings = loadConfig({root: "/nonexistent", env});
     const state = emptyState();
     state.run.started = new Date(now).toISOString();
@@ -76,9 +81,23 @@ export function world({issues = [], now = Date.parse("2026-10-21T19:00:00Z"), en
         board,
         digest,
         clock,
-        log: line => logs.push(line)
+        log: line => logs.push(line),
+        save: () => save(state)
     });
-    return {p, state, calls, containers, clock, logs, outboxes, github, issues, settings, board};
+    return {
+        p,
+        state,
+        calls,
+        containers,
+        clock,
+        logs,
+        outboxes,
+        github,
+        issues,
+        settings,
+        board,
+        sandbox
+    };
 }
 export const issue = (
     /** @type {number} */ number,

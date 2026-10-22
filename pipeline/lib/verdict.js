@@ -5,7 +5,7 @@
 // What an ended session's result allows: its usage (and the back-off a rate limit
 // brings), whether its requests can be trusted, and which moves its stage may make.
 
-import {readResult} from "./requests.js";
+import {readResult} from "./outbox.js";
 import {addUsage} from "./state.js";
 
 const MAX_BACKOFF_MINUTES = 120;
@@ -62,7 +62,7 @@ export function costsNoTry(result) {
  * @returns {Result | null} The result, or null when there is none.
  */
 export function takeResult(ctx, outbox, who) {
-    const result = readResult(outbox);
+    const result = readResult(outbox, {log: line => ctx.log(`${who}: ${line}`)});
     if (!result) {
         ctx.log(`${who}: no result.json`);
         return null;

@@ -5,7 +5,9 @@
 # repository's edit-hook checks from the outside (hooks-outside.sh) and resumes
 # the session with what they find, then writes result.json for the host. The
 # host reads result.json, never this script's exit status. result.json is also
-# written on an early failure and on SIGTERM/SIGINT (docker stop).
+# written on an early failure and on SIGTERM/SIGINT (docker stop). Its hooks field
+# is ok when the outside checks ran, error when they crashed, skipped when they never
+# ran (an early failure, a failing harness, no session file).
 #
 # Usage: pipeline/stage.sh <issue> <stage>   (the container's main process)
 #
@@ -22,7 +24,7 @@ MIRROR="${MIRROR:-/mirror}"; OUTBOX="${OUTBOX:-/outbox}"; WORK="${WORK:-/work}"
 CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
-start=""; harness_exit=1; resumes=0; hooks_state=ok; child=""
+start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
@@ -122,6 +124,7 @@ resume_loop() {
             hooks_state=error
             break
         fi
+        hooks_state=ok
         [ -s "$report" ] || break
         [ "$(cat "$report")" = "$last" ] && break
         last=$(cat "$report")

@@ -45,6 +45,11 @@ describe("the mint endpoint", async () => {
             (await post("Bearer secret", {repo: "tjlytle/Sozi", bot: "root"})).status,
             400
         );
+        assert.equal(
+            (await post("Bearer secret", {repo: "tjlytle/Sozi", bot: "claude-dev"})).status,
+            400,
+            "the general developer bot is not a persona"
+        );
     });
 });
 

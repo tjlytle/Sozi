@@ -152,7 +152,8 @@ export function createSandbox({settings, root, run = defaultRun, env: loopEnv = 
     return {
         async refreshMirror() {
             if (fs.existsSync(mirror)) {
-                await must(["git", "-C", mirror, "remote", "update", "--prune"]);
+                // No automatic gc: a gc while a container clones would race it.
+                await must(["git", "-c", "gc.auto=0", "-C", mirror, "remote", "update", "--prune"]);
                 return;
             }
             fs.mkdirSync(varDir, {recursive: true});

@@ -147,6 +147,18 @@ Expected: the merge is allowed with the reviewer App's approval. If protection r
 
 Before the run, the three day-one checks deferred from the loop plan (recorded under "Builder notes" in `docs/software-factory/loop-design.md`): headless plugin loading, Mobbin inside the container, the workspace trust prompt. Write the answers back there.
 
+Three more from the final review of the loop build, checked on the first session:
+
+- The real result text when the subscription usage limit is hit (`stream.jsonl` of a
+  limited session): the claude adapter matches `rate.?limit|usage limit|hit your .*limit|
+  429|overloaded`; widen it when the CLI says something else, and add that text to the
+  fake as a `FAKE_MODE`.
+- Whether a headless session can write `/outbox` (the adapter passes `--add-dir` with the
+  outbox): a `req-done.json` must appear after the first plan session.
+- That `CLAUDE_CODE_OAUTH_TOKEN` is set inside a container (it comes from
+  `var/pipeline/env` through the loop): `docker exec <container> sh -c 'test -n
+  "$CLAUDE_CODE_OAUTH_TOKEN" && echo set'`, never printing the value.
+
 Also verify `node bin/board.js create` once from a shell outside any Claude session: its `updateProjectV2Field` mutation names no repository, and the repo-lock hook denies such a mutation inside a session; from the loop's own shell no hook runs.
 
 - [ ] **Step 1: One issue in the foreground**

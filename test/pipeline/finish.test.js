@@ -64,3 +64,71 @@ describe("waiting for a person", () => {
         assert.equal(w.state.issues[25].tries, 1);
     });
 });
+
+describe("saving and the outside checks", () => {
+    test("the state is saved right after judging, before the slot is freed", async () => {
+        /** @type {{stage: string, judged: boolean}[]} */
+        const saves = [];
+        const w = world({
+            issues: [issue(25, ["stage:todo"])],
+            save: s =>
+                saves.push({stage: s.issues[25].stage, judged: !!s.issues[25].session?.judged})
+        });
+        await w.p.pass();
+        saves.length = 0;
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            requests: {done: {done: {issue: 25, to: "stage:tests"}}}
+        });
+        await w.p.pass();
+        assert.deepEqual(saves.slice(0, 2), [
+            {stage: "stage:todo", judged: true},
+            {stage: "stage:tests", judged: true}
+        ]);
+    });
+    test("a session whose outside checks did not run is a try even with a done", async () => {
+        const w = await session(
+            "stage:todo",
+            {done: {done: {issue: 25, to: "stage:tests"}}},
+            {exit: 1, hooks: "skipped"}
+        );
+        assert.equal(w.state.issues[25].stage, "stage:todo");
+        assert.equal(w.state.issues[25].tries, 1);
+        assert.ok(w.logs.some((/** @type {string} */ l) => /checks did not run/.test(l)));
+    });
+});
+
+describe("spawned sessions", () => {
+    test("a spawned session may not spawn again", async () => {
+        const w = await session("stage:in-progress", {
+            done: {done: {issue: 25, to: "stage:review"}},
+            spawn: {spawn: {persona: "advocate", prompt: "file it"}}
+        });
+        const spawned = w.state.run.sessions[0];
+        end(w, spawned.outbox, spawned.container, {
+            requests: {spawn: {spawn: {persona: "qa", prompt: "and again"}}}
+        });
+        await w.p.pass();
+        assert.deepEqual(w.state.run.spawns, []);
+        assert.ok(w.logs.some((/** @type {string} */ l) => /refused spawn.*depth/.test(l)));
+    });
+    test("a spawn that fails to start is dropped with a log line", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            requests: {
+                done: {done: {issue: 25, to: "stage:review"}},
+                spawn: {spawn: {persona: "advocate", prompt: "file it"}}
+            }
+        });
+        const sandboxStart = w.sandbox.start;
+        w.sandbox.start = async (/** @type {any} */ o) => {
+            if (o.stage === "spawn") {
+                throw new Error("docker: no space left");
+            }
+            return sandboxStart(o);
+        };
+        await w.p.pass();
+        assert.deepEqual(w.state.run.spawns, []);
+        assert.ok(w.logs.some((/** @type {string} */ l) => /spawn advocate dropped/.test(l)));
+    });
+});

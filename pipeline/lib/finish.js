@@ -5,36 +5,18 @@
 // Judging a session that ended: its usage, its requests, and whether it moved its
 // issue. A session that moved nothing is a try; enough tries park the issue.
 
-import fs from "node:fs";
-import path from "node:path";
 import {RateLimited, blockedBy} from "./github.js";
+import {logTail} from "./outbox.js";
 import {readRequests} from "./requests.js";
 import {park, promptFor, recordTry, stageOf} from "./state.js";
 import {applyLabels, backOff, hasQueued, inBackoff, moveStage, writeLabel} from "./sync.js";
 import {allowedMoves, costsNoTry, takeResult, unverifiedReason} from "./verdict.js";
-
-const LOG_TAIL_LINES = 20;
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
  * @typedef {import("./requests.js").Request} Request
  * @typedef {import("./verdict.js").Outcome} Outcome
  */
-
-/**
- * The last lines of a session's log.
- *
- * @param {string} outbox - The outbox directory.
- * @returns {string} Up to twenty lines, or a note that there is no log.
- */
-function logTail(outbox) {
-    try {
-        const lines = fs.readFileSync(path.join(outbox, "log"), "utf8").trimEnd().split("\n");
-        return lines.slice(-LOG_TAIL_LINES).join("\n");
-    } catch {
-        return "(no log)";
-    }
-}
 
 /**
  * Log notes (and add them to the digest) and refused requests.
@@ -275,7 +257,8 @@ async function judgeIssue(ctx, n, outcome) {
 
 /**
  * Judge an issue's ended session once and free its slot. The session is marked judged
- * (and saved) first, so a loop that dies half way never applies its requests twice.
+ * (and saved) first, so a loop that dies half way never applies its requests twice, and
+ * the verdict is saved as soon as it is reached.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -295,6 +278,7 @@ export async function finishIssue(ctx, n, outcome = "exited") {
         } catch (error) {
             ctx.log(`#${n}: finishing failed: ${String(error)}`);
         }
+        ctx.save();
     }
     record.labels = record.labels.filter(l => l !== "working");
     await writeLabel(ctx, {issue: n, add: [], remove: ["working"]});
@@ -304,8 +288,9 @@ export async function finishIssue(ctx, n, outcome = "exited") {
 }
 
 /**
- * Judge a spawned session that ended, once, and free its slot. Its done requests were
- * refused, since a spawned session has no stage.
+ * Judge a spawned session that ended, once, and free its slot. Its done and wait requests
+ * were refused, since a spawned session has no stage, and its spawns are refused: a
+ * spawned session may not spawn again.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {{container: string, outbox: string, persona: string, judged?: boolean}} session - The session.
@@ -327,7 +312,9 @@ export async function finishSpawn(ctx, session, outcome = "exited") {
                 } else if (request.kind === "label") {
                     await applyLabels(ctx, request);
                 } else if (request.kind === "spawn") {
-                    queueSpawn(ctx, request, who);
+                    ctx.log(
+                        `${who}: refused spawn ${request.persona}: spawns go one deep (depth 1)`
+                    );
                 }
             }
             await notesAndRefusals(ctx, accepted, refused, 0, who);

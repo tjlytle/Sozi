@@ -62,6 +62,26 @@ describe("outbox requests", () => {
             "advocate"
         );
     });
+    test("label on another issue: no stage label, and triage is not lifted", () => {
+        const other = (/** @type {any} */ body) =>
+            validateRequest({label: {issue: 30, ...body}}, {issue: 25});
+        assert.throws(() => other({add: ["stage:todo"]}), /stage:todo.*issue 30/);
+        assert.throws(() => other({remove: ["stage:parked"]}), /stage:parked/);
+        assert.throws(() => other({remove: ["triage"]}), /triage/);
+        assert.equal(other({add: ["idea"], remove: ["idea"]}).kind, "label");
+        assert.throws(
+            () => validateRequest({label: {issue: 30, add: ["stage:todo"]}}, {issue: 0}),
+            /stage:todo/,
+            "a spawned session has no issue of its own"
+        );
+    });
+    test("label on the own issue of the session may use any allowed label", () => {
+        const own = validateRequest(
+            {label: {issue: 25, add: ["stage:review"], remove: ["stage:in-progress", "triage"]}},
+            {issue: 25}
+        );
+        assert.equal(own.kind, "label");
+    });
     test("unknown kinds are refused", () => {
         assert.throws(() => validateRequest({merge: {}}, {issue: 25}), /unknown/);
     });
@@ -264,6 +284,11 @@ describe("hostile input", () => {
         const dir = scratch();
         fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, hooks: "error"}));
         assert.equal(readResult(dir)?.hooks, "error");
+        fs.writeFileSync(
+            path.join(dir, "result.json"),
+            JSON.stringify({exit: 0, hooks: "skipped"})
+        );
+        assert.equal(readResult(dir)?.hooks, "skipped");
         fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, hooks: 5}));
         assert.equal(readResult(dir)?.hooks, "ok");
     });

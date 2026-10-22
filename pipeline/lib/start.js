@@ -187,12 +187,16 @@ export async function start(ctx) {
         }
         try {
             if (spawn) {
-                await startSpawn(ctx, spawn);
+                // Taken off the queue first: a spawn that cannot start is dropped, not retried.
                 state.run.spawns.shift();
+                await startSpawn(ctx, spawn);
             } else {
                 await startIssue(ctx, /** @type {number} */ (n));
             }
         } catch (error) {
+            if (spawn) {
+                ctx.log(`spawn ${spawn.persona} dropped: ${String(error)}`);
+            }
             ctx.log(`start failed, no more starts this pass: ${String(error)}`);
             return;
         }

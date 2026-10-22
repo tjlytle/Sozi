@@ -175,6 +175,7 @@ describe("the in-container stage runner", () => {
         const r = result(w.outbox);
         assert.equal(r.exit, 3);
         assert.equal(r.resumes, 0);
+        assert.equal(r.hooks, "skipped", "the outside checks never ran");
         assert.equal(fs.existsSync(w.env.HOOKS_LOG), false);
     });
     test("an early failure still writes result.json", () => {
@@ -189,6 +190,7 @@ describe("the in-container stage runner", () => {
         assert.equal(r.session, null);
         assert.equal(r.usage.status, "error");
         assert.deepEqual(r.changed, []);
+        assert.equal(r.hooks, "skipped");
     });
     test("findings resume the session once, then it settles", () => {
         const w = world();
@@ -284,6 +286,7 @@ describe("the in-container stage runner", () => {
         const r = result(w.outbox);
         assert.equal(r.resumes, 0);
         assert.equal(r.session, null);
+        assert.equal(r.hooks, "skipped");
         assert.match(fs.readFileSync(path.join(w.outbox, "log"), "utf8"), /== no session file/);
     });
     test("a harness name with a slash is rejected", () => {

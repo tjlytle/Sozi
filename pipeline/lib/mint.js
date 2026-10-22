@@ -12,7 +12,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-const BOTS = ["advocate", "architect", "builder", "qa", "reviewer", "ops", "claude-dev"];
+const BOTS = ["advocate", "architect", "builder", "qa", "reviewer", "ops"];
 const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const MAX_BODY = 4096;
 const VALID_FOR_MS = 50 * 60 * 1000;
