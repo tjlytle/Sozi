@@ -83,9 +83,19 @@ function encodeKey(key) {
  * @param {string} options.key - The object key.
  * @param {Record<string, string|undefined>} [options.env] - Where the PIPELINE_EVIDENCE_* variables are read from.
  * @param {(url: string, init: object) => Promise<EvidenceResponse>} [options.fetch] - The HTTP client.
+ * @param {number} [options.timeoutMs] - Abort the upload after this many milliseconds; 60000 by default.
  * @returns {Promise<string>} - The public URL.
  */
-export async function put({file, key, env = process.env, fetch: doFetch = fetch}) {
+export async function put({
+    file,
+    key,
+    env = process.env,
+    fetch: doFetch = fetch,
+    timeoutMs = 60000
+}) {
+    if (key.split("/").some(part => part === "" || part === "." || part === "..")) {
+        throw new Error(`invalid key: ${JSON.stringify(key)}`);
+    }
     const need = name => {
         const value = env[name];
         if (!value) {
@@ -103,14 +113,16 @@ export async function put({file, key, env = process.env, fetch: doFetch = fetch}
         {
             method: "PUT",
             headers: {Authorization: `Bearer ${token}`, "Content-Type": contentTypeOf(file)},
-            body: fs.readFileSync(file)
+            body: fs.readFileSync(file),
+            signal: AbortSignal.timeout(timeoutMs)
         }
     );
     if (!response.ok) {
-        const body = typeof response.text === "function" ? await response.text() : "";
+        const text = typeof response.text === "function" ? await response.text() : "";
+        const body = text.split(token).join("***");
         throw new Error(`evidence upload failed: ${response.status} ${body.slice(0, 200)}`.trim());
     }
-    return `${base}/${encoded}`;
+    return `${base.replace(/\/+$/, "")}/${encoded}`;
 }
 
 /** Run the command line.
@@ -121,7 +133,7 @@ export async function put({file, key, env = process.env, fetch: doFetch = fetch}
 export async function main(argv) {
     const [command, file, ...rest] = argv;
     const keyAt = rest.indexOf("--key");
-    if (command !== "put" || !file) {
+    if (command !== "put" || !file || (keyAt >= 0 && !rest[keyAt + 1])) {
         console.error(USAGE.join("\n"));
         return 2;
     }

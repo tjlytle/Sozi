@@ -25,7 +25,7 @@ const script = path.resolve("bin/evidence.js");
 function cli(args, extra = {}) {
     return spawnSync(process.execPath, [script, ...args], {
         encoding: "utf8",
-        env: {PATH: process.env.PATH, ...extra}
+        env: {PATH: process.env.PATH, NODE_NO_WARNINGS: "1", ...extra}
     });
 }
 
@@ -114,5 +114,91 @@ describe("evidence", () => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /PIPELINE_EVIDENCE_ACCOUNT/);
         assert.equal(r.stdout, "");
+    });
+
+    for (const key of ["../x", "a/../b", "a//b", "/a", "./a"]) {
+        test(`the invalid key ${key} throws before any fetch`, async () => {
+            let calls = 0;
+            await assert.rejects(
+                put({
+                    file: tmp,
+                    key,
+                    env,
+                    fetch: async () => {
+                        calls++;
+                        return {ok: true, status: 200};
+                    }
+                }),
+                /invalid key/
+            );
+            assert.equal(calls, 0);
+        });
+    }
+    test("a trailing slash on the public base yields a single slash", async () => {
+        const url = await put({
+            file: tmp,
+            key: "k/a.png",
+            env: {...env, PIPELINE_EVIDENCE_URL: "https://ev.example//"},
+            fetch: async () => ({ok: true, status: 200})
+        });
+        assert.equal(url, "https://ev.example/k/a.png");
+    });
+    test("an error body echoing the token is redacted and long bodies are cut to 200", async () => {
+        const secret = {...env, PIPELINE_EVIDENCE_TOKEN: "tok-SECRET-123"};
+        await assert.rejects(
+            put({
+                file: tmp,
+                key: "k",
+                env: secret,
+                fetch: async () => ({
+                    ok: false,
+                    status: 403,
+                    text: async () => "bad token tok-SECRET-123"
+                })
+            }),
+            e => {
+                const message = /** @type {Error} */ (e).message;
+                return /403/.test(message) && !message.includes("tok-SECRET-123");
+            }
+        );
+        await assert.rejects(
+            put({
+                file: tmp,
+                key: "k",
+                env,
+                fetch: async () => ({ok: false, status: 500, text: async () => "x".repeat(1000)})
+            }),
+            e =>
+                /** @type {Error} */ (e).message.includes("x".repeat(200)) &&
+                !(/** @type {Error} */ (e).message.includes("x".repeat(201)))
+        );
+    });
+    test("the upload carries a timeout signal, default 60 s, overridable", async () => {
+        /** @type {any} */
+        let init;
+        await put({
+            file: tmp,
+            key: "k",
+            env,
+            timeoutMs: 5000,
+            fetch: async (_u, i) => {
+                init = i;
+                return {ok: true, status: 200};
+            }
+        });
+        assert.ok(init.signal instanceof AbortSignal);
+    });
+    test("the CLI exits 1 with a one-line error naming a nonexistent file", () => {
+        const bogus = path.join(os.tmpdir(), "ev-nope", "missing.png");
+        const r = cli(["put", bogus], env);
+        assert.equal(r.status, 1);
+        assert.equal(r.stdout, "");
+        assert.ok(r.stderr.includes(bogus));
+        assert.equal(r.stderr.trim().split("\n").length, 1);
+    });
+    test("the CLI exits 2 with usage for --key without a value", () => {
+        const r = cli(["put", tmp, "--key"], env);
+        assert.equal(r.status, 2);
+        assert.match(r.stderr, /usage/);
     });
 });
