@@ -274,7 +274,7 @@ function isExecutable(fileName) {
     try {
         fs.accessSync(fileName, fs.constants.X_OK);
         return fs.statSync(fileName).isFile();
-    } catch {
+    } catch (e) {
         return false;
     }
 }
@@ -327,7 +327,7 @@ function cleanUpOnExit(fn) {
     const cleanUp = () => {
         try {
             fn();
-        } catch {
+        } catch (e) {
             // Nothing more can be done while exiting.
         }
     };
@@ -356,7 +356,7 @@ function removeCreatedDirs(dir, created) {
     for (let d = path.resolve(dir); ; d = path.dirname(d)) {
         try {
             fs.rmdirSync(d);
-        } catch {
+        } catch (e) {
             // Not empty, or already gone: keep it and its parents.
             return;
         }
@@ -402,7 +402,7 @@ async function writeOutput(outPath, write) {
     } catch (err) {
         try {
             cleanUp();
-        } catch {
+        } catch (e) {
             // Report the error of the export, not of the clean-up.
         }
         throw err;
@@ -440,7 +440,7 @@ export function moveFile(from, to) {
 export function linkOrCopy(from, to) {
     try {
         fs.linkSync(from, to);
-    } catch {
+    } catch (err) {
         fs.copyFileSync(from, to);
     }
 }
@@ -463,7 +463,7 @@ function runFfmpeg(ffmpegPath, args, timeoutMs) {
         const kill = () => {
             try {
                 child.kill("SIGKILL");
-            } catch {
+            } catch (e) {
                 // The process is already gone.
             }
         };
@@ -734,7 +734,7 @@ export class ExportWindow {
         } finally {
             try {
                 await this.run("__soziExport.kick(false)");
-            } catch {
+            } catch (e) {
                 // The page does not respond: the window will be destroyed anyway.
             }
         }
@@ -990,7 +990,7 @@ function progress(opts, done, total) {
     if (typeof opts.onProgress === "function") {
         try {
             opts.onProgress({done, total});
-        } catch {
+        } catch (e) {
             // A failing progress callback must not break the export.
         }
     }
@@ -1224,7 +1224,7 @@ function removeTmpDir(dir) {
     if (dir) {
         try {
             dir.removeCallback();
-        } catch {
+        } catch (e) {
             // Ignore failures to remove the temporary directory.
         }
     }
