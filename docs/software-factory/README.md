@@ -95,3 +95,15 @@ Concrete standards over model judgment; idiomatic to the language and the app, n
 PHP-flavoured; base is `master` with the CLI stack merged; CI over nightly; auto-merge and
 auto-plans with the two parking cases; screenshots on every UI PR; the channel repo gets
 the same standard and pipeline; merge bias with improvements filed as issues.
+
+## The safety net
+
+Before the cleanup issues reshape the old code, the tests under `test/unit/`, `test/golden/`
+and `test/features/` pin what it does today (#36): unit tests for the pure modules (timing,
+selection, camera state, presentation storage, the upgrade of old files, the CLI helpers),
+golden renders of two fixture decks compared with a mean-absolute-difference tolerance
+(`UPDATE_GOLDENS=1 npm test` rewrites them after an intended visual change), player and
+presenter scenarios on the built pages, and editor scenarios that drive the Electron app
+through Playwright's Electron launcher (`test/features/support/electron.js`: one app per
+scenario, an isolated HOME, Ctrl+S before close so the quit dialog never shows). A cleanup
+PR that changes any of this behaviour goes red here before a person sees it.
