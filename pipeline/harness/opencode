@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Harness adapter stub for opencode (contract: pipeline/harness/README.md).
+#
+# Not implemented yet: it parses the contract arguments (so a wrong call still
+# exits 64), records status "unsupported", says so and exits 69. What the real
+# adapter needs is in the opencode section of the README.
+#
+# Usage: opencode run --prompt FILE --model M --allow FILE --checkout DIR --out DIR
+#        opencode resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR
+set -u
+
+USAGE="Usage: opencode run --prompt FILE --model M --allow FILE --checkout DIR --out DIR | resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR"
+MODE=""; OUT=""; PROMPT=""; MODEL=""; ALLOW_FILE=""; CHECKOUT=""; SESSION=""; MESSAGE=""
+
+usage_exit() { echo "$USAGE" >&2; exit 64; }
+
+# Parse the arguments into the variables above; exit 64 on anything unexpected.
+parse_args() {
+    MODE="${1:-}"; [ $# -gt 0 ] && shift
+    while [ $# -gt 0 ]; do
+        [ $# -ge 2 ] || usage_exit
+        case "$1" in
+            --prompt) PROMPT="$2" ;; --model) MODEL="$2" ;; --allow) ALLOW_FILE="$2" ;;
+            --checkout) CHECKOUT="$2" ;; --out) OUT="$2" ;; --session) SESSION="$2" ;;
+            --message) MESSAGE="$2" ;; *) usage_exit ;;
+        esac
+        shift 2
+    done
+    [ -n "$MODEL" ] && [ -n "$ALLOW_FILE" ] && [ -n "$CHECKOUT" ] && [ -n "$OUT" ] || usage_exit
+    case "$MODE" in
+        run) [ -n "$PROMPT" ] || usage_exit ;;
+        resume) [ -n "$SESSION" ] && [ -n "$MESSAGE" ] || usage_exit ;;
+        *) usage_exit ;;
+    esac
+}
+
+main() {
+    parse_args "$@"
+    mkdir -p "$OUT"
+    echo '{"tokensIn": 0, "tokensOut": 0, "costUsd": 0, "turns": 0, "status": "unsupported"}' >"$OUT/usage.json"
+    echo "opencode adapter is a stub; see pipeline/harness/README.md"
+    exit 69
+}
+
+main "$@"

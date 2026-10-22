@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Harness adapter for the Claude Code CLI (contract: pipeline/harness/README.md).
+#
+# Usage: claude run --prompt FILE --model M --allow FILE --checkout DIR --out DIR
+#        claude resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR
+#
+# Runs `claude -p` in the checkout, saves the raw stream to OUT/stream.jsonl,
+# prints a readable log on stdout, and leaves OUT/session and OUT/usage.json.
+# Exit: the CLI's exit status; 75 when the session was rate-limited; 64 on a bad call.
+#
+# Env read: CLAUDE_BIN (claude), PIPELINE_SESSION_BUDGET_USD (unset or 0: no cap),
+# PLUGIN_DIR (/opt/gh-personas; passed as --plugin-dir only when it exists).
+set -u
+
+USAGE="Usage: claude run --prompt FILE --model M --allow FILE --checkout DIR --out DIR | resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR"
+MODE=""; PROMPT=""; MODEL=""; ALLOW_FILE=""; CHECKOUT=""; OUT=""; SESSION=""; MESSAGE=""
+
+usage_exit() { echo "$USAGE" >&2; exit 64; }
+
+# Parse the arguments into the variables above; exit 64 on anything unexpected.
+parse_args() {
+    MODE="${1:-}"; [ $# -gt 0 ] && shift
+    while [ $# -gt 0 ]; do
+        [ $# -ge 2 ] || usage_exit
+        case "$1" in
+            --prompt) PROMPT="$2" ;; --model) MODEL="$2" ;; --allow) ALLOW_FILE="$2" ;;
+            --checkout) CHECKOUT="$2" ;; --out) OUT="$2" ;; --session) SESSION="$2" ;;
+            --message) MESSAGE="$2" ;; *) usage_exit ;;
+        esac
+        shift 2
+    done
+    [ -n "$MODEL" ] && [ -n "$ALLOW_FILE" ] && [ -n "$CHECKOUT" ] && [ -n "$OUT" ] || usage_exit
+    case "$MODE" in
+        run) [ -n "$PROMPT" ] || usage_exit ;;
+        resume) [ -n "$SESSION" ] && [ -n "$MESSAGE" ] || usage_exit ;;
+        *) usage_exit ;;
+    esac
+}
+
+new_uuid() {
+    cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null ||
+        node -e 'console.log(crypto.randomUUID())'
+}
+
+# The stream-json log as readable lines (ported from the snake pipeline).
+live() {
+    jq -R -r --unbuffered '
+    (. as $line | try fromjson catch {type: "raw", text: $line}) |
+    if .type == "raw" then (.text | select(test("Permission (allow|deny) rule") | not))
+    elif .type == "assistant" then
+      .message.content[]? | if .type == "text" then .text
+        elif .type == "tool_use" then "▶ " + .name + ": " + ((.input.description // .input.command // .input.file_path // .input.pattern // .input.prompt // "") | tostring | .[0:160])
+        else empty end
+    elif .type == "result" then "■ " + (.subtype // "done") + " after " + ((.num_turns // 0) | tostring) + " turns"
+    else empty end'
+}
+
+# Run the CLI in the checkout; returns the CLI's exit status.
+launch() {
+    local text session_flag plugin="${PLUGIN_DIR:-/opt/gh-personas}" cmd ALLOW
+    mapfile -t ALLOW < <(grep -v '^#' "$ALLOW_FILE" | grep -v '^[[:space:]]*$')
+    if [ "$MODE" = run ]; then
+        text=$(cat "$PROMPT"); session_flag=(--session-id "$SESSION")
+    else
+        text=$(cat "$MESSAGE"); session_flag=(--resume "$SESSION")
+    fi
+    cmd=("${CLAUDE_BIN:-claude}" -p "$text" "${session_flag[@]}" --model "$MODEL"
+        --permission-mode acceptEdits --allowedTools "${ALLOW[@]}" --output-format stream-json --verbose)
+    case "${PIPELINE_SESSION_BUDGET_USD:-0}" in 0) ;; *) cmd+=(--max-budget-usd "$PIPELINE_SESSION_BUDGET_USD") ;; esac
+    [ -d "$plugin" ] && cmd+=(--plugin-dir "$plugin")
+    cd "$CHECKOUT" || return 1
+    "${cmd[@]}" 2>&1 | tee -a "$OUT/stream.jsonl" | live
+    return "${PIPESTATUS[0]}"
+}
+
+# Write OUT/usage.json from the last result line of this call's stream.
+write_usage() {
+    local result
+    result=$(tail -n "$1" "$OUT/stream.jsonl" | jq -R -c 'fromjson? | select(type == "object" and .type == "result")' 2>/dev/null | tail -n 1)
+    [ -n "$result" ] || result='null'
+    jq -n --argjson r "$result" '
+        ($r // {}) as $x |
+        (($x.subtype // "") + " " + (($x.error // "") | tostring) + " " + (($x.result // "") | tostring)) as $text |
+        {tokensIn: ($x.usage.input_tokens // 0), tokensOut: ($x.usage.output_tokens // 0),
+         costUsd: ($x.total_cost_usd // 0), turns: ($x.num_turns // 0),
+         status: (if $r == null then "error"
+                  elif ($text | test("rate limit|429|overloaded"; "i")) then "rate-limited"
+                  elif (($x.subtype // "") | test("budget")) then "budget"
+                  elif $x.is_error == true then "error" else "ok" end)}' >"$OUT/usage.json"
+}
+
+main() {
+    local rc before
+    parse_args "$@"
+    mkdir -p "$OUT"; touch "$OUT/stream.jsonl"
+    if [ "$MODE" = run ]; then SESSION=$(new_uuid); echo "$SESSION" >"$OUT/session"; fi
+    before=$(wc -l <"$OUT/stream.jsonl" 2>/dev/null || echo 0)
+    launch; rc=$?
+    write_usage "$(( $(wc -l <"$OUT/stream.jsonl" 2>/dev/null || echo 0) - before ))"
+    [ "$(jq -r .status "$OUT/usage.json")" = rate-limited ] && exit 75
+    exit "$rc"
+}
+
+main "$@"
