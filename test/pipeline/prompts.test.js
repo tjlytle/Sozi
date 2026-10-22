@@ -151,3 +151,10 @@ describe("every prompt", () => {
         }
     });
 });
+
+test("no prompt pushes with -u", () => {
+    for (const f of fs.readdirSync("pipeline").filter(name => name.endsWith(".md"))) {
+        const text = fs.readFileSync(`pipeline/${f}`, "utf8");
+        assert.doesNotMatch(text, /--push [^\n]*-u\b/, f);
+    }
+});

@@ -52,3 +52,27 @@ export function statusText(state) {
     lines.push(`queued spawns: ${(run.spawns ?? []).length}`);
     return `${lines.join("\n")}\n`;
 }
+
+/** Describe each persona profile for --status, never a value from it.
+ *
+ * @param {Array<{persona: string, info: import("./profile.js").ProfileInfo | null | Error}>} infos - What each inspection found; an Error when it failed.
+ * @returns {string} - One line per persona.
+ */
+export function profilesText(infos) {
+    const lines = infos.map(({persona, info}) => {
+        if (info instanceof Error) {
+            return `profile ${persona}: unknown (${info.message.split("\n")[0].slice(0, 80)})`;
+        }
+        if (!info) {
+            return `profile ${persona}: none`;
+        }
+        if (!info.claude.loggedIn) {
+            return `profile ${persona}: claude not logged in`;
+        }
+        const servers = info.claude.servers.length
+            ? `, servers: ${info.claude.servers.join(", ")}`
+            : "";
+        return `profile ${persona}: claude logged in${servers}`;
+    });
+    return `${lines.join("\n")}\n`;
+}

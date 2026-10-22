@@ -35,7 +35,7 @@ import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
 import {PERSONAS} from "../pipeline/lib/profile.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
-import {statusText} from "../pipeline/lib/status.js";
+import {profilesText, statusText} from "../pipeline/lib/status.js";
 import {sync as boardSync} from "./board.js";
 import {main as digestMain} from "./digest.js";
 
@@ -171,6 +171,23 @@ function parseCommand(argv) {
     return {opt: values, target};
 }
 
+/** Inspect every persona profile, an error standing in for a persona that cannot be inspected.
+ *
+ * @param {ReturnType<typeof createSandbox>} sandbox - The sandbox.
+ * @returns {Promise<Array<{persona: string, info: import("../pipeline/lib/profile.js").ProfileInfo | null | Error}>>} - One entry per persona.
+ */
+async function inspectAll(sandbox) {
+    return Promise.all(
+        PERSONAS.map(async persona => {
+            try {
+                return {persona, info: await sandbox.inspectProfile(persona)};
+            } catch (error) {
+                return {persona, info: error instanceof Error ? error : new Error(String(error))};
+            }
+        })
+    );
+}
+
 /** Build the pass over the real GitHub, board, digest and clock.
  *
  * @param {object} parts - The run's parts.
@@ -247,10 +264,19 @@ export async function main(
     }
     // The environment wins over the secrets file, as it does for the settings.
     const runEnv = {...settings.secrets, ...env};
+    const sandbox =
+        deps.sandbox ??
+        createSandbox({
+            settings,
+            root,
+            run: deps.run,
+            runInteractive: deps.runInteractive,
+            env: runEnv
+        });
     if (opt.status || opt.digest) {
         const state = loadState(file);
         await (opt.status
-            ? write(statusText(state))
+            ? write(statusText(state) + profilesText(await inspectAll(sandbox)))
             : finishDigest({
                   state,
                   reason: "finished by hand",
@@ -262,15 +288,6 @@ export async function main(
               }));
         return 0;
     }
-    const sandbox =
-        deps.sandbox ??
-        createSandbox({
-            settings,
-            root,
-            run: deps.run,
-            runInteractive: deps.runInteractive,
-            env: runEnv
-        });
     if (opt["build-image"]) {
         await sandbox.buildImage();
         return 0;

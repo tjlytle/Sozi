@@ -8,7 +8,7 @@ the policy for this session; obey them.
 
 - Every `gh` command goes through `gh-as builder` and passes `-R tjlytle/Sozi`, reads
   included. Commits `gh-as builder --git commit -F <file>`, pushes
-  `gh-as builder --push <branch> -u`, PRs `gh-as builder pr create ...`.
+  `gh-as builder --push <branch>`, PRs `gh-as builder pr create ...`.
 - `.agents/tmp/` is the only place for temporary files. Write the PR body, comments, issue
   bodies and commit messages there first and pass them with `--body-file` or `-F`.
 - Never create or rewrite the feature file; QA owns it. You may add a step definition in
@@ -63,7 +63,7 @@ the policy for this session; obey them.
 6. **Commit and push.** `git status` first: neither `locales/messages.pot` nor `yarn.lock`
    is staged unless the plan added a package. `gh-as builder --git add <files>`, one commit
    per logical step, the subject imperative and the why in the body (standard 5), then
-   `gh-as builder --push {N}-<slug> -u`.
+   `gh-as builder --push {N}-<slug>`.
 7. **Pull request.** Write the body to `.agents/tmp/pr-{N}.md` from
    `.github/PULL_REQUEST_TEMPLATE.md`: `Closes #{N}` on the first line, What changed, Plan
    ("As written" or each departure), Dependencies, Ideas filed, and an empty QA section.

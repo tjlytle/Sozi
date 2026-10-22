@@ -97,6 +97,55 @@ describe("bin/pipeline.js", () => {
         assert.match(text, /#25 comment as ops/);
         assert.match(text, /dead letters: 1\n.*HTTP 404/);
     });
+    test("--status lists each persona profile without values", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pl-"));
+        fs.mkdirSync(path.join(root, "var", "pipeline"), {recursive: true});
+        fs.writeFileSync(
+            path.join(root, "var", "pipeline", "state.json"),
+            JSON.stringify(emptyState())
+        );
+        /** @type {Record<string, any>} */
+        const infos = {
+            architect: {
+                claude: {present: true, loggedIn: true, servers: ["mobbin"], accessToken: "s3cret"},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            },
+            builder: {
+                claude: {present: true, loggedIn: true, servers: []},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            },
+            qa: {
+                claude: {present: true, loggedIn: false, servers: []},
+                codex: {present: false, loggedIn: false},
+                writable: true
+            },
+            reviewer: null
+        };
+        const sandbox = {
+            inspectProfile: async (/** @type {string} */ persona) => {
+                if (persona === "advocate") {
+                    throw new Error("docker is down\nsecond line");
+                }
+                return infos[persona] ?? null;
+            }
+        };
+        let text = "";
+        const code = await main(["--status"], {
+            root,
+            env: {},
+            out: t => (text += t),
+            deps: /** @type {any} */ ({sandbox})
+        });
+        assert.equal(code, 0);
+        assert.match(text, /profile architect: claude logged in, servers: mobbin\n/);
+        assert.match(text, /profile builder: claude logged in\n/);
+        assert.match(text, /profile qa: claude not logged in\n/);
+        assert.match(text, /profile ops: none\n/);
+        assert.match(text, /profile advocate: unknown \(docker is down\)\n/);
+        assert.doesNotMatch(text, /accessToken|s3cret/);
+    });
     test("an unknown argument prints the usage", async () => {
         let text = "";
         assert.equal(await main(["nope"], {env: {}, err: t => (text += t)}), 2);
