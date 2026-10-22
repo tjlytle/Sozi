@@ -191,8 +191,7 @@ prompt run as `claude -p`. The container's only shared state with the host is th
 volume (read) and the log directory (write).
 
 Credentials reach the container as environment variables, never as mounted home
-directories. The Claude Code token comes from `claude setup-token` on the host, stored
-once. GitHub tokens: the host loop mints them (Tim, 2026-10-21: "the factory script
+directories; the one exception is the persona profile, described next. GitHub tokens: the host loop mints them (Tim, 2026-10-21: "the factory script
 launching the container should mint the right token for that process and pass it in").
 `gh-as` has exactly two ways to get a bot token, the local App keys or the mint worker
 (`GH_MINT_URL`/`GH_MINT_KEY`), and the keys never enter a container. So the loop speaks
@@ -202,6 +201,33 @@ bridge, keyed by a per-run secret), and the container gets `GH_MINT_URL` pointin
 No change to the plugin, and the container uses the same path a cloud session uses
 against the real worker. When Tim deploys the per-persona worker, the same containers
 work unchanged with its URL instead.
+
+**Persona profiles** (Tim, 2026-10-22). Each persona has a Docker volume,
+`sozi-factory-profile-<persona>`, mounted at `/profile` in that persona's containers, with
+`CLAUDE_CONFIG_DIR=/profile/claude`, `CODEX_HOME=/profile/codex` and
+`XDG_CONFIG_HOME=/profile/xdg` set, so a profile holds every harness's configuration:
+the login and the MCP servers authorised in it.
+- `node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]` opens an
+  interactive container on that volume (`pipeline/login.sh` prints the steps: `claude`,
+  `/login`, `/mcp`, exit). It runs on the host network only during the login, so an MCP
+  OAuth callback to a localhost port reaches it.
+- Tim's decision: six profiles, one per persona. Log in once, then
+  `--copy-profile <from> <to>` to the other five; if a token refresh ever invalidates the
+  copies, fix it then.
+- `PIPELINE_PROFILES=auto|off` turns the profiles on or off. With a profile, the stage
+  uses it. With no volume but a `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, the
+  stage uses the token as the fallback. With neither, or with a volume that is not
+  logged in, the stage is refused with the login hint.
+- `PIPELINE_MCP_<PERSONA>` (in `pipeline/config`) is the allowlist: architect
+  `mobbin,context7`, advocate `mobbin`, builder `context7`. A profile holding a server
+  outside its list is refused, naming the servers. `profile-inspect.sh` reports names and
+  booleans only, never credentials; `--status` prints one line per profile.
+- `PIPELINE_PER_PERSONA` (default 1) allows one session per persona at a time, since a
+  profile is one account's login; an issue that has to wait logs
+  `waits, <persona> at its limit`.
+- Hosted cloud sessions (Claude Code cloud, Codex cloud) cannot mount a volume, so they
+  are a follow-on. The candidate: export the profile as an encrypted blob and restore it
+  at container start.
 
 **Ceilings** (Tim: limits per agent and per machine, and the loop throttles near a usage
 limit). A fixed number of containers at a time (`PIPELINE_PARALLEL`, default two; a build
@@ -451,6 +477,9 @@ secrets; the board sync running from the same routine.
   written by `stage.sh`, or `--permission-mode`). The image loads the plugin with
   `--plugin-dir /opt/gh-personas`, which sidesteps the marketplace question for the
   container; the cloud path still needs the answer.
+- The Mobbin-in-container check (2) now means "Mobbin authorised in the architect and
+  advocate profiles" (`--status` lists each profile's servers; the allowlists are in
+  `pipeline/config`).
 - What the build taught: the image is about 6.5 GB and builds in about 6 minutes. Stage
   runs on `master` run `npm ci` today, because master's lockfile differs from the branch
   until the foundation PR merges. `--once` and a Ctrl-C wait for running sessions, so the
