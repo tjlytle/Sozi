@@ -116,13 +116,13 @@ export function saveState(file, state) {
     fs.renameSync(temporary, file);
 }
 
-/** Finds the stage among an issue's labels.
+/** Finds the stage among an issue's labels; of two, the later in the stage order.
  *
  * @param {string[]} labels - The labels.
  * @returns {string | null} - The stage label, or null when there is none.
  */
 export function stageOf(labels) {
-    return STAGES.find(stage => labels.includes(stage)) ?? null;
+    return [...STAGES].reverse().find(stage => labels.includes(stage)) ?? null;
 }
 
 /** Names the prompt that runs a stage.
@@ -227,33 +227,54 @@ export function scope(state, {epic} = {}) {
         .sort((a, b) => a - b);
 }
 
+/** Tells whether an issue can make no progress on its own: closed, done, parked, waiting
+ * for a person, in triage or an idea, or blocked by issues none of which can make
+ * progress (closed, outside the scope, or themselves quiet). A blocked issue with no
+ * blockers is quiet. A blocker already being looked at (a cycle) counts as quiet.
+ *
+ * @param {State} state - The state.
+ * @param {number} n - The issue number.
+ * @param {number[]} scopeNumbers - The issues in scope.
+ * @param {Set<number>} visited - The issues already on the path.
+ * @returns {boolean} - True when the issue is quiet.
+ */
+function quietIssue(state, n, scopeNumbers, visited) {
+    const r = state.issues[n];
+    if (!r) {
+        return true;
+    }
+    if (r.session || isStartable(state, r)) {
+        return false;
+    }
+    if (r.closed || r.waiting || r.stage === "stage:done" || r.stage === "stage:parked") {
+        return true;
+    }
+    if (r.stage === null) {
+        return r.labels.includes("triage") || r.labels.includes("idea");
+    }
+    if (r.stage !== "stage:blocked") {
+        return false;
+    }
+    visited.add(n);
+    return r.blockers.every(b => {
+        const blocker = state.issues[b];
+        if (!scopeNumbers.includes(b) || !blocker || blocker.closed || visited.has(b)) {
+            return true;
+        }
+        // A merged blocker that is not closed yet closes at the next sync: progress.
+        return blocker.stage !== "stage:done" && quietIssue(state, b, scopeNumbers, visited);
+    });
+}
+
 /** Tells whether nothing in the scope needs doing and nothing runs. An issue waiting for
- * a person is quiet.
+ * a person is quiet, and so is one blocked by issues that cannot make progress.
  *
  * @param {State} state - The state.
  * @param {number[]} scopeNumbers - The issues in scope.
  * @returns {boolean} - True when the scope is quiet; an empty scope is.
  */
 export function isQuiet(state, scopeNumbers) {
-    return scopeNumbers.every(n => {
-        const r = state.issues[n];
-        if (!r) {
-            return true;
-        }
-        if (r.session || isStartable(state, r)) {
-            return false;
-        }
-        if (r.closed || r.waiting || r.stage === "stage:done" || r.stage === "stage:parked") {
-            return true;
-        }
-        if (r.stage === null) {
-            return r.labels.includes("triage") || r.labels.includes("idea");
-        }
-        return (
-            r.stage === "stage:blocked" &&
-            r.blockers.some(b => !scopeNumbers.includes(b) && state.issues[b]?.closed !== true)
-        );
-    });
+    return scopeNumbers.every(n => quietIssue(state, n, scopeNumbers, new Set()));
 }
 
 /** Counts a session try for an issue.

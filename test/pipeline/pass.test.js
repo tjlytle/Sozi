@@ -185,7 +185,7 @@ describe("a pass", () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});
         await w.p.pass();
         end(w, w.state.issues[25].session.outbox, "c25", {
-            requests: {note: {note: "plan posted for #25; waiting for review"}}
+            requests: {wait: {wait: "plan posted for #25; waiting for review"}}
         });
         const s = await w.p.pass();
         assert.equal(w.state.issues[25].tries, 0);

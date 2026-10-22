@@ -73,7 +73,13 @@ const NEVER_REMOVED = ["working"];
  */
 
 /**
- * @typedef {DoneRequest | LabelRequest | SpawnRequest | NoteRequest} Request
+ * @typedef {object} WaitRequest
+ * @property {"wait"} kind - Request kind.
+ * @property {string} reason - What a person is to do; the issue waits until its stage changes.
+ */
+
+/**
+ * @typedef {DoneRequest | LabelRequest | SpawnRequest | NoteRequest | WaitRequest} Request
  */
 
 /**
@@ -99,7 +105,7 @@ const NEVER_REMOVED = ["working"];
  * @property {string[]} changed - Files changed.
  * @property {string[]} commits - Commits made.
  * @property {number} resumes - How many times the session was resumed.
- * @property {"ok" | "error"} hooks - Whether the outside hooks ran; "error" means the checks did not.
+ * @property {"ok" | "error" | "skipped"} hooks - Whether the outside hooks ran: "error" when they crashed, "skipped" when they never ran.
  */
 
 /**
@@ -157,6 +163,15 @@ export function validateRequest(obj, {issue}) {
             throw new Error("note must be a non-empty string");
         }
         return {kind: "note", text: body};
+    }
+    if (kind === "wait") {
+        if (issue === 0) {
+            throw new Error("wait needs a session that works on an issue");
+        }
+        if (typeof body !== "string" || body.trim() === "") {
+            throw new Error("wait must be a non-empty string: what a person is to do");
+        }
+        return {kind: "wait", reason: body};
     }
     if (!["done", "label", "spawn"].includes(kind)) {
         throw new Error(`unknown request kind ${kind}`);

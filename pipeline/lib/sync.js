@@ -28,12 +28,13 @@ const STAGE_LABELS = /^stage:/;
  * @property {import("./state.js").State & {boardMeta?: any}} state - The loop state, changed in place.
  * @property {import("./github.js").Github} github - The GitHub client.
  * @property {any} sandbox - The sandbox.
- * @property {{sync: (opts: {issues: number[], book: any}) => Promise<unknown>}} board - The board.
+ * @property {{sync: (opts: {issues: number[], all?: boolean, book: any}) => Promise<{failed: number[]} | void>}} board - The board; sync names the issues it failed on.
  * @property {{add: (entry: {issue: number, text: string}) => Promise<unknown>}} digest - The run digest.
  * @property {{now: () => number}} clock - The clock, in epoch milliseconds.
  * @property {(line: string) => void} log - The log.
  * @property {string} root - The repository root, where the prompts live.
- * @property {Set<number>} changed - Issues whose stage changed since the last board sync.
+ * @property {Set<number>} changed - Issues whose stage changed since the last board sync, or whose board sync failed.
+ * @property {number} syncs - GitHub syncs since the loop started; the first and every boardFullEvery-th sync the whole board.
  * @property {Set<number>} tried - Issues that used a try this pass; they wait for the next.
  * @property {Summary} summary - The summary of the running pass.
  * @property {() => void} save - Writes the state.
@@ -64,7 +65,8 @@ export function backOff(ctx, error) {
 }
 
 /**
- * Write a label change to GitHub now, or queue it while backed off or when it fails.
+ * Write a label change to GitHub now, or queue it while backed off, while an earlier
+ * write about the same issue waits in the queue (so the order holds), or when it fails.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {{issue: number, add?: string[], remove?: string[]}} op - The change.
@@ -72,7 +74,7 @@ export function backOff(ctx, error) {
  */
 export async function writeLabel(ctx, {issue, add = [], remove = []}) {
     const op = {issue, add, remove};
-    if (inBackoff(ctx)) {
+    if (inBackoff(ctx) || hasQueued(ctx, issue)) {
         queueLabel(ctx.state, op);
         return;
     }
@@ -172,6 +174,19 @@ async function drainQueue(ctx) {
 }
 
 /**
+ * Write the queued writes when GitHub has not backed the loop off; every pass starts
+ * with this, so a queued write never lands after a newer direct one.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {Promise<void>}
+ */
+export async function drainIfFree(ctx) {
+    if (ctx.state.queued.length > 0 && !inBackoff(ctx)) {
+        await drainQueue(ctx);
+    }
+}
+
+/**
  * Tell whether a write about an issue is still waiting in the queue.
  *
  * @param {PassContext} ctx - The pass context.
@@ -227,7 +242,8 @@ async function readIssue(ctx, issue) {
 /**
  * Read GitHub when the sync timer is due and the loop is not backed off: queued label
  * changes first (so the read sees them), then the issues, blockers of blocked issues,
- * parked issues a person answered, and the board for issues whose stage changed.
+ * parked issues a person answered; then stale working labels go, blocked issues with no
+ * blockers are logged, and the board syncs.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
@@ -256,13 +272,64 @@ export async function syncIfDue(ctx) {
         }
         return;
     }
-    if (ctx.changed.size > 0) {
-        try {
-            await ctx.board.sync({issues: [...ctx.changed], book: state});
-            ctx.changed.clear();
-        } catch (error) {
-            ctx.log(`board sync failed: ${String(error)}`);
+    await sweepWorking(ctx);
+    blockedByNothing(ctx);
+    await syncBoard(ctx);
+}
+
+/**
+ * Drop the working label of every issue with no session: a session ended without the
+ * removal reaching GitHub, or someone else left it.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {Promise<void>}
+ */
+async function sweepWorking(ctx) {
+    for (const [key, record] of Object.entries(ctx.state.issues)) {
+        if (record.labels.includes("working") && !record.session) {
+            ctx.log(`#${key}: working with no session; removing the label`);
+            record.labels = record.labels.filter(l => l !== "working");
+            await writeLabel(ctx, {issue: Number(key), add: [], remove: ["working"]});
         }
+    }
+}
+
+/**
+ * Log each open blocked issue in scope that names no blockers: it is quiet, and only a
+ * person can say what it waits for.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {void}
+ */
+function blockedByNothing(ctx) {
+    const {state} = ctx;
+    for (const n of scope(state, {epic: state.run.epic})) {
+        const r = state.issues[n];
+        if (r.stage === "stage:blocked" && !r.closed && r.blockers.length === 0) {
+            ctx.log(`#${n}: blocked by nothing; it waits for a person to name its blockers`);
+        }
+    }
+}
+
+/**
+ * Sync the board for the issues whose stage changed, or the whole board on the first
+ * sync and every boardFullEvery-th; the issues it failed on wait for the next sync.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {Promise<void>}
+ */
+async function syncBoard(ctx) {
+    ctx.syncs += 1;
+    const every = ctx.settings.boardFullEvery;
+    const all = ctx.syncs === 1 || (every > 0 && (ctx.syncs - 1) % every === 0);
+    if (!all && ctx.changed.size === 0) {
+        return;
+    }
+    try {
+        const result = await ctx.board.sync({issues: [...ctx.changed], all, book: ctx.state});
+        ctx.changed = new Set(result?.failed ?? []);
+    } catch (error) {
+        ctx.log(`board sync failed: ${String(error)}`);
     }
 }
 

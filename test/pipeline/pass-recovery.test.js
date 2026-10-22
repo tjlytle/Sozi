@@ -205,7 +205,7 @@ describe("labels and scope", () => {
     test("a stage moved by hand clears waiting, and the issue starts", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});
         await w.p.pass();
-        end(w, w.state.issues[25].session.outbox, "c25", {requests: {note: {note: "waiting"}}});
+        end(w, w.state.issues[25].session.outbox, "c25", {requests: {wait: {wait: "waiting"}}});
         await w.p.pass();
         assert.equal(w.state.issues[25].waiting, true);
         w.issues[0].labels = ["stage:tests"];

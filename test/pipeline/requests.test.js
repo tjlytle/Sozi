@@ -116,6 +116,15 @@ describe("outbox request details", () => {
         });
         assert.throws(() => validateRequest({note: ""}, {issue: 25}), /note/);
     });
+    test("wait needs a reason, and a session with an issue", () => {
+        assert.deepEqual(validateRequest({wait: "plan posted"}, {issue: 25}), {
+            kind: "wait",
+            reason: "plan posted"
+        });
+        assert.throws(() => validateRequest({wait: " "}, {issue: 25}), /wait/);
+        assert.throws(() => validateRequest({wait: {reason: "x"}}, {issue: 25}), /wait/);
+        assert.throws(() => validateRequest({wait: "x"}, {issue: 0}), /wait/);
+    });
     test("non-objects are refused", () => {
         assert.throws(() => validateRequest([], {issue: 25}), /object/);
         assert.throws(() => validateRequest(null, {issue: 25}), /object/);

@@ -384,8 +384,8 @@ describe("board", () => {
             "gh-as - project item-add": JSON.stringify({id: "NEW"})
         });
         const book = {boardMeta: META};
-        const failed = await sync({issues: [25], book}, {repo: REPO, run, out() {}});
-        assert.equal(failed, 0);
+        const result = await sync({issues: [25], book}, {repo: REPO, run, out() {}});
+        assert.deepEqual(result, {failed: []});
         assert.equal(book.issues[25].board.item, "NEW");
     });
     test("one failing issue is reported and does not stop the next", async () => {
@@ -405,6 +405,14 @@ describe("board", () => {
         assert.equal(code, 1);
         assert.equal(errors.length, 1);
         assert.match(errors[0], /^#25: .*boom/);
+        const again = fake({
+            "gh-as ops api repos/tjlytle/Sozi/issues/25": {code: 1, stderr: "boom"},
+            "gh-as ops api repos/tjlytle/Sozi/issues/26": restIssue(["stage:review"], 26),
+            "gh-as - api graphql": lookup("Review", "2026-10-21T01:00:00Z")
+        });
+        const book = {boardMeta: META};
+        const ctx = {repo: REPO, run: again.run, out() {}, err() {}};
+        assert.deepEqual(await sync({issues: [25, 26], book}, ctx), {failed: [25]});
         assert.equal(
             calls.filter(c => c.join(" ").startsWith("gh-as ops api repos/tjlytle/Sozi/issues/25"))
                 .length,

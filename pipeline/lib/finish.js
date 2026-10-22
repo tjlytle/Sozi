@@ -8,18 +8,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import {RateLimited, blockedBy} from "./github.js";
-import {readRequests, readResult} from "./requests.js";
-import {addUsage, park, promptFor, recordTry, stageOf} from "./state.js";
+import {readRequests} from "./requests.js";
+import {park, promptFor, recordTry, stageOf} from "./state.js";
 import {applyLabels, backOff, hasQueued, inBackoff, moveStage, writeLabel} from "./sync.js";
+import {allowedMoves, costsNoTry, takeResult, unverifiedReason} from "./verdict.js";
 
 const LOG_TAIL_LINES = 20;
-const MAX_BACKOFF_MINUTES = 120;
-const NO_TRY_STATUSES = ["rate-limited", "unsupported"];
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
  * @typedef {import("./requests.js").Request} Request
- * @typedef {"exited" | "gone" | "overdue"} Outcome
+ * @typedef {import("./verdict.js").Outcome} Outcome
  */
 
 /**
@@ -38,42 +37,6 @@ function logTail(outbox) {
 }
 
 /**
- * Read a session's result and add its usage to the run. A rate-limited session backs the
- * loop off; each one in a row doubles the back-off, up to two hours.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} outbox - The outbox directory.
- * @param {string} who - The session, for the log.
- * @returns {import("./requests.js").Result | null} The result, or null when there is none.
- */
-function takeResult(ctx, outbox, who) {
-    const result = readResult(outbox);
-    if (!result) {
-        ctx.log(`${who}: no result.json`);
-        return null;
-    }
-    addUsage(ctx.state, {
-        tokens: result.usage.tokensIn + result.usage.tokensOut,
-        costUsd: result.usage.costUsd
-    });
-    const sync = ctx.state.sync;
-    if (result.usage.status !== "rate-limited") {
-        sync.backoffStreak = 0;
-        return result;
-    }
-    sync.backoffStreak = (sync.backoffStreak ?? 0) + 1;
-    const minutes = Math.min(
-        ctx.settings.rateLimitBackoffMinutes * 2 ** (sync.backoffStreak - 1),
-        MAX_BACKOFF_MINUTES
-    );
-    const until = new Date(ctx.clock.now() + minutes * 60 * 1000).toISOString();
-    sync.backoffUntil = until;
-    ctx.state.run.startsPausedUntil = until;
-    ctx.log(`${who}: the model is rate limited; no starts until ${until}`);
-    return result;
-}
-
-/**
  * Log notes (and add them to the digest) and refused requests.
  *
  * @param {PassContext} ctx - The pass context.
@@ -81,13 +44,11 @@ function takeResult(ctx, outbox, who) {
  * @param {{file: string, reason: string}[]} refused - The refused ones.
  * @param {number} issue - The issue the notes are about, or 0.
  * @param {string} who - The session, for the log.
- * @returns {Promise<number>} How many notes there were.
+ * @returns {Promise<void>}
  */
 async function notesAndRefusals(ctx, accepted, refused, issue, who) {
-    let notes = 0;
     for (const request of accepted) {
         if (request.kind === "note") {
-            notes++;
             ctx.log(`${who} note: ${request.text}`);
             try {
                 await ctx.digest.add({issue, text: request.text});
@@ -99,7 +60,6 @@ async function notesAndRefusals(ctx, accepted, refused, issue, who) {
     for (const r of refused) {
         ctx.log(`${who}: refused ${r.file}: ${r.reason}`);
     }
-    return notes;
 }
 
 /**
@@ -230,35 +190,20 @@ async function movedByHand(ctx, n) {
 }
 
 /**
- * Why a session's requests cannot be trusted, if they cannot: the outside checks did not
- * run when the result says so, when there is no result, or when the loop stopped the
- * session at the wall-clock cap.
- *
- * @param {import("./requests.js").Result | null} result - The result, if any.
- * @param {Outcome} outcome - How the session ended.
- * @returns {string | null} The reason, or null when the requests stand.
- */
-function unverifiedReason(result, outcome) {
-    if (outcome === "overdue") {
-        return "stopped at the wall-clock cap";
-    }
-    if (result === null) {
-        return "no result";
-    }
-    return result.hooks === "error" ? "the outside checks crashed" : null;
-}
-
-/**
- * Apply the requests of an issue's session.
+ * Apply the requests of an issue's session. A done request must name a move the stage
+ * the session ran may make; any other is refused and the session moved nothing.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
  * @param {Request[]} accepted - The accepted requests.
  * @param {string | null} unverified - Why they cannot be trusted, if so.
- * @returns {Promise<boolean>} Whether the issue moved.
+ * @returns {Promise<{moved: boolean, wait: string | null}>} Whether the issue moved, and why it waits for a person.
  */
 async function applyRequests(ctx, n, accepted, unverified) {
+    const stage = ctx.state.issues[n].session.stage;
     let moved = false;
+    /** @type {string | null} */
+    let wait = null;
     for (const request of accepted) {
         if (request.kind === "note") {
             continue;
@@ -266,6 +211,14 @@ async function applyRequests(ctx, n, accepted, unverified) {
         if (unverified) {
             ctx.log(`#${n}: ${request.kind} request ignored: ${unverified}`);
         } else if (request.kind === "done") {
+            const allowed = allowedMoves(stage);
+            if (!allowed.includes(request.to)) {
+                ctx.log(
+                    `#${n}: refused done to ${request.to}: a ${stage} session moves to ` +
+                        allowed.join(", ")
+                );
+                continue;
+            }
             await moveStage(ctx, n, request.to);
             moved = true;
             if (request.to === "stage:blocked") {
@@ -274,15 +227,18 @@ async function applyRequests(ctx, n, accepted, unverified) {
         } else if (request.kind === "label") {
             const changed = await applyLabels(ctx, request);
             moved ||= changed && request.issue === n;
+        } else if (request.kind === "wait") {
+            wait = request.reason;
         } else {
             queueSpawn(ctx, request, `#${n}`);
         }
     }
-    return moved;
+    return {moved, wait};
 }
 
 /**
- * Judge an issue's ended session: usage, requests, and a try when it moved nothing.
+ * Judge an issue's ended session: usage, requests, and a try when it moved nothing,
+ * unless it asked to wait for a person or the model's usage limit stopped it.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -299,14 +255,20 @@ async function judgeIssue(ctx, n, outcome) {
         ctx.log(`${who}: unverified session: ${unverified}`);
     }
     const {accepted, refused} = readRequests(outbox, {issue: n});
-    const moved = await applyRequests(ctx, n, accepted, unverified);
-    const notes = await notesAndRefusals(ctx, accepted, refused, n, who);
-    if (!moved && result && NO_TRY_STATUSES.includes(result.usage.status)) {
-        ctx.log(`${who}: usage ${result.usage.status}; no try, stays at ${record.stage}`);
-    } else if (!moved && !unverified && result?.exit === 0 && notes > 0) {
+    const {moved, wait} = await applyRequests(ctx, n, accepted, unverified);
+    await notesAndRefusals(ctx, accepted, refused, n, who);
+    if (moved) {
+        return;
+    }
+    if (costsNoTry(result)) {
+        ctx.log(`${who}: usage ${result?.usage.status}; no try, stays at ${record.stage}`);
+    } else if (wait !== null) {
         record.waiting = true;
-        ctx.log(`${who}: waiting for a person at ${record.stage}`);
-    } else if (!moved && (unverified || !(await movedByHand(ctx, n)))) {
+        ctx.log(`${who}: waiting for a person at ${record.stage}: ${wait}`);
+        await ctx.digest.add({issue: n, text: `waits for a person: ${wait}`}).catch(error => {
+            ctx.log(`${who}: digest note failed: ${String(error)}`);
+        });
+    } else if (unverified || !(await movedByHand(ctx, n))) {
         await countTry(ctx, n, outbox);
     }
 }

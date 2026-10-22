@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // One pass of the factory loop, as a function the watch loop, --once and a single issue
-// all call: reap ended sessions, refresh the mirror, sync with GitHub when due, unblock,
+// all call: write queued label changes, reap ended sessions, refresh the mirror, sync with GitHub when due, unblock,
 // test the stop condition, start what is due, save.
 
 import path from "node:path";
@@ -11,7 +11,7 @@ import {fileURLToPath} from "node:url";
 import {ceiling, isQuiet, scope} from "./state.js";
 import {finishIssue, finishSpawn} from "./finish.js";
 import {running, start} from "./start.js";
-import {syncIfDue, unblock} from "./sync.js";
+import {drainIfFree, syncIfDue, unblock} from "./sync.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -119,6 +119,7 @@ export function createPass({root = REPO_ROOT, save = () => {}, ...parts}) {
         root,
         save,
         changed: new Set(),
+        syncs: 0,
         tried: new Set(),
         summary: emptySummary()
     };
@@ -126,6 +127,7 @@ export function createPass({root = REPO_ROOT, save = () => {}, ...parts}) {
         async pass({start: starts = true} = {}) {
             ctx.summary = emptySummary();
             ctx.tried.clear();
+            await drainIfFree(ctx);
             await reap(ctx);
             try {
                 await ctx.sandbox.refreshMirror();

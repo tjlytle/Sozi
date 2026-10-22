@@ -72,10 +72,10 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
    - The plan has a `Blocked by #n` line: `<label>` is `stage:blocked`, whatever the Plans
      line says.
    - The plan is posted and the Plans line above says `Plans: review`: a person approves
-     the plan. Write `/outbox/req-note.json` with
-     `{"note": "plan posted for #{N}; waiting for review"}` and stop, with no done request;
+     the plan. Write `/outbox/req-wait.json` with
+     `{"wait": "plan posted for #{N}; waiting for review"}` and stop, with no done request;
      the loop leaves the issue where it is and a person moves it.
    - Otherwise (`Plans: auto`): `<label>` is `stage:tests`.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`
-unless a step above told you to stop with a note instead; never write both.
+unless a step above told you to stop with a wait request instead; never write both.

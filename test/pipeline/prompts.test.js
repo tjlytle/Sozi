@@ -68,10 +68,12 @@ describe("stage prompts", () => {
             assert.doesNotMatch(body, /fix the obvious/i, name);
         }
     });
-    test("a review policy stops with a note, and never alongside a done request", () => {
+    test("a review policy stops with a wait request, and never alongside a done request", () => {
         for (const name of ["plan", "qa"]) {
             assert.match(text[name], /req-done\.json.*unless a step above told you to stop/s);
             assert.match(text[name], /never write both/);
+            assert.match(text[name], /`\/outbox\/req-wait\.json` with\s+`\{"wait": "/);
+            assert.doesNotMatch(text[name], /\{"note": "[^"]*waiting/);
         }
         const finish = text.plan.slice(text.plan.indexOf("**Finish.**"));
         const review = finish.indexOf("`Plans: review`");

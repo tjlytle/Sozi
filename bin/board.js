@@ -376,7 +376,7 @@ function stateAccess({state, book}, ctx) {
  *
  * @param {SyncOptions} options - What to sync.
  * @param {Context} ctx - The context.
- * @returns {Promise<number>} - How many issues failed.
+ * @returns {Promise<{failed: number[]}>} - The issues that failed, so a caller can retry them.
  */
 export async function sync({issues = [], all = false, state, book}, ctx) {
     const {repo, run, out} = ctx;
@@ -422,7 +422,8 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
             ])
         );
     }
-    let failed = 0;
+    /** @type {number[]} */
+    const failed = [];
     for (const target of all ? list : issues) {
         const n = all ? target.number : target;
         try {
@@ -533,13 +534,13 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
             }
             out(`#${n} board ← label: ${decision.board}\n`);
         } catch (error) {
-            failed++;
+            failed.push(n);
             (ctx.err ?? (() => {}))(
                 `#${n}: ${error instanceof Error ? error.message : String(error)}\n`
             );
         }
     }
-    return failed;
+    return {failed};
 }
 
 /** Record the board item of an issue in the state, if it is not there already.
@@ -748,7 +749,8 @@ export async function main(argv, {env = process.env, run = defaultRun, out, err}
             if (!values.all && !issues.length) {
                 throw new Error("sync needs --all or --issues n,m");
             }
-            return (await sync({issues, all: values.all, state: values.state}, ctx)) ? 1 : 0;
+            const {failed} = await sync({issues, all: values.all, state: values.state}, ctx);
+            return failed.length ? 1 : 0;
         }
         return 0;
     } catch (error) {

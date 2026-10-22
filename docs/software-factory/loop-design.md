@@ -299,6 +299,13 @@ there, plain JSON, one per request, and the loop acts on them when the session e
   moves there. Every stage prompt ends with this request; it is how the loop learns the
   outcome without asking GitHub (next section).
 - `{"note": "..."}`: a line for the loop's log and the run's digest.
+- `{"wait": "..."}`: the session stops for a person (`Plans: review`, `Merge: review`);
+  the issue waits at its stage, costs no try, and starts again when its stage changes.
+  It is the only way to wait: a session that ends with neither a move nor a wait is a try.
+
+A `done` request must name a move the stage the session ran may make (the "Moves to"
+column above; any stage may also go to `stage:parked` or `triage`); any other is refused
+and the session counts as a try.
 
 Requests are harness-neutral by construction (any agent can write a file) and are the
 one way personas hand work to each other without the loop knowing why. A spawned session

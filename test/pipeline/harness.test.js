@@ -127,6 +127,9 @@ describe("harness adapters", () => {
         assert.equal(lines.length, 2);
         assert.ok(lines[1].startsWith("-p fix the lint "), lines[1]);
         assert.ok(lines[1].includes(`--resume ${id}`), lines[1]);
+        for (const line of lines) {
+            assert.ok(line.includes(`--add-dir ${fs.realpathSync(out)}`), line);
+        }
         assert.ok(!lines[1].includes("--session-id"));
         assert.equal(usageOf(out).status, "ok");
         assert.equal(usageOf(out).turns, 3);

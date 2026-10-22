@@ -50,6 +50,46 @@ describe("github", () => {
             e => e instanceof RateLimited && e.resetAt.getTime() === 1800000000000
         );
     });
+    test("a 403 with rate limit budget left is a plain error, not a back-off", async () => {
+        const gh = make([
+            {code: 1, stderr: "HTTP 403: Resource not accessible by integration"},
+            json({
+                resources: {
+                    core: {remaining: 5000, reset: 1800000000},
+                    graphql: {remaining: 5000, reset: 1800000000}
+                }
+            })
+        ]);
+        await assert.rejects(
+            gh.labelsOf(25),
+            e =>
+                e instanceof Error &&
+                !(e instanceof RateLimited) &&
+                /not accessible/.test(e.message)
+        );
+    });
+    test("a 403 with the GraphQL budget spent is RateLimited until the later reset", async () => {
+        const gh = make([
+            {code: 1, stderr: "HTTP 403: Forbidden"},
+            json({
+                resources: {
+                    core: {remaining: 4000, reset: 1800000000},
+                    graphql: {remaining: 0, reset: 1800000600}
+                }
+            })
+        ]);
+        await assert.rejects(
+            gh.labelsOf(25),
+            e => e instanceof RateLimited && e.resetAt.getTime() === 1800000600000
+        );
+    });
+    test("a 403 whose rate_limit read fails is a plain error", async () => {
+        const gh = make([
+            {code: 1, stderr: "HTTP 403"},
+            {code: 1, stderr: "nope"}
+        ]);
+        await assert.rejects(gh.labelsOf(25), e => !(e instanceof RateLimited));
+    });
     test("Blocked by lines are read from a plan", () => {
         assert.deepEqual(blockedBy("## Implementation Plan\n...\nBlocked by #28, #26\n"), [28, 26]);
         assert.deepEqual(blockedBy("no line"), []);

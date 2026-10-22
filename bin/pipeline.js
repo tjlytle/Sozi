@@ -211,7 +211,15 @@ export async function main(
         const state = loadState(file);
         await (opt.status
             ? write(statusText(state))
-            : finishDigest({state, reason: "finished by hand", env: runEnv, log, deps}));
+            : finishDigest({
+                  state,
+                  reason: "finished by hand",
+                  settings,
+                  root,
+                  env: runEnv,
+                  log,
+                  deps
+              }));
         return 0;
     }
     const sandbox = deps.sandbox ?? createSandbox({settings, root, run: deps.run, env: runEnv});
@@ -221,8 +229,9 @@ export async function main(
     }
 
     const state = openState(file, new Date());
-    state.run.until = opt.until ?? state.run.until;
-    state.run.epic = opt.epic ? Number(opt.epic) : state.run.epic;
+    // A restart keeps the run but not its limits: they hold only when given again.
+    state.run.until = opt.until;
+    state.run.epic = opt.epic ? Number(opt.epic) : null;
     state.run.only = target === "watch" ? null : Number(target);
     const save = () => saveState(file, state);
     const mint = await openRun(state, settings, runEnv, log, deps);
@@ -245,7 +254,7 @@ export async function main(
             if (reason !== null) {
                 state.run.stopped = true;
                 save();
-                await finishDigest({state, reason, env: runEnv, log, deps});
+                await finishDigest({state, reason, settings, root, env: runEnv, log, deps});
                 write(`stopped: ${reason}\n`);
             }
         }

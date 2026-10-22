@@ -58,7 +58,8 @@ export function world({issues = [], now = Date.parse("2026-10-21T19:00:00Z"), en
         },
         remove: async () => {}
     };
-    const board = {sync: async () => {}};
+    /** @type {any} */
+    const board = {sync: async () => ({failed: []})};
     const digest = {add: async () => {}, finish: async () => {}};
     let current = now;
     const clock = {
@@ -77,7 +78,7 @@ export function world({issues = [], now = Date.parse("2026-10-21T19:00:00Z"), en
         clock,
         log: line => logs.push(line)
     });
-    return {p, state, calls, containers, clock, logs, outboxes, github, issues, settings};
+    return {p, state, calls, containers, clock, logs, outboxes, github, issues, settings, board};
 }
 export const issue = (
     /** @type {number} */ number,

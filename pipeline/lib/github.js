@@ -10,7 +10,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const RATE_LIMIT = /rate limit|API rate limit exceeded|HTTP 403|HTTP 429/i;
+const RATE_LIMIT = /rate limit|\b429\b/i;
+const FORBIDDEN = /\b403\b/;
 const BACKOFF_MS = 15 * 60 * 1000;
 const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
 
@@ -130,26 +131,43 @@ export function blockedBy(text) {
  */
 export function createGithub({repo, run = defaultRun}) {
     /**
-     * Build the error for a command that failed.
+     * Read the rate limit budgets: whether core or GraphQL is spent, and the later reset.
+     * @returns {Promise<{spent: boolean, resetAt: Date | null}>} What GitHub says; nothing spent when it cannot say.
+     */
+    async function budget() {
+        try {
+            const lim = await run(["gh-as", "ops", "api", "rate_limit"]);
+            const resources = lim.code === 0 ? JSON.parse(lim.stdout)?.resources : null;
+            const both = [resources?.core, resources?.graphql].filter(Boolean);
+            const resets = both.map(r => r.reset).filter(r => typeof r === "number");
+            return {
+                spent: both.some(r => r.remaining === 0),
+                resetAt: resets.length ? new Date(Math.max(...resets) * 1000) : null
+            };
+        } catch {
+            return {spent: false, resetAt: null};
+        }
+    }
+
+    /**
+     * Build the error for a command that failed: RateLimited when the reply says so, or
+     * when a 403 comes with a spent core or GraphQL budget; a plain Error otherwise, for
+     * the dead-letter path.
      * @param {string[]} cmd - The command.
      * @param {RunResult} r - Its result.
      * @returns {Promise<Error>} RateLimited or a plain Error.
      */
     async function failure(cmd, r) {
         const name = cmd.slice(0, 4).join(" ");
-        if (RATE_LIMIT.test(r.stderr)) {
-            let resetAt = new Date(Date.now() + BACKOFF_MS);
-            try {
-                const lim = await run(["gh-as", "ops", "api", "rate_limit"]);
-                const reset =
-                    lim.code === 0 ? JSON.parse(lim.stdout)?.resources?.core?.reset : null;
-                if (typeof reset === "number") {
-                    resetAt = new Date(reset * 1000);
-                }
-            } catch {
-                // keep the default
+        const said = RATE_LIMIT.test(r.stderr);
+        if (said || FORBIDDEN.test(r.stderr)) {
+            const {spent, resetAt} = await budget();
+            if (said || spent) {
+                return new RateLimited(
+                    `${name}: ${r.stderr.trim()}`,
+                    resetAt ?? new Date(Date.now() + BACKOFF_MS)
+                );
             }
-            return new RateLimited(`${name}: ${r.stderr.trim()}`, resetAt);
         }
         return new Error(`${name} failed (${r.code}): ${r.stderr.trim()}`);
     }

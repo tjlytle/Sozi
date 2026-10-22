@@ -142,6 +142,65 @@ describe("bin/pipeline.js", () => {
         assert.equal(digests[0].argv[0], "start");
         assert.equal(digests[0].env.NOTION_TOKEN, "nt");
     });
+    test("the digest finish carries the presenter of master and the Actions page", async () => {
+        const h = host({statuses: []});
+        const state = emptyState();
+        state.run.started = "2026-10-21T19:00:00Z";
+        state.run.notionPage = "page-1";
+        fs.mkdirSync(path.join(h.root, "var", "pipeline"), {recursive: true});
+        fs.writeFileSync(path.join(h.root, "var", "pipeline", "state.json"), JSON.stringify(state));
+        /** @type {any[]} */
+        const runs = [];
+        h.deps.run = async (/** @type {string[]} */ cmd) => {
+            runs.push(cmd);
+            return cmd[0] === "git"
+                ? {code: 0, stdout: "abc1234\n", stderr: ""}
+                : {code: 1, stdout: "", stderr: ""};
+        };
+        /** @type {string[][]} */
+        const argvs = [];
+        h.deps.digest = async (/** @type {string[]} */ argv) => {
+            argvs.push(argv);
+            return 0;
+        };
+        const env = {NOTION_TOKEN: "nt", PIPELINE_EVIDENCE_URL: "https://ev.example/"};
+        await main(["--digest"], {root: h.root, env, out: () => {}, deps: h.deps});
+        const argv = argvs[0];
+        assert.equal(argv[0], "finish");
+        assert.equal(argv[argv.indexOf("--build") + 1], "https://github.com/tjlytle/Sozi/actions");
+        assert.equal(
+            argv[argv.indexOf("--presenter") + 1],
+            "https://ev.example/builds/abc1234/presenter.html"
+        );
+        const mirror = path.join(h.root, "var", "pipeline", "mirror.git");
+        assert.deepEqual(runs[0], ["git", "-C", mirror, "rev-parse", "master"]);
+        argvs.length = 0;
+        await main(["--digest"], {root: h.root, env: {NOTION_TOKEN: "nt"}, deps: h.deps});
+        assert.ok(!argvs[0].includes("--presenter"), "no presenter without evidence");
+        assert.ok(argvs[0].includes("--build"));
+    });
+    test("--until and --epic do not carry over to a restart", async () => {
+        const h = host({statuses: ["exited"]});
+        const state = emptyState();
+        state.run.started = "2026-10-21T19:00:00Z";
+        state.run.until = "2099-01-01T00:00:00Z";
+        state.run.epic = 24;
+        fs.mkdirSync(path.join(h.root, "var", "pipeline"), {recursive: true});
+        const file = path.join(h.root, "var", "pipeline", "state.json");
+        fs.writeFileSync(file, JSON.stringify(state));
+        await main(["--once"], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+        assert.equal(saved.run.started, "2026-10-21T19:00:00Z", "the same run");
+        assert.equal(saved.run.until, null);
+        assert.equal(saved.run.epic, null);
+        await main(["--once", "--epic", "24"], {
+            root: h.root,
+            env: {},
+            out: () => {},
+            deps: h.deps
+        });
+        assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).run.epic, 24);
+    });
     test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
         const h = host({
             statuses: ["running", "running", "exited"],

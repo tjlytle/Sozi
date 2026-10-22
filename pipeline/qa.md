@@ -75,8 +75,8 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
    step 3 holds, and the approval in step 6 counts.
    - All of that: mark it ready, `gh-as builder pr ready <pr> -R tjlytle/Sozi`. Then read
      the Merge line above. `Merge: review`: a person merges. Write
-     `/outbox/req-note.json` with
-     `{"note": "#{N} passed QA; waiting for a person to merge"}` and stop, with no done
+     `/outbox/req-wait.json` with
+     `{"wait": "#{N} passed QA; waiting for a person to merge"}` and stop, with no done
      request.
    - `Merge: auto`: `gh-as builder pr merge <pr> -R tjlytle/Sozi --squash --delete-branch`
      (as builder: the PR author merges). Then add the line a person will try to the run's
@@ -90,4 +90,4 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
      is in your comment; `<label>` is `stage:in-progress`.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`
-unless a step above told you to stop with a note instead; never write both.
+unless a step above told you to stop with a wait request instead; never write both.

@@ -47,7 +47,7 @@ launch() {
         text=$(cat "$MESSAGE"); session_flag=(--resume "$SESSION")
     fi
     cmd=("${CLAUDE_BIN:-claude}" -p "$text" "${session_flag[@]}" --model "$MODEL"
-        --permission-mode acceptEdits --output-format stream-json --verbose)
+        --permission-mode acceptEdits --output-format stream-json --verbose --add-dir "$OUT")
     case "${PIPELINE_SESSION_BUDGET_USD:-0}" in 0) ;; *) cmd+=(--max-budget-usd "$PIPELINE_SESSION_BUDGET_USD") ;; esac
     [ -d "$plugin" ] && cmd+=(--plugin-dir "$plugin")
     # Last, so a bare flag can never swallow another.

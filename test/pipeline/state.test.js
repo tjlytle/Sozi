@@ -193,6 +193,40 @@ describe("state", () => {
         applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [28], body: "Part of #24."}));
         assert.equal(isQuiet(s, scope(s, {epic: 24})), false);
     });
+    test("a blocked issue is quiet when no blocker can make progress", () => {
+        /** @type {(blocker: string[], extra?: (s: any) => void) => boolean} */
+        const quiet = (labels, extra = () => {}) => {
+            const s = emptyState();
+            applyIssue(s, issue(25, labels));
+            applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [25]}));
+            extra(s);
+            return isQuiet(s, [25, 26]);
+        };
+        assert.equal(quiet(["stage:parked"]), true, "blocked by a parked issue");
+        assert.equal(
+            quiet(["stage:todo"], s => (s.issues[25].waiting = true)),
+            true,
+            "blocked by a waiting issue"
+        );
+        assert.equal(quiet(["triage"]), true, "blocked by an issue in triage");
+        assert.equal(quiet(["stage:todo"]), false, "blocked by an open stage:todo issue");
+        assert.equal(quiet(["stage:done"]), false, "blocked by a merged issue not yet closed");
+    });
+    test("a blocked cycle is quiet and does not recurse forever", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:blocked"], {blockedBy: [26]}));
+        applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [25]}));
+        assert.equal(isQuiet(s, [25, 26]), true);
+    });
+    test("a blocked issue with no blockers is quiet", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:blocked"]));
+        assert.equal(isQuiet(s, [25]), true);
+    });
+    test("two stage labels: the later stage in the stage order wins", () => {
+        assert.equal(stageOf(["stage:review", "stage:todo"]), "stage:review");
+        assert.equal(stageOf(["stage:qa", "stage:in-progress"]), "stage:qa");
+    });
     test("an issue waiting for a person is not due until its stage changes", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:todo"]));
