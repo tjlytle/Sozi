@@ -18,7 +18,7 @@ import {presentationFiles} from "../naming";
 /** Find the presentation HTML file of a command.
  *
  * @param {object} context - The command context (see {@linkcode module:cli/output.resolveOutputDir|resolveOutputDir}).
- * @returns {{html: ?string, error: ?string}} - The absolute path of the HTML file, or a usage error.
+ * @returns {{html: string, error: null}|{html: null, error: string}} - The absolute path of the HTML file, or a usage error.
  */
 export function presentationHtml(context) {
     const {dir: outputDir, error} = resolveOutputDir(context);

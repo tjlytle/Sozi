@@ -8,10 +8,7 @@ import {h} from "inferno-hyperscript";
 import {VirtualDOMView} from "./VirtualDOMView";
 import {getLanguages} from "./languages";
 
-/** Type for Virtual DOM nodes.
- *
- * @external VNode
- */
+/** @typedef {import("inferno").VNode} VNode - A virtual DOM node. */
 
 /** Convert a value into an array.
  *
@@ -32,7 +29,7 @@ function asArray(v) {
 
 /** Properties pane of the presentation editor.
  *
- * @extends module:view/VirtualDOMView.VirtualDOMView
+ * @extends VirtualDOMView
  */
 export class Properties extends VirtualDOMView {
     /** Initialize a new properties view.
@@ -373,7 +370,11 @@ export class Properties extends VirtualDOMView {
                 () => "__select_a_layer__",
                 (prop, groupId) => {
                     controller.copyLayer(groupId);
-                    document.getElementById("field-layerToCopy").firstChild.selected = true;
+                    /** @type {HTMLOptionElement} */ (
+                        /** @type {HTMLSelectElement} */ (
+                            document.getElementById("field-layerToCopy")
+                        ).firstChild
+                    ).selected = true;
                 },
                 layersToCopy
             ),
@@ -533,9 +534,9 @@ export class Properties extends VirtualDOMView {
                                 title: _("Add a file"),
                                 onClick() {
                                     // Open the file chooser.
-                                    document
-                                        .querySelector(".properties input.custom-css-js")
-                                        .dispatchEvent(new MouseEvent("click"));
+                                    /** @type {HTMLInputElement} */ (
+                                        document.querySelector(".properties input.custom-css-js")
+                                    ).dispatchEvent(new MouseEvent("click"));
                                 }
                             },
                             h("i.fa.fa-plus")
@@ -952,7 +953,7 @@ export class Properties extends VirtualDOMView {
     /** Create a help widget.
      *
      * @param {string} text - The tooltip text to show.
-     * @param {string} info - The info notification to show when clicking the help widget.
+     * @param {string} [info] - The info notification to show when clicking the help widget.
      * @returns {VNode} - A virtual DOM tree.
      */
     renderHelp(text, info) {
@@ -1044,17 +1045,26 @@ export class Properties extends VirtualDOMView {
                         case 51: // Ctrl+3
                             document.execCommand("formatBlock", false, "<H3>");
                             break;
+                        // Casts: these four commands ignore their value, and the DOM types do not admit null.
                         case 76: // Ctrl+L
-                            document.execCommand("insertUnorderedList", false, null);
+                            document.execCommand(
+                                "insertUnorderedList",
+                                false,
+                                /** @type {any} */ (null)
+                            );
                             break;
                         case 78: // Ctrl+N
-                            document.execCommand("insertOrderedList", false, null);
+                            document.execCommand(
+                                "insertOrderedList",
+                                false,
+                                /** @type {any} */ (null)
+                            );
                             break;
                         case 188: // Ctrl+<
-                            document.execCommand("outdent", false, null);
+                            document.execCommand("outdent", false, /** @type {any} */ (null));
                             break;
                         case 190: // Ctrl+>
-                            document.execCommand("indent", false, null);
+                            document.execCommand("indent", false, /** @type {any} */ (null));
                             break;
                         default:
                             return;
@@ -1144,7 +1154,7 @@ export class Properties extends VirtualDOMView {
 
     /** Create a toggle button.
      *
-     * @param {string} label - The label to show next to the button.
+     * @param {string|VNode} label - The label to show next to the button.
      * @param {string} title - A tooltip for the button.
      * @param {string} property - The name of a property of the model.
      * @param {Function} getter - A function that returns the current value of the property in the model.

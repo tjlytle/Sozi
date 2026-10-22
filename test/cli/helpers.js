@@ -17,8 +17,9 @@ const repoDir = path.resolve(__dirname, "..", "..");
 const appDir = path.join(repoDir, "build", "electron");
 const fixturesDir = path.join(repoDir, "test", "fixtures");
 
-// The electron npm package exports the path of its binary.
-const electronBinary = require("electron");
+// The electron npm package exports the path of its binary. Cast: its types describe
+// the API inside Electron instead.
+const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("electron")));
 
 /** A fixture deck copied into a temporary directory, as `withTempDeck` returns it.
  *
@@ -134,9 +135,10 @@ function decodePng(buf) {
         o += 12 + length;
     }
     const raw = zlib.inflateSync(Buffer.concat(idat));
-    const stride = width * channels;
-    const pixels = Buffer.alloc(stride * height);
-    for (let y = 0; y < height; y++) {
+    // Casts: a PNG starts with an IHDR chunk, which set width and height.
+    const stride = /** @type {number} */ (width) * channels;
+    const pixels = Buffer.alloc(stride * /** @type {number} */ (height));
+    for (let y = 0; y < /** @type {number} */ (height); y++) {
         const filter = raw[y * (stride + 1)];
         for (let i = 0; i < stride; i++) {
             const x = raw[y * (stride + 1) + 1 + i];
@@ -154,8 +156,8 @@ function decodePng(buf) {
         }
     }
     return {
-        width,
-        height,
+        width: /** @type {number} */ (width),
+        height: /** @type {number} */ (height),
         pixel: (x, y) => [
             ...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)
         ]

@@ -17,7 +17,7 @@ const hook = path.join(root, ".claude", "hooks", "check-file.py");
 /** Run the hook on a written file and return its exit status and stderr.
  *
  * @param {string} filePath - The absolute path the tool wrote.
- * @returns {{status: number, stderr: string}} - What the hook reported.
+ * @returns {{status: ?number, stderr: string}} - What the hook reported.
  */
 function run(filePath) {
     const payload = JSON.stringify({
@@ -37,7 +37,7 @@ function run(filePath) {
  *
  * @param {string} name - The file name.
  * @param {string} content - The file content.
- * @returns {{status: number, stderr: string}} - What the hook reported.
+ * @returns {{status: ?number, stderr: string}} - What the hook reported.
  */
 function withScratch(name, content) {
     const file = path.join(root, "src", "js", name);

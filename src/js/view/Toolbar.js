@@ -11,7 +11,7 @@ import pkg from "../../../package.json";
 
 /** Toolbar in the presentation editor.
  *
- * @extends module:view/VirtualDOMView.VirtualDOMView
+ * @extends VirtualDOMView
  * @todo Add documentation.
  */
 export class Toolbar extends VirtualDOMView {
@@ -69,6 +69,7 @@ export class Toolbar extends VirtualDOMView {
                     size: "3",
                     onchange() {
                         const width = parseInt(this.value);
+                        // @ts-expect-error Bug kept: a number has no isNaN property, so this test is always true.
                         if (!width.isNaN) {
                             controller.setAspectWidth(width);
                         }
@@ -84,6 +85,7 @@ export class Toolbar extends VirtualDOMView {
                     size: "3",
                     onchange() {
                         const height = parseInt(this.value);
+                        // @ts-expect-error Bug kept: a number has no isNaN property, so this test is always true.
                         if (!height.isNaN) {
                             controller.setAspectHeight(height);
                         }

@@ -11,7 +11,7 @@ const OOO_NS = "http://xml.openoffice.org/svg/export";
 
 /** LibreOffice Impress SVG handler.
  *
- * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
+ * @extends DefaultSVGHandler
  */
 export class ImpressHandler extends DefaultSVGHandler {
     /** @inheritdoc */

@@ -67,7 +67,7 @@ export class AbstractBackend {
     /** Return the location of a file.
      *
      * @param {any} fileDescriptor - A file descriptor (backend-dependent).
-     * @returns {string} The file location.
+     * @returns {?string} The file location.
      */
     getLocation(fileDescriptor) {
         // Not implemented

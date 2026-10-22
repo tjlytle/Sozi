@@ -63,7 +63,11 @@ const CHROME = "/usr/bin/google-chrome";
  * @returns {boolean} - `true` if Chrome ran, `false` if the test was skipped.
  */
 function chromeRan(t, result) {
-    if (result.error && ["ENOENT", "EACCES"].includes(result.error.code)) {
+    // Cast: a spawn failure is a system error, which has a code.
+    if (
+        result.error &&
+        ["ENOENT", "EACCES"].includes(/** @type {Error & {code: string}} */ (result.error).code)
+    ) {
         t.skip(`headless Chrome could not be run: ${result.error}`);
         return false;
     }
@@ -321,7 +325,10 @@ describe("relative hrefs and the html directory", () => {
                 fs.readFileSync(deck.svg, "utf8").replace("img/dot.png", href)
             );
             const embeddedSvg = file =>
-                fs.readFileSync(file, "utf8").match(/<svg\b[\s\S]*<\/svg>/)[0];
+                // Cast: the built file embeds the SVG; a miss fails the test with a TypeError.
+                /** @type {string[]} */ (
+                    fs.readFileSync(file, "utf8").match(/<svg\b[\s\S]*<\/svg>/)
+                )[0];
 
             soziOk(deck, "build", "linked.svg");
             const plain = embeddedSvg(path.join(deck.dir, "linked.sozi.html"));

@@ -8,7 +8,7 @@ import {CameraState} from "../model/CameraState";
 
 /** Constant: the XML SVG namespace URI.
  *
- * @type {string}
+ * @type {"http://www.w3.org/2000/svg"}
  */
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -29,8 +29,8 @@ export function hasReliableBoundaries(elt) {
  * If `elt` is a group, return a list of its children, non-group, graphics elements.
  * If `elt` is another graphics element, return a list with this element.
  *
- * @param {SVGElement} elt - An SVG element to inspect.
- * @returns {SVGElement[]} - A list of graphics elements.
+ * @param {Node} elt - A node to inspect.
+ * @returns {SVGGraphicsElement[]} - A list of graphics elements.
  */
 function getGraphicsElements(elt) {
     // Skip <defs> elements. We need to handle this case because
@@ -54,7 +54,7 @@ function getGraphicsElements(elt) {
 
 /** Camera.
  *
- * @extends module:model/CameraState.CameraState
+ * @extends CameraState
  */
 export class Camera extends CameraState {
     /** Initialize a new camera.
@@ -412,8 +412,8 @@ export class Camera extends CameraState {
                 "fill",
                 "rgb(" + this.maskValue + "," + this.maskValue + "," + this.maskValue + ")"
             );
-            this.svgMaskRect.setAttribute("x", 0);
-            this.svgMaskRect.setAttribute("y", 0);
+            this.svgMaskRect.setAttribute("x", "0");
+            this.svgMaskRect.setAttribute("y", "0");
             this.svgMaskRect.setAttribute("width", this.viewport.width);
             this.svgMaskRect.setAttribute("height", this.viewport.height);
 
@@ -452,7 +452,7 @@ export class Camera extends CameraState {
                     this.cy +
                     ")"
             );
-            svgGroup.setAttribute("opacity", this.opacity);
+            svgGroup.setAttribute("opacity", String(this.opacity));
             // Do not render the layer if it is completely transparent.
             // This does not apply in edit mode, where getCandidateReferenceElement
             // needs the layer to be rendered even if invisible.

@@ -8,7 +8,7 @@ import {addSVGHandler, DefaultSVGHandler} from "./SVGDocumentWrapper";
 
 /** Adobe Illustrator SVG handler.
  *
- * @extends module:svg/DefaultSVGHandler.DefaultSVGHandler
+ * @extends DefaultSVGHandler
  */
 export class AiHandler extends DefaultSVGHandler {
     /** @inheritdoc */
@@ -28,9 +28,10 @@ export class AiHandler extends DefaultSVGHandler {
                 svgForeignObject &&
                 svgForeignObject instanceof SVGForeignObjectElement &&
                 svgForeignObject.hasAttribute("requiredExtensions") &&
-                svgForeignObject
-                    .getAttribute("requiredExtensions")
-                    .startsWith("http://ns.adobe.com/AdobeIllustrator")
+                // Cast: hasAttribute checked it.
+                /** @type {string} */ (
+                    svgForeignObject.getAttribute("requiredExtensions")
+                ).startsWith("http://ns.adobe.com/AdobeIllustrator")
             ) {
                 // Remove foreign objet element
                 svgSwitch.removeChild(svgForeignObject);

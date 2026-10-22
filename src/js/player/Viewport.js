@@ -126,6 +126,7 @@ export class Viewport {
      * @returns {module:model/Presentation.Layer} - A layer representation.
      */
     getLayer(nodeId) {
+        // @ts-expect-error Bug kept: a viewport has no layers property, and nothing calls getLayer.
         return this.layers.filter(layer => layer.nodeId === nodeId)[0];
     }
 
@@ -296,7 +297,8 @@ export class Viewport {
      * @type {number}
      */
     get x() {
-        return this.svgRoot.getScreenCTM().e;
+        // Cast: the SVG root is rendered, so it has a screen transform.
+        return /** @type {DOMMatrix} */ (this.svgRoot.getScreenCTM()).e;
     }
 
     /** The Y coordinate of the current viewport in the current browser window.
@@ -307,7 +309,8 @@ export class Viewport {
      * @type {number}
      */
     get y() {
-        return this.svgRoot.getScreenCTM().f;
+        // Cast: the SVG root is rendered, so it has a screen transform.
+        return /** @type {DOMMatrix} */ (this.svgRoot.getScreenCTM()).f;
     }
 
     /** The width of the current viewport.
@@ -322,9 +325,11 @@ export class Viewport {
      * @type {number}
      */
     get width() {
-        return this.svgRoot === document.documentElement
+        // Casts: in a standalone SVG document the root element is the SVG root;
+        // otherwise the SVG root is inside an HTML container.
+        return this.svgRoot === /** @type {Element} */ (document.documentElement)
             ? window.innerWidth
-            : this.svgRoot.parentNode.clientWidth;
+            : /** @type {Element} */ (this.svgRoot.parentNode).clientWidth;
     }
 
     /** The height of the current viewport.
@@ -339,9 +344,11 @@ export class Viewport {
      * @type {number}
      */
     get height() {
-        return this.svgRoot === document.documentElement
+        // Casts: in a standalone SVG document the root element is the SVG root;
+        // otherwise the SVG root is inside an HTML container.
+        return this.svgRoot === /** @type {Element} */ (document.documentElement)
             ? window.innerHeight
-            : this.svgRoot.parentNode.clientHeight;
+            : /** @type {Element} */ (this.svgRoot.parentNode).clientHeight;
     }
 
     /** Repaint the current viewport.
@@ -352,8 +359,8 @@ export class Viewport {
      * - the visibility of all hidden elements.
      */
     repaint() {
-        this.svgRoot.setAttribute("width", this.width);
-        this.svgRoot.setAttribute("height", this.height);
+        this.svgRoot.setAttribute("width", String(this.width));
+        this.svgRoot.setAttribute("height", String(this.height));
 
         this.update();
 

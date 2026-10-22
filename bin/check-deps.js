@@ -59,10 +59,10 @@ export function withoutComments(text) {
  */
 export function changedPackages(base, head) {
     const out = [];
-    for (const [field, runtime] of [
+    for (const [field, runtime] of /** @type {[string, boolean][]} */ ([
         ["dependencies", true],
         ["devDependencies", false]
-    ]) {
+    ])) {
         const before = base[field] || {};
         for (const [name, version] of Object.entries(head[field] || {})) {
             if (before[name] !== version) {
@@ -204,7 +204,8 @@ export function main(argv) {
         try {
             facts = registryFacts(name);
         } catch (e) {
-            fail(`${name}: npm view failed (${e.message.split("\n")[0]})`);
+            // Cast: registryFacts throws the Error of execFileSync or JSON.parse.
+            fail(`${name}: npm view failed (${/** @type {Error} */ (e).message.split("\n")[0]})`);
         }
         if (facts) {
             if (!ALLOWED_LICENCES.has(facts.licence)) {

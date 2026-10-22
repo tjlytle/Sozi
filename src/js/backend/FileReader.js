@@ -8,7 +8,7 @@ import {AbstractBackend, addBackend} from "./AbstractBackend";
 
 /** Browser FileReader backend.
  *
- * @extends module:backend/AbstractBackend.AbstractBackend
+ * @extends AbstractBackend
  */
 export class FileReaderBackend extends AbstractBackend {
     /** Initialize a Sozi  backend based on the FileReader API.
@@ -28,9 +28,10 @@ export class FileReaderBackend extends AbstractBackend {
             )
         );
 
-        document
-            .getElementById("sozi-editor-backend-FileReader-input")
-            .addEventListener("click", () => this.openFileChooser());
+        // Cast: AbstractBackend created this button in the constructor above.
+        /** @type {HTMLElement} */ (
+            document.getElementById("sozi-editor-backend-FileReader-input")
+        ).addEventListener("click", () => this.openFileChooser());
 
         /** A hidden HTML file input element to open a file chooser.
          *
@@ -44,8 +45,12 @@ export class FileReaderBackend extends AbstractBackend {
 
         // Load the SVG document selected in the file input
         this.fileInput.addEventListener("change", evt => {
-            if (evt.target.files.length) {
-                this.controller.storage.setSVGFile(evt.target.files[0], this);
+            // Cast: the event comes from this file input, which has a file list.
+            const files = /** @type {FileList} */ (
+                /** @type {HTMLInputElement} */ (evt.target).files
+            );
+            if (files.length) {
+                this.controller.storage.setSVGFile(files[0], this);
             }
         });
     }
@@ -74,7 +79,8 @@ export class FileReaderBackend extends AbstractBackend {
                 resolve(reader.result);
             };
             reader.onerror = () => {
-                reject(reader.error.name);
+                // Cast: the error event means reader.error is set.
+                reject(/** @type {DOMException} */ (reader.error).name);
             };
         });
     }

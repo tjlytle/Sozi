@@ -48,7 +48,8 @@ export function presentationDataError(text) {
     try {
         data = JSON.parse(text);
     } catch (err) {
-        return err.message;
+        // Cast: JSON.parse throws a SyntaxError.
+        return /** @type {SyntaxError} */ (err).message;
     }
     if (data === null || typeof data !== "object" || !Array.isArray(data.frames)) {
         return 'no "frames" array';

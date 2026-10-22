@@ -12,11 +12,13 @@ function updatePreview(p) {
 }
 
 function updateFrameData({index, title, notes}) {
-    document.querySelector(".sozi-current-index").innerHTML = index + 1;
-    document.querySelector(".sozi-presentation-length").innerHTML = presLength;
-    document.querySelector(".sozi-notes-title").innerHTML = title;
+    // Casts: the presenter page holds these elements.
+    /** @type {Element} */ (document.querySelector(".sozi-current-index")).innerHTML = index + 1;
+    /** @type {Element} */ (document.querySelector(".sozi-presentation-length")).innerHTML =
+        String(presLength);
+    /** @type {Element} */ (document.querySelector(".sozi-notes-title")).innerHTML = title;
     if (typeof notes === "string") {
-        document.querySelector(".sozi-notes-body").innerHTML = notes;
+        /** @type {Element} */ (document.querySelector(".sozi-notes-body")).innerHTML = notes;
     }
 }
 
@@ -24,10 +26,11 @@ window.addEventListener("message", evt => {
     switch (evt.data.name) {
         case "loaded":
             presLength = evt.data.length;
+            // Casts: "loaded" comes from the presentation window or a preview frame.
             if (evt.source === presWindow) {
-                evt.source.postMessage({name: "notifyOnFrameChange"}, "*");
+                /** @type {Window} */ (evt.source).postMessage({name: "notifyOnFrameChange"}, "*");
             } else {
-                evt.source.postMessage(
+                /** @type {Window} */ (evt.source).postMessage(
                     {
                         name: "setPresenterMode",
                         isCurrent: evt.source === previews[0].window
@@ -62,8 +65,9 @@ window.addEventListener(
         });
 
         // Prevent the notes pane to change size when its content is updated.
-        const preview = document.querySelector(".sozi-frame-preview");
-        const notes = document.querySelector(".sozi-notes");
+        // Casts: the presenter page holds these elements.
+        const preview = /** @type {HTMLElement} */ (document.querySelector(".sozi-frame-preview"));
+        const notes = /** @type {HTMLElement} */ (document.querySelector(".sozi-notes"));
         new ResizeObserver(() => {
             notes.style.width = `calc(100vw - ${preview.offsetWidth}px`;
         }).observe(preview);
@@ -75,9 +79,12 @@ window.addEventListener(
             "width=600, height=400, scrollbars=yes, toolbar=yes"
         );
         try {
+            // @ts-expect-error A blocked popup leaves presWindow null; the throw lands in the catch below.
             presWindow.focus();
 
-            document.getElementById("sozi-previous-btn").addEventListener(
+            /** @type {HTMLElement} */ (
+                document.getElementById("sozi-previous-btn")
+            ).addEventListener(
                 "click",
                 () => {
                     presWindow.postMessage({name: "moveToPrevious"}, "*");
@@ -85,7 +92,7 @@ window.addEventListener(
                 false
             );
 
-            document.getElementById("sozi-next-btn").addEventListener(
+            /** @type {HTMLElement} */ (document.getElementById("sozi-next-btn")).addEventListener(
                 "click",
                 () => {
                     presWindow.postMessage({name: "moveToNext"}, "*");

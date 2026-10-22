@@ -166,7 +166,7 @@ export class Controller extends EventEmitter {
 
         /** The timeout ID of the current notification.
          *
-         * @type {?number}
+         * @type {?ReturnType<typeof setTimeout>}
          */
         this.notificationTimeout = null;
 
@@ -255,28 +255,30 @@ export class Controller extends EventEmitter {
      */
     showNotification(severity, body) {
         const _ = this.gettext;
-        const msg = document.getElementById("message");
+        // Casts: index.html holds the message panel with its title and body.
+        const msg = /** @type {HTMLElement} */ (document.getElementById("message"));
         if (this.notificationTimeout === null) {
-            msg.querySelector(".body").innerHTML = "";
+            /** @type {Element} */ (msg.querySelector(".body")).innerHTML = "";
         } else {
             clearTimeout(this.notificationTimeout);
         }
 
-        msg.querySelector(".title").innerHTML =
+        /** @type {Element} */ (msg.querySelector(".title")).innerHTML =
             severity === "error"
                 ? _('<i class="fa fa-exclamation-triangle"></i> Error')
                 : _('<i class="fa fa-info-circle"></i> Information');
 
-        msg.querySelector(".body").innerHTML += `<div>${body}</div>`;
+        /** @type {Element} */ (msg.querySelector(".body")).innerHTML += `<div>${body}</div>`;
         msg.classList.add("visible", severity);
         this.notificationTimeout = setTimeout(() => this.hideNotification(), 5000);
     }
 
     /** Hide all notifications. */
     hideNotification() {
-        const msg = document.getElementById("message");
+        // Casts: index.html holds the message panel; clearTimeout accepts null at run time.
+        const msg = /** @type {HTMLElement} */ (document.getElementById("message"));
         msg.classList.remove("visible", "info", "error");
-        clearTimeout(this.notificationTimeout);
+        clearTimeout(/** @type {ReturnType<typeof setTimeout>} */ (this.notificationTimeout));
         this.notificationTimeout = null;
     }
 
@@ -608,7 +610,10 @@ export class Controller extends EventEmitter {
         const reorderedFrames = this.presentation.frames.filter(
             frame => !this.selection.hasFrames([frame])
         );
-        Array.prototype.splice.apply(reorderedFrames, [targetIndex, 0].concat(framesByIndex));
+        Array.prototype.splice.apply(
+            reorderedFrames,
+            /** @type {[number, number, ...Frame[]]} */ ([targetIndex, 0].concat(framesByIndex))
+        );
 
         // Identify the frames and layers that must be unlinked after the move operation.
         // If a linked frame is moved after a frame to which it was not previously linked,
@@ -1567,11 +1572,13 @@ export class Controller extends EventEmitter {
         const modifiedFrame = new Frame(currentFrame);
 
         // Find the layer that contains the given element
+        // Casts: the element lies inside a layer group of the SVG root, so these ancestors exist.
         let outlineLayerGroup = outlineElement;
         while (
-            outlineLayerGroup.parentNode.parentNode.parentNode !== this.presentation.document.root
+            /** @type {Node} */ (/** @type {Node} */ (outlineLayerGroup.parentNode).parentNode)
+                .parentNode !== this.presentation.document.root
         ) {
-            outlineLayerGroup = outlineLayerGroup.parentNode;
+            outlineLayerGroup = /** @type {SVGElement} */ (outlineLayerGroup.parentNode);
         }
         const outlineLayer = this.presentation.getLayerWithId(outlineLayerGroup.id);
 
@@ -1888,8 +1895,8 @@ export class Controller extends EventEmitter {
      * {@link module:Controller.Controller#undoStack|undo stack}, and clears the
      * {@link module:Controller.Controller#undoStack|redo stack}.
      *
-     * @param {function():void} onDo - The function that performs the operation.
-     * @param {function():void} onUndo - The function that undoes the operation.
+     * @param {function(this: Controller):void} onDo - The function that performs the operation.
+     * @param {function(this: Controller):void} onUndo - The function that undoes the operation.
      * @param {boolean} updateSelection - If `true`, restore the selection when undoing.
      * @param {string[]} events - Emit the given events when performing of undoing the operation.
      */

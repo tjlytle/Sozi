@@ -119,6 +119,7 @@ function setFlag(flags, name, value) {
  * @returns {{cli: boolean, command: ?string, positionals: string[], flags: object}} - The parsed arguments.
  */
 export function parseArgs(argv, commandFlags = {}) {
+    /** @type {{cli: boolean, command: ?string, positionals: string[], flags: object}} */
     const result = {cli: false, command: null, positionals: [], flags: {}};
     const cliIndex = argv.indexOf("--cli");
     if (cliIndex < 0) {

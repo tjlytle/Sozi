@@ -8,6 +8,8 @@ import {EventEmitter} from "events";
 import {CameraState} from "./CameraState";
 import {hasReliableBoundaries} from "../player/Camera";
 
+/** @typedef {import("../svg/SVGDocumentWrapper.js").SVGDocumentWrapper} SVGDocumentWrapper */
+
 /** Copy a property from an object to another.
  *
  * If the source object has a property with the given name,
@@ -280,7 +282,10 @@ export class Frame {
              *
              * @type {module:model/Presentation.CameraState[]}
              */
-            this.cameraStates = obj.layers.map(() => new CameraState(obj.document.root));
+            // Cast: frames are created once the SVG document is set.
+            this.cameraStates = obj.layers.map(
+                () => new CameraState(/** @type {SVGDocumentWrapper} */ (obj.document).root)
+            );
 
             /** The title of this frame.
              *
@@ -581,7 +586,10 @@ export class Layer {
      * @type {string}
      */
     get groupId() {
-        return this.auto ? "__sozi_auto__" : this.svgNodes[0].getAttribute("id");
+        // Cast: a layer that is not auto is a group with an ID (SVGDocumentWrapper#isLayer).
+        return this.auto
+            ? "__sozi_auto__"
+            : /** @type {string} */ (this.svgNodes[0].getAttribute("id"));
     }
 
     /** The index of this layer.
@@ -638,7 +646,7 @@ export class Presentation extends EventEmitter {
          * Set it with {@linkcode module:model/Presentation.Presentation#setSVGDocument}.
          *
          * @default
-         * @type {SVGDocument}
+         * @type {?SVGDocumentWrapper}
          */
         this.document = null;
 
@@ -876,7 +884,7 @@ export class Presentation extends EventEmitter {
      *
      * This method populates the {@linkcode module:model/Presentation.Presentation#layers} property of this instance.
      *
-     * @param {SVGDocument} svgDocument - The SVG document to use.
+     * @param {SVGDocumentWrapper} svgDocument - The SVG document to use.
      *
      * @fires module:model/Presentation.svgChange
      */
@@ -911,7 +919,8 @@ export class Presentation extends EventEmitter {
         const svgTitle = this.document.root.querySelector("svg > title");
         this.svgTitle = svgTitle ? svgTitle.textContent.trim() : "";
         if (svgTitle) {
-            svgTitle.parentNode.removeChild(svgTitle);
+            // Cast: the title was found under the root, so it has a parent.
+            /** @type {Node} */ (svgTitle.parentNode).removeChild(svgTitle);
         }
 
         this.emit("svgChange");
@@ -936,7 +945,10 @@ export class Presentation extends EventEmitter {
          *
          * @type {module:model/CameraState.CameraState}
          */
-        this.initialCameraState = new CameraState(this.document.root);
+        // Cast: the player calls this once the SVG document is set.
+        this.initialCameraState = new CameraState(
+            /** @type {SVGDocumentWrapper} */ (this.document).root
+        );
     }
 
     /** Convert this instance to a plain object that can be stored as JSON.
@@ -1084,7 +1096,7 @@ export class Presentation extends EventEmitter {
     /** Get the frame with a given ID in the current presentation.
      *
      * @param {string} frameId - The ID of the frame to find.
-     * @returns {?module:model/Presentation.Frame} - The frame with that ID.
+     * @returns {?Frame} - The frame with that ID.
      */
     getFrameWithId(frameId) {
         for (const frame of this.frames) {
@@ -1098,7 +1110,7 @@ export class Presentation extends EventEmitter {
     /** Get the layer with a given ID in the current presentation.
      *
      * @param {string} groupId - The ID of an SVG group that represents a layer.
-     * @returns {?module:model/Presentation.Layer} - The layer that maps to a group with that ID.
+     * @returns {?Layer} - The layer that maps to a group with that ID.
      */
     getLayerWithId(groupId) {
         for (const layer of this.layers) {

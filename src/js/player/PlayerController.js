@@ -6,6 +6,8 @@
 
 import {EventEmitter} from "events";
 
+/** @typedef {import("../model/Presentation.js").Frame} Frame */
+
 /** @typedef {import("./Viewport.js").Viewport} Viewport */
 /** @typedef {import("../model/Presentation.js").Presentation} Presentation */
 
@@ -272,7 +274,12 @@ export class PlayerController extends EventEmitter {
                 : document.onmousewheel !== undefined
                   ? "mousewheel" // Webkit and IE support at least "mousewheel"
                   : "DOMMouseScroll"; // Firefox < 17
-        svgRoot.addEventListener(wheelEvent, evt => this.onWheel(evt), false);
+        // Cast: the listener only receives the wheel event chosen above.
+        svgRoot.addEventListener(
+            wheelEvent,
+            evt => this.onWheel(/** @type {WheelEvent} */ (evt)),
+            false
+        );
     }
 
     /** Process a mouse move event in this viewport.
@@ -355,6 +362,7 @@ export class PlayerController extends EventEmitter {
         }
 
         if (this.mouseDragged) {
+            // Casts below: the drag-start fields are set above when the drag is confirmed.
             let mode = this.viewport.dragMode;
             if (mode === "translate") {
                 if (evt.altKey) {
@@ -369,7 +377,7 @@ export class PlayerController extends EventEmitter {
                     if (this.editMode || this.presentation.enableMouseZoom) {
                         if (this.zoomPrev !== 0) {
                             this.zoom(
-                                zoom / this.zoomPrev,
+                                zoom / /** @type {number} */ (this.zoomPrev),
                                 this.viewport.width / 2,
                                 this.viewport.height / 2
                             );
@@ -383,9 +391,13 @@ export class PlayerController extends EventEmitter {
                     if (this.editMode || this.presentation.enableMouseRotation) {
                         if (evt.ctrlKey) {
                             angle =
-                                10 * Math.round((angle - this.rotateStart) / 10) + this.rotateStart;
+                                10 *
+                                    Math.round(
+                                        (angle - /** @type {number} */ (this.rotateStart)) / 10
+                                    ) +
+                                /** @type {number} */ (this.rotateStart);
                         }
-                        this.rotate(this.rotatePrev - angle);
+                        this.rotate(/** @type {number} */ (this.rotatePrev) - angle);
                         this.mouseDragChangedState = true;
                         this.rotatePrev = angle;
                     }
@@ -393,8 +405,8 @@ export class PlayerController extends EventEmitter {
 
                 case "clip":
                     this.viewport.clipByMode(
-                        this.mouseDragStartX - this.viewport.x,
-                        this.mouseDragStartY - this.viewport.y,
+                        /** @type {number} */ (this.mouseDragStartX) - this.viewport.x,
+                        /** @type {number} */ (this.mouseDragStartY) - this.viewport.y,
                         this.mouseDragX - this.viewport.x,
                         this.mouseDragY - this.viewport.y,
                         deltaX,
@@ -408,17 +420,19 @@ export class PlayerController extends EventEmitter {
                     if (this.editMode || this.presentation.enableMouseTranslation) {
                         if (evt.ctrlKey) {
                             if (
-                                Math.abs(translateX - this.translateStartX) >=
-                                Math.abs(translateY - this.translateStartY)
+                                Math.abs(
+                                    translateX - /** @type {number} */ (this.translateStartX)
+                                ) >=
+                                Math.abs(translateY - /** @type {number} */ (this.translateStartY))
                             ) {
-                                translateY = this.translateStartY;
+                                translateY = /** @type {number} */ (this.translateStartY);
                             } else {
-                                translateX = this.translateStartX;
+                                translateX = /** @type {number} */ (this.translateStartX);
                             }
                         }
                         this.translate(
-                            translateX - this.translateXPrev,
-                            translateY - this.translateYPrev
+                            translateX - /** @type {number} */ (this.translateXPrev),
+                            translateY - /** @type {number} */ (this.translateYPrev)
                         );
                         this.mouseDragChangedState = true;
                         this.translateXPrev = translateX;
@@ -844,7 +858,7 @@ export class PlayerController extends EventEmitter {
 
     /** Move to a frame in *preview* mode.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The frame to show.
+     * @param {string|number|Frame} frame - The frame to show.
      *
      * @fires module:player/PlayerController.previewFrame
      * @fires module:player/Player.frameChange
@@ -866,7 +880,7 @@ export class PlayerController extends EventEmitter {
 
     /** Jump to the given frame of the presentation and signal a local change.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The frame to show.
+     * @param {string|number|Frame} frame - The frame to show.
      *
      * @fires module:player/PlayerController.jumpToFrame
      * @fires module:player/Player.frameChange
@@ -880,7 +894,7 @@ export class PlayerController extends EventEmitter {
 
     /** Move to the given frame of the presentation and signal a local change.
      *
-     * @param {string|number|module:model/Presentation.Frame} frame - The frame to show.
+     * @param {string|number|Frame} frame - The frame to show.
      *
      * @fires module:player/PlayerController.moveToFrame
      * @fires module:player/Player.frameChange

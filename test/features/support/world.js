@@ -53,20 +53,21 @@ export function builtDeck(name) {
             cleanup: deck.cleanup
         });
     }
-    return decks.get(name);
+    // Cast: the deck was built above if it was missing.
+    return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
 }
 
 /** What a scenario can reach: the browser context, the presenter page and the audience window. */
 export class SoziWorld {
     /** A scenario starts with nothing open. */
     constructor() {
-        /** @type {import("playwright").BrowserContext} */
+        /** @type {?import("playwright").BrowserContext} */
         this.context = null;
-        /** @type {import("playwright").Page} */
+        /** @type {?import("playwright").Page} */
         this.presenter = null;
-        /** @type {import("playwright").Page} */
+        /** @type {?import("playwright").Page} */
         this.audience = null;
-        /** @type {import("playwright").Page} */
+        /** @type {?import("playwright").Page} */
         this.deck = null;
         /** @type {string} */
         this.fixture = "";
@@ -78,7 +79,10 @@ export class SoziWorld {
      */
     async openDeck(fixture) {
         const deck = builtDeck(fixture);
-        this.deck = await this.context.newPage();
+        // Cast: the Before hook opens a context for every scenario.
+        this.deck = await /** @type {import("playwright").BrowserContext} */ (
+            this.context
+        ).newPage();
         await this.deck.goto(pathToFileURL(deck.html).href);
         await this.deck.waitForFunction(() =>
             Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame)
@@ -91,7 +95,10 @@ export class SoziWorld {
      */
     async openPresenter(fixture) {
         const deck = builtDeck(fixture);
-        this.presenter = await this.context.newPage();
+        // Cast: the Before hook opens a context for every scenario.
+        this.presenter = await /** @type {import("playwright").BrowserContext} */ (
+            this.context
+        ).newPage();
         const popup = this.presenter.waitForEvent("popup");
         await this.presenter.goto(pathToFileURL(deck.presenter).href);
         this.audience = await popup;

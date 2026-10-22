@@ -179,7 +179,7 @@ describe("export pdf", () => {
         [["--exclude", "1"], 1],
         [["--include", "all", "--exclude", "2"], 1]
     ];
-    for (const [flags, pages] of cases) {
+    for (const [flags, pages] of /** @type {[string[], number][]} */ (cases)) {
         test(`frame list ${flags.join(" ")}: ${pages} page(s)`, async () => {
             const deck = withTempDeck("basic");
             try {
@@ -656,7 +656,7 @@ describe("export usage errors", () => {
         [["--size", "320x180"], /--size does not apply to export; .*--width and --height/],
         [["--export-type", "video", "--size", "320x180"], /--size does not apply to export/]
     ];
-    for (const [flags, message] of cases) {
+    for (const [flags, message] of /** @type {[string[], RegExp][]} */ (cases)) {
         test(flags.join(" "), () => {
             const deck = withTempDeck("basic");
             try {

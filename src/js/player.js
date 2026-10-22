@@ -38,6 +38,7 @@ let isPresenterMode = false;
  * @param {boolean} isCurrent - Is the current player showing the current frame?
  */
 function setPresenterMode(mainWindow, isCurrent) {
+    // Casts of sozi.presentation.document in this file: messages arrive after the player has loaded.
     isPresenterMode = true;
     sozi.player.disableMedia();
     sozi.player.pause();
@@ -55,7 +56,9 @@ function setPresenterMode(mainWindow, isCurrent) {
 
     if (isCurrent) {
         // Forward hyperlink clicks to the main presentation window.
-        for (const link of sozi.presentation.document.root.getElementsByTagName("a")) {
+        for (const link of /** @type {SVGDocumentWrapper} */ (
+            sozi.presentation.document
+        ).root.getElementsByTagName("a")) {
             link.addEventListener(
                 "click",
                 evt => {
@@ -68,7 +71,7 @@ function setPresenterMode(mainWindow, isCurrent) {
             );
         }
     } else {
-        sozi.presentation.document.disableHyperlinks(true);
+        /** @type {SVGDocumentWrapper} */ (sozi.presentation.document).disableHyperlinks(true);
     }
 }
 
@@ -118,16 +121,20 @@ window.addEventListener("message", evt => {
         case "notifyOnFrameChange":
             // Install an event handler to forward the frame change event
             // to the presenter console.
-            notifyOnFrameChange(evt.source);
+            // Cast: these messages come from the presenter window.
+            notifyOnFrameChange(/** @type {Window} */ (evt.source));
             break;
         case "setPresenterMode":
             // Set this presentation into presenter mode.
-            setPresenterMode(evt.source, evt.data.isCurrent);
+            // Cast: these messages come from the presenter window.
+            setPresenterMode(/** @type {Window} */ (evt.source), evt.data.isCurrent);
             break;
         case "click": {
             // Forward the click event on a hyperlink in the presenter console
             // to the same hyperlink in the main presentation.
-            const link = sozi.presentation.document.root.getElementById(evt.data.id);
+            const link = /** @type {SVGDocumentWrapper} */ (
+                sozi.presentation.document
+            ).root.getElementById(evt.data.id);
             // We use dispatchEvent here because
             // SVG <a> elements do not have a click method.
             link.dispatchEvent(new MouseEvent("click"));
@@ -150,7 +157,8 @@ window.addEventListener("message", evt => {
 
 // Initialize the Sozi player when the document is loaded.
 window.addEventListener("load", () => {
-    const svgRoot = document.querySelector("svg");
+    // Casts in this handler: the player page holds the SVG and the blank screen spinner.
+    const svgRoot = /** @type {SVGSVGElement} */ (document.querySelector("svg"));
     svgRoot.style.display = "initial";
 
     const presentation = new Presentation();
@@ -207,7 +215,9 @@ window.addEventListener("load", () => {
     viewport.repaint();
     player.disableBlankScreen();
 
-    document.querySelector(".sozi-blank-screen .spinner").style.display = "none";
+    /** @type {HTMLElement} */ (
+        document.querySelector(".sozi-blank-screen .spinner")
+    ).style.display = "none";
 });
 
 /** Identifies the window that opened this presentation.

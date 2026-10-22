@@ -347,7 +347,7 @@ function removeOnExit(dir) {
 /** Remove the directories created by `fs.mkdirSync(dir, {recursive: true})` if they are empty.
  *
  * @param {string} dir - The directory given to `mkdirSync`.
- * @param {?string} created - The first directory created, as returned by `mkdirSync`, or `undefined`.
+ * @param {string|undefined} created - The first directory created, as returned by `mkdirSync`, or `undefined`.
  */
 function removeCreatedDirs(dir, created) {
     if (!created) {
@@ -384,7 +384,7 @@ export function partialPath(outPath) {
  * and the directories created here are removed: the previous output stays as it was.
  *
  * @param {string} outPath - The output file.
- * @param {function(string):Promise} write - Writes the file at the path it is given.
+ * @param {function(string):(Promise<void>|void)} write - Writes the file at the path it is given.
  * @returns {Promise} - Resolved once `outPath` is complete.
  */
 async function writeOutput(outPath, write) {
@@ -420,7 +420,8 @@ export function moveFile(from, to) {
     try {
         fs.renameSync(from, to);
     } catch (err) {
-        if (err.code !== "EXDEV") {
+        // Cast: renameSync throws system errors, which have a code.
+        if (/** @type {{code?: string}} */ (err).code !== "EXDEV") {
             throw err;
         }
         fs.copyFileSync(from, to);
@@ -452,8 +453,8 @@ export function linkOrCopy(from, to) {
  *
  * @param {string} ffmpegPath - The ffmpeg executable.
  * @param {string[]} args - The command-line arguments.
- * @param {number} [timeoutMs] - The time limit, in milliseconds.
- * @returns {Promise} - Resolved when ffmpeg succeeds; rejected with its status and the end of its standard error otherwise.
+ * @param {number} timeoutMs - The time limit, in milliseconds.
+ * @returns {Promise<void>} - Resolved when ffmpeg succeeds; rejected with its status and the end of its standard error otherwise.
  */
 function runFfmpeg(ffmpegPath, args, timeoutMs) {
     return new Promise((resolve, reject) => {
@@ -752,7 +753,8 @@ export class ExportWindow {
                 return !!box && box.width > 0 && box.height > 0;
             })()`);
         }
-        return this.hasContent;
+        // Cast: set just above when it was null.
+        return /** @type {boolean} */ (this.hasContent);
     }
 
     /** Capture the current state of the window as a PNG image.
@@ -868,7 +870,7 @@ export class ExportWindow {
  *
  * @param {string} htmlPath - The path of the presentation HTML file.
  * @param {object} opts - `{width, height, hidden, transparent, frameNumber, timeoutMs}`.
- * @returns {Promise<module:exporter.ExportWindow>} - The capture window.
+ * @returns {Promise<ExportWindow>} - The capture window.
  */
 export async function openExportWindow(htmlPath, opts) {
     const transparent = !!opts.transparent;
@@ -946,7 +948,7 @@ export async function openExportWindow(htmlPath, opts) {
  *
  * @param {string} htmlPath - The path of the presentation HTML file.
  * @param {object} opts - The options of {@linkcode module:exporter.openExportWindow|openExportWindow}.
- * @param {function(module:exporter.ExportWindow):Promise} fn - The operation.
+ * @param {function(ExportWindow):Promise<any>} fn - The operation.
  * @returns {Promise<{value: any, warnings: string[], capture: ?string}>} - The result of the operation and the capture report.
  */
 async function withExportWindow(htmlPath, opts, fn) {
@@ -1308,7 +1310,12 @@ async function videoExport(presentation, htmlPath, opts) {
 
     const files = [];
     try {
-        // Write the next image of the sequence, or link it to an earlier image with the same content.
+        /** Write the next image of the sequence, or link it to an earlier image with the same content.
+         *
+         * @param {?Buffer} png - The PNG data, or `null` when `sameAs` is given.
+         * @param {?string} [sameAs] - An earlier image file with the same content.
+         * @returns {string} - The image file.
+         */
         const write = (png, sameAs = null) => {
             const fileName = path.join(
                 destDir.name,
@@ -1317,7 +1324,8 @@ async function videoExport(presentation, htmlPath, opts) {
             if (sameAs) {
                 linkOrCopy(sameAs, fileName);
             } else {
-                fs.writeFileSync(fileName, png);
+                // Cast: without sameAs, png holds the data.
+                fs.writeFileSync(fileName, /** @type {Buffer} */ (png));
             }
             files.push(fileName);
             progress(opts, files.length, total);
@@ -1349,6 +1357,7 @@ async function videoExport(presentation, htmlPath, opts) {
             }
         });
 
+        /** @type {{[field: string]: unknown}} */
         const result = {
             out: outPath,
             format,
@@ -1365,7 +1374,8 @@ async function videoExport(presentation, htmlPath, opts) {
                 opts.ffmpegTimeoutMs > 0 ? opts.ffmpegTimeoutMs : defaultFfmpegTimeoutMs(total);
             await writeOutput(outPath, partial =>
                 runFfmpeg(
-                    ffmpegPath,
+                    // Cast: a video other than a PNG sequence found ffmpeg above.
+                    /** @type {string} */ (ffmpegPath),
                     [
                         "-hide_banner",
                         "-loglevel",

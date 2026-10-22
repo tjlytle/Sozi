@@ -19,6 +19,7 @@ app.commandLine.appendSwitch("disable-gpu-sandbox");
 
 app.on("ready", async () => {
     const start = Date.now();
+    /** @type {{ok: boolean, result?: unknown, error?: string, elapsedMs?: number, windows?: number}} */
     let report;
     try {
         const json = argsJSON.startsWith("@")
@@ -29,7 +30,10 @@ app.on("ready", async () => {
         const result = await exporter[fn](presentation, html, opts);
         report = {ok: true, result};
     } catch (err) {
-        report = {ok: false, error: String((err && err.message) || err)};
+        report = {
+            ok: false,
+            error: String((err && /** @type {{message?: string}} */ (err).message) || err)
+        };
     }
     report.elapsedMs = Date.now() - start;
     report.windows = BrowserWindow.getAllWindows().length;

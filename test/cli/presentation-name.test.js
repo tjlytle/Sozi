@@ -305,7 +305,8 @@ describe("presentation file errors", () => {
  */
 function snapshot(dir) {
     const result = {};
-    for (const name of fs.readdirSync(dir, {recursive: true})) {
+    // Cast: without an encoding option, the names are strings.
+    for (const name of /** @type {string[]} */ (fs.readdirSync(dir, {recursive: true}))) {
         const file = path.join(dir, name);
         if (fs.statSync(file).isFile()) {
             result[name] = fs.readFileSync(file).toString("base64");

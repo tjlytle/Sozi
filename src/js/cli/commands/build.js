@@ -51,7 +51,7 @@ export const FLAGS = {
  * @param {string} context.cwd - The working directory.
  * @param {object} context.flags - The command-line flags.
  * @param {string[]} context.warnings - Warnings to report; this command may add some.
- * @returns {{ok: boolean, files: string[], frames: number}} - The command result,
+ * @returns {{ok: boolean, files: string[], frames: number}|{ok: false, error: string, exitCode: number}} - The command result,
  *  or `{ok: false, error, exitCode: 2}` for an output directory that is a file.
  */
 export function build(context) {

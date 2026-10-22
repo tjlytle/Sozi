@@ -145,7 +145,8 @@ export class CameraState {
      * @type {number}
      */
     get width() {
-        return this._width;
+        // Cast: the constructor sets it through the setter.
+        return /** @type {number} */ (this._width);
     }
 
     set width(w) {
@@ -160,7 +161,8 @@ export class CameraState {
      * @type {number}
      */
     get height() {
-        return this._height;
+        // Cast: the constructor sets it through the setter.
+        return /** @type {number} */ (this._height);
     }
 
     set height(h) {
@@ -175,7 +177,8 @@ export class CameraState {
      * @type {number}
      */
     get angle() {
-        return this._angle;
+        // Cast: the constructor sets it through the setter.
+        return /** @type {number} */ (this._angle);
     }
 
     set angle(a) {
@@ -245,7 +248,7 @@ export class CameraState {
      * box of the SVG element.
      * Translation, scaling and rotation may be applied.
      *
-     * @param {SVGElement} svgElement - The target SVG element.
+     * @param {SVGGraphicsElement} svgElement - The target SVG element.
      * @param {number} deltaX - An horizontal offset from the center of the SVG element.
      * @param {number} deltaY - A vertical offset from the center of the SVG element.
      * @param {number} widthFactor - A scaling factor applied to the width of the SVG element.
@@ -273,15 +276,19 @@ export class CameraState {
         bboxCenter.y = bbox.y + bbox.height / 2;
 
         // Find the transform group corresponding to the layer
-        // that contains the given element
+        // that contains the given element.
+        // Casts: the element lies inside a layer group of the SVG root.
         let layerGroup = svgElement;
-        while (layerGroup.parentNode.parentNode !== this.svgRoot) {
-            layerGroup = layerGroup.parentNode;
+        while (/** @type {Node} */ (layerGroup.parentNode).parentNode !== this.svgRoot) {
+            layerGroup = /** @type {SVGGraphicsElement} */ (layerGroup.parentNode);
         }
 
         // Compute the coordinates of the center of the given SVG element
         // after its current transformation
-        const matrix = layerGroup.getScreenCTM().inverse().multiply(svgElement.getScreenCTM());
+        // Casts: both elements are rendered, so they have a screen transform.
+        const matrix = /** @type {DOMMatrix} */ (layerGroup.getScreenCTM())
+            .inverse()
+            .multiply(/** @type {DOMMatrix} */ (svgElement.getScreenCTM()));
         bboxCenter = bboxCenter.matrixTransform(matrix);
 
         // Compute the scaling factor applied to the given SVG element
@@ -309,7 +316,7 @@ export class CameraState {
      *
      * The result has the same type as the argument of {@linkcode module:model/CameraState.CameraState#applyOffset|applyOffset}.
      *
-     * @param {SVGElement} svgElement - A source SVG element.
+     * @param {SVGGraphicsElement} svgElement - A source SVG element.
      * @returns {object} - The translation coordinates, scaling factors, and rotation angle.
      *
      * @see {@linkcode module:model/CameraState.CameraState#setAtElement|setAtElement}

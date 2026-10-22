@@ -118,7 +118,7 @@ export class SVGDocumentWrapper {
 
         /** The SVG handler class for the current SVG document.
          *
-         * @type {Function}
+         * @type {typeof DefaultSVGHandler}
          */
         this.handler = DefaultSVGHandler;
 
@@ -172,7 +172,13 @@ export class SVGDocumentWrapper {
      * @see {@linkcode module:svg/SVGDocumentWrapper.DefaultSVGHandler.transform}
      */
     static fromString(data) {
-        const svgRoot = new DOMParser().parseFromString(data, "image/svg+xml").documentElement;
+        // Cast: the root is an SVG element only for a valid document (an invalid one gives a
+        // parsererror element); the handler transforms below run only when doc.isValidSVG.
+        const svgRoot = /** @type {SVGSVGElement} */ (
+            /** @type {Element} */ (
+                new DOMParser().parseFromString(data, "image/svg+xml").documentElement
+            )
+        );
         const doc = new SVGDocumentWrapper(svgRoot);
 
         for (const name in handlers) {
@@ -211,11 +217,12 @@ export class SVGDocumentWrapper {
             // Make a copy of svgRoot.childNodes before modifying the document.
             for (const svgNode of Array.from(svgRoot.childNodes)) {
                 // Remove text nodes and comments
-                if (svgNode.tagName === undefined) {
+                if (/** @type {Partial<Element>} */ (svgNode).tagName === undefined) {
                     svgRoot.removeChild(svgNode);
                 }
                 // Reorganize drawable SVG elements into top-level groups
-                else if (DRAWABLE_TAGS.indexOf(svgNode.localName) >= 0) {
+                // Cast: a node with a tag name is an element.
+                else if (DRAWABLE_TAGS.indexOf(/** @type {Element} */ (svgNode).localName) >= 0) {
                     // If the current node is not a layer,
                     // add it to the current wrapper.
                     if (!doc.isLayer(svgNode)) {
@@ -265,7 +272,8 @@ export class SVGDocumentWrapper {
         // Make a copy of root.childNodes before modifying the document.
         const scripts = Array.from(this.root.getElementsByTagName("script"));
         for (const script of scripts) {
-            script.parentNode.removeChild(script);
+            // Cast: the script was found under the root, so it has a parent.
+            /** @type {Node} */ (script.parentNode).removeChild(script);
         }
     }
 

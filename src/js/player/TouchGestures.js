@@ -202,7 +202,7 @@ class Gesture {
      *
      * Specific behaviour to be implemented by derived classes
      *
-     * @param {object[]} touches - Array of touchpoints from the touch event.
+     * @param {TouchList} touches - Array of touchpoints from the touch event.
      */
     move(touches) {
         // Not implemented
@@ -212,7 +212,7 @@ class Gesture {
      *
      * Must be implemented by derived classes.
      *
-     * @param {object[]} touches - Array of touchpoints from the touch event.
+     * @param {TouchList} touches - Array of touchpoints from the touch event.
      * @returns {boolean} - `true`, if touches are rejected, `false` if accepted.
      *
      */
@@ -234,6 +234,8 @@ class Gesture {
     /** Execute a swipe.
      *
      * Must be implemented by derived class.
+     *
+     * @type {(direction: string) => void}
      */
     doSwipe() {
         // Not implemented
@@ -284,7 +286,7 @@ class Gesture {
 class SingleGesture extends Gesture {
     /** Creates a new single touch gesture handler.
      *
-     * @param {object[]} touches - The initial touchpoint objects when the gesture is first detected
+     * @param {TouchList} touches - The initial touchpoint objects when the gesture is first detected
      */
     constructor(touches) {
         super();
@@ -322,7 +324,7 @@ class SingleGesture extends Gesture {
      *
      * Also updates the last touch value to check  quick swipes when gesture is finished.
      *
-     * @param {object[]} touches - The touchpoints.
+     * @param {TouchList} touches - The touchpoints.
      * @override
      */
     move(touches) {
@@ -410,7 +412,7 @@ class SingleGesture extends Gesture {
 class DoubleGesture extends Gesture {
     /** Creates a new double touch gesture handler.
      *
-     * @param {object[]} touches - The initial touchpoint objects when the gesture is first detected
+     * @param {TouchList} touches - The initial touchpoint objects when the gesture is first detected
      */
     constructor(touches) {
         super();
@@ -485,7 +487,7 @@ class DoubleGesture extends Gesture {
      * Checks whether each of translate, zoom or rotate are allowed by presentation's
      * mouse enabled policy and delegates the interaction to helper classes.
      *
-     * @param {object[]} touches - Array of touchpoints.
+     * @param {TouchList} touches - Array of touchpoints.
      * @override
      */
     move(touches) {
@@ -511,7 +513,7 @@ class DoubleGesture extends Gesture {
 
     /** Rejects any number of touchpoints but two.
      *
-     * @param {object[]} touches - Array of touchpoints.
+     * @param {TouchList} touches - Array of touchpoints.
      * @override
      */
     rejects(touches) {
@@ -537,7 +539,7 @@ class DummyGesture extends Gesture {
 
     /** Rejects touch events that do not exaclty match the initial number of touches to be handled.
      *
-     * @param {object[]} touches - Array of touch objects from the touch event
+     * @param {TouchList} touches - Array of touch objects from the touch event
      * @override
      */
     rejects(touches) {
@@ -560,7 +562,7 @@ function updateScreenValues() {
  * a dummy handler is returned.
  * The dummy does nothing in effect, but avoids the createGesture function to be called repeatedly.
  *
- * @param {object[]} touches - Array of currently active touches
+ * @param {TouchList} touches - Array of currently active touches
  * @returns {module:player/TouchGestures.Gesture} - A new gesture handler matching the number of touches, or `null` if no handler matches.
  */
 function createGesture(touches) {
@@ -580,7 +582,7 @@ function createGesture(touches) {
  *
  * If not, a new gesture handler is put in place.
  *
- * @param {object[]} touches - Array of currently active touches.
+ * @param {TouchList} touches - Array of currently active touches.
  */
 function updateGesture(touches) {
     if (
