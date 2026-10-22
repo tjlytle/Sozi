@@ -1,15 +1,12 @@
 import {test, describe, after} from "node:test";
 import assert from "node:assert/strict";
-import {execFileSync} from "node:child_process";
+import {execFileSync, spawnSync} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {encoding: "utf8"}).trim();
 const script = path.join(root, "pipeline/hooks-outside.sh");
-/** @type {string[]} */
-const dirs = [];
-
 /**
  * Run a command and return its stdout.
  * @param {string} cwd - Working directory.
@@ -18,6 +15,9 @@ const dirs = [];
  * @returns {string} - Standard output.
  */
 const run = (cwd, cmd, args) => execFileSync(cmd, args, {cwd, encoding: "utf8"});
+
+/** @type {string[]} */
+const dirs = [];
 
 /**
  * Make a shared clone of the repo with the root's node_modules linked in.
@@ -30,6 +30,16 @@ function scratch() {
     fs.symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"));
     return dir;
 }
+
+/**
+ * Run the outside pass without throwing.
+ * @param {string} dir - The checkout.
+ * @param {string} sha - The start commit.
+ * @param {string} report - The report path.
+ * @returns {import("node:child_process").SpawnSyncReturns<string>} - The result.
+ */
+const hooks = (dir, sha, report) =>
+    spawnSync("bash", [script, dir, sha, report], {encoding: "utf8"});
 
 after(() => {
     for (const dir of dirs) {
@@ -66,5 +76,78 @@ describe("the outside hook pass", () => {
         const report = path.join(dir, "report.txt");
         execFileSync("bash", [script, dir, sha, report]);
         assert.equal(fs.readFileSync(report, "utf8"), "");
+        fs.writeFileSync(path.join(dir, "src/js/bad.js"), "window.x = 1\n");
+        assert.throws(() => execFileSync("bash", [script, dir, sha, report], {stdio: "pipe"}));
+        const text = fs.readFileSync(report, "utf8");
+        assert.match(text, /src\/js\/bad\.js/);
+        assert.doesNotMatch(text, /x\.md/);
+    });
+    test("a modified tracked file with a lint error is reported", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        fs.appendFileSync(path.join(dir, "src/js/Storage.js"), "\nwindow.x = 1\n");
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        assert.match(fs.readFileSync(report, "utf8"), /bin\/check src\/js\/Storage\.js/);
+        assert.match(fs.readFileSync(report, "utf8"), /bin\/check --fix src\/js\/Storage\.js/);
+    });
+    test("a deleted tracked file is not listed and does not crash", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        fs.rmSync(path.join(dir, "src/js/Storage.js"));
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 0);
+        assert.equal(fs.readFileSync(report, "utf8"), "");
+    });
+    test("a file name with a space is checked", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        fs.writeFileSync(path.join(dir, "src/js/has space.js"), "window.x = 1\n");
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        assert.match(fs.readFileSync(report, "utf8"), /has space\.js/);
+    });
+    test("an advise-only note reaches the report", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        fs.writeFileSync(path.join(dir, "src/js/long.js"), "// filler\n".repeat(450));
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        assert.match(fs.readFileSync(report, "utf8"), /standard 2\.8/);
+        assert.doesNotMatch(fs.readFileSync(report, "utf8"), /== bin\/check/);
+    });
+    test("a root-level file with a checked extension is checked", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        fs.writeFileSync(path.join(dir, "rootbad.js"), "window.x = 1\n");
+        fs.writeFileSync(path.join(dir, "notes.md"), "# n\n");
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        const text = fs.readFileSync(report, "utf8");
+        assert.match(text, /rootbad\.js/);
+        assert.doesNotMatch(text, /notes\.md/);
+    });
+    test("advice still sees a change the session already committed", () => {
+        const dir = scratch();
+        const file = path.join(dir, "src/js/stale.js");
+        const code = body =>
+            `/**\n * Add one.\n * @param {number} a - A number.\n * @returns {number} - The sum.\n */\nexport function add(a) {\n    return ${body};\n}\n`;
+        fs.writeFileSync(file, code("a + 1"));
+        const git = args => run(dir, "git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        git(["add", "."]);
+        git(["commit", "-q", "-m", "base"]);
+        const sha = git(["rev-parse", "HEAD"]).trim();
+        fs.writeFileSync(file, code("a + 2"));
+        git(["commit", "-qam", "change"]);
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        assert.match(fs.readFileSync(report, "utf8"), /summary comment/);
+    });
+    test("a failing git exits 2 with the error, not an empty report", () => {
+        const dir = scratch();
+        const report = path.join(dir, "report.txt");
+        const r = hooks(dir, "not-a-revision", report);
+        assert.equal(r.status, 2);
+        assert.match(r.stderr, /not-a-revision|fatal/);
     });
 });

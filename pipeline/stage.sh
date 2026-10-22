@@ -4,7 +4,8 @@
 # Clones the repo, runs the harness adapter on the stage prompt, runs the
 # repository's edit-hook checks from the outside (hooks-outside.sh) and resumes
 # the session with what they find, then writes result.json for the host. The
-# host reads result.json, never this script's exit status.
+# host reads result.json, never this script's exit status. result.json is also
+# written on an early failure and on SIGTERM/SIGINT (docker stop).
 #
 # Usage: pipeline/stage.sh <issue> <stage>   (the container's main process)
 #
@@ -21,15 +22,17 @@ MIRROR="${MIRROR:-/mirror}"; OUTBOX="${OUTBOX:-/outbox}"; WORK="${WORK:-/work}"
 CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
-start=""; harness_exit=1; resumes=0
+start=""; harness_exit=1; resumes=0; hooks_state=ok; child=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
 # Files changed since the start commit (tracked and untracked), one per line.
 changed_files() {
     [ -n "$start" ] || return 0
-    { git -C "$WORK" diff --name-only "$start"; git -C "$WORK" ls-files --others --exclude-standard; } |
+    { git -C "$WORK" -c core.quotePath=false diff --name-only "$start"
+      git -C "$WORK" -c core.quotePath=false ls-files --others --exclude-standard; } |
         sort -u | while IFS= read -r f; do [ -f "$WORK/$f" ] && printf '%s\n' "$f"; done
+    return 0
 }
 
 # Lines on stdin as a compact JSON array of strings.
@@ -38,32 +41,31 @@ to_array() {
     else node -e 'const l=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);console.log(JSON.stringify(l))'; fi
 }
 
-# First element of a JSON array on stdin, as JSON (null when empty).
-jq_first() {
-    if command -v jq >/dev/null; then jq -c '.[0]'
-    else node -e 'console.log(JSON.stringify(JSON.parse(require("fs").readFileSync(0,"utf8"))[0]??null))'; fi
-}
-
 # Write result.json from whatever state exists; runs on every exit.
 write_result() {
-    local session=null usage changed commits
-    [ -s "$OUTBOX/session" ] && session=$(to_array <"$OUTBOX/session" | jq_first)
+    local sfile=/dev/null usage changed commits out="$OUTBOX/result.json"
+    [ -s "$OUTBOX/session" ] && sfile="$OUTBOX/session"
     usage='{"tokensIn":0,"tokensOut":0,"costUsd":0,"turns":0,"status":"error"}'
     [ -s "$OUTBOX/usage.json" ] && usage=$(cat "$OUTBOX/usage.json")
     changed=$(changed_files | to_array)
-    commits=$([ -n "$start" ] && git -C "$WORK" log --oneline "$start..HEAD" 2>/dev/null | to_array || echo '[]')
-    [ -n "$commits" ] || commits='[]'
+    commits='[]'
+    [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline "$start..HEAD" 2>/dev/null | to_array)
     if command -v jq >/dev/null && echo "$usage" | jq -e . >/dev/null 2>&1; then
-        jq -n --argjson exit "$harness_exit" --argjson session "$session" --argjson usage "$usage" \
+        jq -n --argjson exit "$harness_exit" --rawfile session "$sfile" --argjson usage "$usage" \
             --argjson changed "$changed" --argjson commits "$commits" --argjson resumes "$resumes" \
-            '{exit: $exit, session: $session, usage: $usage, changed: $changed, commits: $commits, resumes: $resumes}' \
-            >"$OUTBOX/result.json"
+            --arg hooks "$hooks_state" \
+            '{exit: $exit, session: (if $session == "" then null else ($session | rtrimstr("\n")) end), usage: $usage, changed: $changed, commits: $commits, resumes: $resumes, hooks: $hooks}' \
+            >"$out.tmp"
     else
         node -e 'const a=process.argv;let u;try{u=JSON.parse(a[4])}catch{u={tokensIn:0,tokensOut:0,costUsd:0,turns:0,status:"error"}}
-console.log(JSON.stringify({exit:+a[1],session:JSON.parse(a[2]),usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3]}))' \
-            "$harness_exit" "$session" "$resumes" "$usage" "$changed" "$commits" >"$OUTBOX/result.json"
+console.log(JSON.stringify({exit:+a[1],session:require("fs").readFileSync(a[2],"utf8").trim()||null,usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3],hooks:a[7]}))' \
+            "$harness_exit" "$sfile" "$resumes" "$usage" "$changed" "$commits" "$hooks_state" >"$out.tmp"
     fi
+    mv "$out.tmp" "$out"
 }
+
+# docker stop: record the interruption and leave; the exit trap writes the result.
+on_signal() { harness_exit=$((128 + $1)); exit $((128 + $1)); }
 
 # Clone the mirror, point origin at GitHub, fetch.
 clone_repo() {
@@ -94,20 +96,32 @@ install_modules() {
 }
 
 # Run the adapter (run, or resume with --session/--message) and record its exit.
+# In the background so a signal interrupts the wait at once.
 harness() {
-    local -a mode=("$@")
-    "$HARNESS_DIR/$PIPELINE_HARNESS" "${mode[@]}" --model "$PIPELINE_MODEL" --allow "$OUTBOX/allow.txt" \
-        --checkout "$WORK" --out "$OUTBOX" 2>&1 | tee -a "$OUTBOX/log"
-    harness_exit=${PIPESTATUS[0]}
+    ( "$HARNESS_DIR/$PIPELINE_HARNESS" "$@" --model "$PIPELINE_MODEL" --allow "$OUTBOX/allow.txt" \
+        --checkout "$WORK" --out "$OUTBOX" 2>&1 | tee -a "$OUTBOX/log"; exit "${PIPESTATUS[0]}" ) &
+    child=$!
+    wait "$child"
+    harness_exit=$?
 }
 
 # Run the outside hooks; resume the session while they find something new.
 resume_loop() {
-    local last="" report
+    local last="" report rc
+    if [ "$harness_exit" -eq 0 ] && [ ! -s "$OUTBOX/session" ]; then
+        step "no session file"
+        return
+    fi
     while [ "$resumes" -lt "$max_resumes" ] && [ "$harness_exit" -eq 0 ]; do
         step hooks
         report="$OUTBOX/report-$resumes.txt"
         "$HOOKS_OUTSIDE" "$WORK" "$start" "$report"
+        rc=$?
+        if [ "$rc" -gt 1 ] || { [ "$rc" -eq 1 ] && [ ! -s "$report" ]; } || [ ! -e "$report" ]; then
+            step "hooks-outside failed (exit $rc)"
+            hooks_state=error
+            break
+        fi
         [ -s "$report" ] || break
         [ "$(cat "$report")" = "$last" ] && break
         last=$(cat "$report")
@@ -120,13 +134,13 @@ resume_loop() {
 main() {
     mkdir -p "$OUTBOX"
     trap write_result EXIT
+    trap 'on_signal 15' TERM
+    trap 'on_signal 2' INT
+    case "$PIPELINE_HARNESS" in */*) step "harness name rejected"; exit 0 ;; esac
     clone_repo && checkout_branch && install_modules || exit 0
-    step tmp
-    mkdir -p "$WORK/.agents/tmp"
-    step start
-    start=$(git -C "$WORK" rev-parse HEAD)
-    step harness
-    harness run --prompt "$OUTBOX/prompt.md"
+    step tmp; mkdir -p "$WORK/.agents/tmp"
+    step start; start=$(git -C "$WORK" rev-parse HEAD)
+    step harness; harness run --prompt "$OUTBOX/prompt.md"
     resume_loop
     step result
     exit 0
