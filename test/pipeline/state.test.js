@@ -192,4 +192,17 @@ describe("state", () => {
         applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [28], body: "Part of #24."}));
         assert.equal(isQuiet(s, scope(s, {epic: 24})), false);
     });
+    test("an issue waiting for a person is not due until its stage changes", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:todo"]));
+        s.issues[25].waiting = true;
+        applyIssue(s, issue(25, ["stage:todo"]));
+        assert.deepEqual(dueIssues(s, settings, new Date()), []);
+        assert.equal(isQuiet(s, [25]), true);
+        applyIssue(s, issue(25, ["stage:tests"]));
+        assert.deepEqual(dueIssues(s, settings, new Date()), [25]);
+        s.issues[25].waiting = true;
+        setStage(s, 25, "stage:in-progress");
+        assert.equal(s.issues[25].waiting, false);
+    });
 });

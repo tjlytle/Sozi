@@ -42,6 +42,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {number | null} epic - The epic this issue belongs to, if any.
  * @property {object | null} board - The board card, if any.
  * @property {string | null} seen - The issue's updatedAt when last read.
+ * @property {boolean} [waiting] - A session ended asking a person to act; cleared by a stage change.
  */
 
 /**
@@ -128,7 +129,8 @@ export function promptFor(stage) {
     return stage === null ? null : (PROMPTS[/** @type {keyof typeof PROMPTS} */ (stage)] ?? null);
 }
 
-/** Adds or refreshes an issue from its GitHub data.
+/** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
+ * waiting while its stage holds and it stays open.
  *
  * @param {State} state - The state.
  * @param {object} issue - The issue.
@@ -155,7 +157,11 @@ export function applyIssue(state, issue) {
         blockers: issue.blockedBy ?? existing?.blockers ?? [],
         epic: epic ? Number(epic[1]) : null,
         board: existing?.board ?? null,
-        seen: issue.updatedAt ?? null
+        seen: issue.updatedAt ?? null,
+        waiting:
+            issue.state !== "CLOSED" && existing?.stage === stageOf(issue.labels)
+                ? (existing?.waiting ?? false)
+                : false
     };
 }
 
@@ -169,14 +175,15 @@ function blockersClosed(state, record) {
     return record.blockers.every(n => state.issues[n]?.closed === true);
 }
 
-/** Tells whether a session can start for an issue now.
+/** Tells whether a session can start for an issue now: not closed, running, waiting for
+ * a person or labelled working by someone else.
  *
  * @param {State} state - The state.
  * @param {IssueRecord} r - The issue.
  * @returns {boolean} - True when the issue is startable.
  */
 function isStartable(state, r) {
-    if (r.closed || r.session || r.labels.includes("working")) {
+    if (r.closed || r.session || r.waiting || r.labels.includes("working")) {
         return false;
     }
     const startable =
@@ -214,7 +221,8 @@ export function scope(state, {epic} = {}) {
         .sort((a, b) => a - b);
 }
 
-/** Tells whether nothing in the scope needs doing and nothing runs.
+/** Tells whether nothing in the scope needs doing and nothing runs. An issue waiting for
+ * a person is quiet.
  *
  * @param {State} state - The state.
  * @param {number[]} scopeNumbers - The issues in scope.
@@ -229,7 +237,7 @@ export function isQuiet(state, scopeNumbers) {
         if (r.session || isStartable(state, r)) {
             return false;
         }
-        if (r.closed || r.stage === "stage:done" || r.stage === "stage:parked") {
+        if (r.closed || r.waiting || r.stage === "stage:done" || r.stage === "stage:parked") {
             return true;
         }
         if (r.stage === null) {
@@ -255,7 +263,8 @@ export function recordTry(state, n, maxTries = DEFAULT_MAX_TRIES) {
     return {tries: record.tries, park: record.tries >= maxTries};
 }
 
-/** Sets an issue's stage: the stage field, the stage label, and a fresh count of tries.
+/** Sets an issue's stage: the stage field, the stage label, a fresh count of tries, and
+ * no person awaited.
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
@@ -267,6 +276,7 @@ export function setStage(state, n, stage) {
     record.labels = [...record.labels.filter(l => !STAGES.includes(l)), stage];
     record.stage = stage;
     record.tries = 0;
+    record.waiting = false;
 }
 
 /** Parks an issue, remembering the stage it came from.

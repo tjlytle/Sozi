@@ -166,7 +166,8 @@ describe("readResult", () => {
             usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 4, status: "error"},
             changed: ["a"],
             commits: [],
-            resumes: 0
+            resumes: 0,
+            hooks: "ok"
         });
     });
 });
@@ -237,7 +238,8 @@ describe("hostile input", () => {
             usage: {tokensIn: 0, tokensOut: 5, costUsd: 0, turns: 2, status: "error"},
             changed: ["a", "b"],
             commits: [],
-            resumes: 0
+            resumes: 0,
+            hooks: "ok"
         });
         fs.writeFileSync(
             path.join(dir, "result.json"),
@@ -247,5 +249,13 @@ describe("hostile input", () => {
         assert.equal(result?.usage.turns, 0);
         assert.equal(result?.exit, 0);
         assert.equal(result?.resumes, 2);
+        assert.equal(result?.hooks, "ok");
+    });
+    test("readResult keeps a crashed outside pass and defaults anything else to ok", () => {
+        const dir = scratch();
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, hooks: "error"}));
+        assert.equal(readResult(dir)?.hooks, "error");
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, hooks: 5}));
+        assert.equal(readResult(dir)?.hooks, "ok");
     });
 });

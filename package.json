@@ -22,7 +22,8 @@
         "check:deps": "node bin/check-deps.js",
         "check:pr": "node bin/check-pr.js",
         "test:features": "cucumber-js",
-        "check:coverage": "node bin/check-coverage.js"
+        "check:coverage": "node bin/check-coverage.js",
+        "pipeline": "node bin/pipeline.js"
     },
     "dependencies": {
         "@electron/remote": "^2.0.8",

@@ -1,0 +1,408 @@
+// test/pipeline/pass.test.js
+import {test, describe} from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {createPass} from "../../pipeline/lib/pass.js";
+import {emptyState, applyIssue} from "../../pipeline/lib/state.js";
+import {loadConfig} from "../../pipeline/lib/config.js";
+import {parseUntil} from "../../bin/pipeline.js";
+
+/**
+ * A pass over fakes.
+ *
+ * @param {{issues?: any[], now?: number, env?: Record<string, string>}} [options] - The world.
+ * @returns {any} - The pass, the state, the recorded calls and the fakes.
+ */
+function world({issues = [], now = Date.parse("2026-10-21T19:00:00Z"), env = {}} = {}) {
+    const settings = loadConfig({root: "/nonexistent", env});
+    const state = emptyState();
+    state.run.started = new Date(now).toISOString();
+    for (const i of issues) {
+        applyIssue(state, i);
+    }
+    /** @type {any[]} */
+    const calls = [];
+    /** @type {Record<string, string>} */
+    const containers = {};
+    /** @type {string[]} */
+    const logs = [];
+    /** @type {any[]} */
+    const outboxes = [];
+    const github = {
+        searchIssues: async () => issues,
+        labelsOf: async (/** @type {number} */ n) => state.issues[n].labels,
+        label: async (/** @type {any} */ op) => calls.push(["label", op]),
+        comment: async (/** @type {any[]} */ ...a) => calls.push(["comment", ...a]),
+        planComment: async () => null,
+        lastCommentIsHuman: async () => false,
+        openPrFor: async () => null
+    };
+    const sandbox = {
+        refreshMirror: async () => {},
+        prepareOutbox: (/** @type {any} */ o) => {
+            outboxes.push(o);
+            return fs.mkdtempSync(path.join(os.tmpdir(), "ob-"));
+        },
+        start: async (/** @type {any} */ o) => {
+            const id = `c${o.issue}`;
+            containers[id] = "running";
+            calls.push(["start", o.issue, o.stage]);
+            return id;
+        },
+        status: async (/** @type {string} */ id) => containers[id] ?? "gone",
+        stop: async (/** @type {string} */ id) => {
+            containers[id] = "exited";
+        },
+        remove: async () => {}
+    };
+    const board = {sync: async () => {}};
+    const digest = {add: async () => {}, finish: async () => {}};
+    let current = now;
+    const clock = {
+        now: () => current,
+        advance: (/** @type {number} */ ms) => {
+            current += ms;
+        }
+    };
+    const p = createPass({
+        settings,
+        state,
+        github: /** @type {any} */ (github),
+        sandbox,
+        board,
+        digest,
+        clock,
+        log: line => logs.push(line)
+    });
+    return {p, state, calls, containers, clock, logs, outboxes, github, issues};
+}
+const issue = (
+    /** @type {number} */ number,
+    /** @type {string[]} */ labels,
+    /** @type {any} */ extra = {}
+) => ({
+    number,
+    title: `t${number}`,
+    labels,
+    state: "OPEN",
+    body: "",
+    updatedAt: "2026-10-21T00:00:00Z",
+    ...extra
+});
+
+/**
+ * Write a session's result and requests into its outbox and end its container.
+ *
+ * @param {any} w - The world.
+ * @param {string} outbox - The outbox.
+ * @param {string} container - The container id.
+ * @param {{exit?: number, hooks?: string, requests?: Record<string, any>}} [result] - What the session left.
+ */
+function end(w, outbox, container, {exit = 0, hooks = "ok", requests = {}} = {}) {
+    fs.writeFileSync(
+        path.join(outbox, "result.json"),
+        JSON.stringify({
+            exit,
+            session: "s",
+            usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"},
+            changed: [],
+            commits: [],
+            resumes: 0,
+            hooks
+        })
+    );
+    for (const [name, body] of Object.entries(requests)) {
+        fs.writeFileSync(path.join(outbox, `req-${name}.json`), JSON.stringify(body));
+    }
+    w.containers[container] = "exited";
+}
+
+describe("a pass", () => {
+    test("starts due issues up to the parallel limit, as working", async () => {
+        const w = world({
+            issues: [
+                issue(25, ["stage:todo"]),
+                issue(26, ["stage:in-progress"]),
+                issue(27, ["stage:todo"])
+            ]
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25, 26]);
+        assert.deepEqual(
+            w.calls.filter(c => c[0] === "label").map(c => c[1]),
+            [
+                {issue: 25, add: ["working"], remove: []},
+                {issue: 26, add: ["working"], remove: []}
+            ]
+        );
+    });
+    test("a finished session with a done request moves the issue and frees the slot", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        const outbox = w.state.issues[25].session.outbox;
+        fs.writeFileSync(
+            path.join(outbox, "result.json"),
+            JSON.stringify({
+                exit: 0,
+                session: "s",
+                usage: {tokensIn: 10, tokensOut: 5, costUsd: 0.01, turns: 2, status: "ok"},
+                changed: [],
+                commits: [],
+                resumes: 0
+            })
+        );
+        fs.writeFileSync(
+            path.join(outbox, "req-done.json"),
+            JSON.stringify({done: {issue: 25, to: "stage:tests"}})
+        );
+        w.containers.c25 = "exited";
+        const s = await w.p.pass();
+        assert.deepEqual(s.moved, [[25, "stage:todo", "stage:tests"]]);
+        assert.equal(w.state.issues[25].stage, "stage:tests");
+        assert.equal(w.state.run.tokens, 15);
+        assert.deepEqual(s.started, [25], "the next stage starts in the same pass");
+    });
+    test("no done and no label move: a try; three tries park with a comment", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        for (let i = 0; i < 3; i++) {
+            await w.p.pass();
+            fs.writeFileSync(
+                path.join(w.state.issues[25].session.outbox, "result.json"),
+                JSON.stringify({
+                    exit: 1,
+                    session: "s",
+                    usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 0, status: "error"},
+                    changed: [],
+                    commits: [],
+                    resumes: 0
+                })
+            );
+            w.containers.c25 = "exited";
+            await w.p.pass();
+        }
+        assert.ok(w.calls.some(c => c[0] === "comment" && /parking/.test(c[3])));
+        assert.equal(w.state.issues[25].stage, "stage:parked");
+    });
+    test("a running session past the cap is stopped and counts as a try", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        w.clock.advance(46 * 60 * 1000);
+        await w.p.pass();
+        assert.equal(w.state.issues[25].tries, 1);
+        assert.equal(w.state.issues[25].session, null);
+    });
+    test("--until: no starts after it, stop once sessions finish", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:todo"]), issue(26, ["stage:todo"])],
+            env: {PIPELINE_PARALLEL: "1"}
+        });
+        w.state.run.until = new Date(w.clock.now() + 1000).toISOString();
+        await w.p.pass();
+        w.clock.advance(2000);
+        let s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.equal(s.stopped, null, "25 still runs");
+        fs.writeFileSync(
+            path.join(w.state.issues[25].session.outbox, "result.json"),
+            JSON.stringify({
+                exit: 0,
+                session: "s",
+                usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"},
+                changed: [],
+                commits: [],
+                resumes: 0
+            })
+        );
+        fs.writeFileSync(
+            path.join(w.state.issues[25].session.outbox, "req-done.json"),
+            JSON.stringify({done: {issue: 25, to: "stage:tests"}})
+        );
+        w.containers.c25 = "exited";
+        s = await w.p.pass();
+        assert.match(s.stopped, /until/);
+    });
+    test("quiet scope stops the run", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:done"], {state: "CLOSED"}), issue(31, ["triage"])]
+        });
+        const s = await w.p.pass();
+        assert.match(s.stopped, /nothing is due/);
+    });
+    test("a refused request is logged and not applied", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        const outbox = w.state.issues[25].session.outbox;
+        fs.writeFileSync(
+            path.join(outbox, "result.json"),
+            JSON.stringify({
+                exit: 0,
+                session: "s",
+                usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"},
+                changed: [],
+                commits: [],
+                resumes: 0
+            })
+        );
+        fs.writeFileSync(
+            path.join(outbox, "req-1.json"),
+            JSON.stringify({label: {issue: 25, add: ["stage:done"]}})
+        );
+        w.containers.c25 = "exited";
+        await w.p.pass();
+        assert.ok(!w.calls.some(c => c[0] === "label" && c[1].add.includes("stage:done")));
+        assert.ok(w.logs.some(l => /refused req-1\.json/.test(l)));
+    });
+    test("a rate-limited label change is queued and applied on the next sync", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        const outbox = w.state.issues[25].session.outbox;
+        fs.writeFileSync(
+            path.join(outbox, "result.json"),
+            JSON.stringify({
+                exit: 0,
+                session: "s",
+                usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "ok"},
+                changed: [],
+                commits: [],
+                resumes: 0
+            })
+        );
+        fs.writeFileSync(
+            path.join(outbox, "req-done.json"),
+            JSON.stringify({done: {issue: 25, to: "stage:tests"}})
+        );
+        w.containers.c25 = "exited";
+        w.state.sync.backoffUntil = new Date(w.clock.now() + 60000).toISOString();
+        await w.p.pass();
+        assert.equal(w.state.queued.length >= 1, true);
+        assert.equal(
+            w.state.issues[25].stage,
+            "stage:tests",
+            "state moves even while GitHub waits"
+        );
+        w.clock.advance(11 * 60 * 1000);
+        await w.p.pass();
+        assert.equal(w.state.queued.length, 0);
+    });
+    test("a restart adopts a still-running container instead of starting a second", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.equal(w.calls.filter(c => c[0] === "start").length, 1);
+    });
+
+    test("a session that waits for a person is not a try and does not restart", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            requests: {note: {note: "plan posted for #25; waiting for review"}}
+        });
+        const s = await w.p.pass();
+        assert.equal(w.state.issues[25].tries, 0);
+        assert.equal(w.state.issues[25].stage, "stage:todo");
+        assert.deepEqual(s.started, []);
+        assert.ok(w.logs.some(l => /waiting for review/.test(l)));
+        assert.match(s.stopped ?? "", /nothing is due/, "a waiting issue is not due");
+    });
+    test("a crashed outside pass is a try even with a done request", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            hooks: "error",
+            requests: {done: {done: {issue: 25, to: "stage:tests"}}}
+        });
+        await w.p.pass();
+        assert.equal(w.state.issues[25].stage, "stage:todo");
+        assert.equal(w.state.issues[25].tries, 1);
+        assert.ok(w.logs.some(l => /checks crashed/.test(l)));
+    });
+    test("a spawn request starts a spawn session with spawn.md rendered", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            requests: {
+                done: {done: {issue: 25, to: "stage:review"}},
+                spawn: {spawn: {persona: "advocate", prompt: "File an issue about X"}}
+            }
+        });
+        await w.p.pass();
+        const spawn = w.outboxes.find((/** @type {any} */ o) => o.stage === "spawn");
+        assert.ok(spawn, "a spawn outbox was prepared");
+        assert.match(spawn.prompt, /You are the \*\*advocate\*\*/);
+        assert.match(spawn.prompt, /File an issue about X/);
+        assert.match(spawn.prompt, /- Stage: spawn/);
+        assert.doesNotMatch(spawn.prompt, /\{PERSONA\}|- Issue: #0/);
+        assert.equal(w.state.run.sessions.length, 1);
+        assert.equal(w.state.run.spawns.length, 0);
+        assert.ok(w.calls.some(c => c[0] === "start" && c[2] === "spawn"));
+        w.containers.c0 = "exited";
+        await w.p.pass();
+        assert.equal(w.state.run.sessions.length, 0, "the spawn session is reaped");
+    });
+    test("an unblocked issue moves to stage:tests and starts", async () => {
+        const w = world({
+            issues: [
+                issue(29, ["stage:done"], {state: "CLOSED"}),
+                issue(30, ["stage:blocked"], {blockedBy: [29]})
+            ]
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.moved, [[30, "stage:blocked", "stage:tests"]]);
+        assert.deepEqual(s.started, [30]);
+        assert.deepEqual(
+            w.calls.find(c => c[0] === "start"),
+            ["start", 30, "tests"]
+        );
+        assert.ok(
+            w.calls.some(
+                c =>
+                    c[0] === "label" &&
+                    c[1].add.includes("stage:tests") &&
+                    c[1].remove.includes("stage:blocked")
+            )
+        );
+    });
+});
+
+describe("waking", () => {
+    test("a parked issue whose newest comment is a person's goes back and starts", async () => {
+        const w = world({issues: [issue(25, ["stage:parked"])]});
+        w.github.lastCommentIsHuman = async () => true;
+        w.issues[0].updatedAt = "2026-10-21T18:00:00Z";
+        const s = await w.p.pass();
+        assert.deepEqual(s.moved, [[25, "stage:parked", "stage:todo"]]);
+        assert.deepEqual(s.started, [25]);
+    });
+});
+
+describe("unblocking", () => {
+    test("moves an unblocked issue even when no slot is free", async () => {
+        const w = world({
+            issues: [
+                issue(25, ["stage:todo"]),
+                issue(29, ["stage:done"], {state: "CLOSED"}),
+                issue(30, ["stage:blocked"], {blockedBy: [29]})
+            ],
+            env: {PIPELINE_PARALLEL: "1"}
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+        assert.equal(w.state.issues[30].stage, "stage:tests");
+    });
+});
+
+describe("parseUntil", () => {
+    const now = new Date(2026, 9, 21, 19, 0, 0);
+    test("a duration counts from now", () => {
+        assert.equal(parseUntil("6h", now).getTime(), now.getTime() + 6 * 3600 * 1000);
+        assert.equal(parseUntil("90m", now).getTime(), now.getTime() + 90 * 60 * 1000);
+    });
+    test("a time of day is the next one", () => {
+        assert.equal(parseUntil("07:00", now).getTime(), new Date(2026, 9, 22, 7, 0).getTime());
+        assert.equal(parseUntil("20:30", now).getTime(), new Date(2026, 9, 21, 20, 30).getTime());
+        assert.throws(() => parseUntil("soon", now), /--until/);
+    });
+});

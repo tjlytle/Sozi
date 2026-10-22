@@ -22,7 +22,7 @@ const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
  */
 
 /**
- * @typedef {(cmd: string[], opts?: {input?: string}) => Promise<RunResult>} Runner
+ * @typedef {(cmd: string[], opts?: {input?: string, env?: Record<string, string>}) => Promise<RunResult>} Runner
  */
 
 /**
@@ -81,7 +81,7 @@ function pluginBins() {
 /**
  * Run a command with execFile (no shell), with the gh-personas bin on PATH.
  * @param {string[]} cmd - The command and arguments.
- * @param {{input?: string}} [opts] - Optional standard input.
+ * @param {{input?: string, env?: Record<string, string>}} [opts] - Optional standard input and variables added to the environment.
  * @returns {Promise<RunResult>} The result; never rejects on a non-zero exit.
  */
 export function defaultRun(cmd, opts = {}) {
@@ -90,7 +90,7 @@ export function defaultRun(cmd, opts = {}) {
         const child = execFile(
             cmd[0],
             cmd.slice(1),
-            {env: {...process.env, PATH}, maxBuffer: 64 * 1024 * 1024},
+            {env: {...process.env, ...opts.env, PATH}, maxBuffer: 64 * 1024 * 1024},
             (error, stdout, stderr) => {
                 /** @type {any} */
                 const e = error;

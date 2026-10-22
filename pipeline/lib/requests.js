@@ -99,6 +99,7 @@ const NEVER_REMOVED = ["working"];
  * @property {string[]} changed - Files changed.
  * @property {string[]} commits - Commits made.
  * @property {number} resumes - How many times the session was resumed.
+ * @property {"ok" | "error"} hooks - Whether the outside hooks ran; "error" means the checks did not.
  */
 
 /**
@@ -278,7 +279,8 @@ export function readRequests(dir, {issue}) {
 }
 
 /**
- * Read the result.json the stage runner wrote, filling in defaults.
+ * Read the result.json the stage runner wrote, filling in defaults; `hooks` is "ok"
+ * unless the runner wrote "error".
  *
  * @param {string} dir - The outbox directory.
  * @returns {Result | null} The result, or null when the file is missing or not JSON.
@@ -322,6 +324,7 @@ export function readResult(dir) {
         resumes:
             Number.isInteger(raw.resumes) && /** @type {number} */ (raw.resumes) >= 0
                 ? /** @type {number} */ (raw.resumes)
-                : 0
+                : 0,
+        hooks: raw.hooks === "error" ? "error" : "ok"
     };
 }

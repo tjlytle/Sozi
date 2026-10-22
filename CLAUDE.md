@@ -26,6 +26,10 @@ Upstream (`upstream` remote) is maintenance-only; we do not open PRs there.
   live under `.agents/`: plans in `.agents/plans/` (superpowers writes them there, not
   `docs/superpowers/`), temporary work in `.agents/tmp/` (gitignored), skills through
   `.agents/skills`.
+- The factory loop (`docs/software-factory/loop-design.md`): `npm run pipeline -- --once` runs
+  one pass; `npm run pipeline -- --until 6h` (or `--until 07:00`) starts nothing after that time;
+  `npm run pipeline -- --epic <#>` stops when nothing in the epic is due;
+  `npm run pipeline -- --status` prints sessions, tries, queued labels and totals.
 - Test decks: copy an `.svg` + `.sozi.json` pair into a scratch dir first. Opening a
   deck writes `*.sozi.html` and `*-presenter.sozi.html` next to it.
 

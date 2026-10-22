@@ -1,0 +1,265 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// The pass's GitHub side: label writes that queue while GitHub backs the loop off,
+// stage moves, the timed sync, and unblocking issues whose blockers closed.
+
+import {RateLimited, blockedBy} from "./github.js";
+import {applyIssue, queueLabel, setStage, stageOf, takeQueuedLabels, wake} from "./state.js";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FIRST_SYNC_DAYS = 90;
+const STAGE_LABELS = /^stage:/;
+
+/**
+ * @typedef {object} Summary
+ * @property {number[]} started - Issues whose session started this pass.
+ * @property {number[]} finished - Issues whose session finished this pass.
+ * @property {[number, string | null, string][]} moved - Stage moves the loop made: issue, from, to.
+ * @property {number[]} parked - Issues parked this pass.
+ * @property {number} spawns - Spawned sessions started or finished this pass.
+ * @property {string | null} stopped - Why the run stops, or null while it goes on.
+ */
+
+/**
+ * @typedef {object} PassContext
+ * @property {any} settings - The settings from loadConfig.
+ * @property {import("./state.js").State & {boardMeta?: any}} state - The loop state, changed in place.
+ * @property {import("./github.js").Github} github - The GitHub client.
+ * @property {any} sandbox - The sandbox.
+ * @property {{sync: (opts: {issues: number[], book: any}) => Promise<unknown>}} board - The board.
+ * @property {{add: (entry: {issue: number, text: string}) => Promise<unknown>}} digest - The run digest.
+ * @property {{now: () => number}} clock - The clock, in epoch milliseconds.
+ * @property {(line: string) => void} log - The log.
+ * @property {string} root - The repository root, where the prompts live.
+ * @property {Set<number>} changed - Issues whose stage changed since the last board sync.
+ * @property {Set<number>} tried - Issues that used a try this pass; they wait for the next.
+ * @property {Summary} summary - The summary of the running pass.
+ */
+
+/**
+ * Tell whether GitHub has backed the loop off.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {boolean} True until the back-off time.
+ */
+export function inBackoff(ctx) {
+    const until = ctx.state.sync.backoffUntil;
+    return until !== null && ctx.clock.now() < Date.parse(until);
+}
+
+/**
+ * Remember a rate-limit reply: no GitHub calls until it resets.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {RateLimited} error - The reply.
+ * @returns {void}
+ */
+export function backOff(ctx, error) {
+    const reset = error.resetAt instanceof Date ? error.resetAt.getTime() : ctx.clock.now();
+    ctx.state.sync.backoffUntil = new Date(reset).toISOString();
+    ctx.log(`GitHub rate limit: backing off until ${ctx.state.sync.backoffUntil}`);
+}
+
+/**
+ * Write a label change to GitHub now, or queue it while backed off or when it fails.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {{issue: number, add?: string[], remove?: string[]}} op - The change.
+ * @returns {Promise<void>}
+ */
+export async function writeLabel(ctx, {issue, add = [], remove = []}) {
+    const op = {issue, add, remove};
+    if (inBackoff(ctx)) {
+        queueLabel(ctx.state, op);
+        return;
+    }
+    try {
+        await ctx.github.label(op);
+    } catch (error) {
+        if (error instanceof RateLimited) {
+            backOff(ctx, error);
+        } else {
+            ctx.log(`#${issue}: label change failed, queued: ${String(error)}`);
+        }
+        queueLabel(ctx.state, op);
+    }
+}
+
+/**
+ * Move an issue to a stage, or out of the stages to triage, in the state and on GitHub.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {string} to - A stage label, or "triage".
+ * @returns {Promise<void>}
+ */
+export async function moveStage(ctx, n, to) {
+    const record = ctx.state.issues[n];
+    const from = record.stage;
+    if (to === "triage") {
+        record.labels = [...record.labels.filter(l => !STAGE_LABELS.test(l)), "triage"];
+        record.stage = null;
+        record.tries = 0;
+        record.waiting = false;
+    } else {
+        setStage(ctx.state, n, to);
+    }
+    await writeLabel(ctx, {issue: n, add: [to], remove: from && from !== to ? [from] : []});
+    ctx.summary.moved.push([n, from, to]);
+    ctx.changed.add(n);
+}
+
+/**
+ * Apply a label request: GitHub, and the state when the loop knows the issue.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {{issue: number, add: string[], remove: string[]}} op - The change.
+ * @returns {Promise<boolean>} Whether the issue's stage changed.
+ */
+export async function applyLabels(ctx, op) {
+    await writeLabel(ctx, op);
+    const record = ctx.state.issues[op.issue];
+    if (!record) {
+        return false;
+    }
+    const labels = [...record.labels.filter(l => !op.remove.includes(l)), ...op.add];
+    const from = record.stage;
+    const to = stageOf(labels);
+    record.labels = [...new Set(labels)];
+    if (to === from) {
+        return false;
+    }
+    record.stage = to;
+    record.tries = 0;
+    record.waiting = false;
+    ctx.summary.moved.push([op.issue, from, to ?? "none"]);
+    ctx.changed.add(op.issue);
+    return true;
+}
+
+/**
+ * Write the queued label changes; stops and keeps the rest at a rate limit.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {Promise<boolean>} True when the queue is empty.
+ */
+async function drainQueue(ctx) {
+    const queued = takeQueuedLabels(ctx.state);
+    for (let i = 0; i < queued.length; i++) {
+        try {
+            await ctx.github.label(queued[i]);
+        } catch (error) {
+            ctx.state.queued.push(...queued.slice(i));
+            if (error instanceof RateLimited) {
+                backOff(ctx, error);
+                return false;
+            }
+            ctx.log(`#${queued[i].issue}: queued label change failed again: ${String(error)}`);
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Take one issue from a GitHub search into the state: read the blockers of a newly
+ * blocked issue, and wake a parked one whose newest comment is a person's.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {import("./github.js").Issue} issue - The issue as GitHub has it.
+ * @returns {Promise<void>}
+ */
+async function readIssue(ctx, issue) {
+    const {state, github} = ctx;
+    const n = issue.number;
+    const existing = state.issues[n];
+    const stage = stageOf(issue.labels);
+    /** @type {any} */
+    const read = {...issue};
+    if (
+        stage === "stage:blocked" &&
+        (!existing || existing.stage !== stage || existing.blockers.length === 0)
+    ) {
+        read.blockedBy = blockedBy((await github.planComment(n)) ?? "");
+    }
+    const answered =
+        stage === "stage:parked" &&
+        (!existing || existing.seen !== issue.updatedAt) &&
+        (await github.lastCommentIsHuman(n));
+    applyIssue(state, read);
+    if (!existing || existing.stage !== stage) {
+        ctx.changed.add(n);
+    }
+    if (answered) {
+        const to = wake(state, n);
+        await writeLabel(ctx, {issue: n, add: [to], remove: ["stage:parked"]});
+        ctx.summary.moved.push([n, "stage:parked", to]);
+        ctx.changed.add(n);
+        ctx.log(`#${n}: a person answered; back to ${to}`);
+    }
+}
+
+/**
+ * Read GitHub when the sync timer is due and the loop is not backed off: queued label
+ * changes first (so the read sees them), then the issues, blockers of blocked issues,
+ * parked issues a person answered, and the board for issues whose stage changed.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {Promise<void>}
+ */
+export async function syncIfDue(ctx) {
+    const {state, settings, github} = ctx;
+    const now = ctx.clock.now();
+    const last = state.sync.last === null ? null : Date.parse(state.sync.last);
+    if ((last !== null && now < last + settings.syncMinutes * 60 * 1000) || inBackoff(ctx)) {
+        return;
+    }
+    try {
+        if (!(await drainQueue(ctx))) {
+            return;
+        }
+        const since = state.sync.last ?? new Date(now - FIRST_SYNC_DAYS * DAY_MS).toISOString();
+        for (const issue of await github.searchIssues({since})) {
+            await readIssue(ctx, issue);
+        }
+        state.sync.last = new Date(now).toISOString();
+    } catch (error) {
+        if (error instanceof RateLimited) {
+            backOff(ctx, error);
+        } else {
+            ctx.log(`sync failed: ${String(error)}`);
+        }
+        return;
+    }
+    if (ctx.changed.size > 0) {
+        try {
+            await ctx.board.sync({issues: [...ctx.changed], book: state});
+            ctx.changed.clear();
+        } catch (error) {
+            ctx.log(`board sync failed: ${String(error)}`);
+        }
+    }
+}
+
+/**
+ * Move every blocked issue whose blockers are all closed to stage:tests, where it is due.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @returns {Promise<void>}
+ */
+export async function unblock(ctx) {
+    const {state} = ctx;
+    for (const [key, record] of Object.entries(state.issues)) {
+        if (
+            record.stage === "stage:blocked" &&
+            !record.closed &&
+            record.blockers.length > 0 &&
+            record.blockers.every(b => state.issues[b]?.closed === true)
+        ) {
+            ctx.log(`#${key}: blockers closed; to stage:tests`);
+            await moveStage(ctx, Number(key), "stage:tests");
+        }
+    }
+}
