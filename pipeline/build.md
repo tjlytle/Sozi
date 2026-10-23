@@ -54,9 +54,9 @@ the policy for this session; obey them.
      nothing it reports is on a line you wrote; `python3 .claude/hooks/check-file.py
      --advise <file>` for the size and comment notes, which are yours to judge (standard
      2.8). A failure on a line you did not write is not yours to fix (Tim, 2026-10-23):
-     leave it, find the issue that covers it, and file one when none does (a `triage`
-     issue starting "Seen while building #{N}: "). List those failures in the PR body as a
-     table: file, rule, lines, covering issue.
+     leave it, find the issue that covers it, and file one when none does, as a finding
+     (the rule above decides its label) starting "Seen while building #{N}: ". List those
+     failures in the PR body as a table: file, rule, lines, covering issue.
    - `npm test`.
    - `npx gulp && git checkout -- locales/messages.pot yarn.lock`, then
      `npm run test:features`. Every scenario passes, the new ones included. The runner has already started a display, so call it directly, never through `xvfb-run`.
