@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // One pass of the factory loop, as a function the watch loop, --once and a single issue
-// all call: write queued label changes, reap ended sessions, refresh the mirror, sync with GitHub when due, unblock,
+// all call: reread changed settings, write queued label changes, reap ended sessions, refresh the mirror, sync with GitHub when due, unblock,
 // test the stop condition, start what is due, save.
 
 import path from "node:path";
@@ -33,6 +33,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * @property {Record<string, string | undefined>} env - The loop's environment, as the sandbox gets it.
  * @property {string} [root] - The repository root, where pipeline/*.md live; this checkout when absent.
  * @property {() => void} [save] - Writes the state; called at the end of every pass.
+ * @property {() => void} [reload] - Rereads the settings; called first in every pass.
  */
 
 /**
@@ -108,7 +109,7 @@ function stopCheck(ctx) {
  * @param {PassOptions} options - What the pass works with.
  * @returns {{pass: (options?: {start?: boolean}) => Promise<Summary>}} The pass; `start: false` only judges and syncs.
  */
-export function createPass({root = REPO_ROOT, save = () => {}, ...parts}) {
+export function createPass({root = REPO_ROOT, save = () => {}, reload = () => {}, ...parts}) {
     const {state} = parts;
     state.run.spawns ??= [];
     state.run.sessions ??= [];
@@ -130,6 +131,7 @@ export function createPass({root = REPO_ROOT, save = () => {}, ...parts}) {
             ctx.summary = emptySummary();
             ctx.tried.clear();
             ctx.profiles.clear();
+            reload();
             await drainIfFree(ctx);
             await reap(ctx);
             try {

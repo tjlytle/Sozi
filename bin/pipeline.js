@@ -33,6 +33,7 @@ import {startMint} from "../pipeline/lib/mint.js";
 import {createControl, drain, hookSignals, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
 import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
+import {SettingsWatch} from "../pipeline/lib/settings-watch.js";
 import {PERSONAS} from "../pipeline/lib/profile.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
@@ -196,33 +197,37 @@ async function inspectAll(sandbox) {
     );
 }
 
-/** Build the pass over the real GitHub, board, digest and clock.
+/** Build the pass over the real GitHub, board, digest and clock, rereading the settings files
+ * before each pass.
  *
  * @param {object} parts - The run's parts.
  * @param {any} parts.state - The loop state.
- * @param {any} parts.settings - The settings.
+ * @param {any} parts.settings - The settings, updated in place when the files change.
  * @param {any} parts.sandbox - The sandbox.
- * @param {Record<string, string|undefined>} parts.env - The environment.
+ * @param {Record<string, string|undefined>} parts.runEnv - The sessions' environment, updated in place when the secrets change.
+ * @param {Record<string, string|undefined>} parts.configEnv - The environment the settings were loaded with.
  * @param {string} parts.root - The repository root.
  * @param {(line: string) => void} parts.log - The log.
  * @param {() => void} parts.save - Writes the state.
  * @param {Deps} parts.deps - The outside world.
  * @returns {{pass: (options?: {start?: boolean}) => Promise<any>}} - The pass.
  */
-function loopPass({state, settings, sandbox, env, root, log, save, deps}) {
+function loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps}) {
     const ctx = {repo: settings.repo, run: deps.run, out: log, err: log};
+    const settingsWatch = new SettingsWatch({root, env: configEnv, settings, runEnv, log});
     return createPass({
         settings,
         state,
         github: deps.github ?? createGithub({repo: settings.repo}),
         sandbox,
         board: deps.board ?? {sync: options => boardSync(options, ctx)},
-        digest: noteDigest(state, env),
+        digest: noteDigest(state, runEnv),
         clock: {now: () => Date.now()},
-        env,
+        env: runEnv,
         log,
         root,
-        save
+        save,
+        reload: () => settingsWatch.refresh()
     });
 }
 
@@ -272,16 +277,12 @@ export async function main(
      * @returns {void}
      */
     const log = line => write(`${new Date().toISOString().slice(11, 19)} ${line}\n`);
-    let opt, target, settings;
+    let opt, target, settings, configEnv;
     try {
         ({opt, target} = parseCommand(argv));
-        settings = loadConfig({
-            root,
-            env:
-                opt.harness && opt.login === undefined
-                    ? {...env, PIPELINE_HARNESS: opt.harness}
-                    : env
-        });
+        configEnv =
+            opt.harness && opt.login === undefined ? {...env, PIPELINE_HARNESS: opt.harness} : env;
+        settings = loadConfig({root, env: configEnv});
         opt.until = opt.until ? parseUntil(opt.until, new Date()).toISOString() : null;
     } catch (error) {
         writeErr(
@@ -338,7 +339,7 @@ export async function main(
     const save = () => saveState(file, state);
     const mint = await openRun(state, settings, runEnv, log, deps);
     save();
-    const {pass} = loopPass({state, settings, sandbox, env: runEnv, root, log, save, deps});
+    const {pass} = loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps});
     const control = createControl({
         sleep: deps.sleep,
         save,
