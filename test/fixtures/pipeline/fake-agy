@@ -17,7 +17,8 @@ while [ $# -gt 0 ]; do
 done
 
 echo '{"event":"init","conversation_id":"'"$id"'","init":{"model":"m","tools":["run_command"]}}'
-echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":1,"state":"DONE","step_type":"run_command","command_line":"ls"}}'
+echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":1,"state":"ACTIVE","step_type":"tool","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"ls"}}}}'
+echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":1,"state":"DONE","step_type":"tool","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"ls"},"output":"2 lines"}}}'
 echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":2,"state":"ACTIVE","step_type":"agent_response","text_delta":"hello "}}'
 echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":2,"state":"DONE","step_type":"agent_response","text_delta":"from fake"}}'
 

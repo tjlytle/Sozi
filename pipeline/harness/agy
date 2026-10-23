@@ -24,8 +24,10 @@ live() {
     elif .event == "step_update" then
       .step_update | if .step_type == "agent_response" then (.text_delta // empty)
         elif .step_type == "user_input" then empty
-        elif .state == "DONE" then "\n▶ " + .step_type + ": " +
-          ((.command_line // .file_path // .path // .query // "") | tostring | .[0:160]) + "\n"
+        elif .step_type == "tool" and .state == "DONE" then "\n▶ " + (.tool_name // "tool") + ": " +
+          ((.tool_info // {}) | (if type == "string" then (fromjson? // {}) else . end) | .parameters // {} |
+            (.CommandLine // .Path // .AbsolutePath // .Query // ([.[]?] | first) // "") |
+            tostring | .[0:160]) + "\n"
         else empty end
     elif .event == "result" then "\n■ " + (.result.status // "done") + " after " +
       ((.result.num_turns // 0) | tostring) + " turns\n"
