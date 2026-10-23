@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
 import {defaultRun} from "./github.js";
-import {inspectProfile, profileArgs, volumeName} from "./profile.js";
+import {PERSONAS, inspectProfile, profileArgs, volumeName} from "./profile.js";
 
 /** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
  * environment of the docker command and they never appear in a process listing.
@@ -108,6 +108,34 @@ function pluginDir() {
 }
 
 /**
+ * Copy each persona's commit identity (the BOT_GIT_NAME and BOT_GIT_EMAIL lines of the
+ * host's gh-bot bot-env, nothing else) into a session's outbox, so gh-as commits from a
+ * container carry the App identity (#80). A persona without a host file is skipped.
+ *
+ * @param {string} from - The host gh-bot directory.
+ * @param {string} to - The outbox's gh-bot directory.
+ * @returns {void}
+ */
+export function copyIdentities(from, to) {
+    for (const persona of PERSONAS) {
+        let text;
+        try {
+            text = fs.readFileSync(path.join(from, persona, "bot-env"), "utf8");
+        } catch {
+            continue;
+        }
+        const lines = text
+            .split("\n")
+            .map(line => line.trim())
+            .filter(line => /^BOT_GIT_(NAME|EMAIL)=/.test(line));
+        if (lines.length > 0) {
+            fs.mkdirSync(path.join(to, persona), {recursive: true});
+            fs.writeFileSync(path.join(to, persona, "bot-env"), `${lines.join("\n")}\n`);
+        }
+    }
+}
+
+/**
  * Create the sandbox for a repository checkout.
  *
  * @param {object} options - What the sandbox needs.
@@ -120,6 +148,8 @@ function pluginDir() {
  *     command with the terminal attached and returns its exit status.
  * @param {string} [options.pluginDir] - The gh-personas plugin directory to build into the
  *     image; by default the newest version in the Claude plugin cache.
+ * @param {string} [options.botConfigDir] - The host gh-bot directory the commit identities
+ *     are copied from; ~/.config/gh-bot by default.
  * @returns {Sandbox} The sandbox.
  */
 export function createSandbox({
@@ -128,7 +158,8 @@ export function createSandbox({
     run = defaultRun,
     env: loopEnv = {},
     runInteractive = spawnInteractive,
-    pluginDir: pluginDirGiven
+    pluginDir: pluginDirGiven,
+    botConfigDir = path.join(os.homedir(), ".config", "gh-bot")
 }) {
     const varDir = path.join(root, "var", "pipeline");
     const mirror = path.join(varDir, "mirror.git");
@@ -187,7 +218,8 @@ export function createSandbox({
             PIPELINE_HARNESS: harness ?? settings.harnessFor(stage),
             PIPELINE_MODEL: model ?? settings.modelFor(stage),
             PIPELINE_SESSION_BUDGET_USD: String(settings.sessionBudgetUsd),
-            PIPELINE_MAX_RESUMES: MAX_RESUMES
+            PIPELINE_MAX_RESUMES: MAX_RESUMES,
+            GH_BOT_CONFIG_DIR: "/outbox/gh-bot"
         };
         for (const [key, value] of Object.entries(values)) {
             args.push("-e", `${key}=${value}`);
@@ -348,6 +380,7 @@ export function createSandbox({
             }
             fs.writeFileSync(path.join(dir, "prompt.md"), prompt);
             fs.writeFileSync(path.join(dir, "allow.txt"), allow);
+            copyIdentities(botConfigDir, path.join(dir, "gh-bot"));
             return dir;
         }
     };
