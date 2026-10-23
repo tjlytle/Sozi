@@ -111,20 +111,22 @@ async function buildLinks(settings, root, run) {
  * @param {Record<string, string|undefined>} options.env - The environment, with the secrets.
  * @param {(line: string) => void} options.log - The log.
  * @param {RunDeps} options.deps - The outside world.
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} - Whether the run is finished: the summary was posted, or
+ *     there was no page to post to.
  */
 export async function finishDigest({state, reason, settings, root, env, log, deps}) {
     if (!state.run.notionPage || !env.NOTION_TOKEN) {
         log("digest: no page for this run");
-        return;
+        return true;
     }
     const cost = Number(state.run.costUsd).toFixed(2);
     const summary = `Stopped: ${reason}. ${state.run.tokens} tokens, $${cost}.`;
     const links = await buildLinks(settings, root, deps.run);
-    await (deps.digest ?? digestMain)(["finish", "--summary", summary, ...links], {
+    const code = await (deps.digest ?? digestMain)(["finish", "--summary", summary, ...links], {
         env: {...env, PIPELINE_NOTION_PAGE: state.run.notionPage},
         err: log
     });
+    return code === 0;
 }
 
 /** The digest the pass adds notes to: a plain paragraph on the run's page, no checkbox.
