@@ -284,7 +284,8 @@ After each merge, QA adds an entry to the run's **Notion test checklist**: one l
 merged issue, written for a person ("Open the presenter, press Next twice; the notes
 should follow"), a checkbox, the issue link, the screenshot when there is one. The build
 link sits at the top. One page per run, created when the loop starts, under a parent page
-Tim names (`PIPELINE_NOTION_PARENT`); the writer is a small script (`bin/digest`) that
+Tim names (`PIPELINE_NOTION_PARENT`: the page URL, its `Title-<id>` slug, the bare 32-hex
+id or the dashed UUID all work); the writer is a small script (`bin/digest`) that
 talks to the Notion API with an integration token, so a stage inside a container can call
 it and the host can call it too. The audit trail stays on GitHub; Notion only points at it.
 
