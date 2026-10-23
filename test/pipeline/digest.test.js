@@ -2,10 +2,20 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {spawnSync} from "node:child_process";
 import path from "node:path";
-import {pageRequest, entryBlocks, finishBlocks, notion, main, runs} from "../../bin/digest.js";
+import {
+    pageRequest,
+    entryBlocks,
+    finishBlocks,
+    notion,
+    main,
+    runs,
+    pageId
+} from "../../bin/digest.js";
 
 const script = path.resolve("bin/digest.js");
 const ISSUE = "https://github.com/tjlytle/Sozi/issues/25";
+const ID = "40224c434db480e5878de8c853a800c4";
+const PAGE = "1234567890abcdef1234567890abcdef";
 
 /** A fake fetch that records its calls and answers with a JSON body.
  *
@@ -112,46 +122,43 @@ describe("digest", () => {
     test("start creates the page and prints its id", async () => {
         const r = await run(
             ["start", "--title", "T"],
-            {NOTION_TOKEN: "t", PIPELINE_NOTION_PARENT: "par"},
+            {NOTION_TOKEN: "t", PIPELINE_NOTION_PARENT: ID},
             {id: "new-id"}
         );
         assert.equal(r.code, 0);
         assert.equal(r.out.trim(), "new-id");
         assert.equal(r.calls[0].url, "https://api.notion.com/v1/pages");
-        assert.deepEqual(
-            JSON.parse(r.calls[0].init.body),
-            pageRequest({title: "T", parent: "par"})
-        );
+        assert.deepEqual(JSON.parse(r.calls[0].init.body), pageRequest({title: "T", parent: ID}));
     });
     test("add patches the entry blocks onto the page", async () => {
         const r = await run(
             ["add", "--issue", "25", "--text", "Do it", "--url", ISSUE, "--image", "https://i"],
-            {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: "pg"}
+            {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: PAGE}
         );
         assert.equal(r.code, 0);
         assert.equal(r.out, "");
         assert.equal(r.calls[0].init.method, "PATCH");
-        assert.equal(r.calls[0].url, "https://api.notion.com/v1/blocks/pg/children");
+        assert.equal(r.calls[0].url, `https://api.notion.com/v1/blocks/${PAGE}/children`);
         assert.deepEqual(JSON.parse(r.calls[0].init.body), {
             children: entryBlocks({issue: "25", text: "Do it", url: ISSUE, image: "https://i"})
         });
     });
     test("finish patches the summary blocks onto the page", async () => {
         const r = await run(
-            ["finish", "--summary", "done", "--build", "https://b", "--page", "pg2"],
+            ["finish", "--summary", "done", "--build", "https://b", "--page", PAGE],
             {NOTION_TOKEN: "t"}
         );
         assert.equal(r.code, 0);
-        assert.equal(r.calls[0].url, "https://api.notion.com/v1/blocks/pg2/children");
+        assert.equal(r.calls[0].url, `https://api.notion.com/v1/blocks/${PAGE}/children`);
         assert.deepEqual(JSON.parse(r.calls[0].init.body), {
             children: finishBlocks({summary: "done", build: "https://b"})
         });
     });
     test("a missing token or option exits 1 naming it", async () => {
-        const noToken = await run(["start", "--title", "T", "--parent", "p"], {});
+        const noToken = await run(["start", "--title", "T", "--parent", ID], {});
         assert.equal(noToken.code, 1);
         assert.match(noToken.err, /NOTION_TOKEN/);
-        const noTitle = await run(["start", "--parent", "p"], {NOTION_TOKEN: "t"});
+        const noTitle = await run(["start", "--parent", ID], {NOTION_TOKEN: "t"});
         assert.equal(noTitle.code, 1);
         assert.match(noTitle.err, /--title/);
         assert.equal(noTitle.calls.length, 0);
@@ -177,14 +184,14 @@ describe("digest", () => {
         const text = "y".repeat(2500);
         const r = await run(["add", "--issue", "1", "--text", text, "--url", ISSUE], {
             NOTION_TOKEN: "t",
-            PIPELINE_NOTION_PAGE: "pg"
+            PIPELINE_NOTION_PAGE: PAGE
         });
         const rich = JSON.parse(r.calls[0].init.body).children[0].to_do.rich_text;
         assert.ok(rich.every((/** @type {any} */ x) => x.text.content.length <= 2000));
         assert.equal(rich.map((/** @type {any} */ x) => x.text.content).join(""), `#1 ${text}`);
     });
     test("start with no page id in the reply exits 1", async () => {
-        const r = await run(["start", "--title", "T", "--parent", "p"], {NOTION_TOKEN: "t"}, {});
+        const r = await run(["start", "--title", "T", "--parent", ID], {NOTION_TOKEN: "t"}, {});
         assert.equal(r.code, 1);
         assert.match(r.err, /no page id/);
         assert.equal(r.out, "");
@@ -192,7 +199,7 @@ describe("digest", () => {
     test("add sends exactly this JSON", async () => {
         const r = await run(
             ["add", "--issue", "25", "--text", "Do it", "--url", ISSUE, "--image", "https://i"],
-            {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: "pg"}
+            {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: PAGE}
         );
         assert.deepEqual(JSON.parse(r.calls[0].init.body), {
             children: [
@@ -226,7 +233,7 @@ describe("digest", () => {
                 "--presenter",
                 "https://p",
                 "--page",
-                "pg"
+                PAGE
             ],
             {NOTION_TOKEN: "t"}
         );
@@ -245,26 +252,73 @@ describe("digest", () => {
     test("empty --image, --build and --presenter add no block", async () => {
         const add = await run(["add", "--issue", "1", "--text", "x", "--url", "u", "--image", ""], {
             NOTION_TOKEN: "t",
-            PIPELINE_NOTION_PAGE: "pg"
+            PIPELINE_NOTION_PAGE: PAGE
         });
         assert.equal(JSON.parse(add.calls[0].init.body).children.length, 1);
         const fin = await run(["finish", "--summary", "s", "--build", "", "--presenter", ""], {
             NOTION_TOKEN: "t",
-            PIPELINE_NOTION_PAGE: "pg"
+            PIPELINE_NOTION_PAGE: PAGE
         });
         assert.equal(JSON.parse(fin.calls[0].init.body).children.length, 1);
     });
-    test("a non-numeric --issue or a page id with a slash or question mark exits 1", async () => {
-        const env = {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: "pg"};
+    test("a non-numeric --issue or a page id with no 32 hex digits exits 1", async () => {
+        const env = {NOTION_TOKEN: "t", PIPELINE_NOTION_PAGE: PAGE};
         const issue = await run(["add", "--issue", "2a", "--text", "x", "--url", "u"], env);
         assert.equal(issue.code, 1);
         assert.match(issue.err, /--issue/);
-        for (const page of ["a/b", "a?b"]) {
+        for (const page of ["a/b", "a?b", "Sozi"]) {
             const r = await run(["finish", "--summary", "s", "--page", page], {NOTION_TOKEN: "t"});
             assert.equal(r.code, 1);
-            assert.match(r.err, /page id/);
+            assert.match(r.err, /--page or PIPELINE_NOTION_PAGE has no Notion page id/);
             assert.equal(r.calls.length, 0);
         }
+    });
+    test("pageId takes the id from a URL, a slug, the bare hex or a dashed UUID", () => {
+        for (const value of [
+            `https://www.notion.so/Sozi-${ID}`,
+            `Sozi-${ID}`,
+            ID,
+            "40224c43-4db4-80e5-878d-e8c853a800c4"
+        ]) {
+            assert.equal(pageId(value, "--parent"), ID, value);
+        }
+    });
+    test("pageId ignores the query and fragment, a hex title and upper case", () => {
+        assert.equal(pageId(`https://www.notion.so/Sozi-${ID}?v=${PAGE}`, "x"), ID);
+        assert.equal(pageId(`https://www.notion.so/Sozi-${ID}?pvs=4`, "x"), ID);
+        assert.equal(pageId(`https://www.notion.so/Sozi-${ID}#block`, "x"), ID);
+        assert.equal(pageId(`Deadbeef-${ID}`, "x"), ID);
+        assert.equal(pageId(ID.toUpperCase(), "x"), ID);
+    });
+    test("pageId throws naming the setting when there is no id", () => {
+        for (const value of ["Sozi", ID.slice(1)]) {
+            assert.throws(() => pageId(value, "--parent or PIPELINE_NOTION_PARENT"), {
+                message: `--parent or PIPELINE_NOTION_PARENT has no Notion page id: ${JSON.stringify(value)}`
+            });
+        }
+    });
+    test("start sends the bare id of a slug parent", async () => {
+        const r = await run(
+            ["start", "--title", "T"],
+            {NOTION_TOKEN: "t", PIPELINE_NOTION_PARENT: `Sozi-${ID}`},
+            {id: "new-id"}
+        );
+        assert.equal(r.code, 0);
+        assert.equal(JSON.parse(r.calls[0].init.body).parent.page_id, ID);
+    });
+    test("finish patches the id of a page URL", async () => {
+        const r = await run(
+            ["finish", "--summary", "s", "--page", `https://www.notion.so/Run-${PAGE}?pvs=4`],
+            {NOTION_TOKEN: "t"}
+        );
+        assert.equal(r.code, 0);
+        assert.equal(r.calls[0].url, `https://api.notion.com/v1/blocks/${PAGE}/children`);
+    });
+    test("start with a parent that has no id exits 1 before any request", async () => {
+        const r = await run(["start", "--title", "T", "--parent", "Sozi"], {NOTION_TOKEN: "t"});
+        assert.equal(r.code, 1);
+        assert.match(r.err, /--parent or PIPELINE_NOTION_PARENT has no Notion page id: "Sozi"/);
+        assert.equal(r.calls.length, 0);
     });
     test("the script exits 2 on an unknown subcommand", () => {
         const r = spawnSync(process.execPath, [script, "bogus"], {
