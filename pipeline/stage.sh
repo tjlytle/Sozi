@@ -14,7 +14,8 @@
 # Env read: PIPELINE_REPO, PIPELINE_HARNESS, PIPELINE_MODEL (required);
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
 # MIRROR (/mirror), OUTBOX (/outbox), WORK (/work), CACHE (/cache),
-# HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh).
+# HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh);
+# XVFB_BIN (Xvfb), DISPLAY_NUM (99), X11_DIR (/tmp/.X11-unix) for the session display.
 # The adapter reads its own credentials and PIPELINE_SESSION_BUDGET_USD. No
 # value of the environment is ever printed.
 set -u
@@ -24,7 +25,8 @@ MIRROR="${MIRROR:-/mirror}"; OUTBOX="${OUTBOX:-/outbox}"; WORK="${WORK:-/work}"
 CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
-start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""
+XVFB_BIN="${XVFB_BIN:-Xvfb}"; DISPLAY_NUM="${DISPLAY_NUM:-99}"; X11_DIR="${X11_DIR:-/tmp/.X11-unix}"
+start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""; xvfb_pid=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
@@ -97,6 +99,22 @@ install_modules() {
     fi
 }
 
+# One virtual display for the whole session, so Electron and Chromium can draw (and be
+# screenshotted) without xvfb-run, which does not return in a container (#73). Only when
+# no display is set and Xvfb exists; waits up to 5 s for the display's socket.
+start_display() {
+    [ -n "${DISPLAY:-}" ] && return 0
+    command -v "$XVFB_BIN" >/dev/null || return 0
+    step display
+    "$XVFB_BIN" ":$DISPLAY_NUM" -screen 0 1920x1080x24 -nolisten tcp >/dev/null 2>&1 &
+    xvfb_pid=$!
+    export DISPLAY=":$DISPLAY_NUM"
+    local i
+    for i in $(seq 50); do [ -e "$X11_DIR/X$DISPLAY_NUM" ] && break; sleep 0.1; done
+}
+
+stop_display() { [ -n "$xvfb_pid" ] && kill "$xvfb_pid" 2>/dev/null; return 0; }
+
 # Run the adapter (run, or resume with --session/--message) and record its exit.
 # In the background so a signal interrupts the wait at once.
 harness() {
@@ -136,12 +154,13 @@ resume_loop() {
 
 main() {
     mkdir -p "$OUTBOX"
-    trap write_result EXIT
+    trap 'write_result; stop_display' EXIT
     trap 'on_signal 15' TERM
     trap 'on_signal 2' INT
     case "$PIPELINE_HARNESS" in */*) step "harness name rejected"; exit 0 ;; esac
     clone_repo && checkout_branch && install_modules || exit 0
     step tmp; mkdir -p "$WORK/.agents/tmp"
+    start_display
     step start; start=$(git -C "$WORK" rev-parse HEAD)
     step harness; harness run --prompt "$OUTBOX/prompt.md"
     resume_loop

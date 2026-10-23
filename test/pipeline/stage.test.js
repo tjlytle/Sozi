@@ -20,11 +20,20 @@ while [ $# -gt 0 ]; do
     shift
 done
 echo "fake harness ran"
+echo "display=\${DISPLAY:-}" >>"$out/display"
 [ -z "\${FAKE_NO_SESSION:-}" ] && echo "fake-session-1" >"$out/session"
 echo '{"tokensIn": 10, "tokensOut": 5, "costUsd": 0.25, "turns": 2, "status": "ok"}' >"$out/usage.json"
 [ -n "\${FAKE_SLEEP:-}" ] && sleep "$FAKE_SLEEP"
 [ -n "\${FAKE_TOUCH:-}" ] && echo "changed" >"$checkout/$FAKE_TOUCH"
 exit "\${FAKE_EXIT:-0}"
+`;
+
+/** A stand-in for Xvfb: logs its arguments, creates the display socket, logs when stopped. */
+const FAKE_XVFB = `#!/usr/bin/env bash
+echo "args $*" >>"$XVFB_LOG"
+touch "$X11_DIR/X$DISPLAY_NUM"
+trap 'echo stopped >>"$XVFB_LOG"; exit 0' TERM
+while true; do sleep 0.1; done
 `;
 
 const FAKE_HOOKS = `#!/usr/bin/env bash
@@ -115,7 +124,8 @@ function world(issueBranch = false) {
             CACHE: cache,
             HARNESS_DIR: harnessDir,
             HOOKS_OUTSIDE: hooks,
-            HOOKS_LOG: path.join(tmp, "hooks.log")
+            HOOKS_LOG: path.join(tmp, "hooks.log"),
+            XVFB_BIN: "no-such-xvfb"
         }
     };
 }
@@ -244,6 +254,50 @@ describe("the in-container stage runner", () => {
         fs.writeFileSync(w.env.HOOKS_OUTSIDE, NEW_HOOKS, {mode: 0o755});
         runStage({...w.env, PIPELINE_MAX_RESUMES: "2"});
         assert.equal(result(w.outbox).resumes, 2);
+    });
+    test("one display for the session when none is set, stopped at the end (#73)", async () => {
+        const w = world();
+        const bin = path.join(w.tmp, "bin");
+        const x11 = path.join(w.tmp, "x11");
+        fs.mkdirSync(bin);
+        fs.mkdirSync(x11);
+        fs.writeFileSync(path.join(bin, "Xvfb"), FAKE_XVFB, {mode: 0o755});
+        const log = path.join(w.tmp, "xvfb.log");
+        const env = {
+            ...w.env,
+            PATH: `${bin}:${process.env.PATH}`,
+            XVFB_BIN: "Xvfb",
+            XVFB_LOG: log,
+            X11_DIR: x11,
+            DISPLAY_NUM: "97"
+        };
+        delete env.DISPLAY;
+        runStage(env);
+        assert.equal(fs.readFileSync(path.join(w.outbox, "display"), "utf8").trim(), "display=:97");
+        assert.match(
+            fs.readFileSync(log, "utf8"),
+            /^args :97 -screen 0 1920x1080x24 -nolisten tcp/
+        );
+        for (let i = 0; i < 40 && !fs.readFileSync(log, "utf8").includes("stopped"); i++) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+        assert.match(fs.readFileSync(log, "utf8"), /stopped/);
+    });
+    test("a display that is already set is kept and no Xvfb starts (#73)", () => {
+        const w = world();
+        const bin = path.join(w.tmp, "bin");
+        fs.mkdirSync(bin);
+        fs.writeFileSync(path.join(bin, "Xvfb"), FAKE_XVFB, {mode: 0o755});
+        const log = path.join(w.tmp, "xvfb.log");
+        runStage({
+            ...w.env,
+            PATH: `${bin}:${process.env.PATH}`,
+            XVFB_BIN: "Xvfb",
+            XVFB_LOG: log,
+            DISPLAY: ":5"
+        });
+        assert.equal(fs.readFileSync(path.join(w.outbox, "display"), "utf8").trim(), "display=:5");
+        assert.ok(!fs.existsSync(log), "Xvfb did not start");
     });
     test("a lockfile mismatch installs with npm ci", () => {
         const w = world();

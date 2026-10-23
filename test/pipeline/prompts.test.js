@@ -104,12 +104,12 @@ describe("stage prompts", () => {
             "Bash(npx *)",
             "Bash(bin/check*)",
             "Bash(gh-as *)",
-            "Bash(xvfb-run *)",
             "Bash(tee *)"
         ]) {
             assert.ok(allow.includes(line), line);
         }
         assert.doesNotMatch(allow, /docker/);
+        assert.doesNotMatch(allow, /xvfb-run/, "the runner provides the display (#73)");
     });
 });
 

@@ -27,6 +27,9 @@ and filled as `factory`, so no layer re-owns it.
   `stage.sh` compares with the checkout's lockfile), and Playwright's Chromium in
   `/cache/ms-playwright`.
 - `/pipeline`: a copy of the repo's `pipeline/` directory (the runner and the adapters).
+- `ELECTRON_DISABLE_SANDBOX=1`: Electron runs without its own sandbox, which Docker's
+  seccomp profile would refuse; the profile stays on (#73). The runner starts one Xvfb
+  per session and exports `DISPLAY`, because `xvfb-run` does not return in a container.
 - User `factory` (build arg `FACTORY_UID`, default 1000; `buildImage()` passes the host
   user's uid). The host user must have that uid, or the bind-mounted outbox is not writable;
   override by hand with `docker build --build-arg FACTORY_UID=$(id -u) ...`. The base image's `node` user is removed to free uid 1000.
@@ -39,11 +42,11 @@ one per persona, created by `--login` or `--copy-profile`). The image creates it
 
 Electron and Playwright Chromium cannot start their own sandboxes under Docker's default
 seccomp profile (verified 2026-10-22: Electron aborts with "Failed to move to new namespace"
-even with the setuid helper in place; `--no-sandbox` works). The choice between
-`--security-opt seccomp=unconfined` on the container, a custom seccomp profile that allows
-user namespaces (Playwright publishes one), or `--no-sandbox` in the stage runner is open.
-Until it is made, stages that run `npm test` or the scenarios inside a container will fail
-at the Electron launch.
+even with the setuid helper in place). Decided 2026-10-23 (#73): the image sets
+`ELECTRON_DISABLE_SANDBOX=1` and keeps Docker's seccomp profile, which is the boundary
+that protects the host; Playwright's Chromium launches without a sandbox by default. With
+that and the runner's session display, the scenarios run in a container (24 scenarios,
+204 steps on 2026-10-23).
 
 ## When to rebuild
 

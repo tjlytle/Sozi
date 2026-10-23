@@ -43,7 +43,7 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
 3. **Run every check**, exactly as CI would, saving each output under `.agents/tmp/`:
    - `npx gulp && git checkout -- locales/messages.pot yarn.lock` (the build).
    - `npm test`.
-   - `xvfb-run -a npm run test:features 2>&1 | tee .agents/tmp/features-{N}.txt`. Every
+   - `npm run test:features 2>&1 | tee .agents/tmp/features-{N}.txt`. The runner has already started a display, so call it directly, never through `xvfb-run`. Every
      scenario passes, the `@issue-{N}` ones by name.
    - `npm run check:pr -- --body-file .agents/tmp/pr-{N}.md`,
      `npm run check:coverage -- --body-file .agents/tmp/pr-{N}.md`, `npm run check:deps`.
