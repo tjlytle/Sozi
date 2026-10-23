@@ -31,3 +31,15 @@ parse_args() {
     [ -z "$PROMPT" ] || PROMPT=$(realpath -m "$PROMPT")
     [ -z "$MESSAGE" ] || MESSAGE=$(realpath -m "$MESSAGE")
 }
+
+# The text a harness without an edit hook puts before its stage prompt (README, verbatim).
+HOOK_TEXT="This harness has no edit hook. After every file you write, run \`bin/check <file>\` and \`python3 .claude/hooks/check-file.py --advise <file>\` and act on the output; the loop runs the same checks after you finish and will hand you anything you missed. Every GitHub write goes through \`gh-as <persona>\`; never bare \`gh\` or \`git push\`."
+
+# The text of this call: the hook text and the prompt for run, the message for resume.
+call_text() {
+    if [ "$MODE" = run ]; then
+        printf '%s\n\n%s' "$HOOK_TEXT" "$(cat "$PROMPT")"
+    else
+        cat "$MESSAGE"
+    fi
+}

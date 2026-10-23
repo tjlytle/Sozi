@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# A fake `codex` for the harness adapter tests: records its arguments and stdin,
+# prints the events of `codex exec --json` and exits like the real CLI would.
+#
+# Env: FAKE_ARGS (file; one line of arguments appended per call), FAKE_STDIN (file;
+# the prompt read from stdin), FAKE_MODE (ratelimit | failed | noturn; default is a
+# clean success).
+set -u
+
+echo "$*" >>"${FAKE_ARGS:-/dev/null}"
+cat >"${FAKE_STDIN:-/dev/null}"
+
+id="01a168dc-712c-7cc1-82fc-6f3dfe62bcf2"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        resume) id="$2"; shift ;;
+    esac
+    shift
+done
+
+echo '{"type":"thread.started","thread_id":"'"$id"'"}'
+echo '{"type":"turn.started"}'
+echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"bash -lc ls","exit_code":0}}'
+echo '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"hello from fake"}}'
+
+case "${FAKE_MODE:-}" in
+    noturn) exit 0 ;;
+    ratelimit)
+        echo '{"type":"turn.failed","error":{"message":"You have hit your usage limit. Try again at 3pm."}}'
+        exit 1 ;;
+    failed)
+        echo '{"type":"turn.failed","error":{"message":"stream disconnected"}}'
+        exit 1 ;;
+esac
+echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":60,"output_tokens":20,"reasoning_output_tokens":5}}'
+exit 0
