@@ -63,7 +63,10 @@ export function world({
         planComment: async () => null,
         lastCommentIsHuman: async () => false,
         lastHumanCommentAt: async () => /** @type {string | null} */ (null),
-        openPrFor: async () => null
+        openPrFor: async () => null,
+        parentOf: async () => /** @type {number | null} */ (null),
+        linkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["linkSubIssue", ...a]),
+        unlinkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["unlinkSubIssue", ...a])
     };
     const sandbox = {
         refreshMirror: async () => {},

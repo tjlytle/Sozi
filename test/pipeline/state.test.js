@@ -133,6 +133,14 @@ describe("state", () => {
         assert.deepEqual(s.issues[25].board, {card: 1});
         assert.deepEqual(s.issues[25].blockers, [3]);
     });
+    test("refreshing keeps the epic the loop last linked the issue to", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:review"]));
+        assert.equal(s.issues[25].linked, undefined);
+        s.issues[25].linked = 93;
+        applyIssue(s, issue(25, ["stage:review"]));
+        assert.equal(s.issues[25].linked, 93);
+    });
     test("re-applying a closed issue marks it closed", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:review"]));

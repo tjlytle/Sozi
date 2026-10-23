@@ -12,6 +12,7 @@ import path from "node:path";
 
 const RATE_LIMIT = /rate limit|\b429\b/i;
 const FORBIDDEN = /\b403\b/;
+const NOT_FOUND = /\b404\b/;
 const BACKOFF_MS = 15 * 60 * 1000;
 const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
 
@@ -46,6 +47,9 @@ const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
  * @property {(n: number) => Promise<string|null>} lastHumanCommentAt - When the newest comment was written, if a user wrote it.
  * @property {(n: number) => Promise<string|null>} planComment - The newest implementation plan comment body.
  * @property {(n: number) => Promise<{number: number, headRefName: string}|null>} openPrFor - The open PR that closes the issue.
+ * @property {(n: number) => Promise<number|null>} parentOf - The issue's parent (its epic as a sub-issue), or null when it has none.
+ * @property {(epic: number, n: number) => Promise<void>} linkSubIssue - Make the issue a sub-issue of the epic, moving it from any other parent.
+ * @property {(epic: number, n: number) => Promise<void>} unlinkSubIssue - Remove the issue from the epic's sub-issues.
  */
 
 /**
@@ -246,6 +250,16 @@ export function createGithub({repo, run = defaultRun}) {
         return pages.flat();
     }
 
+    /**
+     * Read an issue's database id, which the sub-issue calls name the child by.
+     * @param {number} n - The issue number.
+     * @returns {Promise<string>} The id.
+     */
+    async function issueId(n) {
+        const out = await exec(["gh-as", "ops", "api", `repos/${repo}/issues/${n}`, "--jq", ".id"]);
+        return out.trim();
+    }
+
     return {
         async searchIssues({since} = {}) {
             const issues = await list(["--state", "open", "--limit", "200"]);
@@ -344,6 +358,45 @@ export function createGithub({repo, run = defaultRun}) {
             const re = new RegExp(`\\b(?:Close[sd]?|Fix(?:es|ed)?|Resolve[sd]?)\\s+#${n}\\b`, "i");
             const pr = prs.find((/** @type {any} */ p) => re.test(p.body ?? ""));
             return pr ? {number: pr.number, headRefName: pr.headRefName} : null;
+        },
+        async parentOf(n) {
+            const cmd = ["gh-as", "ops", "api", `repos/${repo}/issues/${n}/parent`];
+            const r = await run(cmd);
+            if (r.code !== 0) {
+                if (NOT_FOUND.test(r.stderr)) {
+                    return null;
+                }
+                throw await failure(cmd, r);
+            }
+            return JSON.parse(r.stdout).number;
+        },
+        async linkSubIssue(epic, n) {
+            const id = await issueId(n);
+            await exec([
+                "gh-as",
+                "ops",
+                "api",
+                "-X",
+                "POST",
+                `repos/${repo}/issues/${epic}/sub_issues`,
+                "-F",
+                `sub_issue_id=${id}`,
+                "-F",
+                "replace_parent=true"
+            ]);
+        },
+        async unlinkSubIssue(epic, n) {
+            const id = await issueId(n);
+            await exec([
+                "gh-as",
+                "ops",
+                "api",
+                "-X",
+                "DELETE",
+                `repos/${repo}/issues/${epic}/sub_issue`,
+                "-F",
+                `sub_issue_id=${id}`
+            ]);
         }
     };
 }
