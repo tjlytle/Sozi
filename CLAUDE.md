@@ -32,6 +32,9 @@ Upstream (`upstream` remote) is maintenance-only; we do not open PRs there.
   `npm run pipeline -- --status` prints sessions, tries, queued labels and totals;
   `npm run pipeline -- <#>` runs one issue in the foreground; `--digest` finishes the run's
   Notion page; `--build-image` builds the stage image; `--harness <name>` picks the harness.
+- The backlog (`PIPELINE_BACKLOG`, the findings and ideas the agents file): `node bin/backlog.js
+  list`, `move <n>... --epic <#> [--stage todo]`, `close <n>... --reason "..."`; the
+  `backlog-triage` skill walks Tim through it in a session.
 - Test decks: copy an `.svg` + `.sozi.json` pair into a scratch dir first. Opening a
   deck writes `*.sozi.html` and `*-presenter.sozi.html` next to it.
 
