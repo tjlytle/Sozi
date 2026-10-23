@@ -46,6 +46,9 @@ restyle, you do not edit, commit or push anything.
      through `innerHTML` outside `src/js/html/`, a second global, a protocol change outside
      `src/js/protocol/`, a deck file importing a surface (standard 2.3, 2.5, 2.6);
    - it introduces a security or data-loss problem.
+   A check failure on a line the PR added or changed is a defect. A failure on a line it did
+   not write is not (Tim, 2026-10-23), as long as the PR body maps it to an issue; for one
+   with no issue, ask, without blocking.
    Ask, without blocking, when a test and the code it covers arrived in one commit (standard
    6.6), or when a source file has no covering test and no `No test:` line (standard 6.2).
    A nit (a name, a typo, a missing JSDoc line) never holds the PR on its own: list it in
