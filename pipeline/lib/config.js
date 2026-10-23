@@ -148,7 +148,7 @@ export function loadConfig({root, env, files}) {
             throw new Error(`${key} must be one of ${allowed.join("|")}, not "${raw[key]}"`);
         }
     }
-    if (!/^(\d+)?$/.test(raw.PIPELINE_BACKLOG)) {
+    if (!/^([1-9]\d*)?$/.test(raw.PIPELINE_BACKLOG)) {
         throw new Error(`PIPELINE_BACKLOG must be an issue number, not "${raw.PIPELINE_BACKLOG}"`);
     }
     for (const key of NUMBERS) {

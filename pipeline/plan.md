@@ -66,7 +66,7 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 4. **File the alternatives worth an issue.** For each route not taken that passes the test
    above (often none):
    `gh-as architect issue create -R tjlytle/Sozi --label idea --title "<the other route>"
-   --body-file <file>`, the body starting "Chosen against in #{N}: " and ending with the
+   --body-file <file>`, the body starting "Chosen against in #{N}: " and ending with the Backlog
    `Part of` line. Write each new issue number into its line under Decisions taken.
 5. **Post the plan.** If you posted an Implementation Plan on this issue before, replace it:
    `gh-as architect issue comment {N} -R tjlytle/Sozi --edit-last --body-file

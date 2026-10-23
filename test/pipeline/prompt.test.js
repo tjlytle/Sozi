@@ -44,7 +44,7 @@ describe("the run settings block", () => {
     });
     test("refuses a backlog that is not an issue number", () => {
         assert.throws(
-            () => loadConfig({root: "/nonexistent", env: {PIPELINE_BACKLOG: "#172"}}),
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_BACKLOG: "0"}}),
             /PIPELINE_BACKLOG must be an issue number/
         );
     });
