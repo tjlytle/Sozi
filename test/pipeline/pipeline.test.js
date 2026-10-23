@@ -458,18 +458,44 @@ test("--copy-profile copies one persona to another without a mint or state", asy
     h.deps.sandbox.copyProfile = async (/** @type {any} */ opts) => {
         got = opts;
     };
+    let text = "";
     assert.equal(
         await main(["--copy-profile", "builder", "qa"], {
             root: h.root,
             env: {},
-            out: () => {},
+            out: t => (text += t),
             deps: h.deps
         }),
         0
     );
     assert.deepEqual(got, {from: "builder", to: "qa"});
+    assert.equal(
+        text,
+        "copied builder to qa without the Claude login: run npm run pipeline -- --login qa once\n"
+    );
     assert.ok(!h.events.includes("close"), "no mint was opened");
     assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
+test("--copy-profile writes no hint when the copy fails", async () => {
+    const h = host({statuses: []});
+    h.deps.sandbox.copyProfile = async () => {
+        throw new Error("profile of qa exists; remove the volume first");
+    };
+    let text = "";
+    let errText = "";
+    assert.equal(
+        await main(["--copy-profile", "builder", "qa"], {
+            root: h.root,
+            env: {},
+            out: t => (text += t),
+            err: t => (errText += t),
+            deps: h.deps
+        }),
+        1
+    );
+    assert.equal(text, "");
+    assert.equal(errText, "profile of qa exists; remove the volume first\n");
 });
 
 test("--copy-profile rejects an unknown persona with the usage", async () => {

@@ -7,7 +7,8 @@
 #
 # Usage: pipeline/hooks-outside.sh <checkout> <start-sha> <report-file>
 #
-# For every file changed since <start-sha> (tracked or untracked) that the hook
+# For every file the session changed since <start-sha> (changed-files.sh: its own
+# commits, uncommitted and untracked files, not what a merge brought in) that the hook
 # would look at (a root-level file with a checked extension, or a file under a
 # checked directory) it runs `bin/check FILE` and `check-file.py --advise FILE`,
 # both against the diff since <start-sha> so committed changes still count. Only
@@ -21,18 +22,9 @@ set -u
 
 CHECKED_DIRS="src test bin config .github"
 CHECKED_EXT="js mjs cjs ts tsx css json yml yaml html feature"
-CHECK_CHANGED="$(cd "$(dirname "$0")" && pwd)/check-changed.py"
-
-# Files changed since the start commit that still exist, one per line.
-changed_files() {
-    local tracked untracked f
-    tracked=$(git -c core.quotePath=false diff --name-only "$1") || return 1
-    untracked=$(git -c core.quotePath=false ls-files --others --exclude-standard) || return 1
-    printf '%s\n%s\n' "$tracked" "$untracked" | sort -u | while IFS= read -r f; do
-        [ -n "$f" ] && [ -f "$f" ] && printf '%s\n' "$f"
-    done
-    return 0
-}
+HERE="$(cd "$(dirname "$0")" && pwd)"
+CHECK_CHANGED="$HERE/check-changed.py"
+CHANGED_FILES="$HERE/changed-files.sh"
 
 # True when the hook would look at the file: known extension, and either at the
 # root or under a checked directory.
@@ -70,7 +62,7 @@ main() {
     case "$report" in /*) ;; *) report="$PWD/$report" ;; esac
     cd "$checkout" || exit 2
     export CLAUDE_PROJECT_DIR="$PWD"
-    list=$(changed_files "$start") || exit 2
+    list=$("$CHANGED_FILES" . "$start") || exit 2
     while IFS= read -r f; do
         [ -n "$f" ] && is_checked "$f" && check_one "$f"
     done <<<"$list"

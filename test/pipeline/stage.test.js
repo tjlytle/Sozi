@@ -24,6 +24,11 @@ echo "display=\${DISPLAY:-}" >>"$out/display"
 [ -z "\${FAKE_NO_SESSION:-}" ] && echo "fake-session-1" >"$out/session"
 echo '{"tokensIn": 10, "tokensOut": 5, "costUsd": 0.25, "turns": 2, "status": "ok"}' >"$out/usage.json"
 [ -n "\${FAKE_SLEEP:-}" ] && sleep "$FAKE_SLEEP"
+if [ -n "\${FAKE_MERGE:-}" ]; then
+    g() { git -C "$checkout" -c user.name=t -c user.email=t@t "$@"; }
+    echo "mine" >"$checkout/own.txt"
+    g add own.txt && g commit -q -m own && g merge -q --no-ff -m merge "origin/$FAKE_MERGE"
+fi
 [ -n "\${FAKE_TOUCH:-}" ] && echo "changed" >"$checkout/$FAKE_TOUCH"
 [ -n "\${FAKE_SCRIPT:-}" ] && (cd "$checkout" && bash -ec "$FAKE_SCRIPT")
 exit "\${FAKE_EXIT:-0}"
@@ -59,6 +64,11 @@ const NEW_HOOKS = `#!/usr/bin/env bash
 echo "called" >>"$HOOKS_LOG"
 echo "finding $(wc -l <"$HOOKS_LOG")" >"$3"
 exit 1
+`;
+
+const RECORDING_HOOKS = `#!/usr/bin/env bash
+"$CHANGED_FILES" "$1" "$2" >>"$HOOKS_LOG"
+: >"$3"
 `;
 
 const CRASHED_HOOKS = `#!/usr/bin/env bash
@@ -102,6 +112,27 @@ function mirrorOf(source, tmp, issueBranch) {
 }
 
 /**
+ * Seed a node_modules cache whose lock-sha matches the lockfile at a commit.
+ * @param {string} tmp - The directory the cache goes in.
+ * @param {string} sha - The commit whose package-lock.json the cache matches.
+ * @returns {string} - The cache's path.
+ */
+function seedCache(tmp, sha) {
+    const cache = path.join(tmp, "cache");
+    fs.mkdirSync(cache);
+    const lock = execFileSync("git", ["show", `${sha}:package-lock.json`], {
+        cwd: root,
+        maxBuffer: 1 << 28
+    });
+    fs.writeFileSync(
+        path.join(cache, "lock-sha"),
+        crypto.createHash("sha256").update(lock).digest("hex") + "\n"
+    );
+    fs.symlinkSync(path.join(root, "node_modules"), path.join(cache, "node_modules"));
+    return cache;
+}
+
+/**
  * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
  * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
  * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
@@ -119,17 +150,7 @@ function world(issueBranch = false) {
     fs.mkdirSync(outbox);
     fs.writeFileSync(path.join(outbox, "prompt.md"), "do the thing\n");
     fs.writeFileSync(path.join(outbox, "allow.txt"), "Read\n");
-    const cache = path.join(tmp, "cache");
-    fs.mkdirSync(cache);
-    const lock = execFileSync("git", ["show", `${sha}:package-lock.json`], {
-        cwd: root,
-        maxBuffer: 1 << 28
-    });
-    fs.writeFileSync(
-        path.join(cache, "lock-sha"),
-        crypto.createHash("sha256").update(lock).digest("hex") + "\n"
-    );
-    fs.symlinkSync(path.join(root, "node_modules"), path.join(cache, "node_modules"));
+    const cache = seedCache(tmp, sha);
     return {
         tmp,
         outbox,
@@ -145,6 +166,7 @@ function world(issueBranch = false) {
             CACHE: cache,
             HARNESS_DIR: harnessDir,
             HOOKS_OUTSIDE: hooks,
+            CHANGED_FILES: path.join(root, "pipeline/changed-files.sh"),
             HOOKS_LOG: path.join(tmp, "hooks.log"),
             XVFB_BIN: "no-such-xvfb"
         }
@@ -373,6 +395,21 @@ describe("the in-container stage runner", () => {
         const r = result(w.outbox);
         assert.equal(r.resumes, 0);
         assert.equal(fs.readFileSync(path.join(w.outbox, "report-0.txt"), "utf8"), "");
+    });
+    test("a merge of master adds nothing to changed or to what the hooks see (#89)", () => {
+        const w = world();
+        const side = path.join(w.tmp, "side");
+        execFileSync("git", ["clone", "-q", w.env.MIRROR, side]);
+        const git = (/** @type {string[]} */ ...args) =>
+            execFileSync("git", ["-C", side, "-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        fs.writeFileSync(path.join(side, "merged.txt"), "from master\n");
+        git("add", "merged.txt");
+        git("commit", "-q", "-m", "side");
+        git("push", "-q", "origin", "HEAD:refs/heads/side");
+        fs.writeFileSync(w.env.HOOKS_OUTSIDE, RECORDING_HOOKS, {mode: 0o755});
+        runStage({...w.env, FAKE_MERGE: "side", FAKE_TOUCH: "touched.txt"});
+        assert.deepEqual(result(w.outbox).changed, ["own.txt", "touched.txt"]);
+        assert.equal(fs.readFileSync(w.env.HOOKS_LOG, "utf8"), "own.txt\ntouched.txt\n");
     });
     test("a crashed hooks pass is an error, not a clean run", () => {
         const w = world();

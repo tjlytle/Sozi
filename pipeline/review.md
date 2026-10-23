@@ -14,7 +14,8 @@ restyle, you do not edit, commit or push anything.
 - `.agents/tmp/` is the only place for temporary files. Write the review body and any issue
   body there first and pass it with `--body-file`.
 - Questions do not stop the line. A choice you would have made differently is not a defect:
-  say it in one line, file it as an `idea` issue, and judge the PR on its merits.
+  say it in one line in the review (an `idea` issue only when it would be worth doing on
+  its own), and judge the PR on its merits.
 - A finding is anything you notice that is not a defect of this PR (a cleaner shape, an
   edge outside the acceptance criteria, a refactor). File every finding as its own issue;
   it never blocks the PR. Apply one test:
@@ -22,8 +23,9 @@ restyle, you do not edit, commit or push anything.
   Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label idea`, the
   label standard 6.5 gives a reviewer's improvement. Under `Findings: triage` above, every
   finding gets `triage` instead. The body starts "Seen while reviewing #<pr>: ".
-- Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
-  issue you are on; if it has none, write nothing.
+- Every issue you file ends with a `Part of #<backlog>` line, the Backlog epic of the Run
+  settings above (with none there, copy the `Part of` line of the issue you are on). Never
+  the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 
 ## Steps

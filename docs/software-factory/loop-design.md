@@ -101,7 +101,14 @@ environment variable), and the three policies are settings among the others:
 PIPELINE_MERGE=auto        # auto: QA merges; review: QA stops at approval and Tim merges
 PIPELINE_PLANS=auto        # auto: a planned issue starts; review: it waits for Tim
 PIPELINE_FINDINGS=obvious  # obvious: obvious findings start on their own; triage: all wait
+PIPELINE_BACKLOG=172       # the epic every finding and idea is filed under
 ```
+
+An alternative a session did not take is recorded where the session records its work
+(the plan's Decisions taken, the PR body, the review) and becomes an `idea` issue only
+when it would be worth doing on its own even after the issue is done the chosen way
+(Tim, 2026-10-23: the first unattended run filed 32 ideas, 30 of them the routes the
+architect did not take).
 
 The loop writes a short "Run settings" block at the top of every stage prompt it starts
 (the adapter prepends it to the prompt file), so each session is told the policy that
@@ -117,11 +124,13 @@ never means a fixed hour.
 
 - `--until <duration|time>` (`--until 6h`, `--until 07:00`): no new session starts after
   that point; running sessions finish and are judged.
-- `--epic <#>`: the scope is the epic's open children plus every issue filed during the
-  run by a session working on one of them (the prompts have personas write `Part of #<n>`
-  into any issue they file while on an epic's child, so the scope follows the work). The
-  loop stops when nothing in the scope is due: each issue is done, or is parked, in
-  triage, an idea, or blocked by an issue outside the scope.
+- `--epic <#>`: the scope is the epic's open children. Issues the sessions file while
+  they work go to the backlog epic (`PIPELINE_BACKLOG`), not into the epic: the first
+  unattended run (#93) grew from 15 issues to 65 because every finding and idea copied
+  the epic's `Part of` line, so the run never emptied (Tim, 2026-10-23, replacing "an
+  epic and the issues it spawns" of 2026-10-21). Tim triages the backlog and moves an
+  issue into an epic. The loop stops when nothing in the scope is due: each issue is
+  done, or is parked, in triage, an idea, or blocked by an issue outside the scope.
 - No flag: the scope is every open issue with a stage label, and the loop stops when
   nothing is due by the same test.
 
@@ -217,8 +226,13 @@ the login and the MCP servers authorised in it.
 - Tim's decision: six profiles. Log in once (`/login`, no `/mcp`), `--copy-profile
   <from> <to>` to the other five, then `--login` again per persona with an allowlist to
   `claude mcp add --scope user` and `/mcp` exactly its servers (a copy carries all of its
-  source's). If a token refresh
-  invalidates the copies, fix it then.
+  source's). A token refresh did invalidate the copies: on 2026-10-23 (#108) the six
+  profiles held one OAuth refresh token, the builder's session refreshed first, and the
+  architect and reviewer sessions then failed with "OAuth session expired and could not be
+  refreshed". So each persona logs in once on its own: `--copy-profile` (through
+  `pipeline/profile-copy.sh`) copies the settings, the skills and the MCP servers with their
+  authorisations, removes `claudeAiOauth` from the target's `.credentials.json`, and prints
+  the `--login <to>` to run; `--status` shows the copy as not logged in until then.
 - `PIPELINE_PROFILES=auto|off`. With a profile, the stage uses it. With no volume but a
   `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, the token is the fallback. With
   neither, the stage is refused with the `--login <persona>` command; a volume that is
