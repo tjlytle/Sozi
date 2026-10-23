@@ -47,7 +47,8 @@ to_array() {
     else node -e 'const l=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);console.log(JSON.stringify(l))'; fi
 }
 
-# Write result.json from whatever state exists; runs on every exit.
+# Write result.json from whatever state exists; runs on every exit. Its commits are the
+# session's own: first parents only, no merge commits, so a merge of master adds none.
 write_result() {
     local sfile=/dev/null usage changed commits out="$OUTBOX/result.json"
     [ -s "$OUTBOX/session" ] && sfile="$OUTBOX/session"
@@ -55,7 +56,8 @@ write_result() {
     [ -s "$OUTBOX/usage.json" ] && usage=$(cat "$OUTBOX/usage.json")
     changed=$(changed_files | to_array)
     commits='[]'
-    [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline "$start..HEAD" 2>/dev/null | to_array)
+    [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline --first-parent --no-merges \
+        "$start..HEAD" 2>/dev/null | to_array)
     if command -v jq >/dev/null && echo "$usage" | jq -e . >/dev/null 2>&1; then
         jq -n --argjson exit "$harness_exit" --rawfile session "$sfile" --argjson usage "$usage" \
             --argjson changed "$changed" --argjson commits "$commits" --argjson resumes "$resumes" \
