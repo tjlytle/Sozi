@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Starting sessions: queued spawn requests first, then due issues, while a slot is free
-// and the persona has one. Each session gets a rendered prompt in a fresh outbox and a
+// Starting sessions: queued spawn requests first, then due issues, the least-busy persona
+// first, while a slot is free and the persona has one. Each session gets a rendered prompt in a fresh outbox and a
 // container, with its persona's profile mounted when the profile passes its checks.
 
 import crypto from "node:crypto";
@@ -251,7 +251,9 @@ async function startIssue(ctx, n, {persona, profile}) {
 }
 
 /**
- * The next issue to start: due, in scope, not tried this pass, the only one when set.
+ * The next issue to start: due, in scope, not tried this pass, the only one when set. Of
+ * those, the one whose persona has the fewest sessions running now; on a tie, the lowest
+ * number.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {number | undefined} The issue number.
@@ -259,12 +261,23 @@ async function startIssue(ctx, n, {persona, profile}) {
 function nextIssue(ctx) {
     const {state} = ctx;
     const scoped = state.run.epic ? new Set(scope(state, {epic: state.run.epic})) : null;
-    return dueIssues(state, ctx.settings, new Date(ctx.clock.now())).find(
+    const due = dueIssues(state, ctx.settings, new Date(ctx.clock.now())).filter(
         n =>
             !ctx.tried.has(n) &&
             (!scoped || scoped.has(n)) &&
             (state.run.only === null || n === state.run.only)
     );
+    let next;
+    let fewest = Infinity;
+    // dueIssues sorts by number, so a strict < keeps the lowest number on a tie.
+    for (const n of due) {
+        const count = runningFor(ctx, personaFor(stageOfIssue(state.issues[n])));
+        if (count < fewest) {
+            next = n;
+            fewest = count;
+        }
+    }
+    return next;
 }
 
 /**
@@ -328,8 +341,8 @@ async function tryIssue(ctx, n) {
 }
 
 /**
- * Start sessions while slots are free: queued spawns first, then due issues. One slot
- * past the soft ceiling; none while a model rate limit pauses starts. A spawn or issue
+ * Start sessions while slots are free: queued spawns first, then due issues, the least-busy
+ * persona first. One slot past the soft ceiling; none while a model rate limit pauses starts. A spawn or issue
  * whose persona is at its limit or logged out waits for the next pass.
  *
  * @param {PassContext} ctx - The pass context.

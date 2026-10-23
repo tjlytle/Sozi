@@ -334,7 +334,7 @@ describe("persona profiles at start", () => {
             env: {PIPELINE_PARALLEL: "3", PIPELINE_PER_PERSONA: "0"}
         });
         const s = await w.p.pass();
-        assert.deepEqual(s.started, [25, 26, 27]);
+        assert.deepEqual(s.started, [25, 27, 26]);
     });
     test("a profile that is not logged in refuses the start, no working label", async () => {
         const w = world({issues: [issue(25, ["stage:in-progress"])]});
