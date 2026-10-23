@@ -42,11 +42,11 @@ one per persona, created by `--login` or `--copy-profile`). The image creates it
 
 Electron and Playwright Chromium cannot start their own sandboxes under Docker's default
 seccomp profile (verified 2026-10-22: Electron aborts with "Failed to move to new namespace"
-even with the setuid helper in place; `--no-sandbox` works). The choice between
-`--security-opt seccomp=unconfined` on the container, a custom seccomp profile that allows
-user namespaces (Playwright publishes one), or `--no-sandbox` in the stage runner is open.
-Until it is made, stages that run `npm test` or the scenarios inside a container will fail
-at the Electron launch.
+even with the setuid helper in place). Decided 2026-10-23 (#73): the image sets
+`ELECTRON_DISABLE_SANDBOX=1` and keeps Docker's seccomp profile, which is the boundary
+that protects the host; Playwright's Chromium launches without a sandbox by default. With
+that and the runner's session display, the scenarios run in a container (24 scenarios,
+204 steps on 2026-10-23).
 
 ## When to rebuild
 
