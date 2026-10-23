@@ -42,6 +42,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {number[]} blockers - Issue numbers this issue waits for.
  * @property {number | null} epic - The epic this issue belongs to, if any.
  * @property {object | null} board - The board card, if any.
+ * @property {number | null} [linked] - The epic the loop last linked the issue to as a sub-issue; absent until the loop has read its parent.
  * @property {string | null} seen - The issue's updatedAt when last read.
  * @property {boolean} [waiting] - A session ended asking a person to act; cleared by a stage change.
  */
@@ -135,7 +136,8 @@ export function promptFor(stage) {
 }
 
 /** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
- * waiting while its stage holds and it stays open; a parked one keeps its park time.
+ * waiting while its stage holds and it stays open; a parked one keeps its park time; the
+ * board card and the sub-issue link carry over.
  *
  * @param {State} state - The state.
  * @param {object} issue - The issue.
@@ -163,6 +165,7 @@ export function applyIssue(state, issue) {
         blockers: issue.blockedBy ?? existing?.blockers ?? [],
         epic: epic ? Number(epic[1]) : null,
         board: existing?.board ?? null,
+        ...(existing?.linked !== undefined && {linked: existing.linked}),
         seen: issue.updatedAt ?? null,
         waiting:
             issue.state !== "CLOSED" && existing?.stage === stageOf(issue.labels)

@@ -7,6 +7,7 @@
 
 import {RateLimited, blockedBy} from "./github.js";
 import {applyIssue, queueLabel, scope, setStage, stageOf, takeQueuedLabels, wake} from "./state.js";
+import {linkSubIssues} from "./subissues.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FIRST_SYNC_DAYS = 90;
@@ -244,8 +245,8 @@ async function readIssue(ctx, issue) {
 /**
  * Read GitHub when the sync timer is due and the loop is not backed off: queued label
  * changes first (so the read sees them), then the issues, blockers of blocked issues,
- * parked issues a person answered; then stale working labels go, blocked issues with no
- * blockers are logged, and the board syncs.
+ * parked issues a person answered; then stale working labels go, sub-issue links follow
+ * the `Part of` lines, blocked issues with no blockers are logged, and the board syncs.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
@@ -275,6 +276,12 @@ export async function syncIfDue(ctx) {
         return;
     }
     await sweepWorking(ctx);
+    await linkSubIssues(ctx).catch(error => {
+        if (!(error instanceof RateLimited)) {
+            throw error;
+        }
+        backOff(ctx, error);
+    });
     blockedByNothing(ctx);
     await syncBoard(ctx);
 }
