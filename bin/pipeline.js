@@ -19,8 +19,9 @@
 //   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
-// lives in var/pipeline/state.json. Ctrl-C saves the state and leaves running containers
-// to finish; the next start adopts them.
+// lives in var/pipeline/state.json. A first Ctrl-C or SIGTERM starts nothing more and waits,
+// the mint still up, until every running session has ended and been judged. A second one
+// saves the state and leaves the sessions running; the next start adopts them.
 
 import {spawnSync} from "node:child_process";
 import path from "node:path";
@@ -29,7 +30,7 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 import {loadConfig} from "../pipeline/lib/config.js";
 import {createGithub, defaultRun} from "../pipeline/lib/github.js";
 import {startMint} from "../pipeline/lib/mint.js";
-import {createControl, drain, watch} from "../pipeline/lib/loop.js";
+import {createControl, drain, hookSignals, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
 import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
 import {PERSONAS} from "../pipeline/lib/profile.js";
@@ -58,7 +59,8 @@ const USAGE = [
  * @property {any} [board] - The board; the real one when absent.
  * @property {any} [sandbox] - The sandbox; the real one when absent.
  * @property {((seconds: number) => Promise<void>) | undefined} sleep - A wait instead of a timer.
- * @property {(handler: () => void) => () => void} onSignal - Hooks Ctrl-C; returns the unhook.
+ * @property {(handler: (signal: string) => void) => () => void} onSignal - Hooks SIGINT and SIGTERM; returns the unhook.
+ * @property {() => number} now - The clock, in milliseconds.
  * @property {(code: number) => void} exit - Ends the process.
  */
 
@@ -69,10 +71,8 @@ const DEFAULT_DEPS = {
     startMint,
     digest: digestMain,
     sleep: undefined,
-    onSignal: handler => {
-        process.on("SIGINT", handler);
-        return () => void process.off("SIGINT", handler);
-    },
+    onSignal: handler => hookSignals(handler),
+    now: () => Date.now(),
     exit: code => process.exit(code)
 };
 
@@ -339,7 +339,14 @@ export async function main(
     const mint = await openRun(state, settings, runEnv, log, deps);
     save();
     const {pass} = loopPass({state, settings, sandbox, env: runEnv, root, log, save, deps});
-    const control = createControl({sleep: deps.sleep, save, exit: deps.exit, log});
+    const control = createControl({
+        sleep: deps.sleep,
+        save,
+        exit: deps.exit,
+        log,
+        state,
+        now: deps.now
+    });
     const unhook = deps.onSignal(() => control.interrupt());
     let code = 0;
     try {

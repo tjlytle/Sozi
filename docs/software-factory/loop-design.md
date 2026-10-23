@@ -413,8 +413,10 @@ routine all call:
   human; test the stop condition.
 - Idle back-off: 30 s while anything moved in the last pass, doubling to 10 min when
   nothing is due (the lesson from the talk).
-- Stop: Ctrl-C; running containers finish on their own and `finish` judges them when the
-  loop next runs.
+- Stop: Ctrl-C or SIGTERM. The loop starts nothing more and waits, the mint still up,
+  until every running session has ended and `finish` has judged it, naming the sessions
+  it waits for. A second signal at least a second later (npm passes one Ctrl-C on twice)
+  saves the state and leaves the containers running; the next start adopts them.
 
 `pipeline/allow.txt` is the snake's list with the project's commands: `npm *`, `npx *`,
 `bin/check*`, `node bin/*`, `gh-as *`, `git *`, and the read-only shell
