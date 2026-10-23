@@ -264,14 +264,13 @@ describe("the in-container stage runner", () => {
         fs.writeFileSync(path.join(bin, "Xvfb"), FAKE_XVFB, {mode: 0o755});
         const log = path.join(w.tmp, "xvfb.log");
         const env = {
-            ...w.env,
+            ...Object.fromEntries(Object.entries(w.env).filter(([key]) => key !== "DISPLAY")),
             PATH: `${bin}:${process.env.PATH}`,
             XVFB_BIN: "Xvfb",
             XVFB_LOG: log,
             X11_DIR: x11,
             DISPLAY_NUM: "97"
         };
-        delete env.DISPLAY;
         runStage(env);
         assert.equal(fs.readFileSync(path.join(w.outbox, "display"), "utf8").trim(), "display=:97");
         assert.match(
