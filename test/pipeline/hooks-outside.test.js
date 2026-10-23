@@ -191,11 +191,13 @@ describe("the outside hook pass", () => {
         const dir = scratch();
         const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
         const git = args => run(dir, "git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        // CI checks out a detached HEAD, so name the session's branch before leaving it.
+        git(["switch", "-q", "-c", "session"]);
         git(["switch", "-q", "-c", "side"]);
         fs.writeFileSync(path.join(dir, "src/js/merged.js"), "window.x = 1\n");
         git(["add", "."]);
         git(["commit", "-q", "-m", "master's own work"]);
-        git(["switch", "-q", "-"]);
+        git(["switch", "-q", "session"]);
         fs.writeFileSync(path.join(dir, "src/js/own.js"), "window.y = 1\n");
         git(["add", "."]);
         git(["commit", "-q", "-m", "the session's work"]);
