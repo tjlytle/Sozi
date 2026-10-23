@@ -271,6 +271,14 @@ loop off for fifteen minutes. The limits are per-run settings (`PIPELINE_SOFT_TO
 be queried, so the totals are the loop's own count. Self-started issues are not capped
 separately: the container count and the limits bound them.
 
+A dead login is not a rate limit: it stops one persona, not the model. When a session
+fails to authenticate before any model call, the adapter reports `status: "auth"`; the
+issue keeps its tries, the loop logs `<persona>: logged out; run npm run pipeline --
+--login <persona>` once, and starts nothing more as that persona (its due issues wait,
+its queued spawns stay queued) while the other personas carry on. `--status` shows the
+same line. The mark lifts when the persona's credentials file changes after it (a
+`--login` or `--copy-profile`) or when the loop restarts.
+
 ### Merge and the next look
 
 `Merge: auto`, with the no-regression rule while the gate is still red on old code: a PR

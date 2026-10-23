@@ -92,6 +92,12 @@ describe("result.json", () => {
         );
         assert.equal(readResult(dir)?.hooks, "skipped");
     });
+    test("a result whose login failed is read with its auth status", () => {
+        const dir = scratch();
+        const usage = {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 1, status: "auth"};
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 1, usage}));
+        assert.equal(readResult(dir)?.usage.status, "auth");
+    });
 });
 
 describe("the log tail", () => {

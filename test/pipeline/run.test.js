@@ -2,7 +2,7 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {emptyState} from "../../pipeline/lib/state.js";
-import {finishDigest} from "../../pipeline/lib/run.js";
+import {finishDigest, openRun} from "../../pipeline/lib/run.js";
 
 /**
  * Finish the digest of a run on page-1 with a digest command that exits with a code.
@@ -49,5 +49,16 @@ describe("pipeline/lib/run.js", () => {
     test("finishDigest is not finished when the summary could not be posted", async () => {
         const {finished} = await finish(1);
         assert.equal(finished, false);
+    });
+    test("openRun clears the logged-out personas of the run before", async () => {
+        const state = emptyState();
+        state.run.started = "2026-10-23T10:00:00.000Z";
+        state.run.notionPage = "page-1";
+        state.run.loggedOut = {builder: {since: "2026-10-23T11:00:00.000Z"}};
+        await openRun(state, {repo: "tjlytle/Sozi"}, {}, () => {}, {
+            run: async () => ({code: 1, stdout: "", stderr: ""}),
+            startMint: async () => /** @type {any} */ ({port: 7311, close: async () => {}})
+        });
+        assert.deepEqual(state.run.loggedOut, {});
     });
 });
