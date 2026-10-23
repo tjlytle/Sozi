@@ -55,7 +55,7 @@ the policy for this session; obey them.
      notes, which are yours to judge (standard 2.8).
    - `npm test`.
    - `npx gulp && git checkout -- locales/messages.pot yarn.lock`, then
-     `xvfb-run -a npm run test:features`. Every scenario passes, the new ones included.
+     `npm run test:features`. Every scenario passes, the new ones included. The runner has already started a display, so call it directly, never through `xvfb-run`.
    - `npm run check`. It is red on old code until the cleanup issues land; what counts is
      that it reports nothing in the files you changed.
    - `npm run check:deps` when `package.json` changed. A package the plan names keeps its

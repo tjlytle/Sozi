@@ -51,7 +51,7 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
    yet; that is the failure you want.
 6. **See them fail.** Build, then run the scenarios:
    `npx gulp && git checkout -- locales/messages.pot yarn.lock`, then
-   `xvfb-run -a npm run test:features 2>&1 | tee .agents/tmp/red-{N}.txt`.
+   `npm run test:features 2>&1 | tee .agents/tmp/red-{N}.txt`. The runner has already started a display, so call it directly, never through `xvfb-run`.
    Every new scenario must fail for the right reason: an assertion or a missing element,
    not an undefined step and not a syntax error. Fix your steps until that is true. The
    scenarios that existed before must still pass. Run `bin/check --fix <file>` on every

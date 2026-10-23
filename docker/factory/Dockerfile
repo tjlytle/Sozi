@@ -52,6 +52,11 @@ RUN chown root:root /cache/node_modules/electron/dist/chrome-sandbox \
     && chmod 4755 /cache/node_modules/electron/dist/chrome-sandbox
 USER factory
 
+# Electron without its own sandbox here (#73): Docker's seccomp profile refuses the user
+# namespaces it needs, and that filter is the boundary that matters. The stages load only
+# the repo's fixture decks. Playwright's Chromium launches without one by default.
+ENV ELECTRON_DISABLE_SANDBOX=1
+
 # Playwright's Chromium at the pinned version (libraries are already in).
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/ms-playwright
 RUN cd /cache && npx playwright install chromium
