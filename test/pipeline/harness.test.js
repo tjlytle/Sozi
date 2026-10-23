@@ -218,6 +218,25 @@ describe("harness adapters", () => {
         assert.equal(usageOf(out).status, "rate-limited");
     });
 
+    test("claude: a failed login before any model call is auth, with the CLI's exit", () => {
+        const out = scratch();
+        const r = adapter("claude", runArgs(out), {FAKE_MODE: "auth"});
+        assert.equal(r.status, 1);
+        assert.equal(usageOf(out).status, "auth");
+    });
+
+    test("claude: a failed login with no result line is auth from the stream", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out), {FAKE_MODE: "authraw"});
+        assert.equal(usageOf(out).status, "auth");
+    });
+
+    test("claude: a 401 after a model call stays an error", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out), {FAKE_MODE: "late401"});
+        assert.equal(usageOf(out).status, "error");
+    });
+
     test("claude: budget status", () => {
         const out = scratch();
         adapter("claude", runArgs(out), {FAKE_MODE: "budget"});
