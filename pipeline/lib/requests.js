@@ -128,22 +128,24 @@ function labelList(value, what) {
 }
 
 /**
- * Check a label request on an issue other than the session's own: no stage label either
- * way, and no lifting it out of triage. Only the loop and a person move other issues.
+ * Check a label request against the moves only the loop makes: no stage label either way
+ * on any issue, since a stage moves only through done, and no lifting an issue other than
+ * the session's own out of triage.
  *
  * @param {number} target - The issue the request names.
  * @param {string[]} add - Labels to add.
  * @param {string[]} remove - Labels to remove.
+ * @param {boolean} own - Whether the target is the session's own issue.
  * @returns {void}
- * @throws {Error} When the request would move the other issue.
+ * @throws {Error} When the request would move an issue.
  */
-function otherIssueLabels(target, add, remove) {
+function labelRules(target, add, remove, own) {
     for (const label of [...add, ...remove]) {
         if (label.startsWith("stage:")) {
-            throw new Error(`label may not change ${label} on issue ${target}, not this session's`);
+            throw new Error(`label may not change ${label}; a stage moves through done`);
         }
     }
-    if (remove.includes("triage")) {
+    if (!own && remove.includes("triage")) {
         throw new Error(`label may not lift issue ${target} out of triage`);
     }
 }
@@ -222,9 +224,7 @@ export function validateRequest(obj, {issue}) {
                 throw new Error(`label may not remove ${label}`);
             }
         }
-        if (body.issue !== issue) {
-            otherIssueLabels(body.issue, add, remove);
-        }
+        labelRules(body.issue, add, remove, body.issue === issue);
         return {kind: "label", issue: body.issue, add, remove};
     }
 

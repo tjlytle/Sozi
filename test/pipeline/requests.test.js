@@ -65,7 +65,7 @@ describe("outbox requests", () => {
     test("label on another issue: no stage label, and triage is not lifted", () => {
         const other = (/** @type {any} */ body) =>
             validateRequest({label: {issue: 30, ...body}}, {issue: 25});
-        assert.throws(() => other({add: ["stage:todo"]}), /stage:todo.*issue 30/);
+        assert.throws(() => other({add: ["stage:todo"]}), /stage:todo; a stage moves through done/);
         assert.throws(() => other({remove: ["stage:parked"]}), /stage:parked/);
         assert.throws(() => other({remove: ["triage"]}), /triage/);
         assert.equal(other({add: ["idea"], remove: ["idea"]}).kind, "label");
@@ -75,9 +75,19 @@ describe("outbox requests", () => {
             "a spawned session has no issue of its own"
         );
     });
-    test("label on the own issue of the session may use any allowed label", () => {
+    test("label on the own issue of the session may not change a stage label", () => {
+        assert.throws(
+            () => validateRequest({label: {issue: 25, add: ["stage:review"]}}, {issue: 25}),
+            /label may not change stage:review; a stage moves through done/
+        );
+        assert.throws(
+            () => validateRequest({label: {issue: 25, remove: ["stage:in-progress"]}}, {issue: 25}),
+            /stage:in-progress/
+        );
+    });
+    test("label on the own issue of the session may lift triage and add idea", () => {
         const own = validateRequest(
-            {label: {issue: 25, add: ["stage:review"], remove: ["stage:in-progress", "triage"]}},
+            {label: {issue: 25, add: ["idea"], remove: ["triage"]}},
             {issue: 25}
         );
         assert.equal(own.kind, "label");
