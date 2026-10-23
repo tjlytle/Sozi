@@ -62,6 +62,29 @@ function runArgs(dir) {
 }
 
 /**
+ * The arguments for a claude resume of the session run in dir.
+ * @param {string} dir scratch dir holding the session file
+ * @returns {string[]} the arguments
+ */
+function resumeArgs(dir) {
+    return [
+        "resume",
+        "--session",
+        fs.readFileSync(path.join(dir, "session"), "utf8").trim(),
+        "--message",
+        path.join(dir, "message.md"),
+        "--model",
+        "m",
+        "--allow",
+        path.join(dir, "allow.txt"),
+        "--checkout",
+        dir,
+        "--out",
+        dir
+    ];
+}
+
+/**
  * Parse usage.json in dir.
  * @param {string} dir scratch dir
  * @returns {any} the parsed usage
@@ -99,31 +122,13 @@ describe("harness adapters", () => {
         assert.match(fs.readFileSync(path.join(out, "stream.jsonl"), "utf8"), /"type":"result"/);
     });
 
-    test("claude: resume passes --resume and the message, and replaces usage.json", () => {
+    test("claude: resume passes --resume and the message, and counts from an empty usage.json", () => {
         const out = scratch();
         const args = path.join(out, "args");
         adapter("claude", runArgs(out), {FAKE_ARGS: args});
         const id = fs.readFileSync(path.join(out, "session"), "utf8").trim();
         fs.writeFileSync(path.join(out, "usage.json"), "{}");
-        const r = adapter(
-            "claude",
-            [
-                "resume",
-                "--session",
-                id,
-                "--message",
-                path.join(out, "message.md"),
-                "--model",
-                "m",
-                "--allow",
-                path.join(out, "allow.txt"),
-                "--checkout",
-                out,
-                "--out",
-                out
-            ],
-            {FAKE_ARGS: args}
-        );
+        const r = adapter("claude", resumeArgs(out), {FAKE_ARGS: args});
         assert.equal(r.status, 0, r.stderr);
         const lines = fs.readFileSync(args, "utf8").trim().split("\n");
         assert.equal(lines.length, 2);
@@ -133,8 +138,72 @@ describe("harness adapters", () => {
             assert.ok(line.includes(`--add-dir ${fs.realpathSync(out)}`), line);
         }
         assert.ok(!lines[1].includes("--session-id"));
-        assert.equal(usageOf(out).status, "ok");
-        assert.equal(usageOf(out).turns, 3);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 100,
+            tokensOut: 20,
+            costUsd: 0.12,
+            turns: 3,
+            status: "ok"
+        });
+    });
+
+    test("claude: resume sums tokens and turns and takes the cost as reported", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out));
+        const r = adapter("claude", resumeArgs(out), {FAKE_COST: "0.30"});
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 200,
+            tokensOut: 40,
+            costUsd: 0.3,
+            turns: 6,
+            status: "ok"
+        });
+    });
+
+    test("claude: a rate-limited resume sums the totals and exits 75", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out));
+        const r = adapter("claude", resumeArgs(out), {FAKE_MODE: "ratelimit"});
+        assert.equal(r.status, 75);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 200,
+            tokensOut: 40,
+            costUsd: 0.12,
+            turns: 6,
+            status: "rate-limited"
+        });
+    });
+
+    test("claude: resume over a usage.json that is not JSON counts from zero", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out));
+        fs.writeFileSync(path.join(out, "usage.json"), "not json");
+        const r = adapter("claude", resumeArgs(out));
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 100,
+            tokensOut: 20,
+            costUsd: 0.12,
+            turns: 3,
+            status: "ok"
+        });
+    });
+
+    test("claude: run ignores an existing usage.json", () => {
+        const out = scratch();
+        fs.writeFileSync(
+            path.join(out, "usage.json"),
+            '{"tokensIn":5,"tokensOut":5,"costUsd":9,"turns":5,"status":"ok"}'
+        );
+        adapter("claude", runArgs(out));
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 100,
+            tokensOut: 20,
+            costUsd: 0.12,
+            turns: 3,
+            status: "ok"
+        });
     });
 
     test("claude: rate limit exits 75", () => {
@@ -149,6 +218,25 @@ describe("harness adapters", () => {
         const r = adapter("claude", runArgs(out), {FAKE_MODE: "usagelimit"});
         assert.equal(r.status, 75);
         assert.equal(usageOf(out).status, "rate-limited");
+    });
+
+    test("claude: a failed login before any model call is auth, with the CLI's exit", () => {
+        const out = scratch();
+        const r = adapter("claude", runArgs(out), {FAKE_MODE: "auth"});
+        assert.equal(r.status, 1);
+        assert.equal(usageOf(out).status, "auth");
+    });
+
+    test("claude: a failed login with no result line is auth from the stream", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out), {FAKE_MODE: "authraw"});
+        assert.equal(usageOf(out).status, "auth");
+    });
+
+    test("claude: a 401 after a model call stays an error", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out), {FAKE_MODE: "late401"});
+        assert.equal(usageOf(out).status, "error");
     });
 
     test("claude: budget status", () => {
@@ -262,33 +350,18 @@ describe("harness adapters", () => {
         assert.equal(usageOf(path.join(out, "o")).status, "ok");
     });
 
-    test("claude: resume does not reuse an old result", () => {
+    test("claude: resume does not reuse an old result, and keeps the session's totals", () => {
         const out = scratch();
         adapter("claude", runArgs(out));
-        const id = fs.readFileSync(path.join(out, "session"), "utf8").trim();
-        const r = adapter(
-            "claude",
-            [
-                "resume",
-                "--session",
-                id,
-                "--message",
-                path.join(out, "message.md"),
-                "--model",
-                "m",
-                "--allow",
-                path.join(out, "allow.txt"),
-                "--checkout",
-                out,
-                "--out",
-                out
-            ],
-            {
-                FAKE_MODE: "noresult"
-            }
-        );
+        const r = adapter("claude", resumeArgs(out), {FAKE_MODE: "noresult"});
         assert.equal(r.status, 0);
-        assert.equal(usageOf(out).status, "error");
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 100,
+            tokensOut: 20,
+            costUsd: 0.12,
+            turns: 3,
+            status: "error"
+        });
     });
 
     test("claude: the prompt reaches the CLI verbatim", () => {

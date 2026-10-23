@@ -12,14 +12,16 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
   commit message there first and pass it with `--body-file` or `-F`.
 - Change nothing under `src/`. The code is the builder's; you write tests only.
 - Questions do not stop the line. When the plan leaves a scenario unclear, write the one a
-  person would expect, say so in your comment, and file the alternative as an `idea` issue.
+  person would expect, say so in your comment, and file the alternative as an `idea` issue
+  only when it would be worth doing on its own.
 - A finding is a bug or an improvement you notice outside this issue. File every finding as
   its own issue; never test or fix it here. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
   Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
   Under `Findings: triage` above, every finding gets `triage`.
-- Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
-  issue you are on; if it has none, write nothing.
+- Every issue you file ends with a `Part of #<backlog>` line, the Backlog epic of the Run
+  settings above (with none there, copy the `Part of` line of the issue you are on). Never
+  the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 
 ## Steps

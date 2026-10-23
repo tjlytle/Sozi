@@ -41,6 +41,25 @@ function scratch() {
 const hooks = (dir, sha, report) =>
     spawnSync("bash", [script, dir, sha, report], {encoding: "utf8"});
 
+/** A file whose first line breaks no-var, committed before the session starts. */
+const OLD_ERROR = "var a = 1;\nexport const b = a;\n";
+
+/**
+ * Make a scratch clone with src/js/old.js (and a test that covers it) committed,
+ * so the start commit already holds an old lint error.
+ * @returns {{dir: string, sha: string, file: string}} - The clone, the start commit and the file.
+ */
+function committedWithOldError() {
+    const dir = scratch();
+    const file = path.join(dir, "src/js/old.js");
+    fs.writeFileSync(file, OLD_ERROR);
+    fs.writeFileSync(path.join(dir, "test/unit/old.test.js"), "");
+    const git = args => run(dir, "git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+    git(["add", "."]);
+    git(["commit", "-q", "-m", "base"]);
+    return {dir, sha: git(["rev-parse", "HEAD"]).trim(), file};
+}
+
 after(() => {
     for (const dir of dirs) {
         fs.rmSync(dir, {recursive: true, force: true});
@@ -90,6 +109,31 @@ describe("the outside hook pass", () => {
         assert.equal(hooks(dir, sha, report).status, 1);
         assert.match(fs.readFileSync(report, "utf8"), /bin\/check src\/js\/Storage\.js/);
         assert.match(fs.readFileSync(report, "utf8"), /bin\/check --fix src\/js\/Storage\.js/);
+    });
+    test("an old lint error is not reported, a new one on another line is", () => {
+        const {dir, sha, file} = committedWithOldError();
+        fs.appendFileSync(file, "export const c = b == 1;\n");
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        const text = fs.readFileSync(report, "utf8");
+        assert.match(text, /3:\d+\s+error.*eqeqeq/);
+        assert.doesNotMatch(text, /no-var/);
+    });
+    test("a clean change to a file with an old lint error: empty report, exit 0", () => {
+        const {dir, sha, file} = committedWithOldError();
+        fs.writeFileSync(file, OLD_ERROR.replace("= a;", "= a + 1;"));
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 0);
+        assert.equal(fs.readFileSync(report, "utf8"), "");
+    });
+    test("formatting broken on a changed line is reported with the fix hint", () => {
+        const {dir, sha, file} = committedWithOldError();
+        fs.writeFileSync(file, OLD_ERROR.replace("= a;", "=   a;"));
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        const text = fs.readFileSync(report, "utf8");
+        assert.match(text, /prettier: FAILED/);
+        assert.match(text, /bin\/check --fix src\/js\/old\.js/);
     });
     test("a deleted tracked file is not listed and does not crash", () => {
         const dir = scratch();
@@ -142,6 +186,27 @@ describe("the outside hook pass", () => {
         const report = path.join(dir, "report.txt");
         assert.equal(hooks(dir, sha, report).status, 1);
         assert.match(fs.readFileSync(report, "utf8"), /summary comment/);
+    });
+    test("a merged-in lint error is not reported, the session's own commit still is (#89)", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        const git = args => run(dir, "git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        // CI checks out a detached HEAD, so name the session's branch before leaving it.
+        git(["switch", "-q", "-c", "session"]);
+        git(["switch", "-q", "-c", "side"]);
+        fs.writeFileSync(path.join(dir, "src/js/merged.js"), "window.x = 1\n");
+        git(["add", "."]);
+        git(["commit", "-q", "-m", "master's own work"]);
+        git(["switch", "-q", "session"]);
+        fs.writeFileSync(path.join(dir, "src/js/own.js"), "window.y = 1\n");
+        git(["add", "."]);
+        git(["commit", "-q", "-m", "the session's work"]);
+        git(["merge", "-q", "--no-ff", "-m", "merge master", "side"]);
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        const text = fs.readFileSync(report, "utf8");
+        assert.match(text, /src\/js\/own\.js/);
+        assert.doesNotMatch(text, /merged\.js/);
     });
     test("a failing git exits 2 with the error, not an empty report", () => {
         const dir = scratch();

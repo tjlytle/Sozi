@@ -30,13 +30,18 @@ has written:
 
 - `DIR/session`: the session id. `run` writes it before launching the agent, so
   a killed session still leaves its id.
-- `DIR/usage.json`: `{"tokensIn", "tokensOut", "costUsd", "turns", "status"}`
-  for the latest call only (the host sums per session). `status` is one of
-  `ok`, `error`, `rate-limited`, `budget`, `unsupported`.
+- `DIR/usage.json`: `{"tokensIn", "tokensOut", "costUsd", "turns", "status"}`,
+  the session's totals over every call of this OUT dir: tokens and turns summed
+  (a `resume` adds to the file it finds, a `run` starts from zero), cost and
+  status from the latest call. `status` is one of `ok`, `error`,
+  `rate-limited`, `auth`, `budget`, `unsupported`. `auth` means the call failed to
+  authenticate before any model call; the loop then starts nothing more as that
+  persona until its credentials change.
 
 Exit status: 0 when the session ended on its own, 64 on a bad call, 69 when the
 adapter is a stub (`status: unsupported`), 75 when rate-limited. Any other
-non-zero status is the agent CLI's own failure.
+non-zero status is the agent CLI's own failure. The loop parks an issue at once
+when its stage's harness is a stub, with a comment naming the harness.
 
 ## claude
 
@@ -47,8 +52,13 @@ stream to `DIR/stream.jsonl` and prints a readable log (`▶` for a tool call,
 `PIPELINE_SESSION_BUDGET_USD` is set and not `0`; `--plugin-dir` only when
 `PLUGIN_DIR` (default `/opt/gh-personas`) exists. `CLAUDE_BIN` overrides the
 binary; it is one word, a path, not a command with arguments (the tests use `test/fixtures/pipeline/fake-claude`). Usage comes from
-the last `result` event; `rate-limited` when its `subtype` or `error`, or its `result` when `is_error`,
-matches `rate limit|429|overloaded`, `budget` when `subtype` matches `budget`,
+the last `result` event of the call: its tokens and turns are per call and
+added up, its `total_cost_usd` is already the session's and taken as it is (a
+call with no result event keeps the previous cost); `rate-limited` when its `subtype` or `error`, or its `result` when `is_error`,
+matches `rate limit|429|overloaded`, `auth` (checked first) when the call made no
+model call (0 tokens) and its `result` or `error`, or the lines of the call that are
+not JSON when there is no result event, say `Failed to authenticate`,
+`authentication_error` or `401`, `budget` when `subtype` matches `budget`,
 `error` when `is_error` or there is no result event. An allow file with no rules omits
 `--allowedTools`; a missing one exits 64. The edit hook runs inside
 Claude Code, so no extra prompt text is needed.

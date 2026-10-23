@@ -18,13 +18,14 @@ request is about; read it first (`gh-as {PERSONA} issue view <n> -R tjlytle/Sozi
   never merge.
 - Questions do not stop the line. When the request leaves a choice open, take the better
   route, say which and why where you record your work, and file the alternative as an
-  `idea` issue.
+  `idea` issue only when it would be worth doing on its own.
 - A finding is a bug or an improvement you notice outside the request. File every finding
   as its own issue; never fix it here. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
   Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
   Under `Findings: triage` above, every finding gets `triage`.
-- Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
-  issue you are on; if it has none, write nothing.
+- Every issue you file ends with a `Part of #<backlog>` line, the Backlog epic of the Run
+  settings above (with none there, copy the `Part of` line of the issue you are on). Never
+  the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 
 Finish by writing `/outbox/req-note.json` with `{"note": "<one line on what you did>"}`.

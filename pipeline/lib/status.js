@@ -4,8 +4,10 @@
 
 // The --status report of the factory loop: the run, its sessions, and what waits.
 
-/** Describe the state for --status: the run, sessions, tries, waits, queues and dead
- * letters.
+import {loggedOutLines} from "./logins.js";
+
+/** Describe the state for --status: the run, sessions, tries, waits, queues, dead
+ * letters and logged-out personas.
  *
  * @param {any} state - The loop state.
  * @returns {string} - The report.
@@ -50,6 +52,7 @@ export function statusText(state) {
         lines.push(`  ${JSON.stringify(d.op)}: ${d.error}`);
     }
     lines.push(`queued spawns: ${(run.spawns ?? []).length}`);
+    lines.push(...loggedOutLines(state));
     return `${lines.join("\n")}\n`;
 }
 

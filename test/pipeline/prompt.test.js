@@ -31,6 +31,23 @@ describe("the run settings block", () => {
             /Findings: triage \(file every finding as its own issue with the triage label\)/
         );
     });
+    test("names the backlog epic when one is set, and only then", () => {
+        const b = loadConfig({root: "/nonexistent", env: {PIPELINE_BACKLOG: "172"}});
+        assert.match(
+            settingsBlock(b, {issue: 1, stage: "build", epic: 93, until: null}),
+            /- Backlog: #172 \(every issue you file goes here, not to the epic\)/
+        );
+        assert.doesNotMatch(
+            settingsBlock(s, {issue: 1, stage: "build", epic: 93, until: null}),
+            /Backlog:/
+        );
+    });
+    test("refuses a backlog that is not an issue number", () => {
+        assert.throws(
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_BACKLOG: "0"}}),
+            /PIPELINE_BACKLOG must be an issue number/
+        );
+    });
     test("renders a template with the block on top and {N} replaced", () => {
         const out = renderPrompt("Issue #{N} is yours.", s, {
             issue: 25,

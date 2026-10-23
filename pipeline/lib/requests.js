@@ -128,24 +128,162 @@ function labelList(value, what) {
 }
 
 /**
- * Check a label request on an issue other than the session's own: no stage label either
- * way, and no lifting it out of triage. Only the loop and a person move other issues.
+ * Check a label request against the moves only the loop makes: no stage label either way
+ * on any issue, since a stage moves only through done, and no lifting an issue other than
+ * the session's own out of triage.
  *
  * @param {number} target - The issue the request names.
  * @param {string[]} add - Labels to add.
  * @param {string[]} remove - Labels to remove.
+ * @param {boolean} own - Whether the target is the session's own issue.
  * @returns {void}
- * @throws {Error} When the request would move the other issue.
+ * @throws {Error} When the request would move an issue.
  */
-function otherIssueLabels(target, add, remove) {
+function labelRules(target, add, remove, own) {
     for (const label of [...add, ...remove]) {
         if (label.startsWith("stage:")) {
-            throw new Error(`label may not change ${label} on issue ${target}, not this session's`);
+            throw new Error(`label may not change ${label}; a stage moves through done`);
         }
     }
-    if (remove.includes("triage")) {
+    if (!own && remove.includes("triage")) {
         throw new Error(`label may not lift issue ${target} out of triage`);
     }
+}
+
+/**
+ * Check that a request body is an object.
+ *
+ * @param {string} kind - The request kind, for the error message.
+ * @param {unknown} body - The request body.
+ * @returns {Record<string, unknown>} The body.
+ * @throws {Error} When the body is not an object.
+ */
+function objectBody(kind, body) {
+    if (!isObject(body)) {
+        throw new Error(`${kind} must be an object`);
+    }
+    return body;
+}
+
+/**
+ * Check a note request.
+ *
+ * @param {unknown} body - The request body.
+ * @returns {NoteRequest} The normalised request.
+ * @throws {Error} When the note is not a non-empty string.
+ */
+function checkNote(body) {
+    if (typeof body !== "string" || body.trim() === "") {
+        throw new Error("note must be a non-empty string");
+    }
+    return {kind: "note", text: body};
+}
+
+/**
+ * Check a wait request; only a session that works on an issue may wait.
+ *
+ * @param {unknown} body - The request body.
+ * @param {number} issue - The session's issue, 0 when it has none.
+ * @returns {WaitRequest} The normalised request.
+ * @throws {Error} When the session has no issue or the reason is not a non-empty string.
+ */
+function checkWait(body, issue) {
+    if (issue === 0) {
+        throw new Error("wait needs a session that works on an issue");
+    }
+    if (typeof body !== "string" || body.trim() === "") {
+        throw new Error("wait must be a non-empty string: what a person is to do");
+    }
+    return {kind: "wait", reason: body};
+}
+
+/**
+ * Check a done request: it moves only the session's own issue, to an allowed target.
+ *
+ * @param {unknown} body - The request body.
+ * @param {number} issue - The session's issue.
+ * @returns {DoneRequest} The normalised request.
+ * @throws {Error} When the body, the issue or the target is not allowed.
+ */
+function checkDone(body, issue) {
+    const done = objectBody("done", body);
+    if (done.issue !== issue) {
+        throw new Error(
+            `done may only move this session's issue ${issue}, not issue ${done.issue}`
+        );
+    }
+    if (typeof done.to !== "string" || !DONE_TARGETS.includes(done.to)) {
+        throw new Error(`done target ${done.to} is not one of ${DONE_TARGETS.join(", ")}`);
+    }
+    return {kind: "done", issue, to: done.to};
+}
+
+/**
+ * Check a label request: known labels only, and none of the moves only the loop makes.
+ *
+ * @param {unknown} body - The request body.
+ * @param {number} issue - The session's issue.
+ * @returns {LabelRequest} The normalised request.
+ * @throws {Error} When the body, the issue or a label is not allowed.
+ */
+function checkLabel(body, issue) {
+    const request = objectBody("label", body);
+    if (!isIssue(request.issue)) {
+        throw new Error("label needs an issue number");
+    }
+    const add = labelList(request.add, "add");
+    const remove = labelList(request.remove, "remove");
+    for (const label of [...add, ...remove]) {
+        if (!LABELS.includes(label)) {
+            throw new Error(`label ${label} is not one the loop allows`);
+        }
+    }
+    for (const label of add) {
+        if (NEVER_ADDED.includes(label)) {
+            throw new Error(`label may not add ${label}`);
+        }
+    }
+    for (const label of remove) {
+        if (NEVER_REMOVED.includes(label)) {
+            throw new Error(`label may not remove ${label}`);
+        }
+    }
+    labelRules(request.issue, add, remove, request.issue === issue);
+    return {kind: "label", issue: request.issue, add, remove};
+}
+
+/**
+ * Check a spawn request: a known persona, a prompt, and optionally an issue and a harness.
+ *
+ * @param {unknown} body - The request body.
+ * @returns {SpawnRequest} The normalised request.
+ * @throws {Error} When the body or one of its fields is not allowed.
+ */
+function checkSpawn(body) {
+    const request = objectBody("spawn", body);
+    if (typeof request.persona !== "string" || !PERSONAS.includes(request.persona)) {
+        throw new Error(`spawn needs a persona, one of ${PERSONAS.join(", ")}`);
+    }
+    if (typeof request.prompt !== "string" || request.prompt.trim() === "") {
+        throw new Error("spawn needs a non-empty prompt");
+    }
+    /** @type {SpawnRequest} */
+    const spawn = {kind: "spawn", persona: request.persona, prompt: request.prompt};
+    if (request.issue !== undefined) {
+        if (!isIssue(request.issue)) {
+            throw new Error("spawn issue must be an issue number");
+        }
+        spawn.issue = request.issue;
+    }
+    if (request.harness !== undefined) {
+        if (typeof request.harness !== "string" || !HARNESSES.includes(request.harness)) {
+            throw new Error(
+                `spawn harness ${request.harness} is not one of ${HARNESSES.join(", ")}`
+            );
+        }
+        spawn.harness = request.harness;
+    }
+    return spawn;
 }
 
 /**
@@ -166,89 +304,20 @@ export function validateRequest(obj, {issue}) {
     }
     const kind = keys[0];
     const body = obj[kind];
-
-    if (kind === "note") {
-        if (typeof body !== "string" || body.trim() === "") {
-            throw new Error("note must be a non-empty string");
-        }
-        return {kind: "note", text: body};
+    switch (kind) {
+        case "note":
+            return checkNote(body);
+        case "wait":
+            return checkWait(body, issue);
+        case "done":
+            return checkDone(body, issue);
+        case "label":
+            return checkLabel(body, issue);
+        case "spawn":
+            return checkSpawn(body);
+        default:
+            throw new Error(`unknown request kind ${kind}`);
     }
-    if (kind === "wait") {
-        if (issue === 0) {
-            throw new Error("wait needs a session that works on an issue");
-        }
-        if (typeof body !== "string" || body.trim() === "") {
-            throw new Error("wait must be a non-empty string: what a person is to do");
-        }
-        return {kind: "wait", reason: body};
-    }
-    if (!["done", "label", "spawn"].includes(kind)) {
-        throw new Error(`unknown request kind ${kind}`);
-    }
-    if (!isObject(body)) {
-        throw new Error(`${kind} must be an object`);
-    }
-
-    if (kind === "done") {
-        if (body.issue !== issue) {
-            throw new Error(
-                `done may only move this session's issue ${issue}, not issue ${body.issue}`
-            );
-        }
-        if (typeof body.to !== "string" || !DONE_TARGETS.includes(body.to)) {
-            throw new Error(`done target ${body.to} is not one of ${DONE_TARGETS.join(", ")}`);
-        }
-        return {kind: "done", issue, to: body.to};
-    }
-
-    if (kind === "label") {
-        if (!isIssue(body.issue)) {
-            throw new Error("label needs an issue number");
-        }
-        const add = labelList(body.add, "add");
-        const remove = labelList(body.remove, "remove");
-        for (const label of [...add, ...remove]) {
-            if (!LABELS.includes(label)) {
-                throw new Error(`label ${label} is not one the loop allows`);
-            }
-        }
-        for (const label of add) {
-            if (NEVER_ADDED.includes(label)) {
-                throw new Error(`label may not add ${label}`);
-            }
-        }
-        for (const label of remove) {
-            if (NEVER_REMOVED.includes(label)) {
-                throw new Error(`label may not remove ${label}`);
-            }
-        }
-        if (body.issue !== issue) {
-            otherIssueLabels(body.issue, add, remove);
-        }
-        return {kind: "label", issue: body.issue, add, remove};
-    }
-
-    if (typeof body.persona !== "string" || !PERSONAS.includes(body.persona)) {
-        throw new Error(`spawn needs a persona, one of ${PERSONAS.join(", ")}`);
-    }
-    if (typeof body.prompt !== "string" || body.prompt.trim() === "") {
-        throw new Error("spawn needs a non-empty prompt");
-    }
-    /** @type {SpawnRequest} */
-    const spawn = {kind: "spawn", persona: body.persona, prompt: body.prompt};
-    if (body.issue !== undefined) {
-        if (!isIssue(body.issue)) {
-            throw new Error("spawn issue must be an issue number");
-        }
-        spawn.issue = body.issue;
-    }
-    if (body.harness !== undefined) {
-        if (typeof body.harness !== "string" || !HARNESSES.includes(body.harness)) {
-            throw new Error(`spawn harness ${body.harness} is not one of ${HARNESSES.join(", ")}`);
-        }
-        spawn.harness = body.harness;
-    }
-    return spawn;
 }
 
 /**

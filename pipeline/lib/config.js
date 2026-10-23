@@ -38,7 +38,8 @@ const DEFAULTS = {
     PIPELINE_CPUS: "0",
     PIPELINE_BOARD_FULL_EVERY: "12",
     PIPELINE_PROFILES: "auto",
-    PIPELINE_PER_PERSONA: "1"
+    PIPELINE_PER_PERSONA: "1",
+    PIPELINE_BACKLOG: ""
 };
 
 const CHOICES = {
@@ -121,14 +122,46 @@ function secretsOf(layers) {
     return out;
 }
 
+/** Settings the loop reads once at start; a change waits for a restart. */
+const START_ONLY = ["PIPELINE_REPO", "PIPELINE_MINT_PORT"];
+
+/** The keys whose value differs between two records, those of `after` first.
+ *
+ * @param {Record<string, string>} before - The old values.
+ * @param {Record<string, string>} after - The new values.
+ * @returns {string[]} - The keys changed, added or removed.
+ */
+function changedKeys(before, after) {
+    const keys = new Set([...Object.keys(after), ...Object.keys(before)]);
+    return [...keys].filter(key => before[key] !== after[key]);
+}
+
+/** The log lines for what changed between two loads: each setting as `name: old -> new`,
+ * each secret by name only.
+ *
+ * @param {{values: Record<string, string>, secrets: Record<string, string>}} before - The old settings.
+ * @param {{values: Record<string, string>, secrets: Record<string, string>}} after - The new settings.
+ * @returns {string[]} - The lines; empty when nothing changed.
+ */
+export function changedSettings(before, after) {
+    const shown = (/** @type {string | undefined} */ value) => value ?? "(unset)";
+    const settings = changedKeys(before.values, after.values).map(key => {
+        const restart = START_ONLY.includes(key) ? " (takes effect at restart)" : "";
+        return `setting ${key}: ${shown(before.values[key])} -> ${shown(after.values[key])}${restart}`;
+    });
+    const secrets = changedKeys(before.secrets, after.secrets).map(key => `secret ${key} changed`);
+    return [...settings, ...secrets];
+}
+
 /** Loads the settings.
  *
  * @param {object} options - The sources.
  * @param {string} options.root - The repository root, where the settings files live.
  * @param {Record<string, string | undefined>} options.env - The environment.
  * @param {Record<string, string>[]} [options.files] - Parsed settings files, lowest precedence first; read from root when absent.
- * @returns {object} - The settings; `secrets` holds the file keys the loop passes on by
- *     name (credentials such as CLAUDE_CODE_OAUTH_TOKEN), never logged.
+ * @returns {object} - The settings; `values` holds the effective raw string of every
+ *     PIPELINE_ setting that is not a secret; `secrets` holds the file keys the loop passes
+ *     on by name (credentials such as CLAUDE_CODE_OAUTH_TOKEN), never logged.
  * @throws {Error} - When a value is invalid; the message names the key.
  */
 export function loadConfig({root, env, files}) {
@@ -146,6 +179,9 @@ export function loadConfig({root, env, files}) {
         if (!allowed.includes(raw[key])) {
             throw new Error(`${key} must be one of ${allowed.join("|")}, not "${raw[key]}"`);
         }
+    }
+    if (!/^([1-9]\d*)?$/.test(raw.PIPELINE_BACKLOG)) {
+        throw new Error(`PIPELINE_BACKLOG must be an issue number, not "${raw.PIPELINE_BACKLOG}"`);
     }
     for (const key of NUMBERS) {
         if (!/^\d+$/.test(raw[key])) {
@@ -208,6 +244,7 @@ export function loadConfig({root, env, files}) {
         boardFullEvery: num("PIPELINE_BOARD_FULL_EVERY"),
         profiles: raw.PIPELINE_PROFILES,
         perPersona: num("PIPELINE_PER_PERSONA"),
+        backlog: raw.PIPELINE_BACKLOG ? Number(raw.PIPELINE_BACKLOG) : null,
         /** The MCP servers a persona's profile may hold.
          *
          * @param {string} persona - The persona name.
@@ -218,6 +255,11 @@ export function loadConfig({root, env, files}) {
                 .split(",")
                 .map(name => name.trim())
                 .filter(name => name !== ""),
+        values: Object.fromEntries(
+            Object.entries(raw).filter(
+                ([key]) => key.startsWith("PIPELINE_") && !SECRET_SETTINGS.test(key)
+            )
+        ),
         secrets: secretsOf(layers)
     };
 }

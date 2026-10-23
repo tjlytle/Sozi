@@ -13,8 +13,10 @@
 //
 // Environment: NOTION_TOKEN (an integration token), PIPELINE_NOTION_PARENT (the page the
 // run pages go under) and PIPELINE_NOTION_PAGE (the default for --page). `start` prints
-// the new page id on stdout; `add` and `finish` print nothing. A missing option or token
-// prints a message on stderr and exits 1; any other subcommand prints this usage and exits 2.
+// the new page id on stdout; `add` and `finish` print nothing. A page id (--parent, --page
+// and their variables) may be the page URL, its `Title-<id>` slug, the bare 32 hex digits or
+// the dashed UUID. A missing option or token, or a page id with no 32 hex digits, prints a
+// message on stderr and exits 1; any other subcommand prints this usage and exits 2.
 
 import {parseArgs} from "node:util";
 import {pathToFileURL} from "node:url";
@@ -45,6 +47,25 @@ export function runs(text, {link} = {}) {
         parts.push({text: parts.length === 0 && link ? {content, link: {url: link}} : {content}});
     }
     return parts;
+}
+
+/** The Notion page id in a value pasted from Notion: the page URL, its `Title-<id>` slug,
+ * the bare 32 hex digits or the dashed UUID. The query and fragment are ignored, so a
+ * `?v=<view id>` does not win; the id is the last 32 digits of the last hex run.
+ *
+ * @param {string} value - The value as given.
+ * @param {string} name - The setting it came from, for the error.
+ * @returns {string} - The id as 32 lower-case hex digits.
+ */
+export function pageId(value, name) {
+    const hex = value
+        .split(/[?#]/)[0]
+        .replaceAll("-", "")
+        .match(/[0-9a-f]{32,}/gi);
+    if (!hex) {
+        throw new Error(`${name} has no Notion page id: ${JSON.stringify(value)}`);
+    }
+    return hex[hex.length - 1].slice(-32).toLowerCase();
 }
 
 /** The body of the request that creates a run page.
@@ -229,9 +250,10 @@ export async function main(argv, {env = process.env, fetch: doFetch = fetch, out
         const call = {token, fetch: doFetch};
         if (command === "start") {
             const title = need(opt.title, "--title");
-            const parent = need(
-                opt.parent ?? env.PIPELINE_NOTION_PARENT,
-                "--parent or PIPELINE_NOTION_PARENT"
+            const parentName = "--parent or PIPELINE_NOTION_PARENT";
+            const parent = pageId(
+                need(opt.parent ?? env.PIPELINE_NOTION_PARENT, parentName),
+                parentName
             );
             const page = await notion("POST", "/pages", pageRequest({title, parent}), call);
             if (!page?.id) {
@@ -240,10 +262,8 @@ export async function main(argv, {env = process.env, fetch: doFetch = fetch, out
             write(`${page.id}\n`);
             return 0;
         }
-        const page = need(opt.page ?? env.PIPELINE_NOTION_PAGE, "--page or PIPELINE_NOTION_PAGE");
-        if (/[/?#\s]/.test(page)) {
-            throw new Error(`invalid page id: ${JSON.stringify(page)}`);
-        }
+        const pageName = "--page or PIPELINE_NOTION_PAGE";
+        const page = pageId(need(opt.page ?? env.PIPELINE_NOTION_PAGE, pageName), pageName);
         const children =
             command === "add"
                 ? entryBlocks({

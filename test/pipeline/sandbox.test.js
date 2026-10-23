@@ -276,8 +276,7 @@ describe("sandbox", () => {
             "-v",
             `${QA}:/profile`,
             settings.image,
-            "-c",
-            "cp -a /from/. /profile/"
+            "/pipeline/profile-copy.sh"
         ]);
         assert.equal(cmds.length, 4);
     });
@@ -324,7 +323,7 @@ describe("sandbox", () => {
         });
         await sb3.inspectProfile("builder").catch(() => null);
         await sb3.copyProfile({from: "builder", to: "qa"});
-        const copy = cmds.find(c => c[1] === "run" && c.includes("-c")) ?? [];
+        const copy = cmds.find(c => c[1] === "run" && c.includes(`${QA}:/profile`)) ?? [];
         const login = sb3.loginArgs({persona: "qa", harness: "claude"});
         for (const [what, args] of Object.entries({login, inspect, copy})) {
             const next = args[args.indexOf(settings.image) + 1];

@@ -37,9 +37,11 @@ async function bridgeAddress(run) {
     return r.code === 0 && /^[\d.]+$/.test(address) ? address : BRIDGE_FALLBACK;
 }
 
-/** Open the run: the mint endpoint containers fetch tokens from, and the Notion page.
+/** Open the run: the mint endpoint containers fetch tokens from, and the Notion page. A
+ * restart forgets which personas were logged out: the environment's token may have
+ * changed with it.
  *
- * @param {any} state - The loop state; gets mintKey, mintUrl and notionPage.
+ * @param {any} state - The loop state; gets mintKey, mintUrl and notionPage, loses loggedOut.
  * @param {any} settings - The settings.
  * @param {Record<string, string|undefined>} env - The environment, with the secrets.
  * @param {(line: string) => void} log - The log.
@@ -47,6 +49,7 @@ async function bridgeAddress(run) {
  * @returns {Promise<{close: () => Promise<void>}>} - The mint endpoint.
  */
 export async function openRun(state, settings, env, log, deps) {
+    state.run.loggedOut = {};
     const adopting =
         Object.values(state.issues).some((/** @type {any} */ r) => r.session) ||
         (state.run.sessions ?? []).length > 0;
@@ -111,20 +114,22 @@ async function buildLinks(settings, root, run) {
  * @param {Record<string, string|undefined>} options.env - The environment, with the secrets.
  * @param {(line: string) => void} options.log - The log.
  * @param {RunDeps} options.deps - The outside world.
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} - Whether the run is finished: the summary was posted, or
+ *     there was no page to post to.
  */
 export async function finishDigest({state, reason, settings, root, env, log, deps}) {
     if (!state.run.notionPage || !env.NOTION_TOKEN) {
         log("digest: no page for this run");
-        return;
+        return true;
     }
     const cost = Number(state.run.costUsd).toFixed(2);
     const summary = `Stopped: ${reason}. ${state.run.tokens} tokens, $${cost}.`;
     const links = await buildLinks(settings, root, deps.run);
-    await (deps.digest ?? digestMain)(["finish", "--summary", summary, ...links], {
+    const code = await (deps.digest ?? digestMain)(["finish", "--summary", summary, ...links], {
         env: {...env, PIPELINE_NOTION_PAGE: state.run.notionPage},
         err: log
     });
+    return code === 0;
 }
 
 /** The digest the pass adds notes to: a plain paragraph on the run's page, no checkbox.

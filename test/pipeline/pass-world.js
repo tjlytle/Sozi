@@ -23,16 +23,18 @@ export function loggedIn() {
 /**
  * A pass over fakes.
  *
- * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void}} [options] - The world.
+ * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void, configRoot?: string, reload?: () => void}} [options] - The world; configRoot is where the settings files are read.
  * @returns {any} - The pass, the state, the recorded calls and the fakes.
  */
 export function world({
     issues = [],
     now = Date.parse("2026-10-21T19:00:00Z"),
     env = {},
-    save = () => {}
+    save = () => {},
+    configRoot = "/nonexistent",
+    reload
 } = {}) {
-    const settings = loadConfig({root: "/nonexistent", env});
+    const settings = loadConfig({root: configRoot, env});
     const state = emptyState();
     state.run.started = new Date(now).toISOString();
     for (const i of issues) {
@@ -61,7 +63,10 @@ export function world({
         planComment: async () => null,
         lastCommentIsHuman: async () => false,
         lastHumanCommentAt: async () => /** @type {string | null} */ (null),
-        openPrFor: async () => null
+        openPrFor: async () => null,
+        parentOf: async () => /** @type {number | null} */ (null),
+        linkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["linkSubIssue", ...a]),
+        unlinkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["unlinkSubIssue", ...a])
     };
     const sandbox = {
         refreshMirror: async () => {},
@@ -103,7 +108,8 @@ export function world({
         clock,
         env,
         log: line => logs.push(line),
-        save: () => save(state)
+        save: () => save(state),
+        reload
     });
     return {
         p,

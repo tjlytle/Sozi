@@ -15,12 +15,13 @@
 //   node bin/pipeline.js --login <persona> [--harness claude|codex|agy|opencode]
 //                                       log a persona in inside a container
 //   node bin/pipeline.js --copy-profile <from> <to>
-//                                       copy one persona's profile to another
+//                                       copy one persona's profile, without its login, to another
 //   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
-// lives in var/pipeline/state.json. Ctrl-C saves the state and leaves running containers
-// to finish; the next start adopts them.
+// lives in var/pipeline/state.json. A first Ctrl-C or SIGTERM starts nothing more and waits,
+// the mint still up, until every running session has ended and been judged. A second one
+// saves the state and leaves the sessions running; the next start adopts them.
 
 import {spawnSync} from "node:child_process";
 import path from "node:path";
@@ -29,9 +30,10 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 import {loadConfig} from "../pipeline/lib/config.js";
 import {createGithub, defaultRun} from "../pipeline/lib/github.js";
 import {startMint} from "../pipeline/lib/mint.js";
-import {createControl, drain, watch} from "../pipeline/lib/loop.js";
+import {createControl, drain, hookSignals, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
 import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
+import {SettingsWatch} from "../pipeline/lib/settings-watch.js";
 import {PERSONAS} from "../pipeline/lib/profile.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
@@ -45,7 +47,7 @@ const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
     "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]",
     "       node bin/pipeline.js --login <persona> [--harness claude|codex|agy|opencode]   log a persona in inside a container",
-    "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile to another"
+    "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile, without its login, to another"
 ];
 
 /**
@@ -58,7 +60,8 @@ const USAGE = [
  * @property {any} [board] - The board; the real one when absent.
  * @property {any} [sandbox] - The sandbox; the real one when absent.
  * @property {((seconds: number) => Promise<void>) | undefined} sleep - A wait instead of a timer.
- * @property {(handler: () => void) => () => void} onSignal - Hooks Ctrl-C; returns the unhook.
+ * @property {(handler: (signal: string) => void) => () => void} onSignal - Hooks SIGINT and SIGTERM; returns the unhook.
+ * @property {() => number} now - The clock, in milliseconds.
  * @property {(code: number) => void} exit - Ends the process.
  */
 
@@ -69,10 +72,8 @@ const DEFAULT_DEPS = {
     startMint,
     digest: digestMain,
     sleep: undefined,
-    onSignal: handler => {
-        process.on("SIGINT", handler);
-        return () => void process.off("SIGINT", handler);
-    },
+    onSignal: handler => hookSignals(handler),
+    now: () => Date.now(),
     exit: code => process.exit(code)
 };
 
@@ -101,7 +102,8 @@ export function parseUntil(text, now) {
     throw new Error(`--until takes 6h, 90m or HH:MM, not ${JSON.stringify(text)}`);
 }
 
-/** Load the state, starting a new run when the last one stopped.
+/** Load the state, starting a new run when the last one stopped. The new run keeps what
+ * is still alive: spawned sessions, queued spawns and the mint key the sessions hold.
  *
  * @param {string} file - The state file.
  * @param {Date} now - The current time.
@@ -110,7 +112,14 @@ export function parseUntil(text, now) {
 function openState(file, now) {
     const state = loadState(file);
     if (!state.run.started || state.run.stopped) {
-        state.run = {...emptyState().run, started: now.toISOString()};
+        const {sessions, spawns, mintKey} = state.run;
+        state.run = {
+            ...emptyState().run,
+            started: now.toISOString(),
+            sessions,
+            spawns,
+            mintKey: mintKey ?? null
+        };
     }
     return state;
 }
@@ -188,34 +197,57 @@ async function inspectAll(sandbox) {
     );
 }
 
-/** Build the pass over the real GitHub, board, digest and clock.
+/** Build the pass over the real GitHub, board, digest and clock, rereading the settings files
+ * before each pass.
  *
  * @param {object} parts - The run's parts.
  * @param {any} parts.state - The loop state.
- * @param {any} parts.settings - The settings.
+ * @param {any} parts.settings - The settings, updated in place when the files change.
  * @param {any} parts.sandbox - The sandbox.
- * @param {Record<string, string|undefined>} parts.env - The environment.
+ * @param {Record<string, string|undefined>} parts.runEnv - The sessions' environment, updated in place when the secrets change.
+ * @param {Record<string, string|undefined>} parts.configEnv - The environment the settings were loaded with.
  * @param {string} parts.root - The repository root.
  * @param {(line: string) => void} parts.log - The log.
  * @param {() => void} parts.save - Writes the state.
  * @param {Deps} parts.deps - The outside world.
  * @returns {{pass: (options?: {start?: boolean}) => Promise<any>}} - The pass.
  */
-function loopPass({state, settings, sandbox, env, root, log, save, deps}) {
+function loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps}) {
     const ctx = {repo: settings.repo, run: deps.run, out: log, err: log};
+    const settingsWatch = new SettingsWatch({root, env: configEnv, settings, runEnv, log});
     return createPass({
         settings,
         state,
         github: deps.github ?? createGithub({repo: settings.repo}),
         sandbox,
         board: deps.board ?? {sync: options => boardSync(options, ctx)},
-        digest: noteDigest(state, env),
+        digest: noteDigest(state, runEnv),
         clock: {now: () => Date.now()},
-        env,
+        env: runEnv,
         log,
         root,
-        save
+        save,
+        reload: () => settingsWatch.refresh()
     });
+}
+
+/** Finish the run by hand: post its closing summary and mark it stopped, so the next start
+ * opens a new run. A run already finished posts nothing; a failed post leaves it open.
+ *
+ * @param {string} file - The state file.
+ * @param {Omit<Parameters<typeof finishDigest>[0], "state" | "reason">} options - The run.
+ * @returns {Promise<void>}
+ */
+async function digestByHand(file, options) {
+    const state = loadState(file);
+    if (state.run.stopped) {
+        options.log("digest: this run is already finished");
+        return;
+    }
+    if (await finishDigest({...options, state, reason: "finished by hand"})) {
+        state.run.stopped = true;
+        saveState(file, state);
+    }
 }
 
 /** Run the command line.
@@ -245,16 +277,12 @@ export async function main(
      * @returns {void}
      */
     const log = line => write(`${new Date().toISOString().slice(11, 19)} ${line}\n`);
-    let opt, target, settings;
+    let opt, target, settings, configEnv;
     try {
         ({opt, target} = parseCommand(argv));
-        settings = loadConfig({
-            root,
-            env:
-                opt.harness && opt.login === undefined
-                    ? {...env, PIPELINE_HARNESS: opt.harness}
-                    : env
-        });
+        configEnv =
+            opt.harness && opt.login === undefined ? {...env, PIPELINE_HARNESS: opt.harness} : env;
+        settings = loadConfig({root, env: configEnv});
         opt.until = opt.until ? parseUntil(opt.until, new Date()).toISOString() : null;
     } catch (error) {
         writeErr(
@@ -273,19 +301,12 @@ export async function main(
             runInteractive: deps.runInteractive,
             env: runEnv
         });
-    if (opt.status || opt.digest) {
-        const state = loadState(file);
-        await (opt.status
-            ? write(statusText(state) + profilesText(await inspectAll(sandbox)))
-            : finishDigest({
-                  state,
-                  reason: "finished by hand",
-                  settings,
-                  root,
-                  env: runEnv,
-                  log,
-                  deps
-              }));
+    if (opt.status) {
+        write(statusText(loadState(file)) + profilesText(await inspectAll(sandbox)));
+        return 0;
+    }
+    if (opt.digest) {
+        await digestByHand(file, {settings, root, env: runEnv, log, deps});
         return 0;
     }
     if (opt["build-image"]) {
@@ -304,6 +325,9 @@ export async function main(
             writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
             return 1;
         }
+        write(
+            `copied ${from} to ${to} without the Claude login: run npm run pipeline -- --login ${to} once\n`
+        );
         return 0;
     }
 
@@ -315,8 +339,15 @@ export async function main(
     const save = () => saveState(file, state);
     const mint = await openRun(state, settings, runEnv, log, deps);
     save();
-    const {pass} = loopPass({state, settings, sandbox, env: runEnv, root, log, save, deps});
-    const control = createControl({sleep: deps.sleep, save, exit: deps.exit, log});
+    const {pass} = loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps});
+    const control = createControl({
+        sleep: deps.sleep,
+        save,
+        exit: deps.exit,
+        log,
+        state,
+        now: deps.now
+    });
     const unhook = deps.onSignal(() => control.interrupt());
     let code = 0;
     try {

@@ -543,7 +543,10 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
     return {failed};
 }
 
-/** Record the board item of an issue in the state, if it is not there already.
+/** Record the board item of an issue the state already holds, if it is not there already.
+ * An issue the state has not read yet is left out: a record made here would hold only the
+ * item, and the loop reads every record as a whole issue. The next issue sync reads it in
+ * full and its next board sync finds the item again.
  *
  * @param {any} local - The state as last read.
  * @param {(change: (b: any) => void) => void} save - Writes a change to the state.
@@ -556,7 +559,9 @@ function remember(local, save, n, id) {
         return;
     }
     save(b => {
-        b.issues ??= {};
+        if (!b.issues?.[n]) {
+            return;
+        }
         b.issues[n] = {...b.issues[n], board: {item: id}};
     });
 }

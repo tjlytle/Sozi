@@ -39,7 +39,10 @@ and filled as `factory`, so no layer re-owns it.
 `/profile` is the mount point of a persona's profile volume (`sozi-factory-profile-<persona>`,
 one per persona, created by `--login` or `--copy-profile`). The image creates it owned by
 `factory`, so an image built before profiles existed lacks a writable `/profile`; rebuild it.
-`/pipeline/profile-inspect.sh` and `/pipeline/login.sh` live in the image.
+`/pipeline/profile-inspect.sh`, `/pipeline/login.sh` and `/pipeline/profile-copy.sh` live in
+the image. `profile-copy.sh` leaves the Claude login out of a copy, since copies of one login
+share a refresh token and the first refresh breaks the rest; each persona logs in once on its
+own with `--login <persona>`.
 
 Electron and Playwright Chromium cannot start their own sandboxes under Docker's default
 seccomp profile (verified 2026-10-22: Electron aborts with "Failed to move to new namespace"

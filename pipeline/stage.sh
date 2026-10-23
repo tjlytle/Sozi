@@ -4,17 +4,20 @@
 # Clones the repo, runs the harness adapter on the stage prompt, runs the
 # repository's edit-hook checks from the outside (hooks-outside.sh) and resumes
 # the session with what they find, then writes result.json for the host. The
-# host reads result.json, never this script's exit status. result.json is also
-# written on an early failure and on SIGTERM/SIGINT (docker stop). Its hooks field
-# is ok when the outside checks ran, error when they crashed, skipped when they never
-# ran (an early failure, a failing harness, no session file).
+# checks run again after every resume, the last one included; PIPELINE_MAX_RESUMES
+# caps the resumes, not the checks, so 0 still checks once. The host reads
+# result.json, never this script's exit status. result.json is also written on an
+# early failure and on SIGTERM/SIGINT (docker stop). Its hooks field is ok when the
+# outside checks ran, error when they crashed, skipped when they never ran (an early
+# failure, a failing harness, no session file).
 #
 # Usage: pipeline/stage.sh <issue> <stage>   (the container's main process)
 #
 # Env read: PIPELINE_REPO, PIPELINE_HARNESS, PIPELINE_MODEL (required);
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
 # MIRROR (/mirror), OUTBOX (/outbox), WORK (/work), CACHE (/cache),
-# HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh);
+# HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh),
+# CHANGED_FILES (/pipeline/changed-files.sh);
 # XVFB_BIN (Xvfb), DISPLAY_NUM (99), X11_DIR (/tmp/.X11-unix) for the session display;
 # PROFILE (/profile) and AGY_HOME_LINK ($HOME/.gemini) for the agy login.
 # The adapter reads its own credentials and PIPELINE_SESSION_BUDGET_USD. No
@@ -25,6 +28,7 @@ issue="$1"
 MIRROR="${MIRROR:-/mirror}"; OUTBOX="${OUTBOX:-/outbox}"; WORK="${WORK:-/work}"
 CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"
+CHANGED_FILES="${CHANGED_FILES:-/pipeline/changed-files.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
 XVFB_BIN="${XVFB_BIN:-Xvfb}"; DISPLAY_NUM="${DISPLAY_NUM:-99}"; X11_DIR="${X11_DIR:-/tmp/.X11-unix}"
 PROFILE="${PROFILE:-/profile}"; AGY_HOME_LINK="${AGY_HOME_LINK:-$HOME/.gemini}"
@@ -32,12 +36,10 @@ start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""; xvfb_pid=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
-# Files changed since the start commit (tracked and untracked), one per line.
+# Files the session changed since the start commit (changed-files.sh), one per line.
 changed_files() {
     [ -n "$start" ] || return 0
-    { git -C "$WORK" -c core.quotePath=false diff --name-only "$start"
-      git -C "$WORK" -c core.quotePath=false ls-files --others --exclude-standard; } |
-        sort -u | while IFS= read -r f; do [ -f "$WORK/$f" ] && printf '%s\n' "$f"; done
+    "$CHANGED_FILES" "$WORK" "$start"
     return 0
 }
 
@@ -47,7 +49,8 @@ to_array() {
     else node -e 'const l=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);console.log(JSON.stringify(l))'; fi
 }
 
-# Write result.json from whatever state exists; runs on every exit.
+# Write result.json from whatever state exists; runs on every exit. Its commits are the
+# session's own: first parents only, no merge commits, so a merge of master adds none.
 write_result() {
     local sfile=/dev/null usage changed commits out="$OUTBOX/result.json"
     [ -s "$OUTBOX/session" ] && sfile="$OUTBOX/session"
@@ -55,7 +58,8 @@ write_result() {
     [ -s "$OUTBOX/usage.json" ] && usage=$(cat "$OUTBOX/usage.json")
     changed=$(changed_files | to_array)
     commits='[]'
-    [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline "$start..HEAD" 2>/dev/null | to_array)
+    [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline --first-parent --no-merges \
+        "$start..HEAD" 2>/dev/null | to_array)
     if command -v jq >/dev/null && echo "$usage" | jq -e . >/dev/null 2>&1; then
         jq -n --argjson exit "$harness_exit" --rawfile session "$sfile" --argjson usage "$usage" \
             --argjson changed "$changed" --argjson commits "$commits" --argjson resumes "$resumes" \
@@ -134,7 +138,7 @@ resume_loop() {
         step "no session file"
         return
     fi
-    while [ "$resumes" -lt "$max_resumes" ] && [ "$harness_exit" -eq 0 ]; do
+    while [ "$harness_exit" -eq 0 ]; do
         step hooks
         report="$OUTBOX/report-$resumes.txt"
         "$HOOKS_OUTSIDE" "$WORK" "$start" "$report"
@@ -148,6 +152,7 @@ resume_loop() {
         [ -s "$report" ] || break
         [ "$(cat "$report")" = "$last" ] && break
         last=$(cat "$report")
+        [ "$resumes" -ge "$max_resumes" ] && break
         resumes=$((resumes + 1))
         step resume
         harness resume --session "$(cat "$OUTBOX/session")" --message "$report"

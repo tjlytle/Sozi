@@ -76,7 +76,7 @@ export function profileArgs(persona) {
  * What a persona profile holds; names and booleans only, never a value.
  *
  * @typedef {object} ProfileInfo
- * @property {{present: boolean, loggedIn: boolean, servers: string[]}} claude - The Claude Code profile.
+ * @property {{present: boolean, loggedIn: boolean, servers: string[], updated?: string | null}} claude - The Claude Code profile; updated is when its credentials last changed.
  * @property {{present: boolean, loggedIn: boolean, servers?: string[]}} codex - The Codex profile.
  * @property {{present: boolean, loggedIn: boolean, servers?: string[]}} [agy] - The Antigravity profile (~/.gemini).
  * @property {boolean} writable - Whether the profile directory is writable.

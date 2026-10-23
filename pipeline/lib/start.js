@@ -2,13 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Starting sessions: queued spawn requests first, then due issues, while a slot is free
-// and the persona has one. Each session gets a rendered prompt in a fresh outbox and a
+// Starting sessions: queued spawn requests first, then due issues, the least-busy persona
+// first, while a slot is free and the persona has one. Each session gets a rendered prompt in a fresh outbox and a
 // container, with its persona's profile mounted when the profile passes its checks.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import {stillLoggedOut} from "./logins.js";
 import {checkAllowlist, personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
 import {ceiling, dueIssues, promptFor, scope} from "./state.js";
@@ -17,7 +18,7 @@ import {moveStage, writeLabel} from "./sync.js";
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
  * @typedef {{persona: string, prompt: string, issue: number | null, harness: string | null}} Spawn
- * @typedef {{profile: boolean} | {refused: string}} ProfileVerdict
+ * @typedef {{profile: boolean, updated: string | null} | {refused: string}} ProfileVerdict
  */
 
 /**
@@ -73,7 +74,8 @@ function atPersonaLimit(ctx, persona) {
 }
 
 /**
- * Judge a persona's profile: mount it, start without one, or refuse the start.
+ * Judge a persona's profile: mount it, start without one, or refuse the start. A verdict
+ * to start carries when the profile's credentials last changed, when known.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {string} persona - The persona.
@@ -83,7 +85,7 @@ function atPersonaLimit(ctx, persona) {
 async function judgeProfile(ctx, persona, harness) {
     const {settings, sandbox, env} = ctx;
     if (settings.profiles === "off") {
-        return {profile: false};
+        return {profile: false, updated: null};
     }
     /** @type {import("./profile.js").ProfileInfo | null} */
     const info = await sandbox.inspectProfile(persona);
@@ -91,7 +93,7 @@ async function judgeProfile(ctx, persona, harness) {
     if (info === null) {
         // Only Claude has a token that stands in for a profile.
         if (harness === "claude" && (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY)) {
-            return {profile: false};
+            return {profile: false, updated: null};
         }
         return {refused: `no profile for ${persona}: run ${login}`};
     }
@@ -108,7 +110,7 @@ async function judgeProfile(ctx, persona, harness) {
             refused: `profile of ${persona} holds MCP servers not allowed: ${extra.join(", ")}`
         };
     }
-    return {profile: true};
+    return {profile: true, updated: info.claude.updated ?? null};
 }
 
 /**
@@ -258,7 +260,9 @@ async function startIssue(ctx, n, {persona, profile}) {
 }
 
 /**
- * The next issue to start: due, in scope, not tried this pass, the only one when set.
+ * The next issue to start: due, in scope, not tried this pass, the only one when set. Of
+ * those, the one whose persona has the fewest sessions running now; on a tie, the lowest
+ * number.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {number | undefined} The issue number.
@@ -266,17 +270,28 @@ async function startIssue(ctx, n, {persona, profile}) {
 function nextIssue(ctx) {
     const {state} = ctx;
     const scoped = state.run.epic ? new Set(scope(state, {epic: state.run.epic})) : null;
-    return dueIssues(state, ctx.settings, new Date(ctx.clock.now())).find(
+    const due = dueIssues(state, ctx.settings, new Date(ctx.clock.now())).filter(
         n =>
             !ctx.tried.has(n) &&
             (!scoped || scoped.has(n)) &&
             (state.run.only === null || n === state.run.only)
     );
+    let next;
+    let fewest = Infinity;
+    // dueIssues sorts by number, so a strict < keeps the lowest number on a tie.
+    for (const n of due) {
+        const count = runningFor(ctx, personaFor(stageOfIssue(state.issues[n])));
+        if (count < fewest) {
+            next = n;
+            fewest = count;
+        }
+    }
+    return next;
 }
 
 /**
- * Try the queued spawn at an index: it stays queued while its persona is at its limit,
- * and is dropped when its profile is refused or it cannot start.
+ * Try the queued spawn at an index: it stays queued while its persona is at its limit or
+ * logged out, and is dropped when its profile is refused or it cannot start.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} index - The index of the spawn in the queue.
@@ -298,13 +313,17 @@ async function trySpawn(ctx, index) {
         ctx.log(`spawn ${persona} dropped`);
         return index;
     }
+    if (stillLoggedOut(ctx.state, persona, verdict.updated)) {
+        spawns.splice(index, 0, spawn);
+        return index + 1;
+    }
     await startSpawn(ctx, spawn, verdict.profile);
     return index;
 }
 
 /**
- * Try a due issue: it waits for the next pass while its persona is at its limit or its
- * profile is refused.
+ * Try a due issue: it waits for the next pass while its persona is at its limit, its
+ * profile is refused or it is logged out.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -324,13 +343,17 @@ async function tryIssue(ctx, n) {
         ctx.tried.add(n);
         return;
     }
+    if (stillLoggedOut(ctx.state, persona, verdict.updated)) {
+        ctx.tried.add(n);
+        return;
+    }
     await startIssue(ctx, n, {persona, profile: verdict.profile});
 }
 
 /**
- * Start sessions while slots are free: queued spawns first, then due issues. One slot
- * past the soft ceiling; none while a model rate limit pauses starts. A spawn or issue
- * whose persona is at its limit waits for the next pass.
+ * Start sessions while slots are free: queued spawns first, then due issues, the least-busy
+ * persona first. One slot past the soft ceiling; none while a model rate limit pauses starts. A spawn or issue
+ * whose persona is at its limit or logged out waits for the next pass.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}

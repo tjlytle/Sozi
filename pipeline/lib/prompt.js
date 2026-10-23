@@ -38,6 +38,11 @@ export function settingsBlock(settings, {issue, stage, epic, until}) {
     if (epic) {
         lines.push(`- Epic: #${epic}`);
     }
+    if (settings.backlog) {
+        lines.push(
+            `- Backlog: #${settings.backlog} (every issue you file goes here, not to the epic)`
+        );
+    }
     if (until) {
         lines.push(`- Until: ${until}`);
     }

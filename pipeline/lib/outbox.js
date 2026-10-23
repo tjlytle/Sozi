@@ -13,7 +13,7 @@ import path from "node:path";
 const MAX_RESULT_BYTES = 256 * 1024;
 const LOG_TAIL_BYTES = 64 * 1024;
 const LOG_TAIL_LINES = 20;
-const USAGE_STATUSES = ["ok", "error", "rate-limited", "budget", "unsupported"];
+const USAGE_STATUSES = ["ok", "error", "rate-limited", "auth", "budget", "unsupported"];
 const HOOKS = ["ok", "error", "skipped"];
 const NO_FOLLOW = fs.constants.O_NOFOLLOW ?? 0;
 const NON_BLOCK = fs.constants.O_NONBLOCK ?? 0;

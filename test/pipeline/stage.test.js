@@ -24,7 +24,13 @@ echo "display=\${DISPLAY:-}" >>"$out/display"
 [ -z "\${FAKE_NO_SESSION:-}" ] && echo "fake-session-1" >"$out/session"
 echo '{"tokensIn": 10, "tokensOut": 5, "costUsd": 0.25, "turns": 2, "status": "ok"}' >"$out/usage.json"
 [ -n "\${FAKE_SLEEP:-}" ] && sleep "$FAKE_SLEEP"
+if [ -n "\${FAKE_MERGE:-}" ]; then
+    g() { git -C "$checkout" -c user.name=t -c user.email=t@t "$@"; }
+    echo "mine" >"$checkout/own.txt"
+    g add own.txt && g commit -q -m own && g merge -q --no-ff -m merge "origin/$FAKE_MERGE"
+fi
 [ -n "\${FAKE_TOUCH:-}" ] && echo "changed" >"$checkout/$FAKE_TOUCH"
+[ -n "\${FAKE_SCRIPT:-}" ] && (cd "$checkout" && bash -ec "$FAKE_SCRIPT")
 exit "\${FAKE_EXIT:-0}"
 `;
 
@@ -60,6 +66,11 @@ echo "finding $(wc -l <"$HOOKS_LOG")" >"$3"
 exit 1
 `;
 
+const RECORDING_HOOKS = `#!/usr/bin/env bash
+"$CHANGED_FILES" "$1" "$2" >>"$HOOKS_LOG"
+: >"$3"
+`;
+
 const CRASHED_HOOKS = `#!/usr/bin/env bash
 echo "called" >>"$HOOKS_LOG"
 exit 2
@@ -71,33 +82,42 @@ mkdir -p node_modules
 `;
 
 /**
- * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
- * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
- * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
+ * Make a bare mirror of a repository: the mirror has master and only the branches the test asks for.
+ * @param {string} source - The repository to mirror.
+ * @param {string} tmp - The directory the mirror goes in.
+ * @param {boolean} issueBranch - Whether the mirror also has a 25-slug branch.
+ * @returns {{mirror: string, sha: string}} - The mirror's path and the commit its branches point at.
  */
-function world(issueBranch = false) {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-run-"));
-    dirs.push(tmp);
+function mirrorOf(source, tmp, issueBranch) {
     const mirror = path.join(tmp, "mirror.git");
-    execFileSync("git", ["clone", "-q", "--bare", "--shared", root, mirror]);
+    execFileSync("git", ["clone", "-q", "--bare", "--shared", source, mirror]);
     const sha = execFileSync(
         "sh",
         ["-c", "git rev-parse --verify master 2>/dev/null || git rev-parse HEAD"],
-        {cwd: root, encoding: "utf8"}
+        {cwd: source, encoding: "utf8"}
     ).trim();
-    execFileSync("git", ["-C", mirror, "branch", "-f", "master", sha]);
-    if (issueBranch) {
-        execFileSync("git", ["-C", mirror, "branch", "-f", "25-slug", sha]);
+    const git = (/** @type {string[]} */ ...args) =>
+        execFileSync("git", ["-C", mirror, ...args], {encoding: "utf8"});
+    for (const ref of git("for-each-ref", "--format=%(refname)", "refs/heads/").split("\n")) {
+        if (ref) {
+            git("update-ref", "-d", ref);
+        }
     }
-    const harnessDir = path.join(tmp, "harness");
-    fs.mkdirSync(harnessDir);
-    fs.writeFileSync(path.join(harnessDir, "fake"), FAKE_HARNESS, {mode: 0o755});
-    const hooks = path.join(tmp, "hooks.sh");
-    fs.writeFileSync(hooks, FAKE_HOOKS, {mode: 0o755});
-    const outbox = path.join(tmp, "outbox");
-    fs.mkdirSync(outbox);
-    fs.writeFileSync(path.join(outbox, "prompt.md"), "do the thing\n");
-    fs.writeFileSync(path.join(outbox, "allow.txt"), "Read\n");
+    git("branch", "master", sha);
+    git("symbolic-ref", "HEAD", "refs/heads/master");
+    if (issueBranch) {
+        git("branch", "25-slug", sha);
+    }
+    return {mirror, sha};
+}
+
+/**
+ * Seed a node_modules cache whose lock-sha matches the lockfile at a commit.
+ * @param {string} tmp - The directory the cache goes in.
+ * @param {string} sha - The commit whose package-lock.json the cache matches.
+ * @returns {string} - The cache's path.
+ */
+function seedCache(tmp, sha) {
     const cache = path.join(tmp, "cache");
     fs.mkdirSync(cache);
     const lock = execFileSync("git", ["show", `${sha}:package-lock.json`], {
@@ -109,6 +129,28 @@ function world(issueBranch = false) {
         crypto.createHash("sha256").update(lock).digest("hex") + "\n"
     );
     fs.symlinkSync(path.join(root, "node_modules"), path.join(cache, "node_modules"));
+    return cache;
+}
+
+/**
+ * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
+ * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
+ * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
+ */
+function world(issueBranch = false) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-run-"));
+    dirs.push(tmp);
+    const {mirror, sha} = mirrorOf(root, tmp, issueBranch);
+    const harnessDir = path.join(tmp, "harness");
+    fs.mkdirSync(harnessDir);
+    fs.writeFileSync(path.join(harnessDir, "fake"), FAKE_HARNESS, {mode: 0o755});
+    const hooks = path.join(tmp, "hooks.sh");
+    fs.writeFileSync(hooks, FAKE_HOOKS, {mode: 0o755});
+    const outbox = path.join(tmp, "outbox");
+    fs.mkdirSync(outbox);
+    fs.writeFileSync(path.join(outbox, "prompt.md"), "do the thing\n");
+    fs.writeFileSync(path.join(outbox, "allow.txt"), "Read\n");
+    const cache = seedCache(tmp, sha);
     return {
         tmp,
         outbox,
@@ -118,12 +160,13 @@ function world(issueBranch = false) {
             PIPELINE_HARNESS: "fake",
             PIPELINE_MODEL: "m",
             PIPELINE_OFFLINE: "1",
-            MIRROR: path.join(tmp, "mirror.git"),
+            MIRROR: mirror,
             OUTBOX: outbox,
             WORK: path.join(tmp, "work"),
             CACHE: cache,
             HARNESS_DIR: harnessDir,
             HOOKS_OUTSIDE: hooks,
+            CHANGED_FILES: path.join(root, "pipeline/changed-files.sh"),
             HOOKS_LOG: path.join(tmp, "hooks.log"),
             XVFB_BIN: "no-such-xvfb"
         }
@@ -255,6 +298,27 @@ describe("the in-container stage runner", () => {
         runStage(w.env);
         assert.equal(branchOf(w.env), "master");
     });
+    /**
+     * List the branches of a mirror built from a source that has a 25-aaa branch.
+     * @param {boolean} issueBranch - Whether the mirror is asked for 25-slug.
+     * @returns {string[]} - The mirror's branch refs.
+     */
+    const mirrorBranches = issueBranch => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-mirror-"));
+        dirs.push(tmp);
+        const source = path.join(tmp, "source");
+        execFileSync("git", ["clone", "-q", "--shared", root, source]);
+        execFileSync("git", ["-C", source, "branch", "25-aaa"]);
+        const {mirror} = mirrorOf(source, tmp, issueBranch);
+        const refs = ["-C", mirror, "for-each-ref", "--format=%(refname)", "refs/heads/"];
+        return execFileSync("git", refs, {encoding: "utf8"}).trim().split("\n");
+    };
+    test("the mirror holds only master whatever branches the source has", () => {
+        assert.deepEqual(mirrorBranches(false), ["refs/heads/master"]);
+    });
+    test("the mirror holds master and 25-slug when the test asks for the issue branch", () => {
+        assert.deepEqual(mirrorBranches(true), ["refs/heads/25-slug", "refs/heads/master"]);
+    });
     test("the same report twice resumes exactly once", () => {
         const w = world();
         fs.writeFileSync(w.env.HOOKS_OUTSIDE, SAME_HOOKS, {mode: 0o755});
@@ -266,6 +330,23 @@ describe("the in-container stage runner", () => {
         fs.writeFileSync(w.env.HOOKS_OUTSIDE, NEW_HOOKS, {mode: 0o755});
         runStage({...w.env, PIPELINE_MAX_RESUMES: "2"});
         assert.equal(result(w.outbox).resumes, 2);
+    });
+    test("PIPELINE_MAX_RESUMES=0 runs the outside checks once and never resumes", () => {
+        const w = world();
+        fs.writeFileSync(w.env.HOOKS_OUTSIDE, NEW_HOOKS, {mode: 0o755});
+        runStage({...w.env, PIPELINE_MAX_RESUMES: "0"});
+        const r = result(w.outbox);
+        assert.equal(r.hooks, "ok");
+        assert.equal(r.resumes, 0);
+        assert.ok(fs.existsSync(path.join(w.outbox, "report-0.txt")));
+        assert.ok(!fs.existsSync(path.join(w.outbox, "report-1.txt")));
+    });
+    test("the last resume's work is checked", () => {
+        const w = world();
+        fs.writeFileSync(w.env.HOOKS_OUTSIDE, NEW_HOOKS, {mode: 0o755});
+        runStage({...w.env, PIPELINE_MAX_RESUMES: "1"});
+        assert.equal(result(w.outbox).resumes, 1);
+        assert.ok(fs.existsSync(path.join(w.outbox, "report-1.txt")));
     });
     test("one display for the session when none is set, stopped at the end (#73)", async () => {
         const w = world();
@@ -327,6 +408,21 @@ describe("the in-container stage runner", () => {
         assert.equal(r.resumes, 0);
         assert.equal(fs.readFileSync(path.join(w.outbox, "report-0.txt"), "utf8"), "");
     });
+    test("a merge of master adds nothing to changed or to what the hooks see (#89)", () => {
+        const w = world();
+        const side = path.join(w.tmp, "side");
+        execFileSync("git", ["clone", "-q", w.env.MIRROR, side]);
+        const git = (/** @type {string[]} */ ...args) =>
+            execFileSync("git", ["-C", side, "-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        fs.writeFileSync(path.join(side, "merged.txt"), "from master\n");
+        git("add", "merged.txt");
+        git("commit", "-q", "-m", "side");
+        git("push", "-q", "origin", "HEAD:refs/heads/side");
+        fs.writeFileSync(w.env.HOOKS_OUTSIDE, RECORDING_HOOKS, {mode: 0o755});
+        runStage({...w.env, FAKE_MERGE: "side", FAKE_TOUCH: "touched.txt"});
+        assert.deepEqual(result(w.outbox).changed, ["own.txt", "touched.txt"]);
+        assert.equal(fs.readFileSync(w.env.HOOKS_LOG, "utf8"), "own.txt\ntouched.txt\n");
+    });
     test("a crashed hooks pass is an error, not a clean run", () => {
         const w = world();
         fs.writeFileSync(w.env.HOOKS_OUTSIDE, CRASHED_HOOKS, {mode: 0o755});
@@ -353,6 +449,42 @@ describe("the in-container stage runner", () => {
         assert.equal(r.session, null);
         assert.equal(r.hooks, "skipped");
         assert.match(fs.readFileSync(path.join(w.outbox, "log"), "utf8"), /== no session file/);
+    });
+    /**
+     * Give a world's mirror a side branch carrying one unrelated commit that adds other.txt.
+     * @param {{tmp: string, env: Record<string, string>}} w - The world.
+     */
+    const addSideBranch = w => {
+        const side = path.join(w.tmp, "side");
+        execFileSync("git", ["clone", "-q", "--shared", w.env.MIRROR, side]);
+        fs.writeFileSync(path.join(side, "other.txt"), "other\n");
+        const git = (/** @type {string[]} */ ...args) =>
+            execFileSync("git", ["-C", side, "-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        git("add", "other.txt");
+        git("commit", "-q", "-m", "Add other.txt");
+        git("push", "-q", "origin", "HEAD:refs/heads/side");
+    };
+    /** Shell that commits a file in the session, with a fixed author: `own <file> <subject>`. */
+    const OWN = `own() { echo "$1" >"$1"; git add "$1"; git -c user.name=t -c user.email=t@t commit -q -m "$2"; }
+merge_side() { git fetch -q "$MIRROR" side; git -c user.name=t -c user.email=t@t merge -q --no-ff -m "Merge side" FETCH_HEAD; }
+`;
+    test("a session that merges master lists only its own commit (#105)", () => {
+        const w = world();
+        addSideBranch(w);
+        runStage({...w.env, FAKE_SCRIPT: `${OWN}own own.txt "Add own.txt"\nmerge_side\n`});
+        const r = result(w.outbox);
+        assert.equal(r.commits.length, 1, JSON.stringify(r.commits));
+        assert.match(r.commits[0], / Add own\.txt$/);
+    });
+    test("own commits on both sides of a merge are all listed (#105)", () => {
+        const w = world();
+        addSideBranch(w);
+        const script = `${OWN}own a.txt "Add a.txt"\nmerge_side\nown b.txt "Add b.txt"\n`;
+        runStage({...w.env, FAKE_SCRIPT: script});
+        const subjects = result(w.outbox).commits.map((/** @type {string} */ c) =>
+            c.replace(/^\S+ /, "")
+        );
+        assert.deepEqual(subjects, ["Add b.txt", "Add a.txt"]);
     });
     test("a harness name with a slash is rejected", () => {
         const w = world();

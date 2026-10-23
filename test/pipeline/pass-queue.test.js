@@ -6,6 +6,27 @@ import {end, issue, world} from "./pass-world.js";
 
 const MIN = 60 * 1000;
 
+describe("sub-issue links", () => {
+    test("the sync links an issue to the epic its Part of line names", async () => {
+        const w = world({issues: [issue(25, ["stage:review"], {body: "x\n\nPart of #93"})]});
+        await w.p.pass();
+        assert.deepEqual(
+            w.calls.filter(c => c[0] === "linkSubIssue"),
+            [["linkSubIssue", 93, 25]]
+        );
+        assert.equal(w.state.issues[25].linked, 93);
+    });
+    test("a rate limit on a link backs the loop off", async () => {
+        const w = world({issues: [issue(25, ["stage:review"], {body: "x\n\nPart of #93"})]});
+        const reset = new Date(w.clock.now() + MIN);
+        w.github.linkSubIssue = async () => {
+            throw new RateLimited("limit", reset);
+        };
+        await w.p.pass();
+        assert.equal(w.state.sync.backoffUntil, reset.toISOString());
+    });
+});
+
 describe("queued label writes", () => {
     test("a back-off that ends while a session runs: the queued +working goes first", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});
@@ -124,5 +145,39 @@ describe("the board", () => {
             w.clock.advance(11 * MIN);
         }
         assert.deepEqual(full, [true, false, true]);
+    });
+});
+
+describe("a logged-out persona", () => {
+    const SINCE = "2026-10-21T18:00:00.000Z";
+    test("starts nothing; another persona's issue still starts", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"]), issue(26, ["stage:tests"])],
+            env: {PIPELINE_PARALLEL: "3"}
+        });
+        w.state.run.loggedOut = {builder: {since: SINCE}};
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [26]);
+        assert.equal(w.state.issues[25].tries, 0);
+        assert.ok(!w.state.issues[25].labels.includes("working"));
+    });
+    test("its queued spawn stays queued while another persona's spawn starts", async () => {
+        const w = world({env: {PIPELINE_PARALLEL: "3"}});
+        w.state.run.loggedOut = {builder: {since: SINCE}};
+        const waiting = {persona: "builder", prompt: "Build X", issue: null, harness: null};
+        const next = {persona: "advocate", prompt: "File Y", issue: null, harness: null};
+        w.state.run.spawns.push(waiting, next);
+        await w.p.pass();
+        assert.deepEqual(w.state.run.spawns, [waiting]);
+        const personas = w.state.run.sessions.map((/** @type {any} */ s) => s.persona);
+        assert.deepEqual(personas, ["advocate"]);
+    });
+    test("starts again once its credentials change after the mark", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.state.run.loggedOut = {builder: {since: SINCE}};
+        w.profiles.builder.claude.updated = "2026-10-21T18:30:00.000Z";
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+        assert.deepEqual(w.state.run.loggedOut, {});
     });
 });

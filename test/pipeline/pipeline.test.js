@@ -69,6 +69,35 @@ function host({statuses, onSleep = () => {}}) {
     return h;
 }
 
+/**
+ * Write a state file under a root.
+ *
+ * @param {string} root - The repository root.
+ * @param {any} state - The state.
+ * @returns {string} - The state file.
+ */
+function writeState(root, state) {
+    fs.mkdirSync(path.join(root, "var", "pipeline"), {recursive: true});
+    const file = path.join(root, "var", "pipeline", "state.json");
+    fs.writeFileSync(file, JSON.stringify(state));
+    return file;
+}
+
+/**
+ * A run in progress: started, with a page, totals and a mint key.
+ *
+ * @returns {any} - The state.
+ */
+function runningState() {
+    const state = emptyState();
+    state.run.started = "2026-10-21T19:00:00Z";
+    state.run.notionPage = "page-1";
+    state.run.tokens = 1234;
+    state.run.costUsd = 5;
+    state.run.mintKey = "old-key";
+    return state;
+}
+
 const issue = (/** @type {number} */ number, /** @type {string[]} */ labels) => ({
     number,
     title: `t${number}`,
@@ -230,6 +259,7 @@ describe("bin/pipeline.js", () => {
         const mirror = path.join(h.root, "var", "pipeline", "mirror.git");
         assert.deepEqual(runs[0], ["git", "-C", mirror, "rev-parse", "master"]);
         argvs.length = 0;
+        writeState(h.root, state);
         await main(["--digest"], {root: h.root, env: {NOTION_TOKEN: "nt"}, deps: h.deps});
         assert.ok(!argvs[0].includes("--presenter"), "no presenter without evidence");
         assert.ok(argvs[0].includes("--build"));
@@ -256,15 +286,171 @@ describe("bin/pipeline.js", () => {
         });
         assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).run.epic, 24);
     });
-    test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
+    test("a digest ends the run; the next start opens a new one", async () => {
+        const h = host({statuses: []});
+        const file = writeState(h.root, runningState());
+        /** @type {string[][]} */
+        const argvs = [];
+        h.deps.digest = async (/** @type {string[]} */ argv, /** @type {any} */ io) => {
+            argvs.push(argv);
+            io.out?.("page-2\n");
+            return 0;
+        };
+        const env = {NOTION_TOKEN: "nt", PIPELINE_NOTION_PARENT: "parent"};
+        await main(["--digest"], {root: h.root, env, out: () => {}, deps: h.deps});
+        assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).run.stopped, true);
+        await main(["--once"], {root: h.root, env, out: () => {}, deps: h.deps});
+        assert.deepEqual(
+            argvs.map(a => a[0]),
+            ["finish", "start"]
+        );
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.notionPage, "page-2");
+        assert.notEqual(run.started, "2026-10-21T19:00:00Z");
+        assert.equal(run.stopped, false);
+        assert.equal(run.tokens, 0);
+        assert.equal(run.costUsd, 0);
+        let text = "";
+        await main(["--status"], {root: h.root, env: {}, out: t => (text += t), deps: h.deps});
+        assert.ok(text.includes(`run: started ${run.started}\n`));
+        assert.match(text, /totals: 0 tokens, \$0\.00/);
+    });
+    test("a restart without a digest adopts the run and its live session", async () => {
+        const h = host({statuses: ["running", "exited"]});
+        const state = runningState();
+        const outbox = fs.mkdtempSync(path.join(os.tmpdir(), "ob-"));
+        state.run.sessions = [{container: "s1", started: "t", outbox, persona: "ops", issue: 9}];
+        const file = writeState(h.root, state);
+        /** @type {string[]} */
+        const keys = [];
+        h.deps.startMint = async (/** @type {any} */ o) => {
+            keys.push(o.key);
+            return {url: "u", port: 7311, close: async () => {}};
+        };
+        await main(["--once"], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.started, "2026-10-21T19:00:00Z");
+        assert.equal(run.notionPage, "page-1");
+        assert.equal(run.tokens, 1234);
+        assert.equal(run.costUsd, 5);
+        assert.deepEqual(keys, ["old-key"]);
+    });
+    test("a digest that could not post leaves the run open", async () => {
+        const h = host({statuses: []});
+        const file = writeState(h.root, runningState());
+        h.deps.digest = async () => 1;
+        const env = {NOTION_TOKEN: "nt"};
+        await main(["--digest"], {root: h.root, env, out: () => {}, deps: h.deps});
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.stopped, false);
+        assert.equal(run.notionPage, "page-1");
+    });
+    test("a second digest on a finished run posts nothing", async () => {
+        const h = host({statuses: []});
+        const state = runningState();
+        state.run.stopped = true;
+        writeState(h.root, state);
+        let calls = 0;
+        h.deps.digest = async () => {
+            calls++;
+            return 0;
+        };
+        let text = "";
+        await main(["--digest"], {
+            root: h.root,
+            env: {NOTION_TOKEN: "nt"},
+            out: t => (text += t),
+            deps: h.deps
+        });
+        assert.equal(calls, 0);
+        assert.match(text, /digest: this run is already finished/);
+    });
+    test("a finished run hands its live sessions, spawns and mint key to the next", async () => {
+        const h = host({statuses: []});
+        const state = runningState();
+        state.run.stopped = true;
+        const outbox = fs.mkdtempSync(path.join(os.tmpdir(), "ob-"));
+        state.run.sessions = [{container: "s1", started: "t", outbox, persona: "ops", issue: 9}];
+        state.run.spawns = [{persona: "advocate", prompt: "p", issue: 9, harness: null}];
+        writeState(h.root, state);
+        /** @type {string[]} */
+        const keys = [];
+        h.deps.startMint = async (/** @type {any} */ o) => {
+            keys.push(o.key);
+            return {url: "u", port: 7311, close: async () => {}};
+        };
+        /** @type {string[]} */
+        const asked = [];
+        h.deps.sandbox.status = async (/** @type {string} */ container) => {
+            asked.push(container);
+            return "exited";
+        };
+        /** @type {string[]} */
+        const started = [];
+        h.deps.sandbox.start = async (/** @type {any} */ o) => {
+            started.push(o.persona ?? "issue");
+            return "c";
+        };
+        const spawnPrompt = path.join("pipeline", "spawn.md");
+        fs.copyFileSync(path.join(REPO, spawnPrompt), path.join(h.root, spawnPrompt));
+        await main(["--once"], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        assert.deepEqual(keys, ["old-key"]);
+        assert.ok(asked.includes("s1"), "the spawn session is still watched");
+        assert.ok(started.includes("advocate"), "the queued spawn still starts");
+    });
+    test("one interrupt keeps the mint up until the last session is judged", async () => {
         const h = host({
             statuses: ["running", "running", "exited"],
             onSleep: n => {
+                h.events.push(`sleep ${n}`);
+                if (n === 1) {
+                    h.handler("SIGTERM");
+                }
+            }
+        });
+        const code = await main([], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        assert.equal(code, 0);
+        assert.deepEqual(h.exits, []);
+        assert.deepEqual(h.events, ["sleep 1", "sleep 2", "sleep 3", "sleep 4", "remove", "close"]);
+    });
+    test("a second interrupt after a second leaves the session in the state", async () => {
+        let t = 0;
+        const h = host({
+            statuses: ["running", "running", "running"],
+            onSleep: n => {
+                t += 1500;
+                if (n <= 2) {
+                    h.handler("SIGINT");
+                }
+            }
+        });
+        h.deps.now = () => t;
+        h.deps.exit = (/** @type {number} */ code) => {
+            h.exits.push(code);
+            throw new Error("exit");
+        };
+        await assert.rejects(
+            main([], {root: h.root, env: {}, out: () => {}, deps: h.deps}),
+            /exit/
+        );
+        assert.deepEqual(h.exits, [130]);
+        const saved = JSON.parse(
+            fs.readFileSync(path.join(h.root, "var", "pipeline", "state.json"), "utf8")
+        );
+        assert.equal(saved.issues[25].session.container, "c25", "the next start adopts it");
+    });
+    test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
+        let t = 0;
+        const h = host({
+            statuses: ["running", "running", "exited"],
+            onSleep: n => {
+                t += 1500;
                 if (n <= 2) {
                     h.handler();
                 }
             }
         });
+        h.deps.now = () => t;
         const code = await main([], {root: h.root, env: {}, out: () => {}, deps: h.deps});
         assert.equal(code, 0);
         assert.deepEqual(h.exits, [130]);
@@ -317,18 +503,44 @@ test("--copy-profile copies one persona to another without a mint or state", asy
     h.deps.sandbox.copyProfile = async (/** @type {any} */ opts) => {
         got = opts;
     };
+    let text = "";
     assert.equal(
         await main(["--copy-profile", "builder", "qa"], {
             root: h.root,
             env: {},
-            out: () => {},
+            out: t => (text += t),
             deps: h.deps
         }),
         0
     );
     assert.deepEqual(got, {from: "builder", to: "qa"});
+    assert.equal(
+        text,
+        "copied builder to qa without the Claude login: run npm run pipeline -- --login qa once\n"
+    );
     assert.ok(!h.events.includes("close"), "no mint was opened");
     assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
+test("--copy-profile writes no hint when the copy fails", async () => {
+    const h = host({statuses: []});
+    h.deps.sandbox.copyProfile = async () => {
+        throw new Error("profile of qa exists; remove the volume first");
+    };
+    let text = "";
+    let errText = "";
+    assert.equal(
+        await main(["--copy-profile", "builder", "qa"], {
+            root: h.root,
+            env: {},
+            out: t => (text += t),
+            err: t => (errText += t),
+            deps: h.deps
+        }),
+        1
+    );
+    assert.equal(text, "");
+    assert.equal(errText, "profile of qa exists; remove the volume first\n");
 });
 
 test("--copy-profile rejects an unknown persona with the usage", async () => {
