@@ -4,10 +4,12 @@
 # Clones the repo, runs the harness adapter on the stage prompt, runs the
 # repository's edit-hook checks from the outside (hooks-outside.sh) and resumes
 # the session with what they find, then writes result.json for the host. The
-# host reads result.json, never this script's exit status. result.json is also
-# written on an early failure and on SIGTERM/SIGINT (docker stop). Its hooks field
-# is ok when the outside checks ran, error when they crashed, skipped when they never
-# ran (an early failure, a failing harness, no session file).
+# checks run again after every resume, the last one included; PIPELINE_MAX_RESUMES
+# caps the resumes, not the checks, so 0 still checks once. The host reads
+# result.json, never this script's exit status. result.json is also written on an
+# early failure and on SIGTERM/SIGINT (docker stop). Its hooks field is ok when the
+# outside checks ran, error when they crashed, skipped when they never ran (an early
+# failure, a failing harness, no session file).
 #
 # Usage: pipeline/stage.sh <issue> <stage>   (the container's main process)
 #
@@ -132,7 +134,7 @@ resume_loop() {
         step "no session file"
         return
     fi
-    while [ "$resumes" -lt "$max_resumes" ] && [ "$harness_exit" -eq 0 ]; do
+    while [ "$harness_exit" -eq 0 ]; do
         step hooks
         report="$OUTBOX/report-$resumes.txt"
         "$HOOKS_OUTSIDE" "$WORK" "$start" "$report"
@@ -146,6 +148,7 @@ resume_loop() {
         [ -s "$report" ] || break
         [ "$(cat "$report")" = "$last" ] && break
         last=$(cat "$report")
+        [ "$resumes" -ge "$max_resumes" ] && break
         resumes=$((resumes + 1))
         step resume
         harness resume --session "$(cat "$OUTBOX/session")" --message "$report"

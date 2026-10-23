@@ -36,7 +36,8 @@ has written:
 
 Exit status: 0 when the session ended on its own, 64 on a bad call, 69 when the
 adapter is a stub (`status: unsupported`), 75 when rate-limited. Any other
-non-zero status is the agent CLI's own failure.
+non-zero status is the agent CLI's own failure. The loop parks an issue at once
+when its stage's harness is a stub, with a comment naming the harness.
 
 ## claude
 
