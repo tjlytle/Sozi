@@ -93,3 +93,18 @@ test("an array mcpServers and a malformed file give no servers", () => {
     assert.deepEqual(inspectSettings('{"mcpServers":["mobbin"]}').info.claude.servers, []);
     assert.deepEqual(inspectSettings("{not json").info.claude.servers, []);
 });
+
+test("updated is the credentials' modification time, null without them", () => {
+    const dir = fs.mkdtempSync(path.join(root, ".agents", "tmp", "profile-"));
+    try {
+        fs.mkdirSync(path.join(dir, "claude"));
+        assert.equal(inspect(dir).info.claude.updated, null);
+        const creds = path.join(dir, "claude", ".credentials.json");
+        fs.writeFileSync(creds, '{"claudeAiOauth":{"accessToken":"SECRET"}}');
+        const when = new Date("2026-10-23T09:30:00.000Z");
+        fs.utimesSync(creds, when, when);
+        assert.equal(inspect(dir).info.claude.updated, when.toISOString());
+    } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+    }
+});

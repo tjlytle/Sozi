@@ -6,11 +6,20 @@
 // issue. A session that moved nothing is a try; enough tries park the issue.
 
 import {RateLimited, blockedBy} from "./github.js";
+import {loggedOutLine, markLoggedOut} from "./logins.js";
 import {logTail} from "./outbox.js";
+import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
 import {park, promptFor, recordTry, stageOf} from "./state.js";
 import {applyLabels, backOff, hasQueued, inBackoff, moveStage, writeLabel} from "./sync.js";
-import {allowedMoves, costsNoTry, stubHarness, takeResult, unverifiedReason} from "./verdict.js";
+import {
+    allowedMoves,
+    costsNoTry,
+    loggedOut,
+    stubHarness,
+    takeResult,
+    unverifiedReason
+} from "./verdict.js";
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
@@ -41,6 +50,20 @@ async function notesAndRefusals(ctx, accepted, refused, issue, who) {
     }
     for (const r of refused) {
         ctx.log(`${who}: refused ${r.file}: ${r.reason}`);
+    }
+}
+
+/**
+ * Mark a persona whose session's login died, so start() runs nothing more as it; the
+ * line saying so is logged once.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {string} persona - The persona.
+ * @returns {void}
+ */
+function markPersona(ctx, persona) {
+    if (markLoggedOut(ctx.state, persona, new Date(ctx.clock.now()).toISOString())) {
+        ctx.log(loggedOutLine(persona));
     }
 }
 
@@ -256,7 +279,8 @@ async function applyRequests(ctx, n, accepted, unverified) {
 /**
  * Judge an issue's ended session: usage, requests, and a try when it moved nothing,
  * unless it asked to wait for a person or the model's usage limit stopped it. A session
- * on a stub harness parks the issue at once.
+ * whose login died marks its persona logged out. A session on a stub harness parks the
+ * issue at once.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -281,6 +305,10 @@ async function judgeIssue(ctx, n, outcome) {
     if (stubHarness(result)) {
         await parkStub(ctx, n);
     } else if (costsNoTry(result)) {
+        if (loggedOut(result)) {
+            const {persona, stage} = record.session;
+            markPersona(ctx, persona ?? personaFor(stage));
+        }
         ctx.log(`${who}: usage ${result?.usage.status}; no try, stays at ${record.stage}`);
     } else if (wait !== null) {
         record.waiting = true;
@@ -328,7 +356,8 @@ export async function finishIssue(ctx, n, outcome = "exited") {
 /**
  * Judge a spawned session that ended, once, and free its slot. Its done and wait requests
  * were refused, since a spawned session has no stage, and its spawns are refused: a
- * spawned session may not spawn again.
+ * spawned session may not spawn again. A session whose login died marks its persona
+ * logged out.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {{container: string, outbox: string, persona: string, judged?: boolean}} session - The session.
@@ -342,6 +371,9 @@ export async function finishSpawn(ctx, session, outcome = "exited") {
         ctx.save();
         try {
             const result = takeResult(ctx, session.outbox, who);
+            if (loggedOut(result)) {
+                markPersona(ctx, session.persona);
+            }
             const unverified = unverifiedReason(result, outcome);
             const {accepted, refused} = readRequests(session.outbox, {issue: 0});
             for (const request of accepted) {
