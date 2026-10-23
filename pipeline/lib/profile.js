@@ -78,6 +78,7 @@ export function profileArgs(persona) {
  * @typedef {object} ProfileInfo
  * @property {{present: boolean, loggedIn: boolean, servers: string[]}} claude - The Claude Code profile.
  * @property {{present: boolean, loggedIn: boolean}} codex - The Codex profile.
+ * @property {{present: boolean, loggedIn: boolean}} [agy] - The Antigravity profile (~/.gemini).
  * @property {boolean} writable - Whether the profile directory is writable.
  */
 

@@ -28,6 +28,8 @@ test("an empty profile", () => {
         assert.equal(info.claude.loggedIn, false);
         assert.deepEqual(info.claude.servers, []);
         assert.equal(info.codex.present, false);
+        assert.equal(info.agy.present, false);
+        assert.equal(info.agy.loggedIn, false);
         assert.equal(info.writable, true);
     } finally {
         fs.rmSync(dir, {recursive: true, force: true});
@@ -48,11 +50,15 @@ test("a logged-in claude profile with two servers", () => {
             '{"mcpServers":{"mobbin":{},"context7":{}}}'
         );
         fs.writeFileSync(path.join(dir, "codex", "auth.json"), '{"token":"SECRET"}');
+        fs.mkdirSync(path.join(dir, "gemini"));
+        fs.writeFileSync(path.join(dir, "gemini", "oauth_creds.json"), '{"token":"SECRET"}');
         const {out, info} = inspect(dir);
         assert.equal(info.claude.present, true);
         assert.equal(info.claude.loggedIn, true);
         assert.deepEqual(info.claude.servers, ["context7", "mobbin"]);
         assert.equal(info.codex.loggedIn, true);
+        assert.equal(info.agy.present, true);
+        assert.equal(info.agy.loggedIn, true);
         assert.ok(!out.includes("SECRET"));
     } finally {
         fs.rmSync(dir, {recursive: true, force: true});

@@ -66,13 +66,17 @@ export function profilesText(infos) {
         if (!info) {
             return `profile ${persona}: none`;
         }
+        const others = ["codex", "agy"]
+            .filter(h => /** @type {any} */ (info)[h]?.loggedIn)
+            .map(h => `; ${h} logged in`)
+            .join("");
         if (!info.claude.loggedIn) {
-            return `profile ${persona}: claude not logged in`;
+            return `profile ${persona}: claude not logged in${others}`;
         }
         const servers = info.claude.servers.length
             ? `, servers: ${info.claude.servers.join(", ")}`
             : "";
-        return `profile ${persona}: claude logged in${servers}`;
+        return `profile ${persona}: claude logged in${servers}${others}`;
     });
     return `${lines.join("\n")}\n`;
 }

@@ -113,7 +113,8 @@ describe("bin/pipeline.js", () => {
             },
             builder: {
                 claude: {present: true, loggedIn: true, servers: []},
-                codex: {present: false, loggedIn: false},
+                codex: {present: true, loggedIn: true},
+                agy: {present: true, loggedIn: true},
                 writable: true
             },
             qa: {
@@ -140,7 +141,7 @@ describe("bin/pipeline.js", () => {
         });
         assert.equal(code, 0);
         assert.match(text, /profile architect: claude logged in, servers: mobbin\n/);
-        assert.match(text, /profile builder: claude logged in\n/);
+        assert.match(text, /profile builder: claude logged in; codex logged in; agy logged in\n/);
         assert.match(text, /profile qa: claude not logged in\n/);
         assert.match(text, /profile ops: none\n/);
         assert.match(text, /profile advocate: unknown \(docker is down\)\n/);
@@ -306,7 +307,7 @@ test("--login rejects an unknown persona or harness with the usage", async () =>
         await main(["--login", "qa", "--harness", "cursor"], {env: {}, err: t => (text += t)}),
         2
     );
-    assert.match(text, /harness must be one of claude\|codex\|opencode/);
+    assert.match(text, /harness must be one of claude\|codex\|agy\|opencode/);
 });
 
 test("--copy-profile copies one persona to another without a mint or state", async () => {

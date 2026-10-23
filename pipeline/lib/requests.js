@@ -13,7 +13,7 @@ import {readBounded} from "./outbox.js";
 export {readResult} from "./outbox.js";
 
 const PERSONAS = ["advocate", "architect", "builder", "qa", "reviewer", "ops"];
-const HARNESSES = ["claude", "codex", "opencode"];
+const HARNESSES = ["claude", "codex", "agy", "opencode"];
 
 const DONE_TARGETS = [
     "stage:tests",

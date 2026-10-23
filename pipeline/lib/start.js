@@ -77,9 +77,10 @@ function atPersonaLimit(ctx, persona) {
  *
  * @param {PassContext} ctx - The pass context.
  * @param {string} persona - The persona.
+ * @param {string} harness - The harness the session runs on.
  * @returns {Promise<ProfileVerdict>} The verdict.
  */
-async function judgeProfile(ctx, persona) {
+async function judgeProfile(ctx, persona, harness) {
     const {settings, sandbox, env} = ctx;
     if (settings.profiles === "off") {
         return {profile: false};
@@ -92,8 +93,12 @@ async function judgeProfile(ctx, persona) {
         }
         return {refused: `no profile for ${persona}: run npm run pipeline -- --login ${persona}`};
     }
-    if (!info.claude.loggedIn) {
+    if (harness === "claude" && !info.claude.loggedIn) {
         return {refused: `profile of ${persona} is not logged in`};
+    }
+    // opencode keeps its login where the inspection does not look; its start is not judged.
+    if ((harness === "codex" || harness === "agy") && !info[harness]?.loggedIn) {
+        return {refused: `profile of ${persona} is not logged in to ${harness}`};
     }
     const extra = checkAllowlist(info, settings.mcpFor(persona));
     if (extra.length > 0) {
@@ -105,19 +110,21 @@ async function judgeProfile(ctx, persona) {
 }
 
 /**
- * The verdict on a persona's profile, inspected at most once a pass.
+ * The verdict on a persona's profile for one harness, inspected at most once a pass.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {string} persona - The persona.
+ * @param {string} harness - The harness the session runs on.
  * @returns {Promise<ProfileVerdict>} The verdict.
  */
-export async function profileFor(ctx, persona) {
-    const cached = ctx.profiles.get(persona);
+export async function profileFor(ctx, persona, harness) {
+    const key = `${persona}/${harness}`;
+    const cached = ctx.profiles.get(key);
     if (cached) {
         return cached;
     }
-    const verdict = await judgeProfile(ctx, persona);
-    ctx.profiles.set(persona, verdict);
+    const verdict = await judgeProfile(ctx, persona, harness);
+    ctx.profiles.set(key, verdict);
     return verdict;
 }
 
@@ -283,7 +290,7 @@ async function trySpawn(ctx, index) {
     }
     // Taken off the queue first: a spawn that cannot start is dropped, not retried.
     spawns.splice(index, 1);
-    const verdict = await profileFor(ctx, persona);
+    const verdict = await profileFor(ctx, persona, spawn.harness ?? ctx.settings.harnessFor("qa"));
     if ("refused" in verdict) {
         ctx.log(verdict.refused);
         ctx.log(`spawn ${persona} dropped`);
@@ -302,13 +309,14 @@ async function trySpawn(ctx, index) {
  * @returns {Promise<void>}
  */
 async function tryIssue(ctx, n) {
-    const persona = personaFor(stageOfIssue(ctx.state.issues[n]));
+    const stage = stageOfIssue(ctx.state.issues[n]);
+    const persona = personaFor(stage);
     if (atPersonaLimit(ctx, persona)) {
         ctx.log(`#${n}: waits, ${persona} at its limit`);
         ctx.tried.add(n);
         return;
     }
-    const verdict = await profileFor(ctx, persona);
+    const verdict = await profileFor(ctx, persona, ctx.settings.harnessFor(stage));
     if ("refused" in verdict) {
         ctx.log(verdict.refused);
         ctx.tried.add(n);

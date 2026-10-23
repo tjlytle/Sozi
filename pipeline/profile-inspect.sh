@@ -2,7 +2,7 @@
 # Reports what a persona profile holds, for the host to check before a stage runs.
 #
 # Prints one JSON line: {"claude": {"present", "loggedIn", "servers"}, "codex":
-# {"present", "loggedIn"}, "writable"}. "servers" merges the user-scope and every local-scope
+# {"present", "loggedIn"}, "agy": {"present", "loggedIn"}, "writable"}. "servers" merges the user-scope and every local-scope
 # (per project) MCP server name. Only booleans and MCP server names are printed;
 # no value from any file in the profile is ever read out.
 #
@@ -17,6 +17,10 @@ codex_present=false
 [ -e "$PROFILE/codex" ] && codex_present=true
 codex_logged_in=false
 [ -e "$PROFILE/codex/auth.json" ] && codex_logged_in=true
+agy_present=false
+[ -e "$PROFILE/gemini" ] && agy_present=true
+agy_logged_in=false
+[ -e "$PROFILE/gemini/oauth_creds.json" ] && agy_logged_in=true
 writable=false
 [ -w "$PROFILE" ] && writable=true
 
@@ -53,5 +57,6 @@ if [ -e "$settings" ]; then
         }' "$settings" 2>/dev/null || echo '[]')
 fi
 
-printf '{"claude":{"present":%s,"loggedIn":%s,"servers":%s},"codex":{"present":%s,"loggedIn":%s},"writable":%s}\n' \
-    "$claude_present" "$claude_logged_in" "$servers" "$codex_present" "$codex_logged_in" "$writable"
+printf '{"claude":{"present":%s,"loggedIn":%s,"servers":%s},"codex":{"present":%s,"loggedIn":%s},"agy":{"present":%s,"loggedIn":%s},"writable":%s}\n' \
+    "$claude_present" "$claude_logged_in" "$servers" "$codex_present" "$codex_logged_in" \
+    "$agy_present" "$agy_logged_in" "$writable"

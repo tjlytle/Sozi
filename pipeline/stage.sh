@@ -15,7 +15,8 @@
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
 # MIRROR (/mirror), OUTBOX (/outbox), WORK (/work), CACHE (/cache),
 # HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh);
-# XVFB_BIN (Xvfb), DISPLAY_NUM (99), X11_DIR (/tmp/.X11-unix) for the session display.
+# XVFB_BIN (Xvfb), DISPLAY_NUM (99), X11_DIR (/tmp/.X11-unix) for the session display;
+# PROFILE (/profile) and AGY_HOME_LINK ($HOME/.gemini) for the agy login.
 # The adapter reads its own credentials and PIPELINE_SESSION_BUDGET_USD. No
 # value of the environment is ever printed.
 set -u
@@ -26,6 +27,7 @@ CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
 XVFB_BIN="${XVFB_BIN:-Xvfb}"; DISPLAY_NUM="${DISPLAY_NUM:-99}"; X11_DIR="${X11_DIR:-/tmp/.X11-unix}"
+PROFILE="${PROFILE:-/profile}"; AGY_HOME_LINK="${AGY_HOME_LINK:-$HOME/.gemini}"
 start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""; xvfb_pid=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
@@ -152,6 +154,15 @@ resume_loop() {
     done
 }
 
+# agy keeps its login in ~/.gemini and has no setting for it, so that path points into
+# the persona profile when the profile holds one.
+link_agy() {
+    if [ -d "$PROFILE/gemini" ] && [ ! -e "$AGY_HOME_LINK" ]; then
+        ln -s "$PROFILE/gemini" "$AGY_HOME_LINK"
+    fi
+    return 0
+}
+
 main() {
     mkdir -p "$OUTBOX"
     trap 'write_result; stop_display' EXIT
@@ -161,6 +172,7 @@ main() {
     clone_repo && checkout_branch && install_modules || exit 0
     step tmp; mkdir -p "$WORK/.agents/tmp"
     start_display
+    link_agy
     step start; start=$(git -C "$WORK" rev-parse HEAD)
     step harness; harness run --prompt "$OUTBOX/prompt.md"
     resume_loop

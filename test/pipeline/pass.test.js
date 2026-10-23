@@ -349,6 +349,23 @@ describe("persona profiles at start", () => {
         assert.ok(!w.state.issues[25].labels.includes("working"));
         assert.ok(!w.calls.some(c => c[0] === "label" && c[1].add.includes("working")));
     });
+    test("a stage on codex needs the codex login, not the claude one", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {PIPELINE_HARNESS_BUILD: "codex"}
+        });
+        w.profiles.builder = {...w.profiles.builder, codex: {present: true, loggedIn: false}};
+        let s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.ok(w.logs.includes("profile of builder is not logged in to codex"));
+        w.profiles.builder = {
+            ...w.profiles.builder,
+            claude: {present: true, loggedIn: false, servers: []},
+            codex: {present: true, loggedIn: true}
+        };
+        s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+    });
     test("an issue at its persona limit waits with a log line", async () => {
         const w = world({
             issues: [issue(25, ["stage:in-progress"]), issue(26, ["stage:in-progress"])]

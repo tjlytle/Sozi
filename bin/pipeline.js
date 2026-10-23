@@ -12,7 +12,7 @@
 //   node bin/pipeline.js --status       sessions, tries, queued labels, totals
 //   node bin/pipeline.js --digest       finish the run's Notion page
 //   node bin/pipeline.js --build-image  build the stage image
-//   node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]
+//   node bin/pipeline.js --login <persona> [--harness claude|codex|agy|opencode]
 //                                       log a persona in inside a container
 //   node bin/pipeline.js --copy-profile <from> <to>
 //                                       copy one persona's profile to another
@@ -44,7 +44,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
     "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]",
-    "       node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]   log a persona in inside a container",
+    "       node bin/pipeline.js --login <persona> [--harness claude|codex|agy|opencode]   log a persona in inside a container",
     "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile to another"
 ];
 
@@ -157,8 +157,8 @@ function parseCommand(argv) {
     }
     if (values.login !== undefined) {
         checkPersona(values.login);
-        if (!["claude", "codex", "opencode"].includes(values.harness ?? "claude")) {
-            throw new Error("harness must be one of claude|codex|opencode");
+        if (!["claude", "codex", "agy", "opencode"].includes(values.harness ?? "claude")) {
+            throw new Error("harness must be one of claude|codex|agy|opencode");
         }
     }
     const target = positionals[0] ?? "watch";
