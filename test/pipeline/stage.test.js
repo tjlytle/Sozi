@@ -112,6 +112,27 @@ function mirrorOf(source, tmp, issueBranch) {
 }
 
 /**
+ * Seed a node_modules cache whose lock-sha matches the lockfile at a commit.
+ * @param {string} tmp - The directory the cache goes in.
+ * @param {string} sha - The commit whose package-lock.json the cache matches.
+ * @returns {string} - The cache's path.
+ */
+function seedCache(tmp, sha) {
+    const cache = path.join(tmp, "cache");
+    fs.mkdirSync(cache);
+    const lock = execFileSync("git", ["show", `${sha}:package-lock.json`], {
+        cwd: root,
+        maxBuffer: 1 << 28
+    });
+    fs.writeFileSync(
+        path.join(cache, "lock-sha"),
+        crypto.createHash("sha256").update(lock).digest("hex") + "\n"
+    );
+    fs.symlinkSync(path.join(root, "node_modules"), path.join(cache, "node_modules"));
+    return cache;
+}
+
+/**
  * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
  * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
  * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
@@ -129,17 +150,7 @@ function world(issueBranch = false) {
     fs.mkdirSync(outbox);
     fs.writeFileSync(path.join(outbox, "prompt.md"), "do the thing\n");
     fs.writeFileSync(path.join(outbox, "allow.txt"), "Read\n");
-    const cache = path.join(tmp, "cache");
-    fs.mkdirSync(cache);
-    const lock = execFileSync("git", ["show", `${sha}:package-lock.json`], {
-        cwd: root,
-        maxBuffer: 1 << 28
-    });
-    fs.writeFileSync(
-        path.join(cache, "lock-sha"),
-        crypto.createHash("sha256").update(lock).digest("hex") + "\n"
-    );
-    fs.symlinkSync(path.join(root, "node_modules"), path.join(cache, "node_modules"));
+    const cache = seedCache(tmp, sha);
     return {
         tmp,
         outbox,
