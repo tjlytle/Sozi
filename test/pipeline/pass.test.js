@@ -334,7 +334,7 @@ describe("persona profiles at start", () => {
             env: {PIPELINE_PARALLEL: "3", PIPELINE_PER_PERSONA: "0"}
         });
         const s = await w.p.pass();
-        assert.deepEqual(s.started, [25, 26, 27]);
+        assert.deepEqual(s.started, [25, 27, 26]);
     });
     test("a profile that is not logged in refuses the start, no working label", async () => {
         const w = world({issues: [issue(25, ["stage:in-progress"])]});
@@ -394,6 +394,92 @@ describe("persona profiles at start", () => {
         assert.ok(w.logs.includes("spawn advocate dropped"));
         assert.ok(!w.starts.some((/** @type {any} */ o) => o.stage === "spawn"));
         assert.deepEqual(s.started, [25]);
+    });
+});
+
+/**
+ * Mark a session of a persona as running, the way a spawn records it.
+ *
+ * @param {any} w - The world.
+ * @param {string} persona - The persona.
+ * @param {string} container - The container id.
+ */
+function running(w, persona, container) {
+    w.containers[container] = "running";
+    const started = new Date(w.clock.now()).toISOString();
+    const outbox = fs.mkdtempSync(path.join(os.tmpdir(), "ob-"));
+    w.state.run.sessions.push({container, started, outbox, persona, issue: 0});
+}
+
+/**
+ * Mark an issue's session as running for a persona.
+ *
+ * @param {any} w - The world.
+ * @param {number} n - The issue number.
+ * @param {string} persona - The persona.
+ */
+function runningIssue(w, n, persona) {
+    const container = `c${n}`;
+    w.containers[container] = "running";
+    const started = new Date(w.clock.now()).toISOString();
+    const outbox = fs.mkdtempSync(path.join(os.tmpdir(), "ob-"));
+    w.state.issues[n].session = {container, started, stage: "build", outbox, persona};
+}
+
+describe("choosing the next issue", () => {
+    test("the issue of the least-busy persona starts first", async () => {
+        const w = world({
+            issues: [
+                issue(1, ["stage:in-progress", "working"]),
+                issue(2, ["stage:in-progress", "working"]),
+                issue(10, ["stage:todo"]),
+                issue(11, ["stage:in-progress"]),
+                issue(12, ["stage:qa"])
+            ],
+            env: {PIPELINE_PARALLEL: "4", PIPELINE_PER_PERSONA: "0"}
+        });
+        runningIssue(w, 1, "builder");
+        runningIssue(w, 2, "builder");
+        running(w, "architect", "ca");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [12]);
+    });
+    test("with nothing running, personas take turns and a tie goes to the lowest number", async () => {
+        const w = world({
+            issues: [
+                issue(10, ["stage:todo"]),
+                issue(11, ["stage:todo"]),
+                issue(12, ["stage:todo"]),
+                issue(13, ["stage:todo"]),
+                issue(14, ["stage:in-progress"])
+            ],
+            env: {PIPELINE_PARALLEL: "4", PIPELINE_PER_PERSONA: "0"}
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [10, 14, 11, 12]);
+    });
+    test("the order and the persona limit work together", async () => {
+        const w = world({
+            issues: [
+                issue(10, ["stage:todo"]),
+                issue(11, ["stage:todo"]),
+                issue(12, ["stage:in-progress"])
+            ],
+            env: {PIPELINE_PARALLEL: "4", PIPELINE_PER_PERSONA: "1"}
+        });
+        running(w, "architect", "ca");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [12]);
+        assert.ok(w.logs.includes("#10: waits, architect at its limit"));
+    });
+    test("a running spawn counts for its persona", async () => {
+        const w = world({
+            issues: [issue(10, ["stage:todo"]), issue(11, ["stage:in-progress"])],
+            env: {PIPELINE_PARALLEL: "2", PIPELINE_PER_PERSONA: "0"}
+        });
+        running(w, "architect", "ca");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [11]);
     });
 });
 
