@@ -3,7 +3,8 @@
 # an assistant event and a result event, and exits like the real CLI would.
 #
 # Env: FAKE_ARGS (file; one line of arguments appended per call),
-# FAKE_MODE (ratelimit | usagelimit | budget | noresult | mention; default is a clean success).
+# FAKE_MODE (ratelimit | usagelimit | budget | noresult | mention; default is a clean success),
+# FAKE_COST (the clean success's total_cost_usd; default 0.12).
 set -u
 
 echo "$*" >>"${FAKE_ARGS:-/dev/null}"
@@ -34,5 +35,5 @@ case "$mode" in
         echo '{"type":"result","subtype":"error_max_budget_usd","is_error":true,"num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
         exit 1 ;;
 esac
-echo '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
+echo '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":'"${FAKE_COST:-0.12}"',"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
 exit 0

@@ -57,16 +57,24 @@ launch() {
     return "${PIPESTATUS[0]}"
 }
 
-# Write OUT/usage.json from the last result line of this call's stream.
+# Write OUT/usage.json for the whole session: on resume, this call's tokens and turns
+# (from the last result line of its stream) are added to the previous usage.json; the
+# cost is taken as the result reports it (already cumulative), or kept when there is none.
 write_usage() {
-    local result
+    local result prev='{}'
     result=$(tail -n "$1" "$OUT/stream.jsonl" | jq -R -c 'fromjson? | select(type == "object" and .type == "result")' 2>/dev/null | tail -n 1)
     [ -n "$result" ] || result='null'
-    jq -n --argjson r "$result" '
+    if [ "$MODE" = resume ]; then
+        prev=$(jq -c 'select(type == "object")' "$OUT/usage.json" 2>/dev/null) || prev='{}'
+        [ -n "$prev" ] || prev='{}'
+    fi
+    jq -n --argjson r "$result" --argjson prev "$prev" '
         ($r // {}) as $x |
         (($x.subtype // "") + " " + (($x.error // "") | tostring) + (if $x.is_error == true then " " + (($x.result // "") | tostring) else "" end)) as $text |
-        {tokensIn: ($x.usage.input_tokens // 0), tokensOut: ($x.usage.output_tokens // 0),
-         costUsd: ($x.total_cost_usd // 0), turns: ($x.num_turns // 0),
+        {tokensIn: (($prev.tokensIn // 0) + ($x.usage.input_tokens // 0)),
+         tokensOut: (($prev.tokensOut // 0) + ($x.usage.output_tokens // 0)),
+         costUsd: ($x.total_cost_usd // $prev.costUsd // 0),
+         turns: (($prev.turns // 0) + ($x.num_turns // 0)),
          status: (if $r == null then "error"
                   elif ($text | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
                   elif (($x.subtype // "") | test("budget")) then "budget"
