@@ -161,6 +161,98 @@ describe("outbox request details", () => {
     });
 });
 
+describe("refusal messages", () => {
+    const done = "stage:tests, stage:in-progress, stage:review, stage:qa, stage:done";
+    /** @type {[string, unknown, number, string][]} */
+    const rows = [
+        ["not an object", null, 25, "request must be an object"],
+        ["no kind", {}, 25, "one request per file"],
+        ["__proto__", JSON.parse('{"__proto__": {}}'), 25, "unknown request kind __proto__"],
+        ["merge", {merge: 5}, 25, "unknown request kind merge"],
+        ["constructor", {constructor: {}}, 25, "unknown request kind constructor"],
+        ["toString", {toString: "x"}, 25, "unknown request kind toString"],
+        ["done body", {done: 5}, 25, "done must be an object"],
+        ["label body", {label: 5}, 25, "label must be an object"],
+        ["spawn body", {spawn: 5}, 25, "spawn must be an object"],
+        ["note", {note: ""}, 25, "note must be a non-empty string"],
+        ["wait without issue", {wait: 5}, 0, "wait needs a session that works on an issue"],
+        ["wait body", {wait: " "}, 25, "wait must be a non-empty string: what a person is to do"],
+        [
+            "done issue",
+            {done: {issue: 26, to: "stage:qa"}},
+            25,
+            "done may only move this session's issue 25, not issue 26"
+        ],
+        [
+            "done target",
+            {done: {issue: 25, to: "stage:todo"}},
+            25,
+            `done target stage:todo is not one of ${done}, stage:blocked, stage:parked, triage`
+        ],
+        ["label issue", {label: {issue: 0}}, 25, "label needs an issue number"],
+        ["label list", {label: {issue: 25, add: "x"}}, 25, "add must be a list of labels"],
+        [
+            "label allowed",
+            {label: {issue: 25, add: ["bug"]}},
+            25,
+            "label bug is not one the loop allows"
+        ],
+        [
+            "label add",
+            {label: {issue: 25, add: ["stage:done"]}},
+            25,
+            "label may not add stage:done"
+        ],
+        [
+            "label remove",
+            {label: {issue: 25, remove: ["working"]}},
+            25,
+            "label may not remove working"
+        ],
+        [
+            "label stage",
+            {label: {issue: 25, add: ["stage:todo"]}},
+            25,
+            "label may not change stage:todo; a stage moves through done"
+        ],
+        [
+            "label triage",
+            {label: {issue: 30, remove: ["triage"]}},
+            25,
+            "label may not lift issue 30 out of triage"
+        ],
+        [
+            "spawn persona",
+            {spawn: {prompt: "x"}},
+            25,
+            "spawn needs a persona, one of advocate, architect, builder, qa, reviewer, ops"
+        ],
+        [
+            "spawn prompt",
+            {spawn: {persona: "qa", prompt: " "}},
+            25,
+            "spawn needs a non-empty prompt"
+        ],
+        [
+            "spawn issue",
+            {spawn: {persona: "qa", prompt: "x", issue: 1.5}},
+            25,
+            "spawn issue must be an issue number"
+        ],
+        [
+            "spawn harness",
+            {spawn: {persona: "qa", prompt: "x", harness: "gemini"}},
+            25,
+            "spawn harness gemini is not one of claude, codex, opencode"
+        ]
+    ];
+    test("every refusal keeps its exact message", () => {
+        for (const [name, obj, issue, message] of rows) {
+            assert.throws(() => validateRequest(obj, {issue}), {message}, name);
+        }
+    });
+});
+
 describe("readRequests", () => {
     test("reads in name order and sorts accepted from refused", () => {
         const dir = scratch();
