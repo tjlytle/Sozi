@@ -11,7 +11,7 @@ import {addUsage} from "./state.js";
 const MAX_BACKOFF_MINUTES = 120;
 
 /** Usage reports after which a session that moved nothing costs no try. */
-const NO_TRY_STATUSES = ["rate-limited", "unsupported"];
+const NO_TRY_STATUSES = ["rate-limited"];
 
 /** The moves each stage's session may ask for with a done request, by prompt name. */
 const TRANSITIONS = {
@@ -43,13 +43,24 @@ export function allowedMoves(stage) {
 
 /**
  * Tell whether a result excuses a session that moved nothing from counting as a try: the
- * model was rate limited, or the harness cannot report usage.
+ * model was rate limited.
  *
  * @param {Result | null} result - The result, if any.
  * @returns {boolean} True when the session costs no try.
  */
 export function costsNoTry(result) {
     return result !== null && NO_TRY_STATUSES.includes(result.usage.status);
+}
+
+/**
+ * Tell whether a result comes from a stub harness: its adapter cannot run a session at
+ * all, so another try never helps.
+ *
+ * @param {Result | null} result - The result, if any.
+ * @returns {boolean} True when the harness reported unsupported.
+ */
+export function stubHarness(result) {
+    return result?.usage.status === "unsupported";
 }
 
 /**

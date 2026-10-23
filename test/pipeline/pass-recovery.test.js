@@ -72,12 +72,24 @@ describe("a model usage limit", () => {
         assert.deepEqual(s.started, [], "starts wait for the back-off");
         assert.ok(!w.state.issues[25].labels.includes("working"));
     });
-    test("an unsupported usage report costs no try either", async () => {
-        const w = world({issues: [issue(25, ["stage:todo"])]});
+    test("a stub harness parks the issue at once", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:todo"])],
+            env: {PIPELINE_HARNESS_PLAN: "codex"}
+        });
         await w.p.pass();
-        end(w, w.state.issues[25].session.outbox, "c25", {exit: 1, status: "unsupported"});
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 69, status: "unsupported"});
         await w.p.pass();
+        assert.equal(w.state.issues[25].stage, "stage:parked");
         assert.equal(w.state.issues[25].tries, 0);
+        const comments = w.calls.filter(c => c[0] === "comment" && c[2] === 25);
+        assert.equal(comments.length, 1);
+        assert.equal(comments[0][1], "ops");
+        assert.match(comments[0][3], /`codex` harness is a stub/);
+        assert.match(comments[0][3], /PIPELINE_HARNESS_PLAN/);
+        const starts = w.calls.filter(c => c[0] === "start").length;
+        await w.p.pass();
+        assert.equal(w.calls.filter(c => c[0] === "start").length, starts);
     });
     test("rate limits in a row double the back-off; a clean result resets it", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});

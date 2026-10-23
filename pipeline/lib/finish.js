@@ -10,7 +10,7 @@ import {logTail} from "./outbox.js";
 import {readRequests} from "./requests.js";
 import {park, promptFor, recordTry, stageOf} from "./state.js";
 import {applyLabels, backOff, hasQueued, inBackoff, moveStage, writeLabel} from "./sync.js";
-import {allowedMoves, costsNoTry, takeResult, unverifiedReason} from "./verdict.js";
+import {allowedMoves, costsNoTry, stubHarness, takeResult, unverifiedReason} from "./verdict.js";
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
@@ -103,8 +103,26 @@ async function writeComment(ctx, n, body) {
 }
 
 /**
- * Count a try for an issue that did not move; on the last, park it, note when, and
- * comment (or queue the comment).
+ * Park an issue, note when, comment why (or queue the comment) and record the move.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {string} text - The comment.
+ * @returns {Promise<void>}
+ */
+async function parkIssue(ctx, n, text) {
+    const stage = ctx.state.issues[n].stage;
+    park(ctx.state, n);
+    ctx.state.issues[n].parkedAt = new Date(ctx.clock.now()).toISOString();
+    await writeComment(ctx, n, text);
+    await writeLabel(ctx, {issue: n, add: ["stage:parked"], remove: stage ? [stage] : []});
+    ctx.summary.moved.push([n, stage, "stage:parked"]);
+    ctx.summary.parked.push(n);
+    ctx.changed.add(n);
+}
+
+/**
+ * Count a try for an issue that did not move; on the last, park it with the log tail.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -120,19 +138,36 @@ async function countTry(ctx, n, outbox) {
     if (!parks) {
         return;
     }
-    park(state, n);
-    state.issues[n].parkedAt = new Date(ctx.clock.now()).toISOString();
-    const text =
+    await parkIssue(
+        ctx,
+        n,
         `Pipeline: the ${promptFor(stage) ?? stage} stage ended ${tries} times without moving ` +
-        `this issue, so I am parking it. @${settings.human}, the log tail:\n\n` +
-        "```\n" +
-        `${logTail(outbox)}\n` +
-        "```\n";
-    await writeComment(ctx, n, text);
-    await writeLabel(ctx, {issue: n, add: ["stage:parked"], remove: stage ? [stage] : []});
-    ctx.summary.moved.push([n, stage, "stage:parked"]);
-    ctx.summary.parked.push(n);
-    ctx.changed.add(n);
+            `this issue, so I am parking it. @${settings.human}, the log tail:\n\n` +
+            "```\n" +
+            `${logTail(outbox)}\n` +
+            "```\n"
+    );
+}
+
+/**
+ * Park an issue whose session ran on a stub harness, naming the harness and the stage.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @returns {Promise<void>}
+ */
+async function parkStub(ctx, n) {
+    const stage = ctx.state.issues[n].session.stage;
+    const harness = ctx.settings.harnessFor(stage);
+    ctx.log(`#${n}: the ${harness} harness is a stub; parking`);
+    await parkIssue(
+        ctx,
+        n,
+        `Pipeline: the \`${harness}\` harness is a stub (\`status: unsupported\`), so the ` +
+            `\`${stage}\` stage cannot run; parking. @${ctx.settings.human}, set ` +
+            `\`PIPELINE_HARNESS_${stage.toUpperCase()}\` to a working harness and comment ` +
+            "to wake it."
+    );
 }
 
 /**
@@ -220,7 +255,8 @@ async function applyRequests(ctx, n, accepted, unverified) {
 
 /**
  * Judge an issue's ended session: usage, requests, and a try when it moved nothing,
- * unless it asked to wait for a person or the model's usage limit stopped it.
+ * unless it asked to wait for a person or the model's usage limit stopped it. A session
+ * on a stub harness parks the issue at once.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -242,7 +278,9 @@ async function judgeIssue(ctx, n, outcome) {
     if (moved) {
         return;
     }
-    if (costsNoTry(result)) {
+    if (stubHarness(result)) {
+        await parkStub(ctx, n);
+    } else if (costsNoTry(result)) {
         ctx.log(`${who}: usage ${result?.usage.status}; no try, stays at ${record.stage}`);
     } else if (wait !== null) {
         record.waiting = true;

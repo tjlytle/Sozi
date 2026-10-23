@@ -255,6 +255,23 @@ describe("the in-container stage runner", () => {
         runStage({...w.env, PIPELINE_MAX_RESUMES: "2"});
         assert.equal(result(w.outbox).resumes, 2);
     });
+    test("PIPELINE_MAX_RESUMES=0 runs the outside checks once and never resumes", () => {
+        const w = world();
+        fs.writeFileSync(w.env.HOOKS_OUTSIDE, NEW_HOOKS, {mode: 0o755});
+        runStage({...w.env, PIPELINE_MAX_RESUMES: "0"});
+        const r = result(w.outbox);
+        assert.equal(r.hooks, "ok");
+        assert.equal(r.resumes, 0);
+        assert.ok(fs.existsSync(path.join(w.outbox, "report-0.txt")));
+        assert.ok(!fs.existsSync(path.join(w.outbox, "report-1.txt")));
+    });
+    test("the last resume's work is checked", () => {
+        const w = world();
+        fs.writeFileSync(w.env.HOOKS_OUTSIDE, NEW_HOOKS, {mode: 0o755});
+        runStage({...w.env, PIPELINE_MAX_RESUMES: "1"});
+        assert.equal(result(w.outbox).resumes, 1);
+        assert.ok(fs.existsSync(path.join(w.outbox, "report-1.txt")));
+    });
     test("one display for the session when none is set, stopped at the end (#73)", async () => {
         const w = world();
         const bin = path.join(w.tmp, "bin");
