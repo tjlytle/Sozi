@@ -57,6 +57,12 @@ USER factory
 # the repo's fixture decks. Playwright's Chromium launches without one by default.
 ENV ELECTRON_DISABLE_SANDBOX=1
 
+# The Antigravity CLI (agy), unpinned like the npm harnesses. Its installer puts the
+# binary in ~/.local/bin; its login lives in ~/.gemini, which the runner links into the
+# persona profile.
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
+ENV PATH="/home/factory/.local/bin:${PATH}"
+
 # Playwright's Chromium at the pinned version (libraries are already in).
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/ms-playwright
 RUN cd /cache && npx playwright install chromium

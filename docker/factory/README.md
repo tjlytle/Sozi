@@ -13,14 +13,15 @@ and the lockfile. `.dockerignore` keeps `node_modules`, `build`, `dist`, `var`, 
 `.agents/tmp` and `.superpowers` out of the context.
 
 Measured on the dev machine (cold cache): about 6 minutes, image size 6.48 GB (Chromium,
-Electron's libraries, the three harness CLIs and `node_modules`). `/cache` is created
+Electron's libraries, the harness CLIs and `node_modules`). `/cache` is created
 and filled as `factory`, so no layer re-owns it.
 
 ## What is in it
 
 - Debian packages: git, gh (GitHub's apt repo), jq, python3, curl, xvfb, and the libraries
   Electron needs; Playwright adds Chromium's own.
-- Global npm: `@anthropic-ai/claude-code`, `@openai/codex`, `opencode-ai`. These are
+- Global npm: `@anthropic-ai/claude-code`, `@openai/codex`, `opencode-ai`; and the
+  Antigravity CLI (`agy`) in `/home/factory/.local/bin`, from its own installer. These are
   **not pinned**: a rebuild picks up the newest release of each.
 - `/opt/gh-personas`: the gh-personas plugin (hooks, skill, `bin/` on `PATH`).
 - `/cache`: `node_modules` from `npm ci` for the lockfile, `lock-sha` (its hash, which

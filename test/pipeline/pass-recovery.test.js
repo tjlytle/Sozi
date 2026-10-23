@@ -75,7 +75,7 @@ describe("a model usage limit", () => {
     test("a stub harness parks the issue at once", async () => {
         const w = world({
             issues: [issue(25, ["stage:todo"])],
-            env: {PIPELINE_HARNESS_PLAN: "codex"}
+            env: {PIPELINE_HARNESS_PLAN: "opencode"}
         });
         await w.p.pass();
         end(w, w.state.issues[25].session.outbox, "c25", {exit: 69, status: "unsupported"});
@@ -85,7 +85,7 @@ describe("a model usage limit", () => {
         const comments = w.calls.filter(c => c[0] === "comment" && c[2] === 25);
         assert.equal(comments.length, 1);
         assert.equal(comments[0][1], "ops");
-        assert.match(comments[0][3], /`codex` harness is a stub/);
+        assert.match(comments[0][3], /`opencode` harness is a stub/);
         assert.match(comments[0][3], /PIPELINE_HARNESS_PLAN/);
         const starts = w.calls.filter(c => c[0] === "start").length;
         await w.p.pass();

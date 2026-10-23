@@ -65,14 +65,44 @@ Claude Code, so no extra prompt text is needed.
 
 ## codex
 
-Stub. A real adapter needs:
+Working. Runs `codex exec --json --skip-git-repo-check
+--dangerously-bypass-approvals-and-sandbox -C DIR -m MODEL -` with the prompt on stdin
+(`resume SESSION -` continues a thread), saves the raw stream to `DIR/stream.jsonl` and
+prints a readable log (`▶ command: …` for a tool call, `■ done` or `■ failed: …` at the
+end). The container is the sandbox, so Codex runs without its own; the allow list has no
+Codex equivalent and is only checked to exist. The session id is the `thread_id` of
+`thread.started`, written as soon as the stream names it. Usage comes from this call's
+`turn.completed` (`input_tokens`, `output_tokens`); `turns` counts the completed items;
+`costUsd` is 0, since a subscription reports no cost. `rate-limited` when a `turn.failed`
+or `error` message matches `rate limit|usage limit|hit your … limit|429|overloaded`,
+`error` for any other failure or no completed turn. `CODEX_BIN` overrides the binary;
+`CODEX_HOME` (set by the profile) holds the login. Log in with
+`npm run pipeline -- --login <persona> --harness codex`, then `codex login --device-auth`.
 
-- `run`: `codex exec --json -C DIR --sandbox workspace-write -m MODEL "$prompt"`.
-- `resume`: `codex exec resume SESSION_ID "$message"`.
-- Session id and usage from the JSONL stream (`turn.completed` carries the
-  token counts); a log filter like the claude one.
-- The allow list has no equivalent; the container is the boundary.
-- The hook-equivalent text below prepended to every prompt.
+## agy
+
+Working. Runs the Antigravity CLI: `agy -p TEXT --output-format stream-json --model MODEL
+--dangerously-skip-permissions --add-dir OUT` in the checkout (`--conversation SESSION`
+continues one), saves the raw stream to `OUT/stream.jsonl` and prints a readable log (text
+deltas joined, `▶ <step type>: …` for a finished tool step, `■ <status> after N turns`).
+Every tool call is approved, because the container is the sandbox; the allow list is only
+checked to exist. The session id is the `conversation_id` of the `init` event. Usage comes
+from the `result` event (`usage.input_tokens`, `usage.output_tokens`, `num_turns`);
+`costUsd` is 0. `ok` when its `status` is `SUCCESS`, `rate-limited` when its error or
+status matches `rate limit|usage limit|quota|RESOURCE_EXHAUSTED|429|overloaded`, `error`
+otherwise or with no result. Model names are agy's own (`agy models`), and include Gemini
+and Claude models. `AGY_BIN` overrides the binary. agy keeps its login in `~/.gemini` and
+has no setting for that path, so the stage runner and the login container link it to
+`/profile/gemini` (the login itself is `antigravity-cli/antigravity-oauth-token` there). Log in with `npm run pipeline -- --login <persona> --harness agy`, then
+`agy`.
+
+The tool-step fields of both log filters were checked against a real review session of
+each (2026-10-23). The error texts that mean a limit come from neither yet: they are the
+CLIs' known wording, checked the first time a stage hits a limit.
+
+`turns` is each CLI's own count and does not compare across harnesses: Claude counts
+assistant turns, Codex counts completed items (tool calls and messages), and agy counts
+one turn per prompt. Compare harnesses by tokens and outcome instead.
 
 ## opencode
 

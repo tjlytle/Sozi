@@ -15,7 +15,13 @@ const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {encoding: "u
 function login(dir, env) {
     return spawnSync("bash", [path.join(root, "pipeline", "login.sh")], {
         encoding: "utf8",
-        env: {...process.env, PROFILE: dir, SHELL_CMD: "true", ...env}
+        env: {
+            ...process.env,
+            PROFILE: dir,
+            SHELL_CMD: "true",
+            AGY_HOME_LINK: path.join(dir, ".gemini-link"),
+            ...env
+        }
     });
 }
 
@@ -52,7 +58,7 @@ test("the banner names the persona, the volume and the claude steps", () => {
         assert.match(r.stdout, /claude mcp add --scope user <name>/);
         assert.match(r.stdout, /\/mcp` to authorise it/);
         assert.match(r.stdout, /exit/);
-        for (const sub of ["claude", "codex", "xdg"]) {
+        for (const sub of ["claude", "codex", "gemini", "xdg"]) {
             assert.ok(fs.statSync(path.join(dir, sub)).isDirectory(), sub);
         }
     } finally {
@@ -64,12 +70,29 @@ test("the banner names the codex and opencode commands", () => {
     const dir = scratch();
     try {
         const codex = login(dir, {PIPELINE_LOGIN_PERSONA: "qa", PIPELINE_LOGIN_HARNESS: "codex"});
-        assert.match(codex.stdout, /codex login/);
+        assert.match(codex.stdout, /codex login --device-auth/);
         const other = login(dir, {
             PIPELINE_LOGIN_PERSONA: "qa",
             PIPELINE_LOGIN_HARNESS: "opencode"
         });
         assert.match(other.stdout, /opencode auth login/);
+    } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+    }
+});
+
+test("the agy banner names agy and links ~/.gemini to the profile", () => {
+    const dir = scratch();
+    const link = path.join(dir, "home-gemini");
+    try {
+        const r = login(dir, {
+            PIPELINE_LOGIN_PERSONA: "qa",
+            PIPELINE_LOGIN_HARNESS: "agy",
+            AGY_HOME_LINK: link
+        });
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stdout, /Run `agy`/);
+        assert.equal(fs.realpathSync(link), fs.realpathSync(path.join(dir, "gemini")));
     } finally {
         fs.rmSync(dir, {recursive: true, force: true});
     }

@@ -243,7 +243,7 @@ describe("refusal messages", () => {
             "spawn harness",
             {spawn: {persona: "qa", prompt: "x", harness: "gemini"}},
             25,
-            "spawn harness gemini is not one of claude, codex, opencode"
+            "spawn harness gemini is not one of claude, codex, agy, opencode"
         ]
     ];
     test("every refusal keeps its exact message", () => {

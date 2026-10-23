@@ -1,22 +1,79 @@
 #!/usr/bin/env bash
-# Harness adapter stub for codex (contract: pipeline/harness/README.md).
-#
-# Not implemented yet: it parses the contract arguments (so a wrong call still
-# exits 64), records status "unsupported", says so and exits 69. What the real
-# adapter needs is in the codex section of the README.
+# Harness adapter for the Codex CLI (contract: pipeline/harness/README.md).
 #
 # Usage: codex run --prompt FILE --model M --allow FILE --checkout DIR --out DIR
 #        codex resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR
+#
+# Runs `codex exec --json` in the checkout with the prompt on stdin, saves the raw
+# stream to OUT/stream.jsonl, prints a readable log on stdout, and leaves OUT/session
+# (the thread id, written as soon as the stream names it) and OUT/usage.json.
+# Exit: the CLI's exit status; 75 when the session was rate-limited; 64 on a bad call.
+#
+# Env read: CODEX_BIN (codex), CODEX_HOME (the profile's codex directory).
 set -u
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# The JSONL stream as readable lines; a thread id comes out as "\x1eSESSION <id>".
+live() {
+    jq -R -r --unbuffered '
+    (. as $line | try fromjson catch {type: "raw", text: $line}) |
+    if .type == "raw" then .text
+    elif .type == "thread.started" then "\u001eSESSION " + .thread_id
+    elif .type == "item.completed" then
+      .item | if .type == "agent_message" then .text
+        elif .type == "command_execution" then "▶ command: " + ((.command // "") | .[0:160])
+        elif .type == "file_change" then "▶ file_change: " + ([.changes[]?.path] | join(", ") | .[0:160])
+        elif .type == "mcp_tool_call" then "▶ mcp: " + ((.server // "") + "." + (.tool // ""))
+        elif .type == "reasoning" then empty
+        else "▶ " + (.type // "item") end
+    elif .type == "turn.completed" then "■ done"
+    elif .type == "turn.failed" then "■ failed: " + ((.error.message // "") | tostring | .[0:200])
+    elif .type == "error" then "■ error: " + ((.message // "") | tostring | .[0:200])
+    else empty end' | while IFS= read -r line; do
+        case "$line" in
+            $'\x1e'SESSION\ *) echo "${line#*SESSION }" >"$OUT/session" ;;
+            *) printf '%s\n' "$line" ;;
+        esac
+    done
+}
+
+# Run the CLI in the checkout; returns the CLI's exit status. The container is the
+# sandbox, so Codex runs without its own (the allow list has no Codex equivalent).
+launch() {
+    local cmd=("${CODEX_BIN:-codex}" exec --json --skip-git-repo-check
+        --dangerously-bypass-approvals-and-sandbox -C "$CHECKOUT" -m "$MODEL")
+    [ "$MODE" = run ] || cmd+=(resume "$SESSION")
+    cmd+=(-)
+    cd "$CHECKOUT" || return 1
+    call_text | "${cmd[@]}" 2>&1 | tee -a "$OUT/stream.jsonl" | live
+    return "${PIPESTATUS[1]}"
+}
+
+# Write OUT/usage.json from the last N lines of the stream (this call's).
+write_usage() {
+    tail -n "$1" "$OUT/stream.jsonl" | jq -R -c 'fromjson? | select(type == "object")' 2>/dev/null |
+        jq -s '
+        (map(select(.type == "turn.completed")) | last) as $done |
+        (map(select(.type == "turn.failed" or .type == "error")) |
+            map((.error.message // .message // "") | tostring) | join(" ")) as $failure |
+        {tokensIn: ($done.usage.input_tokens // 0), tokensOut: ($done.usage.output_tokens // 0),
+         costUsd: 0, turns: (map(select(.type == "item.completed")) | length),
+         status: (if ($failure | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
+                  elif $failure != "" or $done == null then "error" else "ok" end)}' >"$OUT/usage.json"
+}
+
 main() {
+    local rc before
     parse_args "$@"
-    mkdir -p "$OUT"
-    echo '{"tokensIn": 0, "tokensOut": 0, "costUsd": 0, "turns": 0, "status": "unsupported"}' >"$OUT/usage.json"
-    echo "codex adapter is a stub; see pipeline/harness/README.md"
-    exit 69
+    [ -r "$ALLOW_FILE" ] || usage_exit
+    mkdir -p "$OUT"; touch "$OUT/stream.jsonl"
+    [ "$MODE" = run ] || echo "$SESSION" >"$OUT/session"
+    before=$(wc -l <"$OUT/stream.jsonl")
+    launch; rc=$?
+    write_usage "$(( $(wc -l <"$OUT/stream.jsonl") - before ))"
+    [ "$(jq -r .status "$OUT/usage.json")" = rate-limited ] && exit 75
+    exit "$rc"
 }
 
 main "$@"

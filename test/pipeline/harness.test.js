@@ -7,6 +7,8 @@ import path from "node:path";
 
 const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {encoding: "utf8"}).trim();
 const fake = path.join(root, "test/fixtures/pipeline/fake-claude");
+const fakeCodex = path.join(root, "test/fixtures/pipeline/fake-codex");
+const fakeAgy = path.join(root, "test/fixtures/pipeline/fake-agy");
 
 /**
  * A scratch dir holding prompt.md, allow.txt and message.md.
@@ -29,7 +31,7 @@ function scratch() {
  */
 function adapter(name, args, env = {}) {
     /** @type {Record<string, string | undefined>} */
-    const e = {...process.env, CLAUDE_BIN: fake};
+    const e = {...process.env, CLAUDE_BIN: fake, CODEX_BIN: fakeCodex, AGY_BIN: fakeAgy};
     delete e.PIPELINE_SESSION_BUDGET_USD;
     Object.assign(e, env);
     return spawnSync("bash", [path.join(root, `pipeline/harness/${name}`), ...args], {
@@ -371,8 +373,187 @@ describe("harness adapters", () => {
         assert.ok(fs.readFileSync(args, "utf8").startsWith(`-p ${prompt} `));
     });
 
+    test("codex: run writes the thread id and usage, and passes the prompt on stdin", () => {
+        const out = scratch();
+        const args = path.join(out, "args");
+        const stdin = path.join(out, "stdin");
+        const r = adapter("codex", runArgs(out), {FAKE_ARGS: args, FAKE_STDIN: stdin});
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(
+            fs.readFileSync(path.join(out, "session"), "utf8").trim(),
+            "01a168dc-712c-7cc1-82fc-6f3dfe62bcf2"
+        );
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 100,
+            tokensOut: 20,
+            costUsd: 0,
+            turns: 2,
+            status: "ok"
+        });
+        const line = fs.readFileSync(args, "utf8");
+        assert.match(
+            line,
+            /^exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox /
+        );
+        assert.match(line, new RegExp(`-C ${out} `));
+        assert.match(line, / -m m /);
+        assert.match(line, / -$/m);
+        const prompt = fs.readFileSync(stdin, "utf8");
+        assert.ok(prompt.startsWith("This harness has no edit hook."));
+        assert.ok(prompt.endsWith("hello"));
+    });
+
+    test("codex: the log is readable and the stream is saved", () => {
+        const out = scratch();
+        const r = adapter("codex", runArgs(out));
+        assert.match(r.stdout, /▶ command: bash -lc ls/);
+        assert.match(r.stdout, /hello from fake/);
+        assert.match(r.stdout, /■ done/);
+        assert.match(fs.readFileSync(path.join(out, "stream.jsonl"), "utf8"), /thread\.started/);
+    });
+
+    test("codex: resume continues the thread and replaces usage.json", () => {
+        const out = scratch();
+        adapter("codex", runArgs(out));
+        const args = path.join(out, "args");
+        const stdin = path.join(out, "stdin");
+        const r = adapter(
+            "codex",
+            [
+                "resume",
+                "--session",
+                "abc-123",
+                "--message",
+                path.join(out, "message.md"),
+                "--model",
+                "m",
+                "--allow",
+                path.join(out, "allow.txt"),
+                "--checkout",
+                out,
+                "--out",
+                out
+            ],
+            {FAKE_ARGS: args, FAKE_STDIN: stdin}
+        );
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(fs.readFileSync(args, "utf8"), / resume abc-123 -$/m);
+        assert.equal(fs.readFileSync(stdin, "utf8"), "fix the lint");
+        assert.equal(usageOf(out).tokensIn, 100);
+        assert.equal(fs.readFileSync(path.join(out, "session"), "utf8").trim(), "abc-123");
+    });
+
+    test("codex: a usage limit is rate-limited and exits 75", () => {
+        const out = scratch();
+        const r = adapter("codex", runArgs(out), {FAKE_MODE: "ratelimit"});
+        assert.equal(r.status, 75);
+        assert.equal(usageOf(out).status, "rate-limited");
+    });
+
+    test("codex: a failed turn is an error", () => {
+        const out = scratch();
+        const r = adapter("codex", runArgs(out), {FAKE_MODE: "failed"});
+        assert.equal(r.status, 1);
+        assert.equal(usageOf(out).status, "error");
+    });
+
+    test("codex: no completed turn is an error", () => {
+        const out = scratch();
+        adapter("codex", runArgs(out), {FAKE_MODE: "noturn"});
+        assert.equal(usageOf(out).status, "error");
+    });
+
+    test("agy: run writes the conversation id and usage, and passes the prompt", () => {
+        const out = scratch();
+        const args = path.join(out, "args");
+        const r = adapter("agy", runArgs(out), {FAKE_ARGS: args});
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(
+            fs.readFileSync(path.join(out, "session"), "utf8").trim(),
+            "ab168d05-1b6a-41bc-b545-d843922f1f70"
+        );
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 100,
+            tokensOut: 20,
+            costUsd: 0,
+            turns: 3,
+            status: "ok"
+        });
+        const line = fs.readFileSync(args, "utf8");
+        assert.ok(line.startsWith("-p This harness has no edit hook."));
+        assert.match(
+            line,
+            /hello --output-format stream-json --model m --dangerously-skip-permissions --add-dir /
+        );
+    });
+
+    test("agy: the log is readable and the stream is saved", () => {
+        const out = scratch();
+        const r = adapter("agy", runArgs(out));
+        assert.match(r.stdout, /▶ run_command: ls/);
+        assert.match(r.stdout, /hello from fake/);
+        assert.match(r.stdout, /■ SUCCESS after 3 turns/);
+        assert.match(fs.readFileSync(path.join(out, "stream.jsonl"), "utf8"), /"event":"init"/);
+    });
+
+    test("agy: resume passes --conversation and the message", () => {
+        const out = scratch();
+        const args = path.join(out, "args");
+        const r = adapter(
+            "agy",
+            [
+                "resume",
+                "--session",
+                "abc-123",
+                "--message",
+                path.join(out, "message.md"),
+                "--model",
+                "m",
+                "--allow",
+                path.join(out, "allow.txt"),
+                "--checkout",
+                out,
+                "--out",
+                out
+            ],
+            {FAKE_ARGS: args}
+        );
+        assert.equal(r.status, 0, r.stderr);
+        const line = fs.readFileSync(args, "utf8");
+        assert.match(line, /^-p fix the lint /);
+        assert.match(line, / --conversation abc-123/);
+    });
+
+    test("agy: a quota error is rate-limited and exits 75", () => {
+        const out = scratch();
+        const r = adapter("agy", runArgs(out), {FAKE_MODE: "ratelimit"});
+        assert.equal(r.status, 75);
+        assert.equal(usageOf(out).status, "rate-limited");
+    });
+
+    test("agy: a failed result is an error", () => {
+        const out = scratch();
+        const r = adapter("agy", runArgs(out), {FAKE_MODE: "failed"});
+        assert.equal(r.status, 1);
+        assert.equal(usageOf(out).status, "error");
+    });
+
+    test("agy: no result event is an error", () => {
+        const out = scratch();
+        adapter("agy", runArgs(out), {FAKE_MODE: "noresult"});
+        assert.equal(usageOf(out).status, "error");
+    });
+
+    test("codex and agy: a missing allow file exits 64", () => {
+        for (const name of ["codex", "agy"]) {
+            const out = scratch();
+            fs.rmSync(path.join(out, "allow.txt"));
+            assert.equal(adapter(name, runArgs(out)).status, 64);
+        }
+    });
+
     test("stubs exit 69 and say so", () => {
-        for (const name of ["codex", "opencode"]) {
+        for (const name of ["opencode"]) {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "hz-"));
             const r = adapter(name, [
                 "run",
@@ -400,7 +581,7 @@ describe("harness adapters", () => {
     });
 
     test("stubs exit 64 on a wrong call", () => {
-        for (const name of ["codex", "opencode"]) {
+        for (const name of ["opencode"]) {
             assert.equal(adapter(name, ["run", "--out", os.tmpdir()]).status, 64);
         }
     });

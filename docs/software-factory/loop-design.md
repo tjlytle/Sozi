@@ -216,7 +216,7 @@ work unchanged with its URL instead.
 `CLAUDE_CONFIG_DIR=/profile/claude`, `CODEX_HOME=/profile/codex` and
 `XDG_CONFIG_HOME=/profile/xdg` set, so a profile holds every harness's configuration:
 the login and the MCP servers authorised in it.
-- `node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]` opens an
+- `node bin/pipeline.js --login <persona> [--harness claude|codex|agy|opencode]` opens an
   interactive container on that volume (`pipeline/login.sh` prints the steps: `claude`,
   `/login`, exit; then per allowed server `claude mcp add --scope user <name> ...`, and
   `claude`, `/mcp` to authorise it, exit). A fresh profile has no servers and `/mcp` only
@@ -314,7 +314,7 @@ it and the host can call it too. The audit trail stays on GitHub; Notion only po
 ### Harnesses: the loop runs any agent, and can switch per stage
 
 The loop never calls an agent CLI directly. A stage runs through a harness adapter,
-`pipeline/harness/<name>` (`claude`, `codex`, `opencode`, and whatever comes next), one
+`pipeline/harness/<name>` (`claude`, `codex`, `agy`, `opencode`, and whatever comes next), one
 small script each with the same contract: in, the prompt file, the model, the allow list
 and the checkout path; out, an exit status, one usage line (tokens, cost when known) and
 the log stream. The harness is chosen per stage and per run (`PIPELINE_HARNESS`,
@@ -341,8 +341,8 @@ started from) and runs on them exactly what the Claude hook runs: `bin/check <fi
 `check-file.py --advise <file>`. A failing check, or an advisory note, is handed back to
 the same session as its next message, prefixed "The edit hook would have told you:", and
 the session continues from where it stopped. The adapter contract therefore has a
-`resume` entry: `claude` resumes by session id, and the `codex` and `opencode` adapters
-use their own continue mechanism; a harness that cannot resume starts a fresh session
+`resume` entry: `claude` resumes by session id, `codex` by thread id and `agy` by
+conversation id, each with its own continue mechanism; a harness that cannot resume starts a fresh session
 with the prior log's tail and the failure, which is worse but works. At most three
 resumes per stage, inside the same wall-clock cap. With Claude as the harness the inside
 hook has usually already done this and the outside pass finds nothing; it costs one
@@ -568,8 +568,8 @@ of issues and PRs. Cross-repository issues stay out of scope.
 - The Notion page layout and the `bin/digest` script's API calls.
 - The local mint endpoint (a few dozen lines; it answers the worker's request shape).
 - Where the presenter page is published (the same R2 bucket, or GitHub Pages).
-- The harness adapters beyond `claude`; the first version ships `claude` working and the
-  adapter contract documented, with `codex` and `opencode` stubs that fail clearly.
+- The harness adapters beyond `claude`: `codex` and `agy` work (2026-10-23, #128);
+  `opencode` is still a stub that fails clearly.
 - The request vocabulary's exact schema and validation; the state file's exact shape.
 - How each harness resumes a session, and what the fallback looks like for one that
   cannot.

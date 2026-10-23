@@ -209,6 +209,18 @@ describe("the in-container stage runner", () => {
         }).trim();
         assert.equal(origin, "https://github.com/tjlytle/Sozi.git");
     });
+    test("the agy login path points into the profile when it holds one", () => {
+        const w = world();
+        const profile = path.join(w.tmp, "profile");
+        fs.mkdirSync(path.join(profile, "gemini"), {recursive: true});
+        const link = path.join(w.tmp, "home-gemini");
+        execFileSync("bash", [path.join(root, "pipeline/stage.sh"), "25", "build"], {
+            cwd: root,
+            env: {...w.env, PROFILE: profile, AGY_HOME_LINK: link},
+            stdio: "pipe"
+        });
+        assert.equal(fs.realpathSync(link), fs.realpathSync(path.join(profile, "gemini")));
+    });
     test("the log carries the step markers", () => {
         const w = world();
         execFileSync("bash", [path.join(root, "pipeline/stage.sh"), "25", "build"], {

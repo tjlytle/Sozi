@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# A fake `agy` for the harness adapter tests: records its arguments, prints the
+# events of `agy -p --output-format stream-json` and exits like the real CLI would.
+#
+# Env: FAKE_ARGS (file; one line of arguments appended per call),
+# FAKE_MODE (ratelimit | failed | noresult; default is a clean success).
+set -u
+
+echo "$*" >>"${FAKE_ARGS:-/dev/null}"
+
+id="ab168d05-1b6a-41bc-b545-d843922f1f70"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --conversation) id="$2"; shift ;;
+    esac
+    shift
+done
+
+echo '{"event":"init","conversation_id":"'"$id"'","init":{"model":"m","tools":["run_command"]}}'
+echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":1,"state":"ACTIVE","step_type":"tool","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"ls"}}}}'
+echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":1,"state":"DONE","step_type":"tool","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"ls"},"output":"2 lines"}}}'
+echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":2,"state":"ACTIVE","step_type":"agent_response","text_delta":"hello "}}'
+echo '{"event":"step_update","step_update":{"conversation_id":"'"$id"'","step_index":2,"state":"DONE","step_type":"agent_response","text_delta":"from fake"}}'
+
+case "${FAKE_MODE:-}" in
+    noresult) exit 0 ;;
+    ratelimit)
+        echo '{"event":"result","result":{"conversation_id":"'"$id"'","status":"ERROR","error":"RESOURCE_EXHAUSTED: quota exceeded (429)","num_turns":2,"usage":{"input_tokens":100,"output_tokens":20}}}'
+        exit 1 ;;
+    failed)
+        echo '{"event":"result","result":{"conversation_id":"'"$id"'","status":"ERROR","error":"tool crashed","num_turns":2,"usage":{"input_tokens":100,"output_tokens":20}}}'
+        exit 1 ;;
+esac
+echo '{"event":"result","result":{"conversation_id":"'"$id"'","status":"SUCCESS","response":"hello from fake","num_turns":3,"usage":{"input_tokens":100,"output_tokens":20,"thinking_tokens":4,"cache_read_tokens":0,"total_tokens":124}}}'
+exit 0

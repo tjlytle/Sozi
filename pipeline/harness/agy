@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Harness adapter for the Antigravity CLI, agy (contract: pipeline/harness/README.md).
+#
+# Usage: agy run --prompt FILE --model M --allow FILE --checkout DIR --out DIR
+#        agy resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR
+#
+# Runs `agy -p --output-format stream-json` in the checkout, saves the raw stream to
+# OUT/stream.jsonl, prints a readable log on stdout, and leaves OUT/session (the
+# conversation id, written as soon as the stream names it) and OUT/usage.json.
+# Exit: the CLI's exit status; 75 when the session was rate-limited; 64 on a bad call.
+#
+# Env read: AGY_BIN (agy). Its profile is ~/.gemini, which the stage runner links to
+# the persona profile.
+set -u
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# The stream-json log as readable lines (text deltas joined); a conversation id comes out as "\x1eSESSION <id>".
+live() {
+    jq -R -j --unbuffered '
+    (. as $line | try fromjson catch {event: "raw", text: $line}) |
+    if .event == "raw" then .text + "\n"
+    elif .event == "init" then "\u001eSESSION " + .conversation_id + "\n"
+    elif .event == "step_update" then
+      .step_update | if .step_type == "agent_response" then (.text_delta // empty)
+        elif .step_type == "user_input" then empty
+        elif .step_type == "tool" and .state == "DONE" then "\n▶ " + (.tool_name // "tool") + ": " +
+          ((.tool_info // {}) | (if type == "string" then (fromjson? // {}) else . end) | .parameters // {} |
+            (.CommandLine // .Path // .AbsolutePath // .Query // ([.[]?] | first) // "") |
+            tostring | .[0:160]) + "\n"
+        else empty end
+    elif .event == "result" then "\n■ " + (.result.status // "done") + " after " +
+      ((.result.num_turns // 0) | tostring) + " turns\n"
+    else empty end' | while IFS= read -r line; do
+        case "$line" in
+            $'\x1e'SESSION\ *) echo "${line#*SESSION }" >"$OUT/session" ;;
+            *) printf '%s\n' "$line" ;;
+        esac
+    done
+}
+
+# Run the CLI in the checkout; returns the CLI's exit status. The container is the
+# sandbox, so every tool call is approved (the allow list has no agy equivalent).
+launch() {
+    local cmd=("${AGY_BIN:-agy}" -p "$(call_text)" --output-format stream-json --model "$MODEL"
+        --dangerously-skip-permissions --add-dir "$OUT")
+    [ "$MODE" = run ] || cmd+=(--conversation "$SESSION")
+    cd "$CHECKOUT" || return 1
+    "${cmd[@]}" </dev/null 2>&1 | tee -a "$OUT/stream.jsonl" | live
+    return "${PIPESTATUS[0]}"
+}
+
+# Write OUT/usage.json from the last result event of this call's N stream lines.
+write_usage() {
+    local result
+    result=$(tail -n "$1" "$OUT/stream.jsonl" | jq -R -c 'fromjson? | select(type == "object" and .event == "result") | .result' 2>/dev/null | tail -n 1)
+    [ -n "$result" ] || result='null'
+    jq -n --argjson r "$result" '
+        ($r // {}) as $x |
+        ((($x.error // "") | tostring) + " " + (($x.status // "") | tostring)) as $text |
+        {tokensIn: ($x.usage.input_tokens // 0), tokensOut: ($x.usage.output_tokens // 0),
+         costUsd: 0, turns: ($x.num_turns // 0),
+         status: (if $r == null then "error"
+                  elif $x.status == "SUCCESS" then "ok"
+                  elif ($text | test("rate.?limit|usage limit|quota|RESOURCE_EXHAUSTED|429|overloaded"; "i")) then "rate-limited"
+                  else "error" end)}' >"$OUT/usage.json"
+}
+
+main() {
+    local rc before
+    parse_args "$@"
+    [ -r "$ALLOW_FILE" ] || usage_exit
+    mkdir -p "$OUT"; touch "$OUT/stream.jsonl"
+    [ "$MODE" = run ] || echo "$SESSION" >"$OUT/session"
+    before=$(wc -l <"$OUT/stream.jsonl")
+    launch; rc=$?
+    write_usage "$(( $(wc -l <"$OUT/stream.jsonl") - before ))"
+    [ "$(jq -r .status "$OUT/usage.json")" = rate-limited ] && exit 75
+    exit "$rc"
+}
+
+main "$@"
