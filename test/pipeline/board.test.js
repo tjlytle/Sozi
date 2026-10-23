@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {LABELS, stageToColumn, columnToStage, decide, main, sync} from "../../bin/board.js";
+import {emptyState, applyIssue, dueIssues} from "../../pipeline/lib/state.js";
 
 /**
  * A fake runner that replays canned replies by command prefix and records every command.
@@ -104,6 +105,21 @@ function stateFile(contents) {
 }
 
 const known = {issues: {25: {board: {item: "I1"}}}};
+/** @type {(number: number, labels: string[]) => any} */
+const ghIssue = (number, labels) => ({
+    number,
+    title: `t${number}`,
+    labels,
+    state: "OPEN",
+    body: "",
+    updatedAt: "2026-10-21T00:00:00Z"
+});
+/** @returns {any} - The issues of a state that has read #25. */
+const read25 = () => {
+    const s = emptyState();
+    applyIssue(s, ghIssue(25, ["stage:review"]));
+    return s.issues;
+};
 const edits = calls => calls.filter(c => c[2] === "project" && c[3] === "item-edit");
 const isGraphql = c => c.includes("graphql");
 const env = {PIPELINE_REPO: REPO};
@@ -349,7 +365,7 @@ describe("board", () => {
             "gh-as - api graphql": lookup("Review", "2026-10-21T01:00:00Z", "OTHER"),
             "gh-as - project item-add": JSON.stringify({id: "NEW"})
         });
-        const file = stateFile({issues: {}});
+        const file = stateFile({issues: read25()});
         await main(["sync", "--issues", "25", "--state", file], {env, run, ...quiet});
         assert.equal(calls.filter(c => c[3] === "item-add").length, 1);
         assert.equal(edits(calls)[0][7], "NEW");
@@ -367,7 +383,8 @@ describe("board", () => {
             },
             cmd => {
                 if (cmd[3] === "item-add") {
-                    fs.writeFileSync(file, JSON.stringify({issues: {40: {tries: 2}}, run: {x: 1}}));
+                    const issues = {...read25(), 40: {tries: 2}};
+                    fs.writeFileSync(file, JSON.stringify({issues, run: {x: 1}}));
                 }
             }
         );
@@ -377,16 +394,76 @@ describe("board", () => {
         assert.deepEqual(after.run, {x: 1});
         assert.equal(after.issues[25].board.item, "NEW");
     });
-    test("a given book is changed in place and a missing issues object is tolerated", async () => {
+    test("a given book is changed in place and a missing issues object writes nothing", async () => {
         const {run} = fake({
             "gh-as ops api repos": restIssue(["stage:review"]),
             "gh-as - api graphql": lookup("", "", "OTHER"),
             "gh-as - project item-add": JSON.stringify({id: "NEW"})
         });
-        const book = {boardMeta: META};
+        const book = {boardMeta: META, issues: read25()};
         const result = await sync({issues: [25], book}, {repo: REPO, run, out() {}});
         assert.deepEqual(result, {failed: []});
         assert.equal(book.issues[25].board.item, "NEW");
+        const bare = {boardMeta: META};
+        await sync({issues: [25], book: bare}, {repo: REPO, run, out() {}});
+        assert.equal(bare.issues, undefined);
+    });
+    describe("a card for an issue the state has not read yet", () => {
+        const board = JSON.stringify({
+            data: {
+                node: {
+                    items: {
+                        nodes: [24, 25].map(number => ({
+                            id: `I${number}`,
+                            updatedAt: "2026-10-21T01:00:00Z",
+                            content: {number},
+                            status: {name: "Todo", updatedAt: "2026-10-21T01:00:00Z"}
+                        }))
+                    }
+                }
+            }
+        });
+        const listed = JSON.stringify(
+            [24, 25].map(number => ({
+                number,
+                url: `https://github.com/tjlytle/Sozi/issues/${number}`,
+                state: "OPEN",
+                labels: [{name: "stage:review"}]
+            }))
+        );
+        /** @returns {Promise<any>} - The book after a full sync that read #24 and not #25. */
+        const fullSync = async () => {
+            const book = emptyState();
+            book.boardMeta = META;
+            applyIssue(book, ghIssue(24, ["stage:todo"]));
+            const {run} = fake({
+                "gh-as - api graphql": board,
+                "gh-as - issue list": listed,
+                "gh-as - api --paginate": timeline("2026-10-21T02:00:00Z")
+            });
+            await sync({all: true, book}, {repo: REPO, run, out() {}});
+            return book;
+        };
+        test("is left out of a full sync; a read issue gets its item", async () => {
+            const book = await fullSync();
+            assert.equal(25 in book.issues, false);
+            assert.equal(book.issues[24].board.item, "I24");
+        });
+        test("does not stop the loop listing what is due", async () => {
+            const book = await fullSync();
+            assert.deepEqual(dueIssues(book, {}, new Date()), [24]);
+        });
+        test("is left out of the state file on sync --issues", async () => {
+            const {run} = fake({
+                "gh-as - project list": PROJECT,
+                "gh-as - project field-list": FIELDS,
+                "gh-as ops api repos": restIssue(["stage:review"]),
+                "gh-as - api graphql": lookup("Review", "2026-10-21T01:00:00Z")
+            });
+            const file = stateFile({issues: {}});
+            await main(["sync", "--issues", "25", "--state", file], {env, run, ...quiet});
+            assert.equal(25 in JSON.parse(fs.readFileSync(file, "utf8")).issues, false);
+        });
     });
     test("one failing issue is reported and does not stop the next", async () => {
         const {run, calls} = fake({
