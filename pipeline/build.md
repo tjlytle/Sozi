@@ -51,13 +51,17 @@ the policy for this session; obey them.
    green, inside the boundaries of the standard. Touch only what the issue needs (standard
    5). Then, before you commit:
    - `bin/check --fix <file>`, then `bin/check <file>`, for every file you changed, until
-     clean; `python3 .claude/hooks/check-file.py --advise <file>` for the size and comment
-     notes, which are yours to judge (standard 2.8).
+     nothing it reports is on a line you wrote; `python3 .claude/hooks/check-file.py
+     --advise <file>` for the size and comment notes, which are yours to judge (standard
+     2.8). A failure on a line you did not write is not yours to fix (Tim, 2026-10-23):
+     leave it, find the issue that covers it, and file one when none does (a `triage`
+     issue starting "Seen while building #{N}: "). List those failures in the PR body as a
+     table: file, rule, lines, covering issue.
    - `npm test`.
    - `npx gulp && git checkout -- locales/messages.pot yarn.lock`, then
      `npm run test:features`. Every scenario passes, the new ones included. The runner has already started a display, so call it directly, never through `xvfb-run`.
    - `npm run check`. It is red on old code until the cleanup issues land; what counts is
-     that it reports nothing in the files you changed.
+     that it reports nothing on the lines you changed.
    - `npm run check:deps` when `package.json` changed. A package the plan names keeps its
      `yarn.lock` change; any other package does not belong in this PR.
 6. **Commit and push.** `git status` first: neither `locales/messages.pot` nor `yarn.lock`

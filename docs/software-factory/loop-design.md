@@ -233,6 +233,16 @@ the login and the MCP servers authorised in it.
   `waits, <persona> at its limit`.
 - Hosted cloud sessions (Claude Code cloud, Codex cloud) cannot mount a volume: a
   follow-on (candidate: the profile as an encrypted blob restored at container start).
+- Claude's auto memory stays on in the profiles (Tim, 2026-10-23): a persona keeps the
+  notes it writes across sessions, in its volume and outside the repo, and a copy
+  carries them.
+
+**Older check failures** (Tim, 2026-10-23). A file a stage touches may already fail the
+checks on lines the stage did not write (old code stays red until its cleanup issue
+lands). Those are not the builder's to fix: at best it files an issue for a failure no
+issue covers, and the PR body maps each one to its issue. The reviewer treats only
+failures on changed lines as defects. The outside hook pass is meant to report only
+changed lines too (#91).
 
 **Ceilings** (Tim: limits per agent and per machine, and the loop throttles near a usage
 limit). A fixed number of containers at a time (`PIPELINE_PARALLEL`, default two; a build

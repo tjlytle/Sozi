@@ -158,3 +158,12 @@ test("no prompt pushes with -u", () => {
         assert.doesNotMatch(text, /--push [^\n]*-u\b/, f);
     }
 });
+
+test("older check failures are filed, not fixed, and not a review defect (#90)", () => {
+    const build = fs.readFileSync("pipeline/build.md", "utf8");
+    assert.match(build, /not yours to fix/);
+    assert.match(build, /nothing on the lines you changed/);
+    assert.doesNotMatch(build, /reports nothing in the files you changed/);
+    const review = fs.readFileSync("pipeline/review.md", "utf8");
+    assert.match(review, /A check failure on a line the PR added or changed is a defect/);
+});
