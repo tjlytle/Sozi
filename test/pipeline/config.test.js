@@ -1,7 +1,7 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {fileURLToPath} from "node:url";
-import {loadConfig, parseConfigText} from "../../pipeline/lib/config.js";
+import {changedSettings, loadConfig, parseConfigText} from "../../pipeline/lib/config.js";
 
 describe("pipeline settings", () => {
     test("defaults match the design", () => {
@@ -105,6 +105,75 @@ describe("pipeline settings", () => {
         assert.equal(
             loadConfig({root: "/nonexistent", env: {PIPELINE_PROFILES: "off"}}).profiles,
             "off"
+        );
+    });
+    test("values holds the effective settings but no secret", () => {
+        const s = loadConfig({
+            root: "/nonexistent",
+            env: {PIPELINE_PARALLEL: "4"},
+            files: [{PIPELINE_SYNC_MINUTES: "5", PIPELINE_EVIDENCE_TOKEN: "ev", OTHER: "x"}]
+        });
+        assert.equal(s.values.PIPELINE_PARALLEL, "4");
+        assert.equal(s.values.PIPELINE_SYNC_MINUTES, "5");
+        assert.equal(s.values.PIPELINE_MERGE, "auto");
+        assert.equal("PIPELINE_EVIDENCE_TOKEN" in s.values, false);
+        assert.equal("OTHER" in s.values, false);
+    });
+    test("changedSettings lists each changed setting as name: old -> new", () => {
+        const before = loadConfig({root: "/nonexistent", env: {}, files: []});
+        const after = loadConfig({
+            root: "/nonexistent",
+            env: {},
+            files: [{PIPELINE_PARALLEL: "4", PIPELINE_HARNESS_REVIEW: "codex"}]
+        });
+        assert.deepEqual(changedSettings(before, after), [
+            "setting PIPELINE_PARALLEL: 2 -> 4",
+            "setting PIPELINE_HARNESS_REVIEW: (unset) -> codex"
+        ]);
+        assert.deepEqual(changedSettings(after, before), [
+            "setting PIPELINE_PARALLEL: 4 -> 2",
+            "setting PIPELINE_HARNESS_REVIEW: codex -> (unset)"
+        ]);
+    });
+    test("changedSettings names a changed, added or removed secret without its value", () => {
+        const before = loadConfig({
+            root: "/nonexistent",
+            env: {},
+            files: [{CLAUDE_CODE_OAUTH_TOKEN: "old-tok", NOTION_TOKEN: "n"}]
+        });
+        const after = loadConfig({
+            root: "/nonexistent",
+            env: {},
+            files: [{CLAUDE_CODE_OAUTH_TOKEN: "new-tok", PIPELINE_EVIDENCE_TOKEN: "ev"}]
+        });
+        const lines = changedSettings(before, after);
+        assert.deepEqual(lines, [
+            "secret CLAUDE_CODE_OAUTH_TOKEN changed",
+            "secret PIPELINE_EVIDENCE_TOKEN changed",
+            "secret NOTION_TOKEN changed"
+        ]);
+        assert.equal(/old-tok|new-tok|ev\b|\bn\b/.test(lines.join("\n")), false);
+    });
+    test("changedSettings marks the repository and the mint port as taking effect at restart", () => {
+        const before = loadConfig({root: "/nonexistent", env: {}, files: []});
+        const after = loadConfig({
+            root: "/nonexistent",
+            env: {},
+            files: [{PIPELINE_REPO: "a/b", PIPELINE_MINT_PORT: "9000"}]
+        });
+        assert.deepEqual(changedSettings(before, after), [
+            "setting PIPELINE_REPO: tjlytle/Sozi -> a/b (takes effect at restart)",
+            "setting PIPELINE_MINT_PORT: 0 -> 9000 (takes effect at restart)"
+        ]);
+    });
+    test("changedSettings returns nothing for an unchanged load", () => {
+        const files = [{PIPELINE_PARALLEL: "3", CLAUDE_CODE_OAUTH_TOKEN: "t"}];
+        assert.deepEqual(
+            changedSettings(
+                loadConfig({root: "/nonexistent", env: {}, files}),
+                loadConfig({root: "/nonexistent", env: {}, files})
+            ),
+            []
         );
     });
     test("the repository's pipeline/config loads", () => {
