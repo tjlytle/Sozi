@@ -38,7 +38,8 @@ const DEFAULTS = {
     PIPELINE_CPUS: "0",
     PIPELINE_BOARD_FULL_EVERY: "12",
     PIPELINE_PROFILES: "auto",
-    PIPELINE_PER_PERSONA: "1"
+    PIPELINE_PER_PERSONA: "1",
+    PIPELINE_BACKLOG: ""
 };
 
 const CHOICES = {
@@ -147,6 +148,9 @@ export function loadConfig({root, env, files}) {
             throw new Error(`${key} must be one of ${allowed.join("|")}, not "${raw[key]}"`);
         }
     }
+    if (!/^(\d+)?$/.test(raw.PIPELINE_BACKLOG)) {
+        throw new Error(`PIPELINE_BACKLOG must be an issue number, not "${raw.PIPELINE_BACKLOG}"`);
+    }
     for (const key of NUMBERS) {
         if (!/^\d+$/.test(raw[key])) {
             throw new Error(`${key} must be an integer of at least 0, not "${raw[key]}"`);
@@ -208,6 +212,7 @@ export function loadConfig({root, env, files}) {
         boardFullEvery: num("PIPELINE_BOARD_FULL_EVERY"),
         profiles: raw.PIPELINE_PROFILES,
         perPersona: num("PIPELINE_PER_PERSONA"),
+        backlog: raw.PIPELINE_BACKLOG ? Number(raw.PIPELINE_BACKLOG) : null,
         /** The MCP servers a persona's profile may hold.
          *
          * @param {string} persona - The persona name.

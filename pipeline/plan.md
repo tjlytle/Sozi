@@ -10,14 +10,17 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 - `.agents/tmp/` is the only place for temporary files. Write every comment and issue body
   there first and pass it with `--body-file`.
 - Questions do not stop the line. Where the issue leaves a real fork, pick the better route,
-  write it and why under Decisions taken, and file the other route as an `idea` issue.
+  write it, why, and the route not taken under Decisions taken. File the other route as an
+  `idea` issue only when it would be worth doing on its own even after this issue is done
+  your way; otherwise that line is enough.
 - A finding is a bug or an improvement you notice outside this issue. File every finding as
   its own issue; never fold it into this plan. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
   Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
   Under `Findings: triage` above, every finding gets `triage`.
-- Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
-  issue you are on; if it has none, write nothing.
+- Every issue you file ends with a `Part of #<backlog>` line, the Backlog epic of the Run
+  settings above (with none there, copy the `Part of` line of the issue you are on). Never
+  the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 - Do not write code. Do not create a branch or commit.
 
@@ -57,10 +60,11 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
      version, licence, last release date, minified size, and why about a hundred lines of
      our own would not do. Only the plan may add a package.
    - **Decisions taken**: each choice the issue did not settle, one line each with the
-     reason, and the `idea` issue filed for the route not taken.
+     reason, the route not taken, and its `idea` issue when you filed one.
    - **Blocked by**: `Blocked by #n, #m` on its own line for open issues that must merge
      first, or "none".
-4. **File the alternatives.** For each fork under Decisions taken:
+4. **File the alternatives worth an issue.** For each route not taken that passes the test
+   above (often none):
    `gh-as architect issue create -R tjlytle/Sozi --label idea --title "<the other route>"
    --body-file <file>`, the body starting "Chosen against in #{N}: " and ending with the
    `Part of` line. Write each new issue number into its line under Decisions taken.

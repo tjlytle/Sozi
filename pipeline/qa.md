@@ -21,8 +21,9 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.
   Obvious: `--label stage:todo`, and it starts on its own. Not obvious: `--label triage`.
   Under `Findings: triage` above, every finding gets `triage`.
-- Every issue you file ends with a `Part of #<epic>` line: copy the `Part of` line of the
-  issue you are on; if it has none, write nothing.
+- Every issue you file ends with a `Part of #<backlog>` line, the Backlog epic of the Run
+  settings above (with none there, copy the `Part of` line of the issue you are on). Never
+  the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 
 ## Steps
