@@ -25,6 +25,7 @@ echo "display=\${DISPLAY:-}" >>"$out/display"
 echo '{"tokensIn": 10, "tokensOut": 5, "costUsd": 0.25, "turns": 2, "status": "ok"}' >"$out/usage.json"
 [ -n "\${FAKE_SLEEP:-}" ] && sleep "$FAKE_SLEEP"
 [ -n "\${FAKE_TOUCH:-}" ] && echo "changed" >"$checkout/$FAKE_TOUCH"
+[ -n "\${FAKE_SCRIPT:-}" ] && (cd "$checkout" && bash -ec "$FAKE_SCRIPT")
 exit "\${FAKE_EXIT:-0}"
 `;
 
@@ -399,6 +400,42 @@ describe("the in-container stage runner", () => {
         assert.equal(r.session, null);
         assert.equal(r.hooks, "skipped");
         assert.match(fs.readFileSync(path.join(w.outbox, "log"), "utf8"), /== no session file/);
+    });
+    /**
+     * Give a world's mirror a side branch carrying one unrelated commit that adds other.txt.
+     * @param {{tmp: string, env: Record<string, string>}} w - The world.
+     */
+    const addSideBranch = w => {
+        const side = path.join(w.tmp, "side");
+        execFileSync("git", ["clone", "-q", "--shared", w.env.MIRROR, side]);
+        fs.writeFileSync(path.join(side, "other.txt"), "other\n");
+        const git = (/** @type {string[]} */ ...args) =>
+            execFileSync("git", ["-C", side, "-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        git("add", "other.txt");
+        git("commit", "-q", "-m", "Add other.txt");
+        git("push", "-q", "origin", "HEAD:refs/heads/side");
+    };
+    /** Shell that commits a file in the session, with a fixed author: `own <file> <subject>`. */
+    const OWN = `own() { echo "$1" >"$1"; git add "$1"; git -c user.name=t -c user.email=t@t commit -q -m "$2"; }
+merge_side() { git fetch -q "$MIRROR" side; git -c user.name=t -c user.email=t@t merge -q --no-ff -m "Merge side" FETCH_HEAD; }
+`;
+    test("a session that merges master lists only its own commit (#105)", () => {
+        const w = world();
+        addSideBranch(w);
+        runStage({...w.env, FAKE_SCRIPT: `${OWN}own own.txt "Add own.txt"\nmerge_side\n`});
+        const r = result(w.outbox);
+        assert.equal(r.commits.length, 1, JSON.stringify(r.commits));
+        assert.match(r.commits[0], / Add own\.txt$/);
+    });
+    test("own commits on both sides of a merge are all listed (#105)", () => {
+        const w = world();
+        addSideBranch(w);
+        const script = `${OWN}own a.txt "Add a.txt"\nmerge_side\nown b.txt "Add b.txt"\n`;
+        runStage({...w.env, FAKE_SCRIPT: script});
+        const subjects = result(w.outbox).commits.map((/** @type {string} */ c) =>
+            c.replace(/^\S+ /, "")
+        );
+        assert.deepEqual(subjects, ["Add b.txt", "Add a.txt"]);
     });
     test("a harness name with a slash is rejected", () => {
         const w = world();
