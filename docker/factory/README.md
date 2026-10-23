@@ -27,6 +27,9 @@ and filled as `factory`, so no layer re-owns it.
   `stage.sh` compares with the checkout's lockfile), and Playwright's Chromium in
   `/cache/ms-playwright`.
 - `/pipeline`: a copy of the repo's `pipeline/` directory (the runner and the adapters).
+- `ELECTRON_DISABLE_SANDBOX=1`: Electron runs without its own sandbox, which Docker's
+  seccomp profile would refuse; the profile stays on (#73). The runner starts one Xvfb
+  per session and exports `DISPLAY`, because `xvfb-run` does not return in a container.
 - User `factory` (build arg `FACTORY_UID`, default 1000; `buildImage()` passes the host
   user's uid). The host user must have that uid, or the bind-mounted outbox is not writable;
   override by hand with `docker build --build-arg FACTORY_UID=$(id -u) ...`. The base image's `node` user is removed to free uid 1000.

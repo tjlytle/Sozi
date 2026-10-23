@@ -384,7 +384,7 @@ routine all call:
   loop next runs.
 
 `pipeline/allow.txt` is the snake's list with the project's commands: `npm *`, `npx *`,
-`bin/check*`, `node bin/*`, `xvfb-run *`, `gh-as *`, `git *`, and the read-only shell
+`bin/check*`, `node bin/*`, `gh-as *`, `git *`, and the read-only shell
 tools. No `docker *` inside the container.
 
 `bin/board`, ported: the board "Sozi pipeline" with columns Triage, Ideas, Todo, Blocked,
