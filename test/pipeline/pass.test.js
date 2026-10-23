@@ -357,7 +357,11 @@ describe("persona profiles at start", () => {
         w.profiles.builder = {...w.profiles.builder, codex: {present: true, loggedIn: false}};
         let s = await w.p.pass();
         assert.deepEqual(s.started, []);
-        assert.ok(w.logs.includes("profile of builder is not logged in to codex"));
+        assert.ok(
+            w.logs.includes(
+                "profile of builder is not logged in to codex: run npm run pipeline -- --login builder --harness codex"
+            )
+        );
         w.profiles.builder = {
             ...w.profiles.builder,
             claude: {present: true, loggedIn: false, servers: []},
@@ -365,6 +369,20 @@ describe("persona profiles at start", () => {
         };
         s = await w.p.pass();
         assert.deepEqual(s.started, [25]);
+    });
+    test("a Claude token does not stand in for a missing profile on codex", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {PIPELINE_HARNESS_BUILD: "codex", CLAUDE_CODE_OAUTH_TOKEN: "t"}
+        });
+        w.profiles.builder = null;
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.ok(
+            w.logs.includes(
+                "no profile for builder: run npm run pipeline -- --login builder --harness codex"
+            )
+        );
     });
     test("an issue at its persona limit waits with a log line", async () => {
         const w = world({

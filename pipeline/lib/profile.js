@@ -77,8 +77,8 @@ export function profileArgs(persona) {
  *
  * @typedef {object} ProfileInfo
  * @property {{present: boolean, loggedIn: boolean, servers: string[]}} claude - The Claude Code profile.
- * @property {{present: boolean, loggedIn: boolean}} codex - The Codex profile.
- * @property {{present: boolean, loggedIn: boolean}} [agy] - The Antigravity profile (~/.gemini).
+ * @property {{present: boolean, loggedIn: boolean, servers?: string[]}} codex - The Codex profile.
+ * @property {{present: boolean, loggedIn: boolean, servers?: string[]}} [agy] - The Antigravity profile (~/.gemini).
  * @property {boolean} writable - Whether the profile directory is writable.
  */
 
@@ -113,12 +113,18 @@ export async function inspectProfile(run, {image, persona}) {
     }
 }
 
-/** The MCP servers a profile holds that its persona may not.
+/** The MCP servers a profile holds that its persona may not, in any harness: the whole
+ * profile is mounted into every stage. A Codex or agy server is named with its harness.
  *
  * @param {ProfileInfo} info - The inspected profile.
  * @param {string[]} allowed - The server names the persona may hold.
  * @returns {string[]} - The disallowed server names, sorted.
  */
 export function checkAllowlist(info, allowed) {
-    return info.claude.servers.filter(s => !allowed.includes(s)).sort();
+    const held = [
+        ...info.claude.servers,
+        ...(info.codex.servers ?? []).map(s => `${s} (codex)`),
+        ...(info.agy?.servers ?? []).map(s => `${s} (agy)`)
+    ];
+    return held.filter(s => !allowed.includes(s.replace(/ \((codex|agy)\)$/, ""))).sort();
 }

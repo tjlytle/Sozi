@@ -2,8 +2,10 @@
 # Reports what a persona profile holds, for the host to check before a stage runs.
 #
 # Prints one JSON line: {"claude": {"present", "loggedIn", "servers"}, "codex":
-# {"present", "loggedIn"}, "agy": {"present", "loggedIn"}, "writable"}. "servers" merges the user-scope and every local-scope
-# (per project) MCP server name. Only booleans and MCP server names are printed;
+# {"present", "loggedIn", "servers"}, "agy": {"present", "loggedIn", "servers"}, "writable"}.
+# Claude's "servers" merges the user-scope and every local-scope (per project) MCP server
+# name; Codex's are the [mcp_servers.<name>] tables of config.toml; agy's the keys of
+# mcpServers in config/mcp_config.json (or its top-level keys when it has none). Only booleans and MCP server names are printed;
 # no value from any file in the profile is ever read out.
 #
 # Env read: PROFILE (/profile).
@@ -57,6 +59,25 @@ if [ -e "$settings" ]; then
         }' "$settings" 2>/dev/null || echo '[]')
 fi
 
-printf '{"claude":{"present":%s,"loggedIn":%s,"servers":%s},"codex":{"present":%s,"loggedIn":%s},"agy":{"present":%s,"loggedIn":%s},"writable":%s}\n' \
+codex_servers=$(sed -n -E 's/^[[:space:]]*\[mcp_servers\.("?)([^]".]+)\1\][[:space:]]*$/\2/p' \
+    "$PROFILE/codex/config.toml" 2>/dev/null | sort -u | node -e '
+        const names = require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean);
+        console.log(JSON.stringify(names));' 2>/dev/null || echo '[]')
+
+agy_servers='[]'
+agy_mcp="$PROFILE/gemini/config/mcp_config.json"
+if [ -s "$agy_mcp" ]; then
+    agy_servers=$(node -e '
+        try {
+            const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const isMap = m => m !== null && typeof m === "object" && !Array.isArray(m);
+            const map = isMap(c) && isMap(c.mcpServers) ? c.mcpServers : isMap(c) ? c : {};
+            console.log(JSON.stringify(Object.keys(map).sort()));
+        } catch (_) {
+            console.log("[]");
+        }' "$agy_mcp" 2>/dev/null || echo '[]')
+fi
+
+printf '{"claude":{"present":%s,"loggedIn":%s,"servers":%s},"codex":{"present":%s,"loggedIn":%s,"servers":%s},"agy":{"present":%s,"loggedIn":%s,"servers":%s},"writable":%s}\n' \
     "$claude_present" "$claude_logged_in" "$servers" "$codex_present" "$codex_logged_in" \
-    "$agy_present" "$agy_logged_in" "$writable"
+    "$codex_servers" "$agy_present" "$agy_logged_in" "$agy_servers" "$writable"

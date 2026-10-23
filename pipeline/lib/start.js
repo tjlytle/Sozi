@@ -87,18 +87,20 @@ async function judgeProfile(ctx, persona, harness) {
     }
     /** @type {import("./profile.js").ProfileInfo | null} */
     const info = await sandbox.inspectProfile(persona);
+    const login = `npm run pipeline -- --login ${persona}${harness === "claude" ? "" : ` --harness ${harness}`}`;
     if (info === null) {
-        if (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY) {
+        // Only Claude has a token that stands in for a profile.
+        if (harness === "claude" && (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY)) {
             return {profile: false};
         }
-        return {refused: `no profile for ${persona}: run npm run pipeline -- --login ${persona}`};
+        return {refused: `no profile for ${persona}: run ${login}`};
     }
     if (harness === "claude" && !info.claude.loggedIn) {
         return {refused: `profile of ${persona} is not logged in`};
     }
     // opencode keeps its login where the inspection does not look; its start is not judged.
     if ((harness === "codex" || harness === "agy") && !info[harness]?.loggedIn) {
-        return {refused: `profile of ${persona} is not logged in to ${harness}`};
+        return {refused: `profile of ${persona} is not logged in to ${harness}: run ${login}`};
     }
     const extra = checkAllowlist(info, settings.mcpFor(persona));
     if (extra.length > 0) {

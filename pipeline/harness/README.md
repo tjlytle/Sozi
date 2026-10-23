@@ -72,8 +72,8 @@ or `error` message matches `rate limit|usage limit|hit your … limit|429|overlo
 ## agy
 
 Working. Runs the Antigravity CLI: `agy -p TEXT --output-format stream-json --model MODEL
---dangerously-skip-permissions --add-dir DIR` in the checkout (`--conversation SESSION`
-continues one), saves the raw stream to `DIR/stream.jsonl` and prints a readable log (text
+--dangerously-skip-permissions --add-dir OUT` in the checkout (`--conversation SESSION`
+continues one), saves the raw stream to `OUT/stream.jsonl` and prints a readable log (text
 deltas joined, `▶ <step type>: …` for a finished tool step, `■ <status> after N turns`).
 Every tool call is approved, because the container is the sandbox; the allow list is only
 checked to exist. The session id is the `conversation_id` of the `init` event. Usage comes
@@ -86,9 +86,13 @@ has no setting for that path, so the stage runner and the login container link i
 `/profile/gemini` (the login itself is `antigravity-cli/antigravity-oauth-token` there). Log in with `npm run pipeline -- --login <persona> --harness agy`, then
 `agy`.
 
-The tool-step field names in the log filter (`command_line`, `file_path`) and the error
-texts that mean a limit come from short trial runs; they are checked against a real stage
-before either harness runs one unattended.
+The tool-step fields of both log filters were checked against a real review session of
+each (2026-10-23). The error texts that mean a limit come from neither yet: they are the
+CLIs' known wording, checked the first time a stage hits a limit.
+
+`turns` is each CLI's own count and does not compare across harnesses: Claude counts
+assistant turns, Codex counts completed items (tool calls and messages), and agy counts
+one turn per prompt. Compare harnesses by tokens and outcome instead.
 
 ## opencode
 

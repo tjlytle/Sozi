@@ -98,3 +98,14 @@ test("checkAllowlist names the servers the persona may not hold", () => {
     assert.deepEqual(checkAllowlist(info, ["context7"]), ["mobbin"]);
     assert.deepEqual(checkAllowlist(info, ["context7", "mobbin"]), []);
 });
+
+test("checkAllowlist also names the Codex and agy servers, with their harness", () => {
+    const info = {
+        claude: {present: true, loggedIn: true, servers: []},
+        codex: {present: true, loggedIn: true, servers: ["mobbin", "github"]},
+        agy: {present: true, loggedIn: true, servers: ["github"]},
+        writable: true
+    };
+    assert.deepEqual(checkAllowlist(info, ["mobbin"]), ["github (agy)", "github (codex)"]);
+    assert.deepEqual(checkAllowlist(info, ["mobbin", "github"]), []);
+});

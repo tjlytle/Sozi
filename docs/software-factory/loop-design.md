@@ -543,7 +543,7 @@ of issues and PRs. Cross-repository issues stay out of scope.
 - The Notion page layout and the `bin/digest` script's API calls.
 - The local mint endpoint (a few dozen lines; it answers the worker's request shape).
 - Where the presenter page is published (the same R2 bucket, or GitHub Pages).
-- The harness adapters beyond `claude`: `codex` and `agy` work (2026-10-23, #123);
+- The harness adapters beyond `claude`: `codex` and `agy` work (2026-10-23, #128);
   `opencode` is still a stub that fails clearly.
 - The request vocabulary's exact schema and validation; the state file's exact shape.
 - How each harness resumes a session, and what the fallback looks like for one that

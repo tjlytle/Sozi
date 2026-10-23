@@ -102,3 +102,25 @@ test("an array mcpServers and a malformed file give no servers", () => {
     assert.deepEqual(inspectSettings('{"mcpServers":["mobbin"]}').info.claude.servers, []);
     assert.deepEqual(inspectSettings("{not json").info.claude.servers, []);
 });
+
+test("the Codex and agy MCP servers are read by name only", () => {
+    const dir = fs.mkdtempSync(path.join(root, ".agents", "tmp", "profile-"));
+    try {
+        fs.mkdirSync(path.join(dir, "codex"));
+        fs.writeFileSync(
+            path.join(dir, "codex", "config.toml"),
+            'model = "m"\n[mcp_servers.mobbin]\nurl = "https://SECRET"\n[mcp_servers."context7"]\ncommand = "x"\n[mcp_servers.mobbin.env]\nKEY = "SECRET"\n'
+        );
+        fs.mkdirSync(path.join(dir, "gemini", "config"), {recursive: true});
+        fs.writeFileSync(
+            path.join(dir, "gemini", "config", "mcp_config.json"),
+            '{"mcpServers":{"mobbin":{"serverUrl":"https://SECRET"}}}'
+        );
+        const {out, info} = inspect(dir);
+        assert.deepEqual(info.codex.servers, ["context7", "mobbin"]);
+        assert.deepEqual(info.agy.servers, ["mobbin"]);
+        assert.ok(!out.includes("SECRET"));
+    } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+    }
+});
