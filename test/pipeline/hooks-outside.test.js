@@ -187,6 +187,25 @@ describe("the outside hook pass", () => {
         assert.equal(hooks(dir, sha, report).status, 1);
         assert.match(fs.readFileSync(report, "utf8"), /summary comment/);
     });
+    test("a merged-in lint error is not reported, the session's own commit still is (#89)", () => {
+        const dir = scratch();
+        const sha = run(dir, "git", ["rev-parse", "HEAD"]).trim();
+        const git = args => run(dir, "git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args]);
+        git(["switch", "-q", "-c", "side"]);
+        fs.writeFileSync(path.join(dir, "src/js/merged.js"), "window.x = 1\n");
+        git(["add", "."]);
+        git(["commit", "-q", "-m", "master's own work"]);
+        git(["switch", "-q", "-"]);
+        fs.writeFileSync(path.join(dir, "src/js/own.js"), "window.y = 1\n");
+        git(["add", "."]);
+        git(["commit", "-q", "-m", "the session's work"]);
+        git(["merge", "-q", "--no-ff", "-m", "merge master", "side"]);
+        const report = path.join(dir, "report.txt");
+        assert.equal(hooks(dir, sha, report).status, 1);
+        const text = fs.readFileSync(report, "utf8");
+        assert.match(text, /src\/js\/own\.js/);
+        assert.doesNotMatch(text, /merged\.js/);
+    });
     test("a failing git exits 2 with the error, not an empty report", () => {
         const dir = scratch();
         const report = path.join(dir, "report.txt");

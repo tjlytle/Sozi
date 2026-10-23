@@ -16,7 +16,8 @@
 # Env read: PIPELINE_REPO, PIPELINE_HARNESS, PIPELINE_MODEL (required);
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
 # MIRROR (/mirror), OUTBOX (/outbox), WORK (/work), CACHE (/cache),
-# HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh);
+# HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh),
+# CHANGED_FILES (/pipeline/changed-files.sh);
 # XVFB_BIN (Xvfb), DISPLAY_NUM (99), X11_DIR (/tmp/.X11-unix) for the session display.
 # The adapter reads its own credentials and PIPELINE_SESSION_BUDGET_USD. No
 # value of the environment is ever printed.
@@ -26,18 +27,17 @@ issue="$1"
 MIRROR="${MIRROR:-/mirror}"; OUTBOX="${OUTBOX:-/outbox}"; WORK="${WORK:-/work}"
 CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"
+CHANGED_FILES="${CHANGED_FILES:-/pipeline/changed-files.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
 XVFB_BIN="${XVFB_BIN:-Xvfb}"; DISPLAY_NUM="${DISPLAY_NUM:-99}"; X11_DIR="${X11_DIR:-/tmp/.X11-unix}"
 start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""; xvfb_pid=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
-# Files changed since the start commit (tracked and untracked), one per line.
+# Files the session changed since the start commit (changed-files.sh), one per line.
 changed_files() {
     [ -n "$start" ] || return 0
-    { git -C "$WORK" -c core.quotePath=false diff --name-only "$start"
-      git -C "$WORK" -c core.quotePath=false ls-files --others --exclude-standard; } |
-        sort -u | while IFS= read -r f; do [ -f "$WORK/$f" ] && printf '%s\n' "$f"; done
+    "$CHANGED_FILES" "$WORK" "$start"
     return 0
 }
 
