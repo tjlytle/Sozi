@@ -71,6 +71,36 @@ mkdir -p node_modules
 `;
 
 /**
+ * Make a bare mirror of a repository: the mirror has master and only the branches the test asks for.
+ * @param {string} source - The repository to mirror.
+ * @param {string} tmp - The directory the mirror goes in.
+ * @param {boolean} issueBranch - Whether the mirror also has a 25-slug branch.
+ * @returns {{mirror: string, sha: string}} - The mirror's path and the commit its branches point at.
+ */
+function mirrorOf(source, tmp, issueBranch) {
+    const mirror = path.join(tmp, "mirror.git");
+    execFileSync("git", ["clone", "-q", "--bare", "--shared", source, mirror]);
+    const sha = execFileSync(
+        "sh",
+        ["-c", "git rev-parse --verify master 2>/dev/null || git rev-parse HEAD"],
+        {cwd: source, encoding: "utf8"}
+    ).trim();
+    const git = (/** @type {string[]} */ ...args) =>
+        execFileSync("git", ["-C", mirror, ...args], {encoding: "utf8"});
+    for (const ref of git("for-each-ref", "--format=%(refname)", "refs/heads/").split("\n")) {
+        if (ref) {
+            git("update-ref", "-d", ref);
+        }
+    }
+    git("branch", "master", sha);
+    git("symbolic-ref", "HEAD", "refs/heads/master");
+    if (issueBranch) {
+        git("branch", "25-slug", sha);
+    }
+    return {mirror, sha};
+}
+
+/**
  * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
  * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
  * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
@@ -78,17 +108,7 @@ mkdir -p node_modules
 function world(issueBranch = false) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-run-"));
     dirs.push(tmp);
-    const mirror = path.join(tmp, "mirror.git");
-    execFileSync("git", ["clone", "-q", "--bare", "--shared", root, mirror]);
-    const sha = execFileSync(
-        "sh",
-        ["-c", "git rev-parse --verify master 2>/dev/null || git rev-parse HEAD"],
-        {cwd: root, encoding: "utf8"}
-    ).trim();
-    execFileSync("git", ["-C", mirror, "branch", "-f", "master", sha]);
-    if (issueBranch) {
-        execFileSync("git", ["-C", mirror, "branch", "-f", "25-slug", sha]);
-    }
+    const {mirror, sha} = mirrorOf(root, tmp, issueBranch);
     const harnessDir = path.join(tmp, "harness");
     fs.mkdirSync(harnessDir);
     fs.writeFileSync(path.join(harnessDir, "fake"), FAKE_HARNESS, {mode: 0o755});
@@ -118,7 +138,7 @@ function world(issueBranch = false) {
             PIPELINE_HARNESS: "fake",
             PIPELINE_MODEL: "m",
             PIPELINE_OFFLINE: "1",
-            MIRROR: path.join(tmp, "mirror.git"),
+            MIRROR: mirror,
             OUTBOX: outbox,
             WORK: path.join(tmp, "work"),
             CACHE: cache,
@@ -242,6 +262,28 @@ describe("the in-container stage runner", () => {
         const w = world();
         runStage(w.env);
         assert.equal(branchOf(w.env), "master");
+    });
+    /**
+     * List the branches of a mirror built from a source that has a 25-aaa branch.
+     * @param {boolean} issueBranch - Whether the mirror is asked for 25-slug.
+     * @returns {string[]} - The mirror's branch refs.
+     */
+    const mirrorBranches = issueBranch => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-mirror-"));
+        dirs.push(tmp);
+        const source = path.join(tmp, "source");
+        execFileSync("git", ["clone", "-q", "--shared", root, source]);
+        execFileSync("git", ["-C", source, "branch", "25-aaa"]);
+        const {mirror} = mirrorOf(source, tmp, issueBranch);
+        return execFileSync("git", ["-C", mirror, "for-each-ref", "--format=%(refname)"], {
+            encoding: "utf8"
+        })
+            .split("\n")
+            .filter(line => line.startsWith("refs/heads/"));
+    };
+    test("the mirror holds only master whatever branches the source has", () => {
+        assert.deepEqual(mirrorBranches(false), ["refs/heads/master"]);
+        assert.deepEqual(mirrorBranches(true), ["refs/heads/25-slug", "refs/heads/master"]);
     });
     test("the same report twice resumes exactly once", () => {
         const w = world();
