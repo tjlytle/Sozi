@@ -97,6 +97,30 @@ describe("saving and the outside checks", () => {
     });
 });
 
+describe("a session whose login died", () => {
+    const line = "builder: logged out; run npm run pipeline -- --login builder";
+    test("costs no try and marks its persona, logged once", async () => {
+        const w = await session("stage:in-progress", {}, {exit: 1, status: "auth"});
+        assert.equal(w.state.issues[25].tries, 0);
+        assert.equal(w.state.issues[25].stage, "stage:in-progress");
+        assert.ok(w.state.run.loggedOut.builder);
+        assert.equal(w.logs.filter((/** @type {string} */ l) => l === line).length, 1);
+    });
+    test("marks the persona of a spawned session too", async () => {
+        const w = await session("stage:in-progress", {
+            done: {done: {issue: 25, to: "stage:review"}},
+            spawn: {spawn: {persona: "advocate", prompt: "file it"}}
+        });
+        const spawned = w.state.run.sessions[0];
+        end(w, spawned.outbox, spawned.container, {exit: 1, status: "auth"});
+        await w.p.pass();
+        assert.ok(w.state.run.loggedOut.advocate);
+        assert.ok(
+            w.logs.includes("advocate: logged out; run npm run pipeline -- --login advocate")
+        );
+    });
+});
+
 describe("spawned sessions", () => {
     test("a spawned session may not spawn again", async () => {
         const w = await session("stage:in-progress", {

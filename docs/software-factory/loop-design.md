@@ -271,6 +271,14 @@ loop off for fifteen minutes. The limits are per-run settings (`PIPELINE_SOFT_TO
 be queried, so the totals are the loop's own count. Self-started issues are not capped
 separately: the container count and the limits bound them.
 
+A dead login is not a rate limit: it stops one persona, not the model. When a session
+fails to authenticate before any model call, the adapter reports `status: "auth"`; the
+issue keeps its tries, the loop logs `<persona>: logged out; run npm run pipeline --
+--login <persona>` once, and starts nothing more as that persona (its due issues wait,
+its queued spawns stay queued) while the other personas carry on. `--status` shows the
+same line. The mark lifts when the persona's credentials file changes after it (a
+`--login` or `--copy-profile`) or when the loop restarts.
+
 ### Merge and the next look
 
 `Merge: auto`, with the no-regression rule while the gate is still red on old code: a PR
@@ -405,8 +413,10 @@ routine all call:
   human; test the stop condition.
 - Idle back-off: 30 s while anything moved in the last pass, doubling to 10 min when
   nothing is due (the lesson from the talk).
-- Stop: Ctrl-C; running containers finish on their own and `finish` judges them when the
-  loop next runs.
+- Stop: Ctrl-C or SIGTERM. The loop starts nothing more and waits, the mint still up,
+  until every running session has ended and `finish` has judged it, naming the sessions
+  it waits for. A second signal at least a second later (npm passes one Ctrl-C on twice)
+  saves the state and leaves the containers running; the next start adopts them.
 
 `pipeline/allow.txt` is the snake's list with the project's commands: `npm *`, `npx *`,
 `bin/check*`, `node bin/*`, `gh-as *`, `git *`, and the read-only shell

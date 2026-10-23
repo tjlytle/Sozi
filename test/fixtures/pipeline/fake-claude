@@ -3,7 +3,8 @@
 # an assistant event and a result event, and exits like the real CLI would.
 #
 # Env: FAKE_ARGS (file; one line of arguments appended per call),
-# FAKE_MODE (ratelimit | usagelimit | budget | noresult | mention; default is a clean success),
+# FAKE_MODE (ratelimit | usagelimit | budget | noresult | mention | auth | authraw | late401;
+# default is a clean success),
 # FAKE_COST (the clean success's total_cost_usd; default 0.12).
 set -u
 
@@ -17,10 +18,23 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+mode="${FAKE_MODE:-}"
+# A dead login fails before any model call: no assistant event, no tokens.
+case "$mode" in
+    auth)
+        echo '{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"OAuth token has expired.\"}}","num_turns":1,"total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0},"session_id":"'"$id"'"}'
+        exit 1 ;;
+    authraw)
+        echo 'Failed to authenticate. API Error: 401 authentication_error' >&2
+        exit 1 ;;
+esac
+
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"hello from fake"}]}}'
 
-mode="${FAKE_MODE:-}"
 case "$mode" in
+    late401)
+        echo '{"type":"result","subtype":"success","is_error":true,"result":"API Error: 401 from the tool server","num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
+        exit 1 ;;
     noresult) exit 0 ;;
     mention)
         echo '{"type":"result","subtype":"success","is_error":false,"result":"Fixed the 429 handling and the rate limit docs","num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'

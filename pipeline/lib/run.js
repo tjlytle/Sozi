@@ -37,9 +37,11 @@ async function bridgeAddress(run) {
     return r.code === 0 && /^[\d.]+$/.test(address) ? address : BRIDGE_FALLBACK;
 }
 
-/** Open the run: the mint endpoint containers fetch tokens from, and the Notion page.
+/** Open the run: the mint endpoint containers fetch tokens from, and the Notion page. A
+ * restart forgets which personas were logged out: the environment's token may have
+ * changed with it.
  *
- * @param {any} state - The loop state; gets mintKey, mintUrl and notionPage.
+ * @param {any} state - The loop state; gets mintKey, mintUrl and notionPage, loses loggedOut.
  * @param {any} settings - The settings.
  * @param {Record<string, string|undefined>} env - The environment, with the secrets.
  * @param {(line: string) => void} log - The log.
@@ -47,6 +49,7 @@ async function bridgeAddress(run) {
  * @returns {Promise<{close: () => Promise<void>}>} - The mint endpoint.
  */
 export async function openRun(state, settings, env, log, deps) {
+    state.run.loggedOut = {};
     const adopting =
         Object.values(state.issues).some((/** @type {any} */ r) => r.session) ||
         (state.run.sessions ?? []).length > 0;
