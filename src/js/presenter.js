@@ -1,3 +1,5 @@
+import {readViewport} from "./protocol/viewport";
+
 const previews = [{index: 0}, {index: -1}, {index: 1}];
 
 let presWindow;
@@ -51,6 +53,18 @@ window.addEventListener("message", evt => {
         case "click":
             presWindow.postMessage({name: "click", id: evt.data.id}, "*");
             break;
+
+        case "viewport": {
+            // Only the display window's size shapes the previews.
+            const viewport = evt.source === presWindow ? readViewport(evt.data) : null;
+            if (viewport) {
+                document.documentElement.style.setProperty(
+                    "--sozi-display-aspect",
+                    String(viewport.width / viewport.height)
+                );
+            }
+            break;
+        }
     }
 });
 

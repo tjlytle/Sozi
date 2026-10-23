@@ -10,6 +10,11 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <title>{{ pres.title | escape }}</title>
         <style>
+            /* The deck's aspect ratio until the display reports its own. */
+            :root {
+                --sozi-display-aspect: {{ pres.aspectWidth / pres.aspectHeight }};
+            }
+
             body {
                 display: flex;
                 width: 100vw;
@@ -40,19 +45,27 @@
                 overflow: hidden;
             }
 
-            .sozi-current-frame {
-                width: 100%;
-                height: 100%;
-            }
-
             .sozi-frame-previews-prev-next {
                 display: flex;
                 flex: auto;
             }
 
-            .sozi-previous-frame, .sozi-next-frame {
+            .sozi-preview-box {
+                flex: 1 1 0;
                 margin-right: 0.5rem;
-                width: 50%;
+            }
+
+            /* Each preview is letterboxed in its box with the display's shape. */
+            .sozi-current-frame-container, .sozi-preview-box {
+                display: flex;
+                container-type: size;
+            }
+
+            .sozi-current-frame, .sozi-previous-frame, .sozi-next-frame {
+                flex: none;
+                aspect-ratio: var(--sozi-display-aspect);
+                width: min(100cqw, 100cqh * var(--sozi-display-aspect));
+                margin: auto;
             }
 
             .sozi-controls {
@@ -91,8 +104,12 @@
                 <input type="button" id="sozi-next-btn" value="&raquo;" title="Next">
             </div>
             <div class="sozi-frame-previews-prev-next">
-                <iframe class="sozi-previous-frame" src="{{ soziHtml }}"></iframe>
-                <iframe class="sozi-next-frame"     src="{{ soziHtml }}"></iframe>
+                <div class="sozi-preview-box">
+                    <iframe class="sozi-previous-frame" src="{{ soziHtml }}"></iframe>
+                </div>
+                <div class="sozi-preview-box">
+                    <iframe class="sozi-next-frame" src="{{ soziHtml }}"></iframe>
+                </div>
             </div>
         </div>
         <div class="sozi-notes">

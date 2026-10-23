@@ -14,6 +14,7 @@ import * as FrameList from "./player/FrameList";
 import * as FrameNumber from "./player/FrameNumber";
 import * as FrameURL from "./player/FrameURL";
 import * as TouchGestures from "./player/TouchGestures";
+import {postViewport} from "./protocol/viewport";
 
 /** Identifies the current player to be in presenter mode.
  *
@@ -97,18 +98,22 @@ function onFrameChange(presenterWindow) {
     );
 }
 
-/** Setup an event handler to forward the frame change event to the presenter window.
+/** Setup event handlers to forward frame changes and the window size to the presenter window.
  *
  * This function is called when initializing the connexion between the current
  * presentation and a presenter console in another window.
+ * Only the display window receives it: preview frames get `setPresenterMode`,
+ * so a preview never reports its own size as the display's.
  *
  * @param {Window} presenterWindow - The window that shows the presenter console.
  */
 function notifyOnFrameChange(presenterWindow) {
     sozi.player.on("frameChange", () => onFrameChange(presenterWindow));
+    window.addEventListener("resize", () => postViewport(presenterWindow, window));
 
-    // Send the message to set the initial frame data in the presenter window.
+    // Send the initial frame data and window size to the presenter window.
     onFrameChange(presenterWindow);
+    postViewport(presenterWindow, window);
 }
 
 // Process messages from a presenter console.
