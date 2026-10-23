@@ -50,8 +50,11 @@ test("a logged-in claude profile with two servers", () => {
             '{"mcpServers":{"mobbin":{},"context7":{}}}'
         );
         fs.writeFileSync(path.join(dir, "codex", "auth.json"), '{"token":"SECRET"}');
-        fs.mkdirSync(path.join(dir, "gemini"));
-        fs.writeFileSync(path.join(dir, "gemini", "oauth_creds.json"), '{"token":"SECRET"}');
+        fs.mkdirSync(path.join(dir, "gemini", "antigravity-cli"), {recursive: true});
+        fs.writeFileSync(
+            path.join(dir, "gemini", "antigravity-cli", "antigravity-oauth-token"),
+            "SECRET"
+        );
         const {out, info} = inspect(dir);
         assert.equal(info.claude.present, true);
         assert.equal(info.claude.loggedIn, true);

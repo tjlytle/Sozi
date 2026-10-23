@@ -83,7 +83,7 @@ status matches `rate limit|usage limit|quota|RESOURCE_EXHAUSTED|429|overloaded`,
 otherwise or with no result. Model names are agy's own (`agy models`), and include Gemini
 and Claude models. `AGY_BIN` overrides the binary. agy keeps its login in `~/.gemini` and
 has no setting for that path, so the stage runner and the login container link it to
-`/profile/gemini`. Log in with `npm run pipeline -- --login <persona> --harness agy`, then
+`/profile/gemini` (the login itself is `antigravity-cli/antigravity-oauth-token` there). Log in with `npm run pipeline -- --login <persona> --harness agy`, then
 `agy`.
 
 The tool-step field names in the log filter (`command_line`, `file_path`) and the error

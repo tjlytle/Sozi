@@ -20,7 +20,7 @@ codex_logged_in=false
 agy_present=false
 [ -e "$PROFILE/gemini" ] && agy_present=true
 agy_logged_in=false
-[ -e "$PROFILE/gemini/oauth_creds.json" ] && agy_logged_in=true
+[ -e "$PROFILE/gemini/antigravity-cli/antigravity-oauth-token" ] && agy_logged_in=true
 writable=false
 [ -w "$PROFILE" ] && writable=true
 
