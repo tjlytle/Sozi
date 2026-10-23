@@ -275,14 +275,13 @@ describe("the in-container stage runner", () => {
         execFileSync("git", ["clone", "-q", "--shared", root, source]);
         execFileSync("git", ["-C", source, "branch", "25-aaa"]);
         const {mirror} = mirrorOf(source, tmp, issueBranch);
-        return execFileSync("git", ["-C", mirror, "for-each-ref", "--format=%(refname)"], {
-            encoding: "utf8"
-        })
-            .split("\n")
-            .filter(line => line.startsWith("refs/heads/"));
+        const refs = ["-C", mirror, "for-each-ref", "--format=%(refname)", "refs/heads/"];
+        return execFileSync("git", refs, {encoding: "utf8"}).trim().split("\n");
     };
     test("the mirror holds only master whatever branches the source has", () => {
         assert.deepEqual(mirrorBranches(false), ["refs/heads/master"]);
+    });
+    test("the mirror holds master and 25-slug when the test asks for the issue branch", () => {
         assert.deepEqual(mirrorBranches(true), ["refs/heads/25-slug", "refs/heads/master"]);
     });
     test("the same report twice resumes exactly once", () => {
