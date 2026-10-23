@@ -147,7 +147,10 @@ async function moveOne(run, {repo, backlog, epic, stage, n}) {
         : `${body.trimEnd()}\n\n${line}`;
     const labels = (issue.labels ?? []).map((/** @type {any} */ l) => l.name);
     const edit = ["gh-as", "-", "issue", "edit", n, "-R", repo, "--body", next];
-    for (const name of ["idea", "triage"].filter(l => labels.includes(l))) {
+    // With --stage, the old stage label goes too: an issue has one stage label at a time.
+    const dropped = (/** @type {string} */ l) =>
+        l === "idea" || l === "triage" || (Boolean(stage) && l.startsWith("stage:"));
+    for (const name of labels.filter(dropped)) {
         edit.push("--remove-label", name);
     }
     if (stage) {
@@ -174,7 +177,10 @@ async function moveOne(run, {repo, backlog, epic, stage, n}) {
         "POST",
         `repos/${repo}/issues/${epic}/sub_issues`,
         "-F",
-        id
+        id,
+        // Moves the link from whatever parent it has; a rerun after a failed POST recovers.
+        "-F",
+        "replace_parent=true"
     ]);
 }
 

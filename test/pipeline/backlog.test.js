@@ -165,6 +165,28 @@ describe("the backlog", () => {
         assert.match(edit[edit.indexOf("--body") + 1], /\n\nPart of #93$/);
     });
 
+    test("move with --stage todo replaces the stage label the issue had", async () => {
+        const f = fake({
+            "gh api repos/tjlytle/Sozi/issues/118": JSON.stringify({
+                id: 9118,
+                body: "Seen while testing #75.\n\nPart of #172",
+                labels: [{name: "stage:blocked"}, {name: "bug"}]
+            })
+        });
+        await main(["move", "118", "--epic", "93", "--stage", "todo"], {
+            env: {PIPELINE_BACKLOG: "172"},
+            root: "/nonexistent",
+            run: f.run,
+            out: () => {}
+        });
+        const edit = f.calls.map(c => c.join(" ")).find(l => l.includes("issue edit 118"));
+        assert.ok(edit?.includes("--remove-label stage:blocked"));
+        assert.ok(!edit?.includes("--remove-label bug"));
+        assert.ok(edit?.includes("--add-label stage:todo"));
+        const post = f.calls.map(c => c.join(" ")).find(l => l.includes("-X POST"));
+        assert.ok(post?.endsWith("-F sub_issue_id=9118 -F replace_parent=true"));
+    });
+
     test("close comments the reason and closes as not planned, as Tim", async () => {
         const f = fake({});
         const code = await main(["close", "147", "148", "--reason", "Not worth it now"], {
