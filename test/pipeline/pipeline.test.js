@@ -397,15 +397,59 @@ describe("bin/pipeline.js", () => {
         assert.ok(asked.includes("s1"), "the spawn session is still watched");
         assert.ok(started.includes("advocate"), "the queued spawn still starts");
     });
-    test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
+    test("one interrupt keeps the mint up until the last session is judged", async () => {
         const h = host({
             statuses: ["running", "running", "exited"],
             onSleep: n => {
+                h.events.push(`sleep ${n}`);
+                if (n === 1) {
+                    h.handler("SIGTERM");
+                }
+            }
+        });
+        const code = await main([], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        assert.equal(code, 0);
+        assert.deepEqual(h.exits, []);
+        assert.deepEqual(h.events, ["sleep 1", "sleep 2", "sleep 3", "sleep 4", "remove", "close"]);
+    });
+    test("a second interrupt after a second leaves the session in the state", async () => {
+        let t = 0;
+        const h = host({
+            statuses: ["running", "running", "running"],
+            onSleep: n => {
+                t += 1500;
+                if (n <= 2) {
+                    h.handler("SIGINT");
+                }
+            }
+        });
+        h.deps.now = () => t;
+        h.deps.exit = (/** @type {number} */ code) => {
+            h.exits.push(code);
+            throw new Error("exit");
+        };
+        await assert.rejects(
+            main([], {root: h.root, env: {}, out: () => {}, deps: h.deps}),
+            /exit/
+        );
+        assert.deepEqual(h.exits, [130]);
+        const saved = JSON.parse(
+            fs.readFileSync(path.join(h.root, "var", "pipeline", "state.json"), "utf8")
+        );
+        assert.equal(saved.issues[25].session.container, "c25", "the next start adopts it");
+    });
+    test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
+        let t = 0;
+        const h = host({
+            statuses: ["running", "running", "exited"],
+            onSleep: n => {
+                t += 1500;
                 if (n <= 2) {
                     h.handler();
                 }
             }
         });
+        h.deps.now = () => t;
         const code = await main([], {root: h.root, env: {}, out: () => {}, deps: h.deps});
         assert.equal(code, 0);
         assert.deepEqual(h.exits, [130]);
