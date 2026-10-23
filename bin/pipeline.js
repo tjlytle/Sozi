@@ -197,35 +197,37 @@ async function inspectAll(sandbox) {
     );
 }
 
-/** Build the pass over the real GitHub, board, digest and clock.
+/** Build the pass over the real GitHub, board, digest and clock, rereading the settings files
+ * before each pass.
  *
  * @param {object} parts - The run's parts.
  * @param {any} parts.state - The loop state.
- * @param {any} parts.settings - The settings.
+ * @param {any} parts.settings - The settings, updated in place when the files change.
  * @param {any} parts.sandbox - The sandbox.
- * @param {Record<string, string|undefined>} parts.env - The environment.
+ * @param {Record<string, string|undefined>} parts.runEnv - The sessions' environment, updated in place when the secrets change.
+ * @param {Record<string, string|undefined>} parts.configEnv - The environment the settings were loaded with.
  * @param {string} parts.root - The repository root.
  * @param {(line: string) => void} parts.log - The log.
  * @param {() => void} parts.save - Writes the state.
- * @param {() => void} parts.reload - Rereads the settings before each pass.
  * @param {Deps} parts.deps - The outside world.
  * @returns {{pass: (options?: {start?: boolean}) => Promise<any>}} - The pass.
  */
-function loopPass({state, settings, sandbox, env, root, log, save, reload, deps}) {
+function loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps}) {
     const ctx = {repo: settings.repo, run: deps.run, out: log, err: log};
+    const settingsWatch = new SettingsWatch({root, env: configEnv, settings, runEnv, log});
     return createPass({
         settings,
         state,
         github: deps.github ?? createGithub({repo: settings.repo}),
         sandbox,
         board: deps.board ?? {sync: options => boardSync(options, ctx)},
-        digest: noteDigest(state, env),
+        digest: noteDigest(state, runEnv),
         clock: {now: () => Date.now()},
-        env,
+        env: runEnv,
         log,
         root,
         save,
-        reload
+        reload: () => settingsWatch.refresh()
     });
 }
 
@@ -337,19 +339,7 @@ export async function main(
     const save = () => saveState(file, state);
     const mint = await openRun(state, settings, runEnv, log, deps);
     save();
-    const settingsWatch = new SettingsWatch({root, env: configEnv, settings, runEnv, log});
-    const reload = () => settingsWatch.refresh();
-    const {pass} = loopPass({
-        state,
-        settings,
-        sandbox,
-        env: runEnv,
-        root,
-        log,
-        save,
-        reload,
-        deps
-    });
+    const {pass} = loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps});
     const control = createControl({
         sleep: deps.sleep,
         save,
