@@ -6,6 +6,27 @@ import {end, issue, world} from "./pass-world.js";
 
 const MIN = 60 * 1000;
 
+describe("sub-issue links", () => {
+    test("the sync links an issue to the epic its Part of line names", async () => {
+        const w = world({issues: [issue(25, ["stage:review"], {body: "x\n\nPart of #93"})]});
+        await w.p.pass();
+        assert.deepEqual(
+            w.calls.filter(c => c[0] === "linkSubIssue"),
+            [["linkSubIssue", 93, 25]]
+        );
+        assert.equal(w.state.issues[25].linked, 93);
+    });
+    test("a rate limit on a link backs the loop off", async () => {
+        const w = world({issues: [issue(25, ["stage:review"], {body: "x\n\nPart of #93"})]});
+        const reset = new Date(w.clock.now() + MIN);
+        w.github.linkSubIssue = async () => {
+            throw new RateLimited("limit", reset);
+        };
+        await w.p.pass();
+        assert.equal(w.state.sync.backoffUntil, reset.toISOString());
+    });
+});
+
 describe("queued label writes", () => {
     test("a back-off that ends while a session runs: the queued +working goes first", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});

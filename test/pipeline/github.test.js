@@ -418,4 +418,56 @@ describe("github", () => {
         );
         assert.deepEqual(calls[1].cmd, ["gh-as", "ops", "api", "rate_limit"]);
     });
+    test("parentOf reads the parent issue as ops and gives its number", async () => {
+        const gh = make([json({number: 93})]);
+        assert.equal(await gh.parentOf(120), 93);
+        assert.deepEqual(calls[0].cmd, [
+            "gh-as",
+            "ops",
+            "api",
+            "repos/tjlytle/Sozi/issues/120/parent"
+        ]);
+    });
+    test("parentOf gives null when GitHub says the issue has no parent", async () => {
+        const gh = make([{code: 1, stderr: "gh: Not Found (HTTP 404)"}]);
+        assert.equal(await gh.parentOf(120), null);
+    });
+    test("linkSubIssue reads the child's id, then links it, replacing an old parent", async () => {
+        const gh = make([{stdout: "3456789\n"}, {}]);
+        await gh.linkSubIssue(93, 120);
+        assert.deepEqual(calls[0].cmd, [
+            "gh-as",
+            "ops",
+            "api",
+            "repos/tjlytle/Sozi/issues/120",
+            "--jq",
+            ".id"
+        ]);
+        assert.deepEqual(calls[1].cmd, [
+            "gh-as",
+            "ops",
+            "api",
+            "-X",
+            "POST",
+            "repos/tjlytle/Sozi/issues/93/sub_issues",
+            "-F",
+            "sub_issue_id=3456789",
+            "-F",
+            "replace_parent=true"
+        ]);
+    });
+    test("unlinkSubIssue reads the child's id, then removes it from the epic", async () => {
+        const gh = make([{stdout: "3456789\n"}, {}]);
+        await gh.unlinkSubIssue(93, 120);
+        assert.deepEqual(calls[1].cmd, [
+            "gh-as",
+            "ops",
+            "api",
+            "-X",
+            "DELETE",
+            "repos/tjlytle/Sozi/issues/93/sub_issue",
+            "-F",
+            "sub_issue_id=3456789"
+        ]);
+    });
 });
