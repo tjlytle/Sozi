@@ -77,7 +77,7 @@ function spawnInteractive(cmd) {
  * @property {(persona: string) => Promise<import("./profile.js").ProfileInfo | null>} inspectProfile - What a persona's profile holds; null when it has no volume.
  * @property {(opts: {persona: string, harness: string}) => string[]} loginArgs - The docker run arguments of an interactive login.
  * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
- * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume into a new volume for another; refuses when the source has no volume or the target has one, and removes the target when the copy fails.
+ * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume, without its Claude login, into a new volume for another; refuses when the source has no volume or the target has one, and removes the target when the copy fails.
  * @property {(opts: {issue: number, stage: string, prompt: string, allow: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path.
  */
 
@@ -298,7 +298,7 @@ export function createSandbox({
             }
             await must(["docker", "volume", "create", target]);
             // The target mounts at /profile, which the image creates for the factory user, so the
-            // fresh volume takes that owner; the entrypoint is bash, hence -c.
+            // fresh volume takes that owner. The script copies everything but the Claude login.
             try {
                 await must([
                     "docker",
@@ -309,8 +309,7 @@ export function createSandbox({
                     "-v",
                     `${target}:/profile`,
                     settings.image,
-                    "-c",
-                    "cp -a /from/. /profile/"
+                    "/pipeline/profile-copy.sh"
                 ]);
             } catch (err) {
                 await run(["docker", "volume", "rm", target]);
