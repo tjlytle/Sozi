@@ -101,7 +101,8 @@ export function parseUntil(text, now) {
     throw new Error(`--until takes 6h, 90m or HH:MM, not ${JSON.stringify(text)}`);
 }
 
-/** Load the state, starting a new run when the last one stopped.
+/** Load the state, starting a new run when the last one stopped. The new run keeps what
+ * is still alive: spawned sessions, queued spawns and the mint key the sessions hold.
  *
  * @param {string} file - The state file.
  * @param {Date} now - The current time.
@@ -110,7 +111,14 @@ export function parseUntil(text, now) {
 function openState(file, now) {
     const state = loadState(file);
     if (!state.run.started || state.run.stopped) {
-        state.run = {...emptyState().run, started: now.toISOString()};
+        const {sessions, spawns, mintKey} = state.run;
+        state.run = {
+            ...emptyState().run,
+            started: now.toISOString(),
+            sessions,
+            spawns,
+            mintKey: mintKey ?? null
+        };
     }
     return state;
 }
@@ -218,6 +226,25 @@ function loopPass({state, settings, sandbox, env, root, log, save, deps}) {
     });
 }
 
+/** Finish the run by hand: post its closing summary and mark it stopped, so the next start
+ * opens a new run. A run already finished posts nothing; a failed post leaves it open.
+ *
+ * @param {string} file - The state file.
+ * @param {Omit<Parameters<typeof finishDigest>[0], "state" | "reason">} options - The run.
+ * @returns {Promise<void>}
+ */
+async function digestByHand(file, options) {
+    const state = loadState(file);
+    if (state.run.stopped) {
+        options.log("digest: this run is already finished");
+        return;
+    }
+    if (await finishDigest({...options, state, reason: "finished by hand"})) {
+        state.run.stopped = true;
+        saveState(file, state);
+    }
+}
+
 /** Run the command line.
  *
  * @param {string[]} argv - The arguments after the script name.
@@ -273,19 +300,12 @@ export async function main(
             runInteractive: deps.runInteractive,
             env: runEnv
         });
-    if (opt.status || opt.digest) {
-        const state = loadState(file);
-        await (opt.status
-            ? write(statusText(state) + profilesText(await inspectAll(sandbox)))
-            : finishDigest({
-                  state,
-                  reason: "finished by hand",
-                  settings,
-                  root,
-                  env: runEnv,
-                  log,
-                  deps
-              }));
+    if (opt.status) {
+        write(statusText(loadState(file)) + profilesText(await inspectAll(sandbox)));
+        return 0;
+    }
+    if (opt.digest) {
+        await digestByHand(file, {settings, root, env: runEnv, log, deps});
         return 0;
     }
     if (opt["build-image"]) {
