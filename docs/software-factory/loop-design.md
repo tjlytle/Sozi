@@ -217,8 +217,13 @@ the login and the MCP servers authorised in it.
 - Tim's decision: six profiles. Log in once (`/login`, no `/mcp`), `--copy-profile
   <from> <to>` to the other five, then `--login` again per persona with an allowlist to
   `claude mcp add --scope user` and `/mcp` exactly its servers (a copy carries all of its
-  source's). If a token refresh
-  invalidates the copies, fix it then.
+  source's). A token refresh did invalidate the copies: on 2026-10-23 (#108) the six
+  profiles held one OAuth refresh token, the builder's session refreshed first, and the
+  architect and reviewer sessions then failed with "OAuth session expired and could not be
+  refreshed". So each persona logs in once on its own: `--copy-profile` (through
+  `pipeline/profile-copy.sh`) copies the settings, the skills and the MCP servers with their
+  authorisations, removes `claudeAiOauth` from the target's `.credentials.json`, and prints
+  the `--login <to>` to run; `--status` shows the copy as not logged in until then.
 - `PIPELINE_PROFILES=auto|off`. With a profile, the stage uses it. With no volume but a
   `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, the token is the fallback. With
   neither, the stage is refused with the `--login <persona>` command; a volume that is

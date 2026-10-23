@@ -15,7 +15,7 @@
 //   node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]
 //                                       log a persona in inside a container
 //   node bin/pipeline.js --copy-profile <from> <to>
-//                                       copy one persona's profile to another
+//                                       copy one persona's profile, without its login, to another
 //   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
@@ -45,7 +45,7 @@ const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
     "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]",
     "       node bin/pipeline.js --login <persona> [--harness claude|codex|opencode]   log a persona in inside a container",
-    "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile to another"
+    "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile, without its login, to another"
 ];
 
 /**
@@ -324,6 +324,9 @@ export async function main(
             writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
             return 1;
         }
+        write(
+            `copied ${from} to ${to} without the Claude login: run npm run pipeline -- --login ${to} once\n`
+        );
         return 0;
     }
 
