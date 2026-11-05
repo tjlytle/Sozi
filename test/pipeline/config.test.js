@@ -18,6 +18,7 @@ describe("pipeline settings", () => {
         assert.equal(s.modelFor("plan"), "claude-fable-5-1");
         assert.equal(s.modelFor("qa"), "claude-opus-5-5");
         assert.equal(s.harnessFor("build"), "claude");
+        assert.equal(s.shmSize, "1g");
     });
     test("file values override defaults and env overrides the file", () => {
         const file = parseConfigText(
@@ -28,6 +29,8 @@ describe("pipeline settings", () => {
         assert.equal(s.parallel, 1);
         assert.equal(s.harnessFor("review"), "codex");
         assert.equal(s.harnessFor("build"), "claude");
+        const shm = loadConfig({root: "/nonexistent", env: {PIPELINE_SHM_SIZE: "2g"}});
+        assert.equal(shm.shmSize, "2g");
     });
     test("a bad value is an error naming the key", () => {
         assert.throws(
