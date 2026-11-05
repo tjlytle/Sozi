@@ -1,0 +1,130 @@
+import {test, describe} from "node:test";
+import assert from "node:assert/strict";
+import {
+    MessageNames,
+    Roles,
+    helloMessage,
+    frameChangeMessage,
+    blankMessage,
+    jumpToFrameMessage,
+    nextMessage,
+    previousMessage,
+    customMessage,
+    previewMessage,
+    followLinkMessage,
+    readMessage,
+    deckIdOf
+} from "../../../src/js/protocol/messages.js";
+import {viewportMessage} from "../../../src/js/protocol/viewport.js";
+
+const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
+const viewport = {width: 1200, height: 400, pixelRatio: 2};
+const displayState = {deckId: "basic", frameCount: 2, viewport, frame, blank: false};
+
+/** One built message of each kind, as the protocol sends it.
+ *
+ * @returns {object[]} - The messages.
+ */
+function everyMessage() {
+    return [
+        helloMessage(Roles.surface),
+        helloMessage(Roles.display, displayState),
+        helloMessage(Roles.display, {...displayState, viewport: null}),
+        frameChangeMessage(frame),
+        blankMessage(true),
+        blankMessage(false),
+        jumpToFrameMessage(0),
+        jumpToFrameMessage(1, false),
+        nextMessage(),
+        nextMessage(false),
+        previousMessage(),
+        previousMessage(false),
+        customMessage("poll", {question: "Ready?"}),
+        previewMessage(true),
+        followLinkMessage("link1"),
+        viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2})
+    ];
+}
+
+describe("protocol messages", () => {
+    test("each builder names its message", () => {
+        assert.deepEqual(helloMessage(Roles.surface), {name: "hello", role: "surface"});
+        assert.deepEqual(helloMessage(Roles.display, displayState), {
+            name: MessageNames.hello,
+            role: "display",
+            ...displayState
+        });
+        assert.deepEqual(frameChangeMessage(frame), {name: "frameChange", ...frame});
+        assert.deepEqual(blankMessage(true), {name: "blank", on: true});
+        assert.deepEqual(jumpToFrameMessage(3), {name: "jumpToFrame", index: 3, transition: true});
+        assert.deepEqual(nextMessage(false), {name: "next", transition: false});
+        assert.deepEqual(previousMessage(), {name: "previous", transition: true});
+        assert.deepEqual(customMessage("t", 1), {name: "custom", type: "t", data: 1});
+        assert.deepEqual(previewMessage(false), {name: "preview", current: false});
+        assert.deepEqual(followLinkMessage("a"), {name: "followLink", id: "a"});
+    });
+
+    test("every built message reads back unchanged", () => {
+        for (const message of everyMessage()) {
+            assert.deepEqual(readMessage(message), message, message.name);
+        }
+    });
+
+    test("a missing transition reads as true", () => {
+        assert.deepEqual(readMessage({name: "next"}), nextMessage(true));
+        assert.deepEqual(readMessage({name: "previous"}), previousMessage(true));
+        assert.deepEqual(readMessage({name: "jumpToFrame", index: 0}), jumpToFrameMessage(0));
+    });
+
+    test("fields that are not part of the message are dropped", () => {
+        assert.deepEqual(readMessage({name: "blank", on: true, extra: 1}), blankMessage(true));
+    });
+
+    test("is refused when it is not an object or has an unknown name", () => {
+        for (const data of [null, undefined, "next", 3, [], {}, {name: "moveToNext"}]) {
+            assert.equal(readMessage(data), null, JSON.stringify(data));
+        }
+    });
+
+    test("is refused with a malformed field", () => {
+        const bad = [
+            {name: "hello"},
+            {name: "hello", role: "audience"},
+            {...helloMessage(Roles.display, displayState), deckId: 3},
+            {...helloMessage(Roles.display, displayState), frameCount: -1},
+            {...helloMessage(Roles.display, displayState), frameCount: 1.5},
+            {...helloMessage(Roles.display, displayState), viewport: {width: 0}},
+            {...helloMessage(Roles.display, displayState), frame: null},
+            {...helloMessage(Roles.display, displayState), blank: "no"},
+            {...frameChangeMessage(frame), index: -1},
+            {...frameChangeMessage(frame), index: "1"},
+            {...frameChangeMessage(frame), id: 2},
+            {...frameChangeMessage(frame), title: undefined},
+            {...frameChangeMessage(frame), notes: null},
+            {name: "blank"},
+            {name: "blank", on: 1},
+            {name: "jumpToFrame"},
+            {name: "jumpToFrame", index: 0.5},
+            {name: "jumpToFrame", index: 0, transition: "yes"},
+            {name: "next", transition: 0},
+            {name: "previous", transition: null},
+            {name: "custom", data: 1},
+            {name: "custom", type: "", data: 1},
+            {name: "preview"},
+            {name: "preview", current: "true"},
+            {name: "followLink"},
+            {name: "followLink", id: ""},
+            {name: "viewport", width: 0, height: 1, pixelRatio: 1}
+        ];
+        for (const data of bad) {
+            assert.equal(readMessage(data), null, JSON.stringify(data));
+        }
+    });
+
+    test("a deck id is the page's file name without .sozi.html", () => {
+        assert.equal(deckIdOf("/home/tim/talks/basic.sozi.html"), "basic");
+        assert.equal(deckIdOf("/talks/my%20talk.sozi.html"), "my talk");
+        assert.equal(deckIdOf("/talks/index.html"), "index.html");
+        assert.equal(deckIdOf(""), "");
+    });
+});
