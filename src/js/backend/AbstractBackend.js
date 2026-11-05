@@ -25,7 +25,7 @@ export class AbstractBackend {
      * @param {module:Controller.Controller} controller - A controller instance.
      * @param {HTMLElement} container - The element that will contain the menu for choosing a backend.
      * @param {string} buttonId - The ID of the button to generate in the menu.
-     * @param {string} buttonLabel - The text of the button to generate in the menu (already translated).
+     * @param {string|Array<string|Node>} buttonLabel - The content of the button to generate in the menu: translated text, or text and icon elements.
      */
     constructor(controller, container, buttonId, buttonLabel) {
         /** The controller for this backend.
@@ -43,7 +43,10 @@ export class AbstractBackend {
          */
         this.autosavedFiles = [];
 
-        container.innerHTML = `<button id="${buttonId}">${buttonLabel}</button>`;
+        const button = document.createElement("button");
+        button.id = buttonId;
+        button.append(...[buttonLabel].flat());
+        container.replaceChildren(button);
     }
 
     /** Open a file chooser.

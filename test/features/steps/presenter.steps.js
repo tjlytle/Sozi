@@ -164,6 +164,43 @@ Then("every preview has the shape {int}:{int}", async function (width, height) {
         .toEqual([]);
 });
 
+// The notes body, for the formatted-notes scenarios (src/templates/presenter.html).
+
+Then("the notes body shows {string} in bold", async function (text) {
+    await expect(this.presenter.locator(".sozi-notes-body :is(b, strong)")).toHaveText(text);
+});
+
+Then("the notes body links to {string}", async function (href) {
+    await expect(this.presenter.locator(`.sozi-notes-body a[href="${href}"]`)).toHaveCount(1);
+});
+
+Then("the notes body holds no script and no event handler attribute", async function () {
+    const body = this.presenter.locator(".sozi-notes-body");
+    // The second frame's notes start with a paragraph; wait for it before looking.
+    await expect(body).toContainText("Two");
+    const found = await body.evaluate(element =>
+        [...element.querySelectorAll("*")].flatMap(child => [
+            ...(child.localName === "script" ? ["<script>"] : []),
+            ...[...child.attributes]
+                .filter(attribute => attribute.name.startsWith("on"))
+                .map(attribute => `${child.localName} ${attribute.name}`)
+        ])
+    );
+    assert.deepEqual(found, []);
+});
+
+Then("the presenter page title is not {string}", async function (title) {
+    // An image in the notes fires its error event once it has failed to load; wait for
+    // every image to settle, then for a turn of the page, before reading the title.
+    await this.presenter.waitForFunction(() =>
+        [...document.querySelectorAll(".sozi-notes-body img")].every(
+            img => /** @type {HTMLImageElement} */ (img).complete
+        )
+    );
+    await this.presenter.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+    assert.notEqual(await this.presenter.title(), title);
+});
+
 Then("the presenter page shows the notice {string}", async function (text) {
     const notice = this.presenter.locator(".sozi-notice");
     await expect(notice).toBeVisible();

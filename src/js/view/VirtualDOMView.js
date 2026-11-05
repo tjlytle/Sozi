@@ -7,6 +7,7 @@
 import {render} from "inferno";
 import {h} from "inferno-hyperscript";
 import {EventEmitter} from "events";
+import {setSanitizedHTML} from "../html/sanitize";
 
 /** @typedef {import("inferno").VNode} VNode - A virtual DOM node. */
 
@@ -63,7 +64,11 @@ export class VirtualDOMView extends EventEmitter {
                 const elt = document.getElementById("field-" + prop);
                 if (elt) {
                     for (const attr in this.state[prop]) {
-                        elt[attr] = this.state[prop][attr];
+                        if (attr === "html") {
+                            setSanitizedHTML(elt, this.state[prop][attr]);
+                        } else {
+                            elt[attr] = this.state[prop][attr];
+                        }
                     }
                 }
             }

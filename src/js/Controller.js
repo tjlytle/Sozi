@@ -258,25 +258,29 @@ export class Controller extends EventEmitter {
      * Consecutive notifications are concatenated if they happen in a short period of time.
      *
      * @param {string} severity - The severity of the event to signal (`"error"` or `"info"`).
-     * @param {string} body - An HTML string to show in the notification area.
+     * @param {string} body - The text to show in the notification area; a newline starts a new line.
      */
     showNotification(severity, body) {
         const _ = this.gettext;
         // Casts: index.html holds the message panel with its title and body.
         const msg = /** @type {HTMLElement} */ (document.getElementById("message"));
+        const msgBody = /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body"));
         if (this.notificationTimeout === null) {
-            /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body")).innerHTML = "";
+            msgBody.replaceChildren();
         } else {
             clearTimeout(this.notificationTimeout);
         }
 
-        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-title")).innerHTML =
-            severity === "error"
-                ? _('<i class="fa fa-exclamation-triangle"></i> Error')
-                : _('<i class="fa fa-info-circle"></i> Information');
+        const icon = document.createElement("i");
+        icon.className = severity === "error" ? "fa fa-exclamation-triangle" : "fa fa-info-circle";
+        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-title")).replaceChildren(
+            icon,
+            " " + (severity === "error" ? _("Error") : _("Information"))
+        );
 
-        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body")).innerHTML +=
-            `<div>${body}</div>`;
+        const entry = document.createElement("div");
+        entry.textContent = body;
+        msgBody.append(entry);
         msg.classList.add("sozi-editor__message--visible", `sozi-editor__message--${severity}`);
         this.notificationTimeout = setTimeout(() => this.hideNotification(), 5000);
     }

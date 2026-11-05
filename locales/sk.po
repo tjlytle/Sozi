@@ -21,18 +21,8 @@ msgstr ""
 "X-Launchpad-Export-Date: 2015-06-30 18:56+0000\n"
 
 #: src/js/Controller.js:234
-#, fuzzy
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
+msgid "Error"
 msgstr ""
-"Načítať lokálny súbor  (<i class=\"fa fa-exclamation-triangle\"></i>len na "
-"čítanie)"
-
-#: src/js/Controller.js:235
-#, fuzzy
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
-msgstr ""
-"Načítať lokálny súbor  (<i class=\"fa fa-exclamation-triangle\"></i>len na "
-"čítanie)"
 
 #: src/js/Controller.js:359
 msgid "Document was changed. Reloading."

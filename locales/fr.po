@@ -16,12 +16,8 @@ msgstr ""
 "X-Launchpad-Export-Date: 2016-06-25 07:48+0000\n"
 
 #: src/js/Controller.js:234
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
-msgstr "<i class=\"fa fa-exclamation-triangle\"></i> Erreur"
-
-#: src/js/Controller.js:235
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
-msgstr "<i class=\"fa fa-info-circle\"></i> Information"
+msgid "Error"
+msgstr "Erreur"
 
 #: src/js/Controller.js:359
 msgid "Document was changed. Reloading."

@@ -5,6 +5,7 @@
 /** @module */
 
 import {h} from "inferno-hyperscript";
+import {serializeHTML} from "../html/sanitize";
 import {VirtualDOMView} from "./VirtualDOMView";
 import {getLanguages} from "./languages";
 
@@ -247,7 +248,7 @@ export class Properties extends VirtualDOMView {
             _("Ctrl+N: Numbered list"),
             _("Ctrl+>: Indent list entry"),
             _("Ctrl+<: Outdent list entry")
-        ].join("<br>");
+        ].join("\n");
 
         const timeoutMsDisabled = controller
             .getFrameProperty("timeoutEnable")
@@ -662,7 +663,7 @@ export class Properties extends VirtualDOMView {
         ]);
     }
 
-    /** The HTML of the help message for include/exclude lists in export.
+    /** The text of the help message for include/exclude lists in export, one entry per line.
      *
      * @readonly
      * @type {string}
@@ -676,7 +677,7 @@ export class Properties extends VirtualDOMView {
             _('Select frames 5 to 8: "5:8"'),
             _('Select frames 5, 8, 11, 14, and 17: "5:8:17"'),
             _('Select frames 2, 5, and 10 to 15: "2, 5, 10:15"')
-        ].join("<br>");
+        ].join("\n");
     }
 
     /** Render the properties view with the export tool.
@@ -1023,7 +1024,7 @@ export class Properties extends VirtualDOMView {
 
         const values = asArray(getter.call(controller, property));
         const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
-        this.state[property] = {innerHTML: values.length >= 1 ? values[values.length - 1] : ""};
+        this.state[property] = {html: values.length >= 1 ? values[values.length - 1] : ""};
 
         return h("section", {
             id: "field-" + property,
@@ -1031,7 +1032,7 @@ export class Properties extends VirtualDOMView {
             className,
             disabled,
             onblur() {
-                const value = this.innerHTML;
+                const value = serializeHTML(this);
                 if (acceptsEmpty || value.length) {
                     setter.call(controller, property, value);
                 }
