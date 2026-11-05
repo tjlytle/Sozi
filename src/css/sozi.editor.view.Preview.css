@@ -15,10 +15,41 @@
     top: 0;
     width: 100%;
     height: 100%;
+    cursor: default;
 }
 
 .sozi-preview svg a {
     cursor: default;
+}
+
+/* The cursor over the clipping rectangle, set by Viewport.updateClipCursor. */
+.sozi-preview .sozi-preview__svg--cursor-crosshair {
+    cursor: crosshair;
+}
+
+.sozi-preview .sozi-preview__svg--cursor-ns {
+    cursor: ns-resize;
+}
+
+.sozi-preview .sozi-preview__svg--cursor-ew {
+    cursor: ew-resize;
+}
+
+.sozi-preview .sozi-preview__svg--cursor-nwse {
+    cursor: nwse-resize;
+}
+
+.sozi-preview .sozi-preview__svg--cursor-nesw {
+    cursor: nesw-resize;
+}
+
+.sozi-preview .sozi-preview__svg--cursor-move {
+    cursor: move;
+}
+
+/* The outline of a camera's clipping rectangle, shown while the clip tool is active. */
+.sozi-camera__clip--hidden {
+    display: none;
 }
 
 .sozi-preview p,

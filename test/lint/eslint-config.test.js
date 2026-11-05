@@ -81,8 +81,7 @@ describe("2.7 no blocking dialogs, no floating promises", () => {
 
 describe("2.3 only the publishers assign window properties", () => {
     const code = "window.sozi = {};\n";
-    test("fires in an ordinary module", () =>
-        fires("src/js/exporter/exporter-preload.js", code, "2.3"));
+    test("fires in an ordinary module", () => fires("src/js/Controller.js", code, "2.3"));
     test("quiet in player.js", () => quiet("src/js/player.js", code, "2.3"));
     test("quiet in presenter.js", () => quiet("src/js/presenter.js", code, "2.3"));
 });

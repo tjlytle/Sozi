@@ -67,6 +67,17 @@ Given("the presenter page is open without its audience window", async function (
     await this.presenter.goto(pathToFileURL(builtDeck(this.fixture).presenter).href);
 });
 
+Given("the presenter page is open with pop-ups blocked", async function () {
+    // Cast: the Before hook opens a context for every scenario.
+    const context = /** @type {import("playwright").BrowserContext} */ (this.context);
+    // A blocked pop-up: the browser's window.open returns null.
+    await context.addInitScript(() => {
+        window.open = () => null;
+    });
+    this.presenter = await context.newPage();
+    await this.presenter.goto(pathToFileURL(builtDeck(this.fixture).presenter).href);
+});
+
 When("the audience window is resized to {int} by {int}", async function (width, height) {
     await this.audience.setViewportSize({width, height});
 });
@@ -188,4 +199,21 @@ Then("the presenter page title is not {string}", async function (title) {
     );
     await this.presenter.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
     assert.notEqual(await this.presenter.title(), title);
+});
+
+Then("the presenter page shows the notice {string}", async function (text) {
+    const notice = this.presenter.locator(".sozi-notice");
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(text);
+});
+
+Then("the presenter page shows no notice", async function () {
+    // The notice is in the page but hidden, so a page without one does not pass.
+    const notice = this.presenter.locator(".sozi-notice");
+    await expect(notice).toHaveCount(1);
+    await expect(notice).toBeHidden();
+});
+
+Then("no dialog was shown", function () {
+    assert.deepEqual(this.dialogs, []);
 });

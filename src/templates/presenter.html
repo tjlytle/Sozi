@@ -91,9 +91,24 @@
             .sozi-presentation-length {
                 margin: 0 1rem 0 0.5rem;
             }
+
+            /* Over the page, so showing it does not move the previews. */
+            .sozi-notice {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 2;
+                margin: 0;
+                padding: 0.5rem 1rem;
+                font-family: sans-serif;
+                text-align: center;
+                background: rgb(255, 236, 179);
+            }
         </style>
     </head>
     <body>
+        <p class="sozi-notice" role="alert" hidden>Could not open the presentation window. Allow pop-ups for this page, then reload it.</p>
         <div class="sozi-frame-preview">
             <div class="sozi-current-frame-container">
                 <iframe class="sozi-current-frame" src="{{ soziHtml }}"></iframe>

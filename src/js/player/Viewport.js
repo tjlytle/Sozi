@@ -5,6 +5,7 @@
 /** @module */
 
 import {Camera} from "./Camera";
+import * as authorStyle from "../svg/authorStyle";
 
 /** The thickness of the rectangle where the mouse can resize the clipping rectangle.
  *
@@ -13,6 +14,26 @@ import {Camera} from "./Camera";
  * @type {number}
  */
 const CLIP_BORDER = 3;
+
+/** The cursor class for each clip operation, styled in `sozi.editor.view.Preview.css`.
+ *
+ * An operation that is not listed shows the default cursor.
+ *
+ * @readonly
+ * @type {Readonly<Record<string, string>>}
+ */
+const CLIP_CURSORS = Object.freeze({
+    select: "sozi-preview__svg--cursor-crosshair",
+    n: "sozi-preview__svg--cursor-ns",
+    s: "sozi-preview__svg--cursor-ns",
+    w: "sozi-preview__svg--cursor-ew",
+    e: "sozi-preview__svg--cursor-ew",
+    nw: "sozi-preview__svg--cursor-nwse",
+    se: "sozi-preview__svg--cursor-nwse",
+    ne: "sozi-preview__svg--cursor-nesw",
+    sw: "sozi-preview__svg--cursor-nesw",
+    move: "sozi-preview__svg--cursor-move"
+});
 
 /** Viewing area for Sozi presentation. */
 export class Viewport {
@@ -139,35 +160,10 @@ export class Viewport {
         const x = clientX - this.x;
         const y = clientY - this.y;
 
-        if (this.dragMode === "clip") {
-            switch (this.getClipMode(x, y).operation) {
-                case "select":
-                    this.svgRoot.style.cursor = "crosshair";
-                    break;
-                case "n":
-                case "s":
-                    this.svgRoot.style.cursor = "ns-resize";
-                    break;
-                case "w":
-                case "e":
-                    this.svgRoot.style.cursor = "ew-resize";
-                    break;
-                case "nw":
-                case "se":
-                    this.svgRoot.style.cursor = "nwse-resize";
-                    break;
-                case "ne":
-                case "sw":
-                    this.svgRoot.style.cursor = "nesw-resize";
-                    break;
-                case "move":
-                    this.svgRoot.style.cursor = "move";
-                    break;
-                default:
-                    this.svgRoot.style.cursor = "default";
-            }
-        } else {
-            this.svgRoot.style.cursor = "default";
+        const cursor =
+            this.dragMode === "clip" ? CLIP_CURSORS[this.getClipMode(x, y).operation] : undefined;
+        for (const name of new Set(Object.values(CLIP_CURSORS))) {
+            this.svgRoot.classList.toggle(name, name === cursor);
         }
     }
 
@@ -367,7 +363,7 @@ export class Viewport {
         for (const id of this.presentation.elementsToHide) {
             const elt = document.getElementById(id);
             if (elt) {
-                elt.style.visibility = this.showHiddenElements ? "visible" : "hidden";
+                authorStyle.setVisible(elt, this.showHiddenElements);
             }
         }
     }

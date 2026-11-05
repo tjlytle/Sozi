@@ -19,35 +19,35 @@ function normalize(tag) {
     return tag.replace(/_/g, "-").toLowerCase();
 }
 
+/** Choose the available locale for a language setting.
+ *
+ * `"auto"` stands for the first system language, or English when there is none.
+ * A regional tag falls back to its language.
+ *
+ * @param {string} lang - A language tag, or `"auto"`.
+ * @param {string[]} systemLanguages - The languages of the system, preferred first.
+ * @param {object} available - The locales, keyed by language tag.
+ * @returns {?string} - The key in `available` that matches, or `null`.
+ */
+export function chooseLanguage(lang, systemLanguages, available) {
+    // No `??` here: jspot's parser, which extracts the strings to translate, predates it.
+    const langTag = normalize(lang === "auto" ? systemLanguages[0] || "en" : lang);
+    const langShort = langTag.split("-")[0];
+    const keys = Object.keys(available);
+    return (
+        keys.find(key => normalize(key) === langTag) ||
+        keys.find(key => normalize(key) === langShort) ||
+        null
+    );
+}
+
 /** Initialize the internationalization support in the current editor.
  *
- * In autodection mode, this function will query the web browser for the
- * current language.
- *
  * @param {string} lang - A language tag to use, or `"auto"`.
+ * @param {string[]} systemLanguages - The languages of the system, preferred first.
  * @returns {Jed} - An instance of `Jed` that provides the `gettext` function.
  */
-export function init(lang = "auto") {
-    let requestedLang = lang;
-    if (lang === "auto") {
-        requestedLang =
-            window.navigator.languages && window.navigator.languages.length
-                ? window.navigator.languages[0]
-                : window.navigator.language || window.navigator.userLanguage || "en";
-    }
-
-    // Normalize the given language tag and extract the language code alone
-    const langTag = normalize(requestedLang);
-    const langShort = langTag.split("-")[0];
-
-    // Find the user language in the available locales
-    const allLanguages = Object.keys(locales).map(normalize);
-    let langIndex = allLanguages.indexOf(langTag);
-    if (langIndex < 0) {
-        langIndex = allLanguages.indexOf(langShort);
-    }
-
-    const localeData = langIndex >= 0 ? locales[Object.keys(locales)[langIndex]] : {};
-
-    return new Jed(localeData);
+export function init(lang, systemLanguages) {
+    const key = chooseLanguage(lang, systemLanguages, locales);
+    return new Jed(key === null ? {} : locales[key]);
 }
