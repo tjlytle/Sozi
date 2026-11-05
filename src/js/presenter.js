@@ -5,6 +5,7 @@
 // The presenter console: a surface of the presenter protocol (docs/presenter-protocol.md).
 // It mirrors what the audience window reports and drives it and the three previews.
 
+import {setSanitizedHTML} from "./html/sanitize";
 import {LocalTransport} from "./protocol/LocalTransport";
 import {
     MessageNames,
@@ -98,7 +99,10 @@ function connect(audience, frames) {
         setText(".sozi-current-index", String(index + 1));
         setText(".sozi-presentation-length", String(display.frameCount));
         setText(".sozi-notes-title", title);
-        /** @type {Element} */ (document.querySelector(".sozi-notes-body")).innerHTML = notes;
+        setSanitizedHTML(
+            /** @type {Element} */ (document.querySelector(".sozi-notes-body")),
+            notes
+        );
         previews.forEach(updatePreview);
     };
 
