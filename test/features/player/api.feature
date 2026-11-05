@@ -1,4 +1,4 @@
-# covers: src/js/player.js, src/js/player/
+# covers: src/js/player.js, src/js/player/, src/js/protocol/legacy.js, src/js/protocol/messages.js
 Feature: Driving the player from code
 
   The presenter drives the audience window by posting messages to it, and the page
@@ -34,4 +34,11 @@ Feature: Driving the player from code
     When a message "moveToNext" with no arguments is posted to the page
     Then the player is on frame "Two"
     When a message "moveToPrevious" with no arguments is posted to the page
+    Then the player is on frame "One"
+
+  @issue-28
+  Scenario: The new next and jumpToFrame messages move the frame
+    When a protocol message "next" is posted to the page
+    Then the player is on frame "Two"
+    When a protocol message "jumpToFrame" with index 0 is posted to the page
     Then the player is on frame "One"

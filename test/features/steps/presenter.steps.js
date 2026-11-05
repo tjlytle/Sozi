@@ -101,6 +101,15 @@ When("the audience transition has finished", async function () {
         .toBe(false);
 });
 
+When("the presenter page posts itself a frame change to index {int}", async function (index) {
+    // A frameChange with the protocol's fields, but from the presenter page, not the display.
+    await this.presenter.evaluate(i => {
+        window.postMessage({name: "frameChange", index: i, id: "", title: "Two", notes: ""}, "*");
+        // Give the page a turn to handle it before the next step looks.
+        return new Promise(resolve => setTimeout(resolve, 50));
+    }, index);
+});
+
 Then("the frame counter reads {string}", async function (text) {
     const [index, length] = text.split("/").map(s => s.trim());
     await expect(this.presenter.locator(".sozi-current-index")).toHaveText(index);
@@ -116,6 +125,18 @@ Then("the audience window is on frame {string}", async function (title) {
         .poll(() => this.audience.evaluate(() => window.sozi.player.currentFrame.title))
         .toBe(title);
     assert.ok(this.audience, "the audience window is open");
+});
+
+Then("the audience window is blank", async function () {
+    await expect
+        .poll(() => this.audience.evaluate(() => window.sozi.player.blankScreenIsVisible))
+        .toBe(true);
+});
+
+Then("the audience window is not blank", async function () {
+    await expect
+        .poll(() => this.audience.evaluate(() => window.sozi.player.blankScreenIsVisible))
+        .toBe(false);
 });
 
 Then("every preview has the audience window's shape", async function () {
