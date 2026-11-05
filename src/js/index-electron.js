@@ -104,6 +104,11 @@ function cliExit(code, result) {
 }
 
 function cliMain() {
+    // Stdout holds the JSON result only, which cliExit() writes directly. Libraries log
+    // there too (electron-app-settings prints "changed" whenever another Sozi process
+    // rewrites the shared settings file), so send their lines to stderr.
+    console.log = console.info = console.debug = console.error;
+
     // The command line never shows a window: render at device scale 1 on any
     // display, so that capturePage returns images of the requested size in
     // pixels instead of falling back to the slower Chrome DevTools Protocol.
