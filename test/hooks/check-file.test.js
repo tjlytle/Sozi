@@ -69,7 +69,8 @@ function adviseRaw(args) {
  * @returns {string[]} - One note per line.
  */
 function advise(files, diffFile) {
-    const result = adviseRaw([].concat(files, diffFile ? ["--diff", diffFile] : []));
+    const list = Array.isArray(files) ? files : [files];
+    const result = adviseRaw([...list, ...(diffFile ? ["--diff", diffFile] : [])]);
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.split("\n").filter(Boolean);
 }
