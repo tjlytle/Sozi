@@ -204,6 +204,9 @@ export function createSandbox({
         if (settings.cpus > 0) {
             args.push("--cpus", String(settings.cpus));
         }
+        if (settings.shmSize) {
+            args.push("--shm-size", settings.shmSize);
+        }
         args.push("-v", `${mirror}:/mirror:ro`, "-v", `${outbox}:/outbox`);
         // With a profile no token name is passed: docker would read it from its own
         // environment, and a token takes precedence over the profile login.

@@ -12,7 +12,7 @@ const REPO = path.resolve(import.meta.dirname, "..", "..");
 describe("sandbox", () => {
     const settings = loadConfig({
         root: "/nonexistent",
-        env: {PIPELINE_MEMORY: "6g", PIPELINE_CPUS: "2"}
+        env: {PIPELINE_MEMORY: "6g", PIPELINE_CPUS: "2", PIPELINE_SHM_SIZE: "2g"}
     });
     const sb = createSandbox({
         settings,
@@ -29,6 +29,7 @@ describe("sandbox", () => {
         });
         assert.equal(args[0], "run");
         assert.ok(args.includes("--memory") && args[args.indexOf("--memory") + 1] === "6g");
+        assert.equal(args[args.indexOf("--shm-size") + 1], "2g");
         assert.ok(args.includes("/repo/var/pipeline/mirror.git:/mirror:ro"));
         assert.ok(args.includes("/repo/var/pipeline/out-25-build-1902:/outbox"));
         assert.ok(args.includes("GH_MINT_URL=http://host.docker.internal:7311/"));
@@ -56,10 +57,26 @@ describe("sandbox", () => {
             mintKey: "k"
         });
         assert.ok(!args.includes("--memory") && !args.includes("--cpus"));
+        assert.equal(args[args.indexOf("--shm-size") + 1], "1g", "a 1g /dev/shm by default");
         assert.ok(args.includes("PIPELINE_MODEL=claude-fable-5-1"));
         assert.ok(args.includes("PIPELINE_HARNESS=claude"));
         assert.ok(args.includes("--add-host=host.docker.internal:host-gateway"));
         assert.ok(args.includes("PIPELINE_ISSUE") && args.includes("NOTION_TOKEN"));
+    });
+    test("an empty PIPELINE_SHM_SIZE leaves Docker's /dev/shm default", () => {
+        const plain = createSandbox({
+            settings: loadConfig({root: "/nonexistent", env: {PIPELINE_SHM_SIZE: ""}}),
+            root: "/repo",
+            run: async () => ({code: 0, stdout: "", stderr: ""})
+        });
+        const args = plain.startArgs({
+            issue: 25,
+            stage: "plan",
+            outbox: "/o",
+            mintUrl: "u",
+            mintKey: "k"
+        });
+        assert.ok(!args.includes("--shm-size"));
     });
 
     /**
