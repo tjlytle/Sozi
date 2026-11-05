@@ -4,7 +4,7 @@
 
 /** @module */
 
-import {Animator} from "./Animator";
+import {Animator, AnimatorEvents} from "./Animator";
 import * as Timing from "./Timing";
 import {CameraState} from "../model/CameraState";
 import {Frame} from "../model/Presentation";
@@ -134,11 +134,11 @@ export class Player extends EventEmitter {
          */
         this.transitions = [];
 
-        this.animator.on("step", p => this.onAnimatorStep(p));
-        this.animator.on("stop", () => this.onAnimatorStop());
-        this.animator.on("done", () => this.onAnimatorDone());
+        this.animator.on(AnimatorEvents.step, p => this.onAnimatorStep(p));
+        this.animator.on(AnimatorEvents.stop, () => this.onAnimatorStop());
+        this.animator.on(AnimatorEvents.done, () => this.onAnimatorDone());
 
-        this.on("frameChange", () => {
+        this.on(PlayerEvents.frameChange, () => {
             // TODO Only if frame is not transient.
             document.title = this.presentation.title + " \u2014 " + this.currentFrame.title;
         });
@@ -217,7 +217,7 @@ export class Player extends EventEmitter {
     showCurrentFrame() {
         this.viewport.setAtStates(this.currentFrame.cameraStates);
         this.viewport.update();
-        this.emit("frameChange");
+        this.emit(PlayerEvents.frameChange);
     }
 
     /** Start the presentation from the given frame.
@@ -232,7 +232,7 @@ export class Player extends EventEmitter {
     playFromFrame(frame) {
         if (!this.playing) {
             this.playing = true;
-            this.emit("stateChange");
+            this.emit(PlayerEvents.stateChange);
         }
         this.waitingTimeout = false;
         this.targetFrame = this.currentFrame = this.findFrame(frame);
@@ -258,7 +258,7 @@ export class Player extends EventEmitter {
         }
         if (this.playing) {
             this.playing = false;
-            this.emit("stateChange");
+            this.emit(PlayerEvents.stateChange);
         }
         this.targetFrame = this.currentFrame;
     }
@@ -348,7 +348,7 @@ export class Player extends EventEmitter {
 
         if (!this.viewport.editMode && !this.playing) {
             this.playing = true;
-            this.emit("stateChange");
+            this.emit(PlayerEvents.stateChange);
         }
 
         for (const camera of this.viewport.cameras) {
@@ -495,7 +495,7 @@ export class Player extends EventEmitter {
     onAnimatorStop() {
         this.transitions = [];
         this.currentFrame = this.targetFrame;
-        this.emit("frameChange");
+        this.emit(PlayerEvents.frameChange);
     }
 
     /** Finalize a transition when the current animation is complete.

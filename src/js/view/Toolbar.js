@@ -6,6 +6,7 @@
 
 import {h} from "inferno-hyperscript";
 import {VirtualDOMView} from "./VirtualDOMView";
+import {PropertiesEvents} from "./Properties";
 import screenfull from "screenfull";
 import pkg from "../../../package.json";
 
@@ -45,7 +46,7 @@ export class Toolbar extends VirtualDOMView {
         this.viewport = viewport;
 
         screenfull.on("change", () => this.repaint());
-        properties.on("modeChange", () => this.repaint());
+        properties.on(PropertiesEvents.modeChange, () => this.repaint());
     }
 
     /** @inheritdoc */

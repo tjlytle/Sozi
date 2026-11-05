@@ -28,6 +28,14 @@ function asArray(v) {
  * @event module:view/Properties.modeChange
  */
 
+/** The events a `Properties` view emits (standard 2.4).
+ *
+ * @readonly
+ */
+export const PropertiesEvents = Object.freeze({
+    modeChange: "modeChange"
+});
+
 /** Properties pane of the presentation editor.
  *
  * @extends VirtualDOMView
@@ -66,7 +74,7 @@ export class Properties extends VirtualDOMView {
      */
     toggleMode(mode) {
         this.mode = this.mode === mode ? "default" : mode;
-        this.emit("modeChange");
+        this.emit(PropertiesEvents.modeChange);
         this.repaint();
     }
 
