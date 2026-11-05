@@ -24,7 +24,7 @@ export function init(player) {
     const frameNumber = /** @type {HTMLElement} */ (document.querySelector(".sozi-frame-number"));
 
     player.on("frameChange", () => {
-        frameNumber.innerHTML = player.currentFrame.index + 1;
+        frameNumber.textContent = String(player.currentFrame.index + 1);
         frameNumber.style.visibility = player.currentFrame.showFrameNumber ? "visible" : "hidden";
     });
 
