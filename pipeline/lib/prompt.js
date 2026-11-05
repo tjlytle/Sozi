@@ -21,7 +21,7 @@ const FINDINGS = {
 
 /** Builds the run-settings block.
  *
- * @param {{merge: string, plans: string, findings: string}} settings - The settings.
+ * @param {{merge: string, plans: string, findings: string, backlog: number | null}} settings - The settings.
  * @param {{issue: number, stage: string, epic: number | null, until: string | null}} run - The run.
  * @returns {string} - The block, in Markdown.
  */
@@ -53,7 +53,7 @@ export function settingsBlock(settings, {issue, stage, epic, until}) {
 /** Renders a prompt template: replaces {N} with the issue number and prepends the block.
  *
  * @param {string} template - The template.
- * @param {{merge: string, plans: string, findings: string}} settings - The settings.
+ * @param {{merge: string, plans: string, findings: string, backlog: number | null}} settings - The settings.
  * @param {{issue: number, stage: string, epic: number | null, until: string | null}} run - The run.
  * @returns {string} - The prompt.
  */
