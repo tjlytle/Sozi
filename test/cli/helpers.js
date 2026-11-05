@@ -32,18 +32,44 @@ const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("e
  * @typedef {{code: number|null, stdout: string, stderr: string, json: object|null}} SoziRun
  */
 
+/** The commands that drive an export window, whose steps report their own time-outs.
+ *
+ * @type {string[]}
+ */
+const captureCommands = ["render", "export"];
+
+/** The CLI arguments with a `--timeout` that ends the command before the test kills it.
+ *
+ * The command's default limit (120 s) outlives the test's, so a hung step would end as
+ * `ETIMEDOUT` without the exporter's message, which names the step.
+ *
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @param {number} timeoutMs - The test's time limit for the run, in milliseconds.
+ * @returns {string[]} - The arguments, with `--timeout` 10 s below the test's limit for a
+ *  capture command that has none.
+ */
+function withCommandTimeout(args, timeoutMs) {
+    if (!captureCommands.includes(args[0]) || args.includes("--timeout")) {
+        return args;
+    }
+    const seconds = Math.max(Math.floor(timeoutMs / 1000) - 10, 1);
+    return [args[0], "--timeout", String(seconds), ...args.slice(1)];
+}
+
 /** Run `electron build/electron --cli ...args`.
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
  * @param {object} [opts] - Options for the run.
  * @param {string} [opts.cwd] - The working directory (default: the repository).
  * @param {object} [opts.env] - The environment variables (default: process.env).
- * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000).
+ * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000); `render`
+ *  and `export` get a `--timeout` below it, unless they have one.
  * @param {string[]} [opts.switches] - Chromium switches placed before `--cli` (default: none).
  * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
  */
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
-    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...args], {
+    const cliArgs = withCommandTimeout(args, timeout);
+    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
         cwd,
         env,
         encoding: "utf8",
