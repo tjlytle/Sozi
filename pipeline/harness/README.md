@@ -55,7 +55,7 @@ binary; it is one word, a path, not a command with arguments (the tests use `tes
 the last `result` event of the call: its tokens and turns are per call and
 added up, its `total_cost_usd` is already the session's and taken as it is (a
 call with no result event keeps the previous cost); `rate-limited` when its `subtype` or `error`, or its `result` when `is_error`,
-matches `rate limit|429|overloaded`, `auth` (checked first) when the call made no
+matches `rate.?limit|usage limit|hit your .*limit|429|overloaded` (case-insensitive), `auth` (checked first) when the call made no
 model call (0 tokens) and its `result` or `error`, or the lines of the call that are
 not JSON when there is no result event, say `Failed to authenticate`,
 `authentication_error` or `401`, `budget` when `subtype` matches `budget`,
