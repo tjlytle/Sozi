@@ -45,8 +45,7 @@ const ENTRY_POINTS = [
     "src/js/player.js",
     "src/js/presenter.js",
     "src/js/index-electron.js",
-    "src/js/cli/index.js",
-    "src/js/exporter/exporter-preload.js"
+    "src/js/cli/index.js"
 ];
 const ELECTRON_GLUE = ["src/js/**/*-electron.js", "src/js/backend/Electron.js"];
 const PROTOCOL = ["src/js/protocol/**"];
