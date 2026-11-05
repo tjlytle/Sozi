@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Starting sessions: queued spawn requests first, then due issues, the least-busy persona
-// first, while a slot is free and the persona has one. Each session gets a rendered prompt in a fresh outbox and a
-// container, with its persona's profile mounted when the profile passes its checks.
+// Starting sessions: queued spawn requests first, then due issues, the least-busy persona first,
+// while a slot is free and the persona has one. Each session gets a rendered prompt in a fresh
+// outbox and a container, with its persona's profile mounted when the profile passes its checks.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -351,9 +351,9 @@ async function tryIssue(ctx, n) {
 }
 
 /**
- * Start sessions while slots are free: queued spawns first, then due issues, the least-busy
- * persona first. One slot past the soft ceiling; none while a model rate limit pauses starts. A spawn or issue
- * whose persona is at its limit or logged out waits for the next pass.
+ * Start sessions while slots are free: queued spawns first, then due issues, the least-busy persona
+ * first. One slot past the soft ceiling; none while a model rate limit pauses starts. A spawn or
+ * issue whose persona is at its limit or logged out waits for the next pass.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
