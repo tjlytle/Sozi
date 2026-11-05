@@ -45,7 +45,8 @@ const COMMENTS = /<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g;
 /** Whether an SPDX licence expression is allowed: one side of an OR, every side of an AND.
  *
  * AND binds tighter than OR, parentheses nest, operators are all upper or all lower case,
- * and an id with a WITH exception fails. Anything that does not parse fails.
+ * and an id with a WITH exception (a single id) fails. Anything that does not parse fails,
+ * even when another alternative is allowed.
  *
  * @param {string} expression - The `license` field of a package.
  * @param {Set<string>} allowed - The allowed licence ids.
@@ -55,28 +56,34 @@ export function licenceAllowed(expression, allowed = ALLOWED_LICENCES) {
     const tokens = expression.match(/[()]|[^\s()]+/g) || [];
     let i = 0;
     const isOperator = (token, name) => token === name || token === name.toLowerCase();
-    const atom = () => {
+    const id = () => {
         const token = tokens[i++];
-        if (token === "(") {
+        if (
+            token === undefined ||
+            token === "(" ||
+            token === ")" ||
+            ["AND", "OR", "WITH"].some(o => isOperator(token, o))
+        ) {
+            throw new SyntaxError(`expected a licence id, found ${token}`);
+        }
+        return token;
+    };
+    const atom = () => {
+        if (tokens[i] === "(") {
+            i++;
             const value = anyOf();
             if (tokens[i++] !== ")") {
                 throw new SyntaxError("unbalanced parentheses");
             }
             return value;
         }
-        if (
-            token === undefined ||
-            token === ")" ||
-            ["AND", "OR", "WITH"].some(o => isOperator(token, o))
-        ) {
-            throw new SyntaxError(`expected a licence id, found ${token}`);
-        }
+        const licence = id();
         if (isOperator(tokens[i], "WITH")) {
             i++;
-            atom();
+            id();
             return false;
         }
-        return allowed.has(token);
+        return allowed.has(licence);
     };
     const allOf = () => {
         let value = atom();
