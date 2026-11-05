@@ -7,6 +7,7 @@
 import {EventEmitter} from "events";
 import {CameraState} from "./CameraState";
 import {hasReliableBoundaries} from "../player/Camera";
+import * as authorStyle from "../svg/authorStyle";
 
 /** @typedef {import("../svg/SVGDocumentWrapper.js").SVGDocumentWrapper} SVGDocumentWrapper */
 
@@ -219,7 +220,7 @@ export class LayerProperties {
             this.frame.presentation.elementsToHide.splice(index, 1);
         }
         if (this.outlineElement) {
-            this.outlineElement.style.visibility = hide ? "hidden" : "visible";
+            authorStyle.setVisible(this.outlineElement, !hide);
         }
     }
 
@@ -240,7 +241,7 @@ export class LayerProperties {
             this.frame.presentation.elementsToHide.splice(index, 1);
         }
         if (this.transitionPath) {
-            this.transitionPath.style.visibility = hide ? "hidden" : "visible";
+            authorStyle.setVisible(this.transitionPath, !hide);
         }
     }
 }
@@ -613,7 +614,7 @@ export class Layer {
 
     set isVisible(visible) {
         for (const node of this.svgNodes) {
-            node.style.display = visible ? "initial" : "none";
+            authorStyle.setDisplayed(node, visible);
         }
     }
 
