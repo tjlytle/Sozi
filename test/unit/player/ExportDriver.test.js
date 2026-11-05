@@ -70,6 +70,14 @@ describe("ExportDriver", () => {
         assert.deepEqual(calls, [["jumpToFrame", 1]]);
     });
 
+    test("state reports the player's current frame and whether it animates", () => {
+        const {player, presentation, viewport} = fakeDeck();
+        player.currentFrame = presentation.frames[1];
+        player.animator = {running: true};
+        const driver = new ExportDriver(player, presentation, viewport);
+        assert.deepEqual(driver.state(), {index: 1, animating: true});
+    });
+
     test("kick(true) twice runs only one repaint loop", () => {
         const {player, presentation, viewport, calls} = fakeDeck();
         const driver = new ExportDriver(player, presentation, viewport);
