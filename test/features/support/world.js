@@ -12,7 +12,8 @@ import {
     Before,
     BeforeAll,
     setDefaultTimeout,
-    setWorldConstructor
+    setWorldConstructor,
+    World
 } from "@cucumber/cucumber";
 import fs from "node:fs";
 import {createRequire} from "node:module";
@@ -57,10 +58,15 @@ export function builtDeck(name) {
     return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
 }
 
-/** What a scenario can reach: the browser context, the presenter page and the audience window. */
-export class SoziWorld {
-    /** A scenario starts with nothing open. */
-    constructor() {
+/** What a scenario can reach: the browser context, the pages it opened and Cucumber's attach. */
+export class SoziWorld extends World {
+    /** A scenario starts with nothing open.
+     *
+     * @param {import("@cucumber/cucumber").IWorldOptions} options - Cucumber's attach, log,
+     *     link and parameters, handed on to World.
+     */
+    constructor(options) {
+        super(options);
         /** @type {?import("playwright").BrowserContext} */
         this.context = null;
         /** @type {?import("playwright").Page} */
@@ -118,13 +124,15 @@ Before(async function () {
 });
 
 After(async function (scenario) {
-    if (scenario.result?.status === "FAILED" && this.presenter) {
+    // A player scenario opens only the deck page; a presenter scenario has both.
+    const page = this.presenter ?? this.deck;
+    if (scenario.result?.status === "FAILED" && page) {
         const file = path.join(
             SCREENSHOTS,
             `failed-${scenario.pickle.name.replace(/\W+/g, "-")}.png`
         );
-        await this.presenter.screenshot({path: file});
-        this.attach(fs.readFileSync(file), "image/png");
+        await page.screenshot({path: file});
+        await this.attach(fs.readFileSync(file), "image/png");
     }
     await this.context?.close();
 });
