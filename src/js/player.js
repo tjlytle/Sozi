@@ -2,163 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global sozi */
-
 import {SVGDocumentWrapper} from "./svg/SVGDocumentWrapper";
 import {Presentation, Frame} from "./model/Presentation";
 import {Viewport} from "./player/Viewport";
 import {Player} from "./player/Player";
 import {PlayerController} from "./player/PlayerController";
+import {DisplayChannel} from "./player/DisplayChannel";
+import {enterPreviewMode} from "./player/PreviewMode";
 import * as Media from "./player/Media";
 import * as FrameList from "./player/FrameList";
 import * as FrameNumber from "./player/FrameNumber";
 import * as FrameURL from "./player/FrameURL";
 import * as TouchGestures from "./player/TouchGestures";
-import {postViewport} from "./protocol/viewport";
-
-/** Identifies the current player to be in presenter mode.
- *
- * In presenter mode, message events are forwarded to the player
- * rather than to the player's controller.
- *
- * @default
- */
-let isPresenterMode = false;
-
-/** Put the current player in presenter mode.
- *
- * This function is used by the presenter console that uses several
- * players as *previews* of the previous, current and next frames.
- *
- * In presenter mode, keyboard and mouse navigation are disabled,
- * frame numbers are hidden, hyperlink in the previous and next views are
- * disabled, and in the current view, hyperlink clicks are forwarded to the
- * main presentation window.
- *
- * @param {Window} mainWindow - The browser window that plays the main presentation.
- * @param {boolean} isCurrent - Is the current player showing the current frame?
- */
-function setPresenterMode(mainWindow, isCurrent) {
-    // Casts of sozi.presentation.document in this file: messages arrive after the player has loaded.
-    isPresenterMode = true;
-    sozi.player.disableMedia();
-    sozi.player.pause();
-
-    sozi.presentation.enableMouseTranslation =
-        sozi.presentation.enableMouseNavigation =
-        sozi.presentation.enableKeyboardZoom =
-        sozi.presentation.enableKeyboardRotation =
-        sozi.presentation.enableKeyboardNavigation =
-            false;
-
-    for (const frame of sozi.presentation.frames) {
-        frame.showFrameNumber = false;
-    }
-
-    if (isCurrent) {
-        // Forward hyperlink clicks to the main presentation window.
-        for (const link of /** @type {SVGDocumentWrapper} */ (
-            sozi.presentation.document
-        ).root.getElementsByTagName("a")) {
-            link.addEventListener(
-                "click",
-                evt => {
-                    if (link.id) {
-                        mainWindow.postMessage({name: "click", id: link.id}, "*");
-                    }
-                    evt.preventDefault();
-                },
-                false
-            );
-        }
-    } else {
-        /** @type {SVGDocumentWrapper} */ (sozi.presentation.document).disableHyperlinks(true);
-    }
-}
-
-/** Process a frame change event.
- *
- * This event handler is setup when the current player is connected to
- * a presenter console.
- * On frame change, the event is forwarded to the presenter.
- *
- * @param {Window} presenterWindow - The window that shows the presenter console.
- *
- * @listens module:player/Player.frameChange
- */
-function onFrameChange(presenterWindow) {
-    presenterWindow.postMessage(
-        {
-            name: "frameChange",
-            index: sozi.player.currentFrame.index,
-            title: sozi.player.currentFrame.title,
-            notes: sozi.player.currentFrame.notes
-        },
-        "*"
-    );
-}
-
-/** Setup event handlers to forward frame changes and the window size to the presenter window.
- *
- * This function is called when initializing the connexion between the current
- * presentation and a presenter console in another window.
- * Only the display window receives it: preview frames get `setPresenterMode`,
- * so a preview never reports its own size as the display's.
- *
- * @param {Window} presenterWindow - The window that shows the presenter console.
- */
-function notifyOnFrameChange(presenterWindow) {
-    sozi.player.on("frameChange", () => onFrameChange(presenterWindow));
-    window.addEventListener("resize", () => postViewport(presenterWindow, window));
-
-    // Send the initial frame data and window size to the presenter window.
-    onFrameChange(presenterWindow);
-    postViewport(presenterWindow, window);
-}
-
-// Process messages from a presenter console.
-window.addEventListener("message", evt => {
-    switch (evt.data.name) {
-        case "loaded":
-            // This message is received if the presentation is played directly
-            // in a browser window. Ignore it.
-            break;
-        case "notifyOnFrameChange":
-            // Install an event handler to forward the frame change event
-            // to the presenter console.
-            // Cast: these messages come from the presenter window.
-            notifyOnFrameChange(/** @type {Window} */ (evt.source));
-            break;
-        case "setPresenterMode":
-            // Set this presentation into presenter mode.
-            // Cast: these messages come from the presenter window.
-            setPresenterMode(/** @type {Window} */ (evt.source), evt.data.isCurrent);
-            break;
-        case "click": {
-            // Forward the click event on a hyperlink in the presenter console
-            // to the same hyperlink in the main presentation.
-            const link = /** @type {SVGDocumentWrapper} */ (
-                sozi.presentation.document
-            ).root.getElementById(evt.data.id);
-            // We use dispatchEvent here because
-            // SVG <a> elements do not have a click method.
-            link.dispatchEvent(new MouseEvent("click"));
-            break;
-        }
-        default: {
-            // Interpret a message as a method call to the current Sozi player.
-            // The message must be of the form: {name: string, args: any[]}.
-            const receiver = isPresenterMode ? sozi.player : sozi.playerController;
-            const method = receiver[evt.data.name];
-            const args = evt.data.args || [];
-            if (typeof method === "function") {
-                method.apply(receiver, args);
-            } else {
-                console.log(`Unsupported message: ${evt.data.name}`);
-            }
-        }
-    }
-});
+import {LocalTransport} from "./protocol/LocalTransport";
 
 // Initialize the Sozi player when the document is loaded.
 window.addEventListener("load", () => {
@@ -223,39 +79,17 @@ window.addEventListener("load", () => {
     /** @type {HTMLElement} */ (
         document.querySelector(".sozi-blank-screen .spinner")
     ).style.display = "none";
+
+    // The presenter console that opened this window, the page this deck is framed in, or
+    // this window itself: then the transport only hands on what the page posts to itself.
+    const transport = new LocalTransport(window, window.opener || window.parent);
+    new DisplayChannel({
+        player,
+        controller: playerController,
+        presentation,
+        transport,
+        host: window,
+        enterPreviewMode: (isCurrent, onFollowLink) =>
+            enterPreviewMode(player, presentation, isCurrent, onFollowLink)
+    }).start();
 });
-
-/** Identifies the window that opened this presentation.
- *
- * This constant can typically have three possible values:
- * - a presenter console window that opened this window to display the main presentation,
- * - a parent window if this presentation is opened in a frame,
- * - the current window.
- *
- * @readonly
- * @type {Window}
- */
-const opener = window.opener || window.parent;
-
-/** Check that Sozi is loaded and notify a presenter console.
- *
- * This function will repeatedly check whether the `window.sozi` variable is populated.
- * On success, it will send the `loaded` message to the presenter console.
- */
-function checkSozi() {
-    if (window.sozi) {
-        opener.postMessage(
-            {
-                name: "loaded",
-                length: sozi.presentation.frames.length
-            },
-            "*"
-        );
-    } else {
-        setTimeout(checkSozi, 1);
-    }
-}
-
-if (opener) {
-    checkSozi();
-}

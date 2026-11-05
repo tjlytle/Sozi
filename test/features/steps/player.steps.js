@@ -34,6 +34,21 @@ When("a message {string} with no arguments is posted to the page", async functio
     await this.deck.evaluate(n => window.postMessage({name: n}, "*"), name);
 });
 
+// A message in the protocol's shape (docs/presenter-protocol.md): fields beside the name, no args.
+When("a protocol message {string} is posted to the page", async function (name) {
+    await this.deck.evaluate(n => window.postMessage({name: n}, "*"), name);
+});
+
+When(
+    "a protocol message {string} with index {int} is posted to the page",
+    async function (name, index) {
+        await this.deck.evaluate(
+            ([n, i]) => window.postMessage({name: n, index: i}, "*"),
+            [name, index]
+        );
+    }
+);
+
 Then("the player is on frame {string}", async function (title) {
     await expect
         .poll(() =>

@@ -1,82 +1,188 @@
-import {readViewport} from "./protocol/viewport";
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const previews = [{index: 0}, {index: -1}, {index: 1}];
+// The presenter console: a surface of the presenter protocol (docs/presenter-protocol.md).
+// It mirrors what the audience window reports and drives it and the three previews.
 
-let presWindow;
-let presLength = 0;
+import {LocalTransport} from "./protocol/LocalTransport";
+import {
+    MessageNames,
+    Roles,
+    helloMessage,
+    blankMessage,
+    jumpToFrameMessage,
+    nextMessage,
+    previousMessage,
+    previewMessage,
+    followLinkMessage,
+    readMessage
+} from "./protocol/messages";
 
-function updatePreview(p) {
-    if (p.index >= 0 && p.index < presLength) {
-        p.window.postMessage({name: "jumpToFrame", args: [p.index]}, "*");
-    } else {
-        p.window.postMessage({name: "enableBlankScreen"}, "*");
+/** The frame each preview iframe shows, relative to the current one, in page order.
+ *
+ * @readonly
+ */
+const PREVIEW_OFFSETS = Object.freeze([0, -1, 1]);
+
+/** Set the text of the presenter page's element that matches a selector.
+ *
+ * @param {string} selector - The element's selector.
+ * @param {string} text - Its new text.
+ */
+function setText(selector, text) {
+    // Cast: the presenter page holds the elements this file names.
+    /** @type {Element} */ (document.querySelector(selector)).textContent = text;
+}
+
+/** The message a key on the presenter page sends to the audience window.
+ *
+ * Shift moves without a transition.
+ *
+ * @param {KeyboardEvent} evt - The key event.
+ * @param {{frameCount: number, blank: boolean}} display - The display as it last reported itself.
+ * @returns {?import("./protocol/messages").Message} The message, or null for any other key.
+ */
+function messageForKey(evt, display) {
+    switch (evt.key) {
+        case "Home":
+            return jumpToFrameMessage(0, !evt.shiftKey);
+        case "End":
+            return jumpToFrameMessage(Math.max(display.frameCount - 1, 0), !evt.shiftKey);
+        case "ArrowUp":
+        case "PageUp":
+        case "ArrowLeft":
+            return previousMessage(!evt.shiftKey);
+        case "ArrowDown":
+        case "PageDown":
+        case "ArrowRight":
+        case "Enter":
+        case " ":
+            return nextMessage(!evt.shiftKey);
+        case ".":
+            return blankMessage(!display.blank);
+        default:
+            return null;
     }
 }
 
-function updateFrameData({index, title, notes}) {
-    // Casts: the presenter page holds these elements.
-    /** @type {Element} */ (document.querySelector(".sozi-current-index")).innerHTML = index + 1;
-    /** @type {Element} */ (document.querySelector(".sozi-presentation-length")).innerHTML =
-        String(presLength);
-    /** @type {Element} */ (document.querySelector(".sozi-notes-title")).innerHTML = title;
-    if (typeof notes === "string") {
-        /** @type {Element} */ (document.querySelector(".sozi-notes-body")).innerHTML = notes;
-    }
-}
+/** Connect the presenter page to the audience window and the previews.
+ *
+ * @param {Window} audience - The audience window.
+ * @param {Window[]} frames - The windows of the preview iframes, in page order.
+ */
+function connect(audience, frames) {
+    // The display as it last reported itself: the presenter holds no other frame state.
+    const display = {frameCount: 0, index: 0, blank: false};
+    const toAudience = new LocalTransport(window, audience);
+    const previews = frames.map((frame, i) => ({
+        offset: PREVIEW_OFFSETS[i],
+        current: PREVIEW_OFFSETS[i] === 0,
+        transport: new LocalTransport(window, frame),
+        ready: false
+    }));
 
-window.addEventListener("message", evt => {
-    switch (evt.data.name) {
-        case "loaded":
-            presLength = evt.data.length;
-            // Casts: "loaded" comes from the presentation window or a preview frame.
-            if (evt.source === presWindow) {
-                /** @type {Window} */ (evt.source).postMessage({name: "notifyOnFrameChange"}, "*");
-            } else {
-                /** @type {Window} */ (evt.source).postMessage(
-                    {
-                        name: "setPresenterMode",
-                        isCurrent: evt.source === previews[0].window
-                    },
-                    "*"
-                );
-            }
-            break;
-
-        case "frameChange":
-            previews[0].index = evt.data.index;
-            previews[1].index = evt.data.index - 1;
-            previews[2].index = evt.data.index + 1;
-            previews.forEach(updatePreview);
-            updateFrameData(evt.data);
-            break;
-
-        case "click":
-            presWindow.postMessage({name: "click", id: evt.data.id}, "*");
-            break;
-
-        case "viewport": {
-            // Only the display window's size shapes the previews.
-            const viewport = evt.source === presWindow ? readViewport(evt.data) : null;
-            if (viewport) {
-                document.documentElement.style.setProperty(
-                    "--sozi-display-aspect",
-                    String(viewport.width / viewport.height)
-                );
-            }
-            break;
+    const updatePreview = p => {
+        const index = display.index + p.offset;
+        if (p.ready) {
+            p.transport.send(
+                index >= 0 && index < display.frameCount
+                    ? jumpToFrameMessage(index, false)
+                    : blankMessage(true)
+            );
         }
+    };
+
+    const showFrame = ({index, title, notes}) => {
+        display.index = index;
+        setText(".sozi-current-index", String(index + 1));
+        setText(".sozi-presentation-length", String(display.frameCount));
+        setText(".sozi-notes-title", title);
+        /** @type {Element} */ (document.querySelector(".sozi-notes-body")).innerHTML = notes;
+        previews.forEach(updatePreview);
+    };
+
+    const showViewport = viewport => {
+        // Only the audience window's size shapes the previews.
+        document.documentElement.style.setProperty(
+            "--sozi-display-aspect",
+            String(viewport.width / viewport.height)
+        );
+    };
+
+    // What each message from the audience window does, by name (standard 2.5).
+    const fromAudience = {
+        [MessageNames.hello]: message => {
+            if (message.role === Roles.display) {
+                display.frameCount = message.frameCount;
+                display.blank = message.blank;
+                if (message.viewport) {
+                    showViewport(message.viewport);
+                }
+                showFrame(message.frame);
+            }
+        },
+        [MessageNames.frameChange]: showFrame,
+        [MessageNames.viewport]: showViewport,
+        [MessageNames.blank]: ({on}) => {
+            display.blank = on;
+        }
+    };
+    toAudience.onMessage(data => {
+        const message = readMessage(data);
+        if (message && Object.hasOwn(fromAudience, message.name)) {
+            fromAudience[message.name](message);
+        }
+    });
+
+    for (const p of previews) {
+        p.transport.onMessage(data => {
+            const message = readMessage(data);
+            if (!message) {
+                return;
+            }
+            if (message.name === MessageNames.hello && message.role === Roles.display) {
+                // A preview is a display too: it becomes a preview once it says hello.
+                p.ready = true;
+                p.transport.send(previewMessage(p.current));
+                updatePreview(p);
+            } else if (message.name === MessageNames.followLink && p.current) {
+                toAudience.send(followLinkMessage(message.id));
+            }
+        });
     }
-});
+
+    // A display that loaded before this page answers with its hello.
+    toAudience.send(helloMessage(Roles.surface));
+    previews.forEach(p => p.transport.send(helloMessage(Roles.surface)));
+
+    /** @type {HTMLElement} */ (document.getElementById("sozi-previous-btn")).addEventListener(
+        "click",
+        () => toAudience.send(previousMessage()),
+        false
+    );
+    /** @type {HTMLElement} */ (document.getElementById("sozi-next-btn")).addEventListener(
+        "click",
+        () => toAudience.send(nextMessage()),
+        false
+    );
+
+    window.addEventListener("keydown", evt => {
+        // Keys with Alt/Ctrl/Meta modifiers are ignored
+        const message =
+            evt.altKey || evt.ctrlKey || evt.metaKey ? null : messageForKey(evt, display);
+        if (message) {
+            toAudience.send(message);
+            evt.stopPropagation();
+            evt.preventDefault();
+        }
+    });
+}
 
 window.addEventListener(
     "load",
     () => {
         const iframes = document.querySelectorAll("iframe");
-
-        // Initialize the iframes that show the previous, current, and next frames.
-        previews.forEach((p, i) => {
-            p.window = iframes[i].contentWindow;
-        });
 
         // Prevent the notes pane to change size when its content is updated.
         // Casts: the presenter page holds these elements.
@@ -87,7 +193,7 @@ window.addEventListener(
         }).observe(preview);
 
         // Open a new window for the main presentation view.
-        presWindow = window.open(
+        const presWindow = window.open(
             iframes[0].src,
             "sozi-presentation",
             "width=600, height=400, scrollbars=yes, toolbar=yes"
@@ -96,23 +202,12 @@ window.addEventListener(
             // @ts-expect-error A blocked popup leaves presWindow null; the throw lands in the catch below.
             presWindow.focus();
 
-            /** @type {HTMLElement} */ (
-                document.getElementById("sozi-previous-btn")
-            ).addEventListener(
-                "click",
-                () => {
-                    presWindow.postMessage({name: "moveToPrevious"}, "*");
-                },
-                false
+            const frames = Array.from(
+                iframes,
+                iframe => /** @type {Window} */ (iframe.contentWindow)
             );
-
-            /** @type {HTMLElement} */ (document.getElementById("sozi-next-btn")).addEventListener(
-                "click",
-                () => {
-                    presWindow.postMessage({name: "moveToNext"}, "*");
-                },
-                false
-            );
+            // Cast: focus has not thrown, so the popup is open.
+            connect(/** @type {Window} */ (presWindow), frames);
         } catch {
             alert(
                 "Could not open presentation window. Please allow popups for this site and refresh this page."
@@ -121,75 +216,3 @@ window.addEventListener(
     },
     false
 );
-
-window.addEventListener("keydown", evt => {
-    // Keys with Alt/Ctrl/Meta modifiers are ignored
-    if (evt.altKey || evt.ctrlKey || evt.metaKey) {
-        return;
-    }
-
-    switch (evt.keyCode) {
-        case 36: // Home
-            if (evt.shiftKey) {
-                presWindow.postMessage({name: "jumpToFirst"}, "*");
-            } else {
-                presWindow.postMessage({name: "moveToFirst"}, "*");
-            }
-            break;
-
-        case 35: // End
-            if (evt.shiftKey) {
-                presWindow.postMessage({name: "jumpToLast"}, "*");
-            } else {
-                presWindow.postMessage({name: "moveToLast"}, "*");
-            }
-            break;
-
-        case 38: // Arrow up
-        case 33: // Page up
-        case 37: // Arrow left
-            if (evt.shiftKey) {
-                presWindow.postMessage({name: "jumpToPrevious"}, "*");
-            } else {
-                presWindow.postMessage({name: "moveToPrevious"}, "*");
-            }
-            break;
-
-        case 40: // Arrow down
-        case 34: // Page down
-        case 39: // Arrow right
-        case 13: // Enter
-        case 32: // Space
-            if (evt.shiftKey) {
-                presWindow.postMessage({name: "jumpToNext"}, "*");
-            } else {
-                presWindow.postMessage({name: "moveToNext"}, "*");
-            }
-            break;
-
-        default:
-            return;
-    }
-
-    evt.stopPropagation();
-    evt.preventDefault();
-});
-
-window.addEventListener("keypress", evt => {
-    // Keys with modifiers are ignored
-    if (evt.altKey || evt.ctrlKey || evt.metaKey) {
-        return;
-    }
-
-    switch (evt.charCode || evt.which) {
-        case 46: // .
-            presWindow.postMessage({name: "toggleBlankScreen"}, "*");
-            break;
-
-        default:
-            return;
-    }
-
-    evt.stopPropagation();
-    evt.preventDefault();
-});
