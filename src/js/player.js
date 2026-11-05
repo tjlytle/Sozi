@@ -8,6 +8,7 @@ import {Viewport} from "./player/Viewport";
 import {Player} from "./player/Player";
 import {PlayerController} from "./player/PlayerController";
 import {DisplayChannel} from "./player/DisplayChannel";
+import {ExportDriver} from "./player/ExportDriver";
 import {enterPreviewMode} from "./player/PreviewMode";
 import * as Media from "./player/Media";
 import * as FrameList from "./player/FrameList";
@@ -48,6 +49,8 @@ window.addEventListener("load", () => {
     FrameURL.init(player);
     TouchGestures.init(player, presentation, playerController);
 
+    const exportDriver = new ExportDriver(player, presentation, viewport);
+
     window.sozi = {
         get presentation() {
             return presentation;
@@ -60,6 +63,9 @@ window.addEventListener("load", () => {
         },
         get playerController() {
             return playerController;
+        },
+        get exportDriver() {
+            return exportDriver;
         }
     };
 

@@ -198,21 +198,16 @@ window.addEventListener(
             "sozi-presentation",
             "width=600, height=400, scrollbars=yes, toolbar=yes"
         );
-        try {
-            // @ts-expect-error A blocked popup leaves presWindow null; the throw lands in the catch below.
-            presWindow.focus();
-
-            const frames = Array.from(
-                iframes,
-                iframe => /** @type {Window} */ (iframe.contentWindow)
-            );
-            // Cast: focus has not thrown, so the popup is open.
-            connect(/** @type {Window} */ (presWindow), frames);
-        } catch {
-            alert(
-                "Could not open presentation window. Please allow popups for this site and refresh this page."
-            );
+        // A blocked popup leaves presWindow null: the page says so and stays usable (standard 2.7).
+        if (!presWindow) {
+            /** @type {HTMLElement} */ (document.querySelector(".sozi-notice")).hidden = false;
+            return;
         }
+        presWindow.focus();
+        connect(
+            presWindow,
+            Array.from(iframes, iframe => /** @type {Window} */ (iframe.contentWindow))
+        );
     },
     false
 );
