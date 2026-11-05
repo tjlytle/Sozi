@@ -107,4 +107,24 @@ describe("changed-files.sh", () => {
         assert.equal(out.status, 2);
         assert.match(out.stderr, /not-a-revision|fatal/);
     });
+    test("no arguments exits 2 with the usage line", () => {
+        assertUsage([]);
+    });
+    test("one argument exits 2 with the usage line", () => {
+        assertUsage([repo().dir]);
+    });
+    test("an empty start sha exits 2 with the usage line", () => {
+        assertUsage([repo().dir, ""]);
+    });
 });
+
+/**
+ * Run the script with these arguments and assert it refused them with the usage line.
+ * @param {string[]} args - The arguments.
+ */
+function assertUsage(args) {
+    const r = spawnSync("bash", [script, ...args], {encoding: "utf8"});
+    assert.equal(r.status, 2);
+    assert.equal(r.stdout, "");
+    assert.match(r.stderr, /^usage: changed-files\.sh <checkout> <start-sha>/);
+}

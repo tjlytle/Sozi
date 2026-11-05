@@ -7,10 +7,14 @@
 # the session's own commits (the first-parent line since <start-sha>, merges left out,
 # so a merge of master adds nothing), uncommitted changes (staged or not) and untracked
 # files. A branch with no commits of its own that fast-forwards to master counts
-# master's commits as its own. Exit 2 when git failed (the git error is on stderr).
+# master's commits as its own. Exit 2 when git failed (the git error is on stderr) or
+# when <checkout> or <start-sha> is missing or empty (the usage line is on stderr).
 # Reads no environment.
 set -u
 
+if ! { [ $# -ge 2 ] && [ -n "$1" ] && [ -n "$2" ]; }; then
+    echo "usage: changed-files.sh <checkout> <start-sha>" >&2; exit 2
+fi
 checkout="$1"; start="$2"
 cd "$checkout" || exit 2
 g() { git -c core.quotePath=false "$@"; }
