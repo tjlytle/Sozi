@@ -42,6 +42,66 @@ export const MAX_AGE_DAYS = 365;
 const RUNTIME_URL = /(?:src|href)\s*=\s*["']https?:\/\/|import\(\s*["']https?:\/\//;
 const COMMENTS = /<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g;
 
+/** Whether an SPDX licence expression is allowed: one side of an OR, every side of an AND.
+ *
+ * AND binds tighter than OR, parentheses nest, operators are all upper or all lower case,
+ * and an id with a WITH exception fails. Anything that does not parse fails.
+ *
+ * @param {string} expression - The `license` field of a package.
+ * @param {Set<string>} allowed - The allowed licence ids.
+ * @returns {boolean} - True when the expression is satisfied by allowed licences.
+ */
+export function licenceAllowed(expression, allowed = ALLOWED_LICENCES) {
+    const tokens = expression.match(/[()]|[^\s()]+/g) || [];
+    let i = 0;
+    const isOperator = (token, name) => token === name || token === name.toLowerCase();
+    const atom = () => {
+        const token = tokens[i++];
+        if (token === "(") {
+            const value = anyOf();
+            if (tokens[i++] !== ")") {
+                throw new SyntaxError("unbalanced parentheses");
+            }
+            return value;
+        }
+        if (
+            token === undefined ||
+            token === ")" ||
+            ["AND", "OR", "WITH"].some(o => isOperator(token, o))
+        ) {
+            throw new SyntaxError(`expected a licence id, found ${token}`);
+        }
+        if (isOperator(tokens[i], "WITH")) {
+            i++;
+            atom();
+            return false;
+        }
+        return allowed.has(token);
+    };
+    const allOf = () => {
+        let value = atom();
+        while (isOperator(tokens[i], "AND")) {
+            i++;
+            value = atom() && value;
+        }
+        return value;
+    };
+    const anyOf = () => {
+        let value = allOf();
+        while (isOperator(tokens[i], "OR")) {
+            i++;
+            value = allOf() || value;
+        }
+        return value;
+    };
+    try {
+        const value = anyOf();
+        return i === tokens.length && value;
+    } catch {
+        return false;
+    }
+}
+
 /** A source text with its HTML, block and line comments removed.
  *
  * @param {string} text - The source.
@@ -208,7 +268,7 @@ export function main(argv) {
             fail(`${name}: npm view failed (${/** @type {Error} */ (e).message.split("\n")[0]})`);
         }
         if (facts) {
-            if (!ALLOWED_LICENCES.has(facts.licence)) {
+            if (!licenceAllowed(facts.licence)) {
                 fail(
                     `${name}: licence "${facts.licence}" is not in the allowed set (${[...ALLOWED_LICENCES].join(", ")})`
                 );
