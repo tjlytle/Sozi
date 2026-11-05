@@ -216,3 +216,65 @@ Then(
             .toEqual(BASIC_LAYERS.map(() => opacity));
     }
 );
+
+// The notes field and the notification panel. The notes field is #field-notes, a
+// content-editable section that commits on blur, and its help is the icon titled
+// "Edit presenter notes. ..." (src/js/view/Properties.js). The panel is #message, with a
+// title and a body (src/index-electron.html, src/js/Controller.js).
+
+Given("the editor is open on a copy of the {string} deck", async function (fixture) {
+    this.editor = await launchEditor(fixture);
+    this.window = this.editor.window;
+});
+
+When("the help of the notes field is clicked", async function () {
+    await this.window.locator('.sozi-properties__help[title^="Edit presenter notes."]').click();
+});
+
+When("the notes field is changed to {string}", async function (html) {
+    const field = this.window.locator("#field-notes");
+    await field.focus();
+    await field.evaluate((element, value) => {
+        element.innerHTML = value;
+    }, html);
+    // The field commits on blur.
+    await field.blur();
+});
+
+When("the presentation is saved", async function () {
+    await this.window.keyboard.press("Control+S");
+});
+
+Then("the notes field shows {string} in bold", async function (text) {
+    await expect(this.window.locator("#field-notes :is(b, strong)")).toHaveText(text);
+});
+
+Then("the notification title reads {string}", async function (text) {
+    await expect(this.window.locator("#message .sozi-editor__message-title")).toHaveText(text);
+});
+
+Then("the notification shows the line {string}", async function (line) {
+    const body = this.window.locator("#message .sozi-editor__message-body");
+    await expect(body).toBeVisible();
+    // The entry must be a line of the body's text as well as a line on screen: an entry
+    // set apart by markup (<br>) is a line on screen but not a line of text.
+    await expect
+        .poll(() =>
+            body.evaluate(element => ({
+                shown: /** @type {HTMLElement} */ (element).innerText
+                    .split("\n")
+                    .map(s => s.trim()),
+                text: (element.textContent ?? "").split("\n").map(s => s.trim())
+            }))
+        )
+        .toEqual({shown: expect.arrayContaining([line]), text: expect.arrayContaining([line])});
+});
+
+Then("the presentation JSON file on disk contains {string}", async function (text) {
+    const file = this.editor.deck.json;
+    await expect
+        .poll(() => fs.existsSync(file) && fs.readFileSync(file, "utf8").includes(text), {
+            timeout: 5000
+        })
+        .toBe(true);
+});
