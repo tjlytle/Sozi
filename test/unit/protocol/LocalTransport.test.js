@@ -88,13 +88,13 @@ describe("LocalTransport", () => {
         assert.equal(host.intervals.size, 0);
     });
 
-    test("is open until its target closes, checked once a second", () => {
+    test("is connected until its target closes, checked once a second", () => {
         const host = fakeWindow();
         const target = fakeWindow();
         const transport = new LocalTransport(host, target);
         const changes = [];
         transport.on(TransportEvents.statusChange, status => changes.push(status));
-        assert.equal(transport.status, TransportStatus.open);
+        assert.equal(transport.status, "connected");
         assert.deepEqual(
             Array.from(host.intervals.values(), i => i.ms),
             [1000]

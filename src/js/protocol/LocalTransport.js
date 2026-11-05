@@ -22,11 +22,14 @@ const CLOSED_CHECK_MS = 1000;
  */
 export const TransportEvents = Object.freeze({message: "message", statusChange: "statusChange"});
 
-/** The status of a transport: it can reach its target, or the target is gone.
+/** The status of a local transport: it can reach its target, or the target is gone.
+ *
+ * These are two of the four statuses #28 names; `reconnecting` and `stale` belong to a
+ * transport over a network, which a window in the same browser never is.
  *
  * @readonly
  */
-export const TransportStatus = Object.freeze({open: "open", closed: "closed"});
+export const TransportStatus = Object.freeze({connected: "connected", closed: "closed"});
 
 /**
  * The parts of a window a transport uses.
@@ -74,7 +77,7 @@ export class LocalTransport extends EventEmitter {
          *
          * @type {string}
          */
-        this.status = TransportStatus.open;
+        this.status = TransportStatus.connected;
 
         /** The message listener on the host, kept so that `dispose` can remove it.
          *
@@ -112,7 +115,7 @@ export class LocalTransport extends EventEmitter {
      */
     send(message) {
         this.checkClosed();
-        if (this.receiveOnly || this.status !== TransportStatus.open) {
+        if (this.receiveOnly || this.status !== TransportStatus.connected) {
             return false;
         }
         this.target.postMessage(message, "*");
@@ -134,7 +137,7 @@ export class LocalTransport extends EventEmitter {
      * @fires TransportEvents.statusChange
      */
     checkClosed() {
-        if (this.status === TransportStatus.open && this.target.closed) {
+        if (this.status === TransportStatus.connected && this.target.closed) {
             this.setStatus(TransportStatus.closed);
         }
     }
