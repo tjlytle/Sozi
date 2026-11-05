@@ -6,6 +6,7 @@ import type {Presentation} from "../model/Presentation.js";
 import type {Viewport} from "../player/Viewport.js";
 import type {Player} from "../player/Player.js";
 import type {PlayerController} from "../player/PlayerController.js";
+import type {ExportDriver} from "../player/ExportDriver.js";
 
 /** The player API that player.js assigns to `window.sozi` once the deck has loaded. */
 export interface SoziPlayerApi {
@@ -13,17 +14,8 @@ export interface SoziPlayerApi {
     readonly viewport: Viewport;
     readonly player: Player;
     readonly playerController: PlayerController;
-}
-
-/** The page-side helper that exporter-preload.js installs in an export window. */
-export interface SoziExportHelper {
-    setup(nextIndex: number): number;
-    step(progress: number): void;
-    kick(enable: boolean): void;
-    state(): {index: number; animating: boolean};
-    finish(): number;
-    /** Whether the repaint loop started by `kick(true)` is running. */
-    kicking?: boolean;
+    /** The step helper that the exporter drives in an export window. */
+    readonly exportDriver: ExportDriver;
 }
 
 declare global {
@@ -36,9 +28,6 @@ declare global {
 
         /** The deck data that the generated HTML page defines before player.js runs. */
         soziPresentationData: object;
-
-        /** Installed by exporter-preload.js in an export window. */
-        __soziExport: SoziExportHelper;
     }
 
     // Vendor-prefixed and legacy browser APIs that the player still feature-tests.
@@ -47,11 +36,6 @@ declare global {
         webkitRequestAnimationFrame?: typeof requestAnimationFrame;
         msRequestAnimationFrame?: typeof requestAnimationFrame;
         oRequestAnimationFrame?: typeof requestAnimationFrame;
-    }
-
-    interface Navigator {
-        /** Internet Explorer's name for `navigator.language`. */
-        userLanguage?: string;
     }
 
     interface Document {

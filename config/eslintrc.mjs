@@ -45,8 +45,7 @@ const ENTRY_POINTS = [
     "src/js/player.js",
     "src/js/presenter.js",
     "src/js/index-electron.js",
-    "src/js/cli/index.js",
-    "src/js/exporter/exporter-preload.js"
+    "src/js/cli/index.js"
 ];
 const ELECTRON_GLUE = ["src/js/**/*-electron.js", "src/js/backend/Electron.js"];
 const PROTOCOL = ["src/js/protocol/**"];
@@ -202,6 +201,9 @@ export default [
     {files: PROTOCOL, rules: syntax(without(BAN.postMessage))},
     // 2.6: the sanitizer module is the one place that may parse HTML.
     {files: SANITIZER, rules: {"no-restricted-properties": "off", ...syntax(without(BAN.jsxHtml))}},
+    // 3.3: the author's SVG elements carry inline styles (Inkscape's display:inline) that
+    // outrank any class rule, so this one module hides them with an inline style.
+    {files: ["src/js/svg/authorStyle.js"], rules: syntax(without(BAN.styleAppearance))},
     // Tool config files must export a default: that is the shape ESLint and gulp read.
     {
         files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],

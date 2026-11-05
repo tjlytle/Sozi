@@ -8,6 +8,7 @@ import {Viewport} from "./player/Viewport";
 import {Player} from "./player/Player";
 import {PlayerController} from "./player/PlayerController";
 import {DisplayChannel} from "./player/DisplayChannel";
+import {ExportDriver} from "./player/ExportDriver";
 import {enterPreviewMode} from "./player/PreviewMode";
 import * as Media from "./player/Media";
 import * as FrameList from "./player/FrameList";
@@ -18,9 +19,11 @@ import {LocalTransport} from "./protocol/LocalTransport";
 
 // Initialize the Sozi player when the document is loaded.
 window.addEventListener("load", () => {
-    // Casts in this handler: the player page holds the SVG and the blank screen spinner.
+    // Show the SVG before the viewport measures it; the same class hides the spinner.
+    document.body.classList.add("sozi-player--ready");
+
+    // Cast: the player page holds the SVG.
     const svgRoot = /** @type {SVGSVGElement} */ (document.querySelector("svg"));
-    svgRoot.style.display = "initial";
 
     const presentation = new Presentation();
     presentation.setSVGDocument(new SVGDocumentWrapper(svgRoot));
@@ -46,6 +49,8 @@ window.addEventListener("load", () => {
     FrameURL.init(player);
     TouchGestures.init(player, presentation, playerController);
 
+    const exportDriver = new ExportDriver(player, presentation, viewport);
+
     window.sozi = {
         get presentation() {
             return presentation;
@@ -58,6 +63,9 @@ window.addEventListener("load", () => {
         },
         get playerController() {
             return playerController;
+        },
+        get exportDriver() {
+            return exportDriver;
         }
     };
 
@@ -75,10 +83,6 @@ window.addEventListener("load", () => {
 
     viewport.repaint();
     player.disableBlankScreen();
-
-    /** @type {HTMLElement} */ (
-        document.querySelector(".sozi-blank-screen .spinner")
-    ).style.display = "none";
 
     // The presenter console that opened this window, the page this deck is framed in, or
     // this window itself: then the transport only hands on what the page posts to itself.

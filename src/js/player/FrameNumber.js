@@ -25,7 +25,10 @@ export function init(player) {
 
     player.on("frameChange", () => {
         frameNumber.innerHTML = player.currentFrame.index + 1;
-        frameNumber.style.visibility = player.currentFrame.showFrameNumber ? "visible" : "hidden";
+        frameNumber.classList.toggle(
+            "sozi-frame-number--hidden",
+            !player.currentFrame.showFrameNumber
+        );
     });
 
     frameNumber.addEventListener("click", FrameList.open);

@@ -88,10 +88,10 @@ function fakeWindow({follows = true, presents = true, animating = false} = {}) {
                 }
                 return Promise.resolve();
             }
-            if (code.includes("__soziExport.state()")) {
+            if (code.includes("sozi.exportDriver.state()")) {
                 return Promise.resolve({index: page.index, animating});
             }
-            if (code.includes("__soziExport.kick(true)") && presents) {
+            if (code.includes("sozi.exportDriver.kick(true)") && presents) {
                 present();
             }
             return Promise.resolve(true);

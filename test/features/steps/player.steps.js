@@ -219,3 +219,76 @@ Then("the presentation has {int} frames", async function (count) {
     );
     assert.equal(length, count);
 });
+
+// What the page shows and hides (#240). Each step reads the computed style of the element, not
+// a class or an inline style, so it holds whichever of them the code uses. The selectors come
+// from src/templates/player.html: the deck's svg is the body's, the spinner is
+// .sozi-blank-screen .spinner.
+
+/** The computed display, visibility and opacity of the first element matching a selector.
+ *
+ * @param {import("playwright").Page} page - The deck page.
+ * @param {string} selector - A CSS selector.
+ * @returns {Promise<?{display: string, visibility: string, opacity: string}>} - The computed
+ *     values, or null when nothing matches.
+ */
+function computedLook(page, selector) {
+    return page.evaluate(s => {
+        const element = document.querySelector(s);
+        if (!element) {
+            return null;
+        }
+        const {display, visibility, opacity} = getComputedStyle(element);
+        return {display, visibility, opacity};
+    }, selector);
+}
+
+Then("the deck is shown", async function () {
+    await expect
+        .poll(async () => (await computedLook(this.deck, "body > svg"))?.display)
+        .not.toBe("none");
+});
+
+Then("the loading spinner is hidden", async function () {
+    await expect
+        .poll(async () => (await computedLook(this.deck, ".sozi-blank-screen .spinner"))?.display)
+        .toBe("none");
+});
+
+Then("the frame number is shown", async function () {
+    await expect
+        .poll(async () => (await computedLook(this.deck, ".sozi-frame-number"))?.visibility)
+        .toBe("visible");
+});
+
+Then("the frame number is hidden", async function () {
+    await expect
+        .poll(async () => (await computedLook(this.deck, ".sozi-frame-number"))?.visibility)
+        .toBe("hidden");
+});
+
+Then("the element {string} is hidden", async function (id) {
+    await expect
+        .poll(async () => {
+            const look = await computedLook(this.deck, `#${id}`);
+            return look !== null && (look.display === "none" || look.visibility === "hidden");
+        })
+        .toBe(true);
+});
+
+// The blank screen is a black layer over the page: blank while it is visible and opaque,
+// not blank once its fade has hidden it.
+Then("the page is blank", async function () {
+    await expect
+        .poll(async () => {
+            const look = await computedLook(this.deck, ".sozi-blank-screen");
+            return look !== null && look.visibility === "visible" && look.opacity === "1";
+        })
+        .toBe(true);
+});
+
+Then("the page is not blank", async function () {
+    await expect
+        .poll(async () => (await computedLook(this.deck, ".sozi-blank-screen"))?.visibility)
+        .toBe("hidden");
+});

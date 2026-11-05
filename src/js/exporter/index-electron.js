@@ -652,7 +652,7 @@ export class ExportWindow {
      * @returns {Promise} - Resolved if it does and no animation runs, rejected otherwise.
      */
     async expectFrame(index) {
-        const {index: shown, animating} = await this.run("__soziExport.state()");
+        const {index: shown, animating} = await this.run("sozi.exportDriver.state()");
         if (animating) {
             throw new Error(
                 `the export window is animating (frame ${shown}), expected frame ${index} at rest`
@@ -697,12 +697,12 @@ export class ExportWindow {
         // If the kick fails, the screenshot is not awaited: never leave its rejection unhandled.
         shot.catch(() => {});
         try {
-            await this.run("__soziExport.kick(true)");
+            await this.run("sozi.exportDriver.kick(true)");
             const img = await this.bounded(shot, "screenshot");
             return Buffer.from(img.data, "base64");
         } finally {
             try {
-                await this.run("__soziExport.kick(false)");
+                await this.run("sozi.exportDriver.kick(false)");
             } catch {
                 // The page does not respond: the window will be destroyed anyway.
             }
@@ -771,7 +771,6 @@ export async function openExportWindow(htmlPath, opts) {
         paintWhenInitiallyHidden: true,
         backgroundColor: transparent ? "#00000000" : "#ffffff",
         webPreferences: {
-            preload: path.join(__dirname, "exporter-preload.js"),
             contextIsolation: false,
             nodeIntegration: false,
             backgroundThrottling: false,
@@ -788,7 +787,7 @@ export async function openExportWindow(htmlPath, opts) {
         await withTimeout(
             w.webContents.executeJavaScript(`new Promise(resolve => {
             (function check() {
-                if (window.sozi && window.sozi.player && window.__soziExport) {
+                if (window.sozi && window.sozi.exportDriver) {
                     resolve(true);
                 }
                 else {
@@ -1232,14 +1231,14 @@ async function videoExport(presentation, htmlPath, opts) {
                         write(null, first);
                     }
                 } else {
-                    await ew.run(`__soziExport.setup(${step.to})`);
+                    await ew.run(`sozi.exportDriver.setup(${step.to})`);
                     for (const p of step.progress) {
-                        await ew.run(`__soziExport.step(${p})`);
+                        await ew.run(`sozi.exportDriver.step(${p})`);
                         await ew.settle();
                         await ew.expectFrame(step.from);
                         write(await ew.capture());
                     }
-                    await ew.run("__soziExport.finish()");
+                    await ew.run("sozi.exportDriver.finish()");
                 }
             }
         });

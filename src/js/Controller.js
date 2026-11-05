@@ -93,8 +93,9 @@ export class Controller extends EventEmitter {
      * @param {module:model/Selection.Selection} selection - The object that represents the selection in the timeline.
      * @param {module:player/Viewport.Viewport} viewport - The object that displays a preview of the presentation.
      * @param {module:player/Player.Player} player - The object that animates the presentation.
+     * @param {string[]} systemLanguages - The languages of the system, preferred first.
      */
-    constructor(preferences, presentation, selection, viewport, player) {
+    constructor(preferences, presentation, selection, viewport, player, systemLanguages) {
         super();
 
         /** The function that returns translated text in the current language.
@@ -133,6 +134,12 @@ export class Controller extends EventEmitter {
          * @type {module:player/Player.Player}
          */
         this.player = player;
+
+        /** The languages of the system, preferred first: what the `"auto"` language follows.
+         *
+         * @type {string[]}
+         */
+        this.systemLanguages = systemLanguages;
 
         /** The object that manages the file I/O.
          *
@@ -1817,11 +1824,12 @@ export class Controller extends EventEmitter {
      */
     applyPreferences(changed = "all") {
         if ((changed === "all" || changed.fontSize) && this.preferences.fontSize > 0) {
-            document.body.style.fontSize = this.preferences.fontSize + "pt";
+            // The size is the user's preference, so it sets the token the stylesheet reads.
+            document.body.style.setProperty("--sozi-font-size", this.preferences.fontSize + "pt");
         }
 
         if (changed === "all" || changed.language) {
-            const locale = i18n.init(this.preferences.language);
+            const locale = i18n.init(this.preferences.language, this.systemLanguages);
             this.gettext = s => locale.gettext(s);
         }
 

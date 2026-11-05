@@ -9,7 +9,8 @@ import path from "node:path";
 import {SCREENSHOTS} from "../support/world.js";
 
 Then("a screenshot {string} is saved", async function (name) {
-    // A presenter scenario shoots the presenter page, a player scenario the deck page.
-    const page = this.presenter ?? this.deck;
+    // A presenter scenario shoots the presenter page, a player scenario the deck page, an
+    // editor scenario the editor window.
+    const page = this.presenter ?? this.deck ?? this.window;
     await page.screenshot({path: path.join(SCREENSHOTS, `${name}.png`)});
 });

@@ -519,9 +519,10 @@ export class Player extends EventEmitter {
      */
     get blankScreenIsVisible() {
         // Cast: the player page always has a blank screen element.
-        return (
-            /** @type {HTMLElement} */ (document.querySelector(".sozi-blank-screen")).style
-                .visibility === "visible"
+        return !(
+            /** @type {HTMLElement} */ (
+                document.querySelector(".sozi-blank-screen")
+            ).classList.contains("sozi-blank-screen--off")
         );
     }
 
@@ -538,9 +539,8 @@ export class Player extends EventEmitter {
             document.querySelector(".sozi-blank-screen")
         );
         if (blankScreen) {
-            const changed = blankScreen.style.visibility !== "visible";
-            blankScreen.style.opacity = "1";
-            blankScreen.style.visibility = "visible";
+            const changed = blankScreen.classList.contains("sozi-blank-screen--off");
+            blankScreen.classList.remove("sozi-blank-screen--off");
             if (changed) {
                 this.emit(PlayerEvents.blankScreenChange);
             }
@@ -558,9 +558,8 @@ export class Player extends EventEmitter {
             document.querySelector(".sozi-blank-screen")
         );
         if (blankScreen) {
-            const changed = blankScreen.style.visibility === "visible";
-            blankScreen.style.opacity = "0";
-            blankScreen.style.visibility = "hidden";
+            const changed = !blankScreen.classList.contains("sozi-blank-screen--off");
+            blankScreen.classList.add("sozi-blank-screen--off");
             if (changed) {
                 this.emit(PlayerEvents.blankScreenChange);
             }
