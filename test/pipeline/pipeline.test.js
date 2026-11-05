@@ -522,6 +522,21 @@ test("--copy-profile copies one persona to another without a mint or state", asy
     assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
 });
 
+test("--build-image builds the image through the sandbox and returns 0 without a state or mint", async () => {
+    const h = host({statuses: []});
+    let builds = 0;
+    let mints = 0;
+    h.deps.sandbox.buildImage = async () => void builds++;
+    h.deps.startMint = async () => {
+        mints++;
+        throw new Error("no mint for --build-image");
+    };
+    assert.equal(await main(["--build-image"], {root: h.root, env: {}, deps: h.deps}), 0);
+    assert.equal(builds, 1);
+    assert.equal(mints, 0, "no mint was started");
+    assert.ok(!fs.existsSync(path.join(h.root, "var")), "no state file was written");
+});
+
 test("--copy-profile writes no hint when the copy fails", async () => {
     const h = host({statuses: []});
     h.deps.sandbox.copyProfile = async () => {
