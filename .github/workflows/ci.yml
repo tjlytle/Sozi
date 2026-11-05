@@ -84,8 +84,9 @@ jobs:
               run: |
                   sudo chown root:root node_modules/electron/dist/chrome-sandbox
                   sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-            - run: npm test
+            # Before npm test: test/unit/support/world.test.js runs a browser scenario.
             - run: npx playwright install --with-deps chromium
+            - run: npm test
             - run: xvfb-run -a npm run test:features
             - name: Keep the scenario report and screenshots
               if: always()
