@@ -65,6 +65,20 @@ const USAGE = [
  * @property {(code: number) => void} exit - Ends the process.
  */
 
+/**
+ * @typedef {object} Command
+ * @property {string} file - The state file.
+ * @property {any} settings - The settings.
+ * @property {Record<string, string|undefined>} configEnv - The environment the settings were loaded with.
+ * @property {any} sandbox - The sandbox.
+ * @property {string} root - The repository root.
+ * @property {Record<string, string|undefined>} env - The sessions' environment.
+ * @property {(line: string) => void} log - The log, one timed line at a time.
+ * @property {(text: string) => void} write - Standard output.
+ * @property {(text: string) => void} writeErr - Standard error.
+ * @property {Deps} deps - The outside world.
+ */
+
 /** @type {Deps} */
 const DEFAULT_DEPS = {
     run: defaultRun,
@@ -301,6 +315,20 @@ export async function main(
             runInteractive: deps.runInteractive,
             env: runEnv
         });
+    /** @type {Command} */
+    const ctx = {file, settings, configEnv, sandbox, root, env: runEnv, log, write, writeErr, deps};
+    return (await oneShot(opt, ctx)) ?? runLoop(opt, target, ctx);
+}
+
+/** Run the one-shot command the options name: --status, --digest, --build-image, --login or
+ * --copy-profile, checked in that order because two of them may come together.
+ *
+ * @param {any} opt - The parsed options.
+ * @param {Command} ctx - What the command runs with.
+ * @returns {Promise<number | null>} - The exit status, or null when the options name none.
+ */
+async function oneShot(opt, ctx) {
+    const {file, settings, sandbox, root, env: runEnv, log, write, writeErr, deps} = ctx;
     if (opt.status) {
         write(statusText(loadState(file)) + profilesText(await inspectAll(sandbox)));
         return 0;
@@ -313,7 +341,6 @@ export async function main(
         await sandbox.buildImage();
         return 0;
     }
-
     if (opt.login !== undefined) {
         return sandbox.login({persona: opt.login, harness: opt.harness ?? "claude"});
     }
@@ -330,7 +357,19 @@ export async function main(
         );
         return 0;
     }
+    return null;
+}
 
+/** Run the loop: open the state and the run, pass once or watch, drain the sessions, then
+ * close the mint and unhook the signals.
+ *
+ * @param {any} opt - The parsed options.
+ * @param {string} target - "watch" or the one issue to run.
+ * @param {Command} ctx - What the loop runs with.
+ * @returns {Promise<number>} - The exit status.
+ */
+async function runLoop(opt, target, ctx) {
+    const {file, settings, configEnv, sandbox, root, env: runEnv, log, write, deps} = ctx;
     const state = openState(file, new Date());
     // A restart keeps the run but not its limits: they hold only when given again.
     state.run.until = opt.until;
