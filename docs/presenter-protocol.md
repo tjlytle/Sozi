@@ -101,8 +101,9 @@ hands on only the messages whose `source` is `target`; a message from any other 
 the surface's own included, is ignored. It posts with `"*"` because a deck opened from a
 file has an opaque origin.
 
-Its `status` is `open` until `target` is closed, then `closed`, with a `statusChange`
-event. It looks at `target.closed` on each send and once a second. `dispose()` removes its
+Its `status` is `connected` until `target` is closed, then `closed`, with a `statusChange`
+event. A transport over a network will add `reconnecting` and `stale`; a window in the
+same browser is never in either. It looks at `target.closed` on each send and once a second. `dispose()` removes its
 listener and its timer.
 
 When `target` is `host` (a deck opened on its own, not by a presenter nor in a frame), the
@@ -117,9 +118,9 @@ loaded.
 
 | Old message                                  | Maps to                                 |
 | -------------------------------------------- | --------------------------------------- |
-| `notifyOnFrameChange`                        | `hello` from a surface                  |
-| `{name: "jumpToFrame", args: [index]}`       | `jumpToFrame {index, transition: false}` |
-| `{name: "moveToFrame", args: [index]}`       | `jumpToFrame {index, transition: true}` |
+| `notifyOnFrameChange`                        | `hello` from a surface, then `frameChange` and `viewport` |
+| `{name: "jumpToFrame", args: [frame]}`       | `jumpToFrame {index, transition: false}` |
+| `{name: "moveToFrame", args: [frame]}`       | `jumpToFrame {index, transition: true}` |
 | `moveToNext` / `jumpToNext`                  | `next` with / without transition        |
 | `moveToPrevious` / `jumpToPrevious`          | `previous` with / without transition    |
 | `moveToFirst` / `jumpToFirst`                | `jumpToFrame` 0 with / without transition |
@@ -130,5 +131,8 @@ loaded.
 | `{name: "click", id}`                        | `followLink {id}`                       |
 | `loaded`                                     | nothing (the display sends it, never acts on it) |
 
-A frame given by id rather than index in `args` is not mapped. Any other name, including
-any other controller method, is logged as `Unsupported message` and ignored.
+An old presenter waits for `frameChange` and `viewport` after `notifyOnFrameChange` and
+ignores `hello`, so the display sends both straight after its `hello`, as it used to.
+The `frame` in `args` is an index or a frame id; an id is resolved to its index, and one
+that names no frame is not mapped. Any other name, including any other controller method,
+is logged as `Unsupported message` and ignored.

@@ -29,17 +29,26 @@ import {
  * @typedef {object} LegacyState
  * @property {number} frameCount - How many frames the deck has.
  * @property {boolean} blank - Is the blank screen shown?
+ * @property {string[]} frameIds - The id of each frame, in order.
  */
 
 /**
  * The frame index an old `jumpToFrame` or `moveToFrame` gave as its first argument.
  *
+ * The old player took an index or a frame id there (`Player.findFrame`); an id resolves
+ * to its index.
+ *
  * @param {any} data - The old message.
- * @returns {number | null} The index, or null when it is not one (a frame id, say).
+ * @param {LegacyState} state - What the display knows now.
+ * @returns {number | null} The index, or null when the argument names no frame.
  */
-function argIndex(data) {
-    const index = Array.isArray(data.args) ? data.args[0] : undefined;
-    return Number.isInteger(index) && index >= 0 ? index : null;
+function argIndex(data, state) {
+    const frame = Array.isArray(data.args) ? data.args[0] : undefined;
+    if (typeof frame === "string") {
+        const index = state.frameIds.indexOf(frame);
+        return index >= 0 ? index : null;
+    }
+    return Number.isInteger(frame) && frame >= 0 ? frame : null;
 }
 
 /** One mapping per old name: the explicit table `fromLegacy` dispatches from (2.5).
@@ -49,12 +58,12 @@ function argIndex(data) {
  */
 const LEGACY = Object.freeze({
     notifyOnFrameChange: () => helloMessage(Roles.surface),
-    jumpToFrame: data => {
-        const index = argIndex(data);
+    jumpToFrame: (data, state) => {
+        const index = argIndex(data, state);
         return index === null ? null : jumpToFrameMessage(index, false);
     },
-    moveToFrame: data => {
-        const index = argIndex(data);
+    moveToFrame: (data, state) => {
+        const index = argIndex(data, state);
         return index === null ? null : jumpToFrameMessage(index, true);
     },
     moveToNext: () => nextMessage(true),

@@ -82,12 +82,14 @@ export class DisplayChannel extends EventEmitter {
 
         /** What each message from a surface does, by name: the explicit table (2.5).
          *
-         * @type {Readonly<Record<string, (message: any) => void>>}
+         * `legacy` is true when the message was mapped from an old name.
+         *
+         * @type {Readonly<Record<string, (message: any, legacy: boolean) => void>>}
          */
         this.handlers = Object.freeze({
-            [MessageNames.hello]: message => {
+            [MessageNames.hello]: (message, legacy) => {
                 if (message.role === Roles.surface) {
-                    transport.send(this.hello);
+                    this.answerHello(legacy);
                 }
             },
             [MessageNames.next]: ({transition}) => this.next(transition),
@@ -157,15 +159,41 @@ export class DisplayChannel extends EventEmitter {
      * @param {any} data - The data of a message event.
      */
     receive(data) {
-        const state = {
-            frameCount: this.presentation.frames.length,
-            blank: this.player.blankScreenIsVisible
-        };
-        const message = readMessage(data) || fromLegacy(data, state);
+        const current = readMessage(data);
+        const message = current || fromLegacy(data, this.legacyState);
         if (message && Object.hasOwn(this.handlers, message.name)) {
-            this.handlers[message.name](message);
+            this.handlers[message.name](message, !current);
         } else {
             console.log(`Unsupported message: ${data && data.name}`);
+        }
+    }
+
+    /** What the legacy table needs to resolve an old name.
+     *
+     * @readonly
+     * @type {import("../protocol/legacy.js").LegacyState}
+     */
+    get legacyState() {
+        const frames = this.presentation.frames;
+        return {
+            frameCount: frames.length,
+            blank: this.player.blankScreenIsVisible,
+            frameIds: frames.map(frame => frame.frameId)
+        };
+    }
+
+    /** Answer a surface's `hello` with the display's own.
+     *
+     * An old presenter (`notifyOnFrameChange`) ignores `hello` and waits for the frame and
+     * the window size, so it gets both as well, for one release.
+     *
+     * @param {boolean} legacy - Did the hello come from an old name?
+     */
+    answerHello(legacy) {
+        this.transport.send(this.hello);
+        if (legacy) {
+            this.transport.send(frameChangeMessage(this.frameInfo));
+            this.transport.send(viewportMessage(this.host));
         }
     }
 

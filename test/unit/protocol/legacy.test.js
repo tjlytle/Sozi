@@ -12,7 +12,7 @@ import {
     followLinkMessage
 } from "../../../src/js/protocol/messages.js";
 
-const state = {frameCount: 5, blank: false};
+const state = {frameCount: 5, blank: false, frameIds: ["f1", "f2", "f3", "f4", "f5"]};
 
 describe("legacy messages", () => {
     test("each old navigation name maps to next, previous or jumpToFrame", () => {
@@ -43,9 +43,20 @@ describe("legacy messages", () => {
         );
     });
 
-    test("jumpToFrame without an index it can read is refused", () => {
+    test("jumpToFrame and moveToFrame resolve a frame id to its index", () => {
+        assert.deepEqual(
+            fromLegacy({name: "jumpToFrame", args: ["f3"]}, state),
+            jumpToFrameMessage(2, false)
+        );
+        assert.deepEqual(
+            fromLegacy({name: "moveToFrame", args: ["f2"]}, state),
+            jumpToFrameMessage(1, true)
+        );
+    });
+
+    test("jumpToFrame without an index or id it can read is refused", () => {
         assert.equal(fromLegacy({name: "jumpToFrame"}, state), null);
-        assert.equal(fromLegacy({name: "jumpToFrame", args: ["frame2"]}, state), null);
+        assert.equal(fromLegacy({name: "jumpToFrame", args: ["noSuchFrame"]}, state), null);
         assert.equal(fromLegacy({name: "jumpToFrame", args: [-1]}, state), null);
     });
 

@@ -211,10 +211,14 @@ describe("DisplayChannel", () => {
         ]);
     });
 
-    test("answers the old notifyOnFrameChange as a surface hello", () => {
+    test("answers the old notifyOnFrameChange with a hello, the frame and the viewport", () => {
         const {transport} = startedDisplay();
         transport.deliver({name: "notifyOnFrameChange"});
-        assert.deepEqual(transport.sent, [displayHello()]);
+        assert.deepEqual(transport.sent, [
+            displayHello(),
+            frameChangeMessage(firstFrame),
+            viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2})
+        ]);
     });
 
     test("ignores a hello from another display", () => {
@@ -286,11 +290,13 @@ describe("DisplayChannel", () => {
         transport.deliver({name: "jumpToFrame", args: [1]});
         transport.deliver({name: "jumpToLast"});
         transport.deliver({name: "toggleBlankScreen"});
+        transport.deliver({name: "moveToFrame", args: ["f2"]});
         assert.deepEqual(controller.calls, [
             ["moveToNext"],
             ["jumpToFrame", 1],
             ["jumpToFrame", 1],
-            ["toggleBlankScreen"]
+            ["toggleBlankScreen"],
+            ["moveToFrame", 1]
         ]);
     });
 
