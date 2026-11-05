@@ -130,3 +130,89 @@ Then("the presentation HTML file on disk contains {string}", async function (tex
         .poll(() => fs.existsSync(file) && fs.readFileSync(file, "utf8").includes(text))
         .toBe(true);
 });
+
+// The properties panel, the toolbar and the language. The toolbar is
+// #sozi-editor-view-toolbar (src/index-electron.html); its buttons are found by their titles,
+// which are translated, so a scenario names them in the language it expects. A field is
+// #field-<property> (src/js/view/Properties.js); it commits on change. Each layer of the
+// preview is wrapped by src/js/player/Camera.js in a group that carries its opacity.
+
+/** The ids of the layers of the basic deck. */
+const BASIC_LAYERS = ["layer1", "layer2"];
+
+Given(
+    "the editor is open on a copy of the basic deck with the system language {string}",
+    async function (lang) {
+        this.editor = await launchEditor("basic", {lang});
+        this.window = this.editor.window;
+    }
+);
+
+When("the field {string} is changed to {string}", async function (property, value) {
+    await this.window.locator(`#field-${property}`).evaluate((field, v) => {
+        const input = /** @type {HTMLInputElement} */ (field);
+        input.value = v;
+        input.dispatchEvent(new Event("input", {bubbles: true}));
+        input.dispatchEvent(new Event("change", {bubbles: true}));
+    }, value);
+});
+
+When("the toolbar button {string} is pressed", async function (title) {
+    await this.window.locator(`#sozi-editor-view-toolbar button[title="${title}"]`).click();
+});
+
+When("the language {string} is chosen", async function (lang) {
+    await this.window.locator("#field-language").selectOption(lang);
+});
+
+Then("the toolbar has a button titled {string}", async function (title) {
+    await expect(
+        this.window.locator(`#sozi-editor-view-toolbar button[title="${title}"]`)
+    ).toHaveCount(1);
+});
+
+Then("the field {string} reads {string}", async function (property, value) {
+    await expect(this.window.locator(`#field-${property}`)).toHaveValue(value);
+});
+
+Then("every layer in the preview has opacity {string}", async function (opacity) {
+    await expect
+        .poll(() =>
+            this.window.evaluate(
+                ids =>
+                    ids.map(id =>
+                        /** @type {?Element} */ (
+                            document.querySelector(`#sozi-editor-view-preview #${id}`)?.parentNode
+                        )?.getAttribute("opacity")
+                    ),
+                BASIC_LAYERS
+            )
+        )
+        .toEqual(BASIC_LAYERS.map(() => opacity));
+});
+
+Then(
+    "the presentation file on disk has frame {int} with {string} {int}",
+    async function (index, property, value) {
+        const file = this.editor.deck.json;
+        await expect
+            .poll(() => readPresentation(file)?.frames?.[index - 1]?.[property], {timeout: 5000})
+            .toBe(value);
+    }
+);
+
+Then(
+    "the presentation file on disk has frame {int} with opacity {float} on every layer",
+    async function (index, opacity) {
+        const file = this.editor.deck.json;
+        await expect
+            .poll(
+                () => {
+                    const states = readPresentation(file)?.frames?.[index - 1]?.cameraStates;
+                    return BASIC_LAYERS.map(id => states?.[id]?.opacity);
+                },
+                {timeout: 5000}
+            )
+            .toEqual(BASIC_LAYERS.map(() => opacity));
+    }
+);
