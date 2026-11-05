@@ -35,6 +35,37 @@ function setText(selector, text) {
     /** @type {Element} */ (document.querySelector(selector)).textContent = text;
 }
 
+/** The message a key on the presenter page sends to the audience window.
+ *
+ * Shift moves without a transition.
+ *
+ * @param {KeyboardEvent} evt - The key event.
+ * @param {{frameCount: number, blank: boolean}} display - The display as it last reported itself.
+ * @returns {?import("./protocol/messages").Message} The message, or null for any other key.
+ */
+function messageForKey(evt, display) {
+    switch (evt.key) {
+        case "Home":
+            return jumpToFrameMessage(0, !evt.shiftKey);
+        case "End":
+            return jumpToFrameMessage(Math.max(display.frameCount - 1, 0), !evt.shiftKey);
+        case "ArrowUp":
+        case "PageUp":
+        case "ArrowLeft":
+            return previousMessage(!evt.shiftKey);
+        case "ArrowDown":
+        case "PageDown":
+        case "ArrowRight":
+        case "Enter":
+        case " ":
+            return nextMessage(!evt.shiftKey);
+        case ".":
+            return blankMessage(!display.blank);
+        default:
+            return null;
+    }
+}
+
 /** Connect the presenter page to the audience window and the previews.
  *
  * @param {Window} audience - The audience window.
@@ -136,32 +167,10 @@ function connect(audience, frames) {
         false
     );
 
-    const messageForKey = evt => {
-        switch (evt.key) {
-            case "Home":
-                return jumpToFrameMessage(0, !evt.shiftKey);
-            case "End":
-                return jumpToFrameMessage(Math.max(display.frameCount - 1, 0), !evt.shiftKey);
-            case "ArrowUp":
-            case "PageUp":
-            case "ArrowLeft":
-                return previousMessage(!evt.shiftKey);
-            case "ArrowDown":
-            case "PageDown":
-            case "ArrowRight":
-            case "Enter":
-            case " ":
-                return nextMessage(!evt.shiftKey);
-            case ".":
-                return blankMessage(!display.blank);
-            default:
-                return null;
-        }
-    };
-
     window.addEventListener("keydown", evt => {
         // Keys with Alt/Ctrl/Meta modifiers are ignored
-        const message = evt.altKey || evt.ctrlKey || evt.metaKey ? null : messageForKey(evt);
+        const message =
+            evt.altKey || evt.ctrlKey || evt.metaKey ? null : messageForKey(evt, display);
         if (message) {
             toAudience.send(message);
             evt.stopPropagation();
