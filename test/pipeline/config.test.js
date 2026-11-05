@@ -157,15 +157,18 @@ describe("pipeline settings", () => {
         ]);
         assert.equal(/old-tok|new-tok|ev\b|\bn\b/.test(lines.join("\n")), false);
     });
-    test("changedSettings marks the repository and the mint port as taking effect at restart", () => {
+    test("changedSettings marks the settings read only at start as taking effect at restart", () => {
         const before = loadConfig({root: "/nonexistent", env: {}, files: []});
         const after = loadConfig({
             root: "/nonexistent",
             env: {},
-            files: [{PIPELINE_REPO: "a/b", PIPELINE_MINT_PORT: "9000"}]
+            files: [
+                {PIPELINE_REPO: "a/b", PIPELINE_NOTION_PARENT: "parent", PIPELINE_MINT_PORT: "9000"}
+            ]
         });
         assert.deepEqual(changedSettings(before, after), [
             "setting PIPELINE_REPO: tjlytle/Sozi -> a/b (takes effect at restart)",
+            "setting PIPELINE_NOTION_PARENT:  -> parent (takes effect at restart)",
             "setting PIPELINE_MINT_PORT: 0 -> 9000 (takes effect at restart)"
         ]);
     });

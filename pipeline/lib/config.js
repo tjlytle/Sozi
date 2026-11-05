@@ -124,7 +124,7 @@ function secretsOf(layers) {
 }
 
 /** Settings the loop reads once at start; a change waits for a restart. */
-const START_ONLY = ["PIPELINE_REPO", "PIPELINE_MINT_PORT"];
+const START_ONLY = ["PIPELINE_REPO", "PIPELINE_NOTION_PARENT", "PIPELINE_MINT_PORT"];
 
 /** The keys whose value differs between two records, those of `after` first.
  *
