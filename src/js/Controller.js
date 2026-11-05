@@ -1817,7 +1817,8 @@ export class Controller extends EventEmitter {
      */
     applyPreferences(changed = "all") {
         if ((changed === "all" || changed.fontSize) && this.preferences.fontSize > 0) {
-            document.body.style.fontSize = this.preferences.fontSize + "pt";
+            // The size is the user's preference, so it sets the token the stylesheet reads.
+            document.body.style.setProperty("--sozi-font-size", this.preferences.fontSize + "pt");
         }
 
         if (changed === "all" || changed.language) {

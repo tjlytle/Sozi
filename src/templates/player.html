@@ -22,8 +22,20 @@
                 white-space: normal;
             }
 
-            body > svg {
+            .sozi-player > svg {
                 display: none;
+            }
+
+            .sozi-player--ready > svg {
+                display: initial;
+            }
+
+            .sozi-player--ready .spinner {
+                display: none;
+            }
+
+            .sozi-links-off a {
+                cursor: default;
             }
 
             .sozi-frame-list {
@@ -86,6 +98,10 @@
                 background-color: rgba(34, 34, 34, 0.9);
             }
 
+            .sozi-frame-number--hidden {
+                visibility: hidden;
+            }
+
             .sozi-blank-screen {
                 background: black;
                 position: absolute;
@@ -99,8 +115,17 @@
                 transition: opacity 0.5s, visibility 0.5s;
             }
 
+            .sozi-blank-screen--off {
+                opacity: 0;
+                visibility: hidden;
+            }
+
             svg a {
                 cursor: pointer;
+            }
+
+            .sozi-camera__layer--hidden {
+                display: none;
             }
 
             @keyframes spinner {
@@ -126,7 +151,7 @@
             {{ customCSS }}
         </style>
     </head>
-    <body>
+    <body class="sozi-player">
         {{ svg }}
         <div class="sozi-frame-number" title="Click to show the frame list">1</div>
         <div class="sozi-frame-list">

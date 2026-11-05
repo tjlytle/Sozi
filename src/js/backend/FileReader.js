@@ -38,7 +38,7 @@ export class FileReaderBackend extends AbstractBackend {
          * @type {HTMLInputElement}
          */
         this.fileInput = document.createElement("input");
-        this.fileInput.style.display = "none";
+        this.fileInput.hidden = true;
         this.fileInput.setAttribute("type", "file");
         this.fileInput.setAttribute("accept", "image/svg+xml");
         container.appendChild(this.fileInput);
