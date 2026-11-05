@@ -8,7 +8,7 @@
 // a current build: run `npx gulp` after editing src/ and before `npm test`.
 
 const assert = require("node:assert/strict");
-const {spawnSync} = require("node:child_process");
+const {spawn, spawnSync} = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -54,13 +54,53 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
     if (result.error) {
         throw result.error;
     }
+    return soziRun(result.status, result.stdout, result.stderr);
+}
+
+/** Start `electron build/electron --cli ...args` without waiting for it, so that a test
+ * can act while it runs.
+ *
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @param {object} [opts] - Options for the run.
+ * @param {string} [opts.cwd] - The working directory (default: the repository).
+ * @param {object} [opts.env] - The environment variables (default: process.env).
+ * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000).
+ * @returns {{child: import("node:child_process").ChildProcess, done: Promise<SoziRun>}} - The
+ *  running process, and its result once it exits.
+ */
+function runSoziAsync(args, {cwd = repoDir, env = process.env, timeout = 60000} = {}) {
+    const child = spawn(electronBinary, [appDir, "--cli", ...args], {
+        cwd,
+        env,
+        timeout,
+        killSignal: "SIGKILL"
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", chunk => (stdout += chunk));
+    child.stderr.setEncoding("utf8").on("data", chunk => (stderr += chunk));
+    const done = new Promise((resolve, reject) => {
+        child.on("error", reject);
+        child.on("close", code => resolve(soziRun(code, stdout, stderr)));
+    });
+    return {child, done};
+}
+
+/** Put together the result of a CLI run.
+ *
+ * @param {number|null} code - The exit code.
+ * @param {string} stdout - The standard output.
+ * @param {string} stderr - The standard error.
+ * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
+ */
+function soziRun(code, stdout, stderr) {
     let json = null;
     try {
-        json = JSON.parse(result.stdout);
+        json = JSON.parse(stdout);
     } catch {
         // Leave json null; tests assert on it.
     }
-    return {code: result.status, stdout: result.stdout, stderr: result.stderr, json};
+    return {code, stdout, stderr, json};
 }
 
 /** Copy a fixture deck into a fresh temporary directory.
@@ -355,6 +395,7 @@ function zipEntries(buf) {
 
 module.exports = {
     runSozi,
+    runSoziAsync,
     withTempDeck,
     privateTmp,
     decodePng,

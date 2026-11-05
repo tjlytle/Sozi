@@ -9,7 +9,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {parseArgs, validateArgs, parseSize} = require("../../src/js/cli/args.js");
-const {runSozi, withTempDeck} = require("./helpers.js");
+const {runSozi, runSoziAsync, withTempDeck} = require("./helpers.js");
 
 const ELECTRON = "/path/to/electron";
 const APP = "/path/to/build/electron";
@@ -349,6 +349,36 @@ describe("electron entry", () => {
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
+
+    test(
+        "stdout holds only the JSON result while another process rewrites the settings file",
+        {skip: process.platform !== "linux"},
+        async () => {
+            const deck = withTempDeck("basic");
+            // On Linux, Electron puts userData in $XDG_CONFIG_HOME/<app name>. The settings
+            // library watches the file only if it exists when the app starts.
+            const config = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-config-"));
+            const settingsFile = path.join(config, "sozi", "Settings");
+            fs.mkdirSync(path.dirname(settingsFile));
+            fs.writeFileSync(settingsFile, "{}");
+            const rewrite = setInterval(() => fs.writeFileSync(settingsFile, "{}"), 50);
+            try {
+                const {done} = runSoziAsync(["export", "basic.svg"], {
+                    cwd: deck.dir,
+                    env: {...process.env, XDG_CONFIG_HOME: config}
+                });
+                const {code, stdout, stderr, json} = await done;
+                assert.ok(json, `stdout is not JSON: ${stdout}\nstderr: ${stderr}`);
+                assert.equal(code, 0, `${stdout}\n${stderr}`);
+                assert.equal(json.ok, true);
+                assert.doesNotMatch(stdout, /changed/);
+            } finally {
+                clearInterval(rewrite);
+                fs.rmSync(config, {recursive: true, force: true});
+                deck.cleanup();
+            }
+        }
+    );
 
     test("no display exits 2", {skip: process.platform !== "linux"}, () => {
         const env = {...process.env};
