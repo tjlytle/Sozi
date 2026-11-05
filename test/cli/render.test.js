@@ -98,7 +98,7 @@ describe("render --frame", () => {
             assert.equal(json.html, html);
             assert.equal(json.rebuilt, true);
             assert.ok(fs.existsSync(html), "the HTML was built");
-            assert.match(json.capture, /^(capturePage|cdp)(\+cdp)?$/);
+            assert.equal(json.capture, "cdp");
             checkBasicPng(out, 1280, 720);
         } finally {
             deck.cleanup();
@@ -293,8 +293,8 @@ describe("render --all", () => {
                 "notes.txt"
             ]);
             files.forEach(file => checkBasicPng(file, 320, 180));
-            // One-colour frames are believed once the Chrome DevTools Protocol agrees: no fallback, no warning.
-            assert.equal(json.capture, "capturePage");
+            // One-colour frames are captured like any other: no warning.
+            assert.equal(json.capture, "cdp");
             assert.deepEqual(json.warnings, []);
         } finally {
             deck.cleanup();
@@ -320,10 +320,8 @@ describe("render --all", () => {
             );
             t.diagnostic(`nine-frame render --all at 320x180: ${Date.now() - start} ms`);
             assert.equal(json.files.length, 9);
-            // No frame is blank: capturePage is used throughout, without falling back to the slower CDP.
-            // The command line renders at device scale 1 on any display (see the scale-factor-2 test),
-            // so this holds on a high-density desktop as under xvfb.
-            assert.equal(json.capture, "capturePage");
+            // Every capture waits for a picture drawn after its jump (#250).
+            assert.equal(json.capture, "cdp");
             assert.deepEqual(json.warnings, []);
             assert.equal(json.frames.length, 9);
             assert.deepEqual(
@@ -342,7 +340,7 @@ describe("render --all", () => {
 });
 
 describe("render on a display with scale factor 2", () => {
-    test("captures with capturePage at the requested size, without the slower fallback", () => {
+    test("captures at the requested size in pixels, without a warning", () => {
         const deck = withTempDeck("basic");
         try {
             const {json} = soziOk(
@@ -350,7 +348,7 @@ describe("render on a display with scale factor 2", () => {
                 ["render", "--all", "--size", "320x180", "--out", "frames", "basic.svg"],
                 {switches: ["--force-device-scale-factor=2"]}
             );
-            assert.equal(json.capture, "capturePage");
+            assert.equal(json.capture, "cdp");
             assert.deepEqual(json.warnings, []);
             assert.deepEqual(json.size, {width: 320, height: 180});
             json.files.forEach(file => checkBasicPng(file, 320, 180));

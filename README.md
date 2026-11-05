@@ -309,11 +309,11 @@ What they have in common:
   (`.talk.partial.webm` for `talk.webm`); they replace the previous output
   only when the export succeeds. `render --frame` writes the file only after
   the capture succeeded.
-* `capture` is `"capturePage"`, or `"cdp"` when the images were captured
-  through the Chrome DevTools Protocol (slower: a fallback that comes with a
-  warning, or always with `--transparent`), or `"printToPDF"` for a PDF export.
-  The command line renders at device scale 1 on any display, so the images
-  have the requested size in pixels without the fallback.
+* `capture` is `"cdp"`: the images are captured through the Chrome DevTools
+  Protocol at device scale 1, so they have the requested size in pixels on any
+  display. It is `"printToPDF"` for a PDF export. Before each capture the
+  command checks that the window shows the requested frame, and fails with
+  `the export window shows frame X, expected Y` when it does not.
 * The whole command is bounded by `--timeout` (default 120 s); raise it for
   large decks, sizes or videos. Each step of the capture (page load, frame
   change, capture) also fails on its own after 30 s.

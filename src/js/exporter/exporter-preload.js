@@ -67,6 +67,16 @@ window.__soziExport = {
         }
     },
 
+    /** The state of the player, for the exporter to check before a capture.
+     *
+     * @returns {{index: number, animating: boolean}} - The index of the current frame, and
+     *  whether the player's own animation is running.
+     */
+    state() {
+        const player = window.sozi.player;
+        return {index: player.currentFrame.index, animating: player.animator.running};
+    },
+
     /** Terminate the current transition and show its target frame.
      *
      * @returns {number} - The index of the frame shown.

@@ -20,6 +20,7 @@ export interface SoziExportHelper {
     setup(nextIndex: number): number;
     step(progress: number): void;
     kick(enable: boolean): void;
+    state(): {index: number; animating: boolean};
     finish(): number;
     /** Whether the repaint loop started by `kick(true)` is running. */
     kicking?: boolean;
