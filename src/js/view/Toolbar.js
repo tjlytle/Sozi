@@ -45,7 +45,7 @@ export class Toolbar extends VirtualDOMView {
          */
         this.viewport = viewport;
 
-        screenfull.on("change", () => this.repaint());
+        screenfull.onchange(() => this.repaint());
         properties.on(PropertiesEvents.modeChange, () => this.repaint());
     }
 
