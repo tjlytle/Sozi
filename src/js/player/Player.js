@@ -9,6 +9,7 @@ import * as Timing from "./Timing";
 import {CameraState} from "../model/CameraState";
 import {Frame} from "../model/Presentation";
 import {EventEmitter} from "events";
+import {PlayerEvents} from "./playerEvents";
 
 /** The duration of out-of-sequence transitions, in milliseconds.
  *
@@ -42,6 +43,11 @@ const DEFAULT_TIMING_FUNCTION = "ease";
 /** Signals that the player has changed its `playing` status.
  *
  * @event module:player/Player.stateChange
+ */
+
+/** Signals that the blank screen has been shown or hidden.
+ *
+ * @event module:player/Player.blankScreenChange
  */
 
 /** Sozi presentation player.
@@ -523,6 +529,8 @@ export class Player extends EventEmitter {
      *
      * This method will pause the presentation and hide the viewport under
      * an opaque element.
+     *
+     * @fires module:player/Player.blankScreenChange
      */
     enableBlankScreen() {
         this.pause();
@@ -530,22 +538,32 @@ export class Player extends EventEmitter {
             document.querySelector(".sozi-blank-screen")
         );
         if (blankScreen) {
+            const changed = blankScreen.style.visibility !== "visible";
             blankScreen.style.opacity = "1";
             blankScreen.style.visibility = "visible";
+            if (changed) {
+                this.emit(PlayerEvents.blankScreenChange);
+            }
         }
     }
 
     /** Disable the blank screen.
      *
      * This method will reveal the viewport again.
+     *
+     * @fires module:player/Player.blankScreenChange
      */
     disableBlankScreen() {
         const blankScreen = /** @type {?HTMLElement} */ (
             document.querySelector(".sozi-blank-screen")
         );
         if (blankScreen) {
+            const changed = blankScreen.style.visibility === "visible";
             blankScreen.style.opacity = "0";
             blankScreen.style.visibility = "hidden";
+            if (changed) {
+                this.emit(PlayerEvents.blankScreenChange);
+            }
         }
     }
 
