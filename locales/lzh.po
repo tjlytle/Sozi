@@ -10,11 +10,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: src/js/Controller.js:234
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
-msgstr ""
-
-#: src/js/Controller.js:235
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
+msgid "Error"
 msgstr ""
 
 #: src/js/Controller.js:359

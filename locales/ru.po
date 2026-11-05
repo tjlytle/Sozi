@@ -22,18 +22,8 @@ msgstr ""
 "X-Launchpad-Export-Date: 2016-10-10 06:40+0000\n"
 
 #: src/js/Controller.js:234
-#, fuzzy
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
+msgid "Error"
 msgstr ""
-"Откройте SVG файл на Вашем компьютере (<i class=\"fa fa-exclamation-"
-"triangle\"></i> read-only)"
-
-#: src/js/Controller.js:235
-#, fuzzy
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
-msgstr ""
-"Откройте SVG файл на Вашем компьютере (<i class=\"fa fa-exclamation-"
-"triangle\"></i> read-only)"
 
 #: src/js/Controller.js:359
 msgid "Document was changed. Reloading."
