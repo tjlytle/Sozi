@@ -58,6 +58,31 @@ function commitOwn(r, name) {
 }
 
 /**
+ * Make base.txt conflict: the side branch and a session commit each rewrite its one line.
+ * The stage starts after the session's commit, as qa's does on the builder's branch, so
+ * only the merge can bring base.txt into the list.
+ * @param {{dir: string, git: (...args: string[]) => string}} r - The repo from repo().
+ * @returns {string} - The stage's start commit.
+ */
+function conflictOnBase(r) {
+    r.git("switch", "-q", "side");
+    fs.writeFileSync(path.join(r.dir, "base.txt"), "master\n");
+    r.git("commit", "-q", "-am", "side base");
+    r.git("switch", "-q", "master");
+    fs.writeFileSync(path.join(r.dir, "base.txt"), "session\n");
+    r.git("commit", "-q", "-am", "own base");
+    return r.git("rev-parse", "HEAD").trim();
+}
+
+/**
+ * Merge side with --no-ff and let it stop on the conflict.
+ * @param {{git: (...args: string[]) => string}} r - The repo.
+ */
+function mergeConflicted(r) {
+    assert.throws(() => r.git("merge", "-q", "--no-ff", "-m", "merge master", "side"));
+}
+
+/**
  * Run the script.
  * @param {string} dir - The checkout.
  * @param {string} start - The start commit.
@@ -79,6 +104,29 @@ describe("changed-files.sh", () => {
         commitOwn(r, "own.txt");
         r.git("merge", "-q", "--no-ff", "-m", "merge master", "side");
         assert.deepEqual(changed(r.dir, r.start).files, ["own.txt"]);
+    });
+    test("a conflict resolved by hand is listed, and nothing else the merge brought in", () => {
+        const r = repo();
+        const start = conflictOnBase(r);
+        mergeConflicted(r);
+        fs.writeFileSync(path.join(r.dir, "base.txt"), "both\n");
+        r.git("commit", "-q", "-am", "merge master");
+        assert.deepEqual(changed(r.dir, start).files, ["base.txt"]);
+    });
+    test("a conflict resolved by taking master's side whole adds nothing", () => {
+        const r = repo();
+        const start = conflictOnBase(r);
+        mergeConflicted(r);
+        r.git("checkout", "--theirs", "--", "base.txt");
+        r.git("commit", "-q", "-am", "merge master");
+        assert.deepEqual(changed(r.dir, start).files, []);
+    });
+    test("a hand edit in the merge commit to a file neither side touched is listed", () => {
+        const r = repo();
+        r.git("merge", "-q", "--no-ff", "--no-commit", "side");
+        fs.writeFileSync(path.join(r.dir, "base.txt"), "evil\n");
+        r.git("commit", "-q", "-am", "merge master");
+        assert.deepEqual(changed(r.dir, r.start).files, ["base.txt"]);
     });
     test("own commit, merge, uncommitted edit and untracked file: the three own ones", () => {
         const r = repo();
