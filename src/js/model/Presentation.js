@@ -31,6 +31,14 @@ function copyIfSet(dest, src, prop) {
  * @event module:model/Presentation.svgChange
  */
 
+/** The events a `Presentation` emits (standard 2.4).
+ *
+ * @readonly
+ */
+export const PresentationEvents = Object.freeze({
+    svgChange: "svgChange"
+});
+
 /** Layer properties for a frame in a Sozi presentation.
  *
  * In a given frame, one instance of this class is created for each layer.
@@ -924,7 +932,7 @@ export class Presentation extends EventEmitter {
             /** @type {Node} */ (svgTitle.parentNode).removeChild(svgTitle);
         }
 
-        this.emit("svgChange");
+        this.emit(PresentationEvents.svgChange);
     }
 
     /** The title of this presentation.

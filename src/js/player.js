@@ -6,6 +6,7 @@ import {SVGDocumentWrapper} from "./svg/SVGDocumentWrapper";
 import {Presentation, Frame} from "./model/Presentation";
 import {Viewport} from "./player/Viewport";
 import {Player} from "./player/Player";
+import {PlayerEvents} from "./player/playerEvents";
 import {PlayerController} from "./player/PlayerController";
 import {DisplayChannel} from "./player/DisplayChannel";
 import {ExportDriver} from "./player/ExportDriver";
@@ -69,7 +70,7 @@ window.addEventListener("load", () => {
         }
     };
 
-    player.on("stateChange", () => {
+    player.on(PlayerEvents.stateChange, () => {
         if (player.playing) {
             document.title = presentation.title;
         } else {

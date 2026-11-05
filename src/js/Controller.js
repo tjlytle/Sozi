@@ -10,6 +10,8 @@ import {CameraState} from "./model/CameraState";
 import {EventEmitter} from "events";
 import * as i18n from "./i18n";
 import * as exporter from "./exporter";
+import {ControllerEvents} from "./controllerEvents";
+import {PlayerEvents} from "./player/playerEvents";
 
 /** The maximum size of the undo stack.
  *
@@ -52,31 +54,6 @@ function logExportResult(result) {
 function exportErrorMessage(err) {
     return String((err && err.message) || err);
 }
-
-/** Signals that the presentation data has changed.
- *
- * @event module:Controller.presentationChange
- */
-
-/** Signals that the editor state data has changed.
- *
- * @event module:Controller.editorStateChange
- */
-
-/** Signals that the editor UI needs to be repainted.
- *
- * @event module:Controller.repaint
- */
-
-/** Signals that the current editor window has received the focus.
- *
- * @event module:Controller.focus
- */
-
-/** Signals that the current editor window has lost the focus.
- *
- * @event module:Controller.blur
- */
 
 /** Sozi editor UI controller.
  *
@@ -192,16 +169,16 @@ export class Controller extends EventEmitter {
 
         window.addEventListener("focus", () => {
             this.hasFocus = true;
-            this.emit("focus");
+            this.emit(ControllerEvents.focus);
         });
 
         window.addEventListener("blur", () => {
             this.hasFocus = false;
-            this.emit("blur");
+            this.emit(ControllerEvents.blur);
         });
 
-        this.on("repaint", () => this.onRepaint());
-        player.on("frameChange", () => this.onFrameChange());
+        this.on(ControllerEvents.repaint, () => this.onRepaint());
+        player.on(PlayerEvents.frameChange, () => this.onFrameChange());
     }
 
     /** Finalize the initialization of the application.
@@ -358,7 +335,7 @@ export class Controller extends EventEmitter {
             }
         }
         if (changed) {
-            this.emit("repaint");
+            this.emit(ControllerEvents.repaint);
         }
     }
 
@@ -397,7 +374,7 @@ export class Controller extends EventEmitter {
             }
         }
 
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Process an SVG document change event.
@@ -423,7 +400,7 @@ export class Controller extends EventEmitter {
                     if (this.hasFocus) {
                         doReload();
                     } else {
-                        this.once("focus", doReload);
+                        this.once(ControllerEvents.focus, doReload);
                     }
                     break;
                 default:
@@ -443,7 +420,7 @@ export class Controller extends EventEmitter {
      */
     async save() {
         await this.storage.save();
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Reload the presentation.
@@ -472,7 +449,7 @@ export class Controller extends EventEmitter {
                 this.presentation.customFiles.pop();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -495,7 +472,7 @@ export class Controller extends EventEmitter {
                 this.presentation.customFiles.splice(index, 0, fileName);
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -553,7 +530,11 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             true,
-            ["presentationChange", "editorStateChange", "repaint"]
+            [
+                ControllerEvents.presentationChange,
+                ControllerEvents.editorStateChange,
+                ControllerEvents.repaint
+            ]
         );
     }
 
@@ -590,7 +571,11 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             true,
-            ["presentationChange", "editorStateChange", "repaint"]
+            [
+                ControllerEvents.presentationChange,
+                ControllerEvents.editorStateChange,
+                ControllerEvents.repaint
+            ]
         );
     }
 
@@ -659,7 +644,11 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "editorStateChange", "repaint"]
+            [
+                ControllerEvents.presentationChange,
+                ControllerEvents.editorStateChange,
+                ControllerEvents.repaint
+            ]
         );
     }
 
@@ -702,8 +691,8 @@ export class Controller extends EventEmitter {
 
         // Force a repaint even if the controller
         // did not modify the selection
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Add all layers to the timeline.
@@ -733,8 +722,8 @@ export class Controller extends EventEmitter {
 
         // Force a repaint even if the controller
         // did not modify the selection
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Remove a layer from the timeline.
@@ -768,8 +757,8 @@ export class Controller extends EventEmitter {
 
         // Force a repaint even if the controller
         // did not modify the selection
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Get the layers at the given index.
@@ -818,8 +807,8 @@ export class Controller extends EventEmitter {
     selectLayers(layers) {
         this.selection.selectedLayers = layers.slice();
         this.updateCameraSelection();
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Add a layer to the selection.
@@ -836,8 +825,8 @@ export class Controller extends EventEmitter {
         if (!this.selection.hasLayers([layer])) {
             this.selection.addLayer(layer);
             this.updateCameraSelection();
-            this.emit("editorStateChange");
-            this.emit("repaint");
+            this.emit(ControllerEvents.editorStateChange);
+            this.emit(ControllerEvents.repaint);
         }
     }
 
@@ -854,8 +843,8 @@ export class Controller extends EventEmitter {
         if (this.selection.hasLayers([layer])) {
             this.selection.removeLayer(layer);
             this.updateCameraSelection();
-            this.emit("editorStateChange");
-            this.emit("repaint");
+            this.emit(ControllerEvents.editorStateChange);
+            this.emit(ControllerEvents.repaint);
         }
     }
 
@@ -884,8 +873,8 @@ export class Controller extends EventEmitter {
     selectAllFrames() {
         this.selection.selectedFrames = this.presentation.frames.slice();
         this.updateCameraSelection();
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Select a specific frame at a relative location from the {@link module:model/Selection.Selection#currentFrame|current frame}.
@@ -949,8 +938,8 @@ export class Controller extends EventEmitter {
             this.updateCameraSelection();
         }
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Update the selection with the given layer.
@@ -982,8 +971,8 @@ export class Controller extends EventEmitter {
 
         this.updateCameraSelection();
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Update the selection with the given layers and a given frame.
@@ -1038,8 +1027,8 @@ export class Controller extends EventEmitter {
 
         this.updateCameraSelection();
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Toggle the visibility of the given layers.
@@ -1062,8 +1051,8 @@ export class Controller extends EventEmitter {
             }
         }
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Reset the selected layers to their initial state.
@@ -1117,7 +1106,7 @@ export class Controller extends EventEmitter {
                 });
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1195,7 +1184,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1296,7 +1285,7 @@ export class Controller extends EventEmitter {
                 pres[property] = savedValue;
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1349,7 +1338,7 @@ export class Controller extends EventEmitter {
                 }
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1436,7 +1425,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1511,7 +1500,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1565,7 +1554,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1646,7 +1635,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1669,7 +1658,7 @@ export class Controller extends EventEmitter {
                 this.presentation.aspectWidth = widthPrev;
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1692,7 +1681,7 @@ export class Controller extends EventEmitter {
                 this.presentation.aspectHeight = heightPrev;
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1706,7 +1695,7 @@ export class Controller extends EventEmitter {
      */
     setDragMode(dragMode) {
         this.viewport.dragMode = dragMode;
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Get a property of the preferences object.
@@ -1764,7 +1753,7 @@ export class Controller extends EventEmitter {
      */
     setAppSetting(key, newValue) {
         this.storage.backend.setAppSetting(key, newValue);
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Get the keyboard shortcut for a given action.
@@ -1837,13 +1826,13 @@ export class Controller extends EventEmitter {
             this.gettext = s => locale.gettext(s);
         }
 
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Toggle the "exporting" state */
     toggleExportState() {
         this.exporting = !this.exporting;
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Export the current presentation to PDF. */

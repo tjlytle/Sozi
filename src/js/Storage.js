@@ -18,6 +18,7 @@ import {
     svgOfPresentation
 } from "./naming";
 import {rewriteRelativeHrefs} from "./hrefs";
+import {ControllerEvents} from "./controllerEvents";
 
 /** File read/write manager. */
 export class Storage {
@@ -149,15 +150,15 @@ export class Storage {
             autoescape: false
         });
 
-        controller.on("presentationChange", () => {
+        controller.on(ControllerEvents.presentationChange, () => {
             this.jsonNeedsSaving = this.htmlNeedsSaving = true;
         });
 
-        controller.on("editorStateChange", () => {
+        controller.on(ControllerEvents.editorStateChange, () => {
             this.jsonNeedsSaving = true;
         });
 
-        controller.on("blur", () => {
+        controller.on(ControllerEvents.blur, () => {
             if (this.backend && controller.getPreference("saveMode") === "onblur") {
                 this.backend.doAutosave();
             }
@@ -569,7 +570,7 @@ export class Storage {
             this.htmlNeedsSaving = false;
         }
 
-        this.controller.emit("repaint"); // TODO move this to controller
+        this.controller.emit(ControllerEvents.repaint); // TODO move this to controller
         this.controller.info(Jed.sprintf(_("Saved %s."), this.backend.getName(fileDescriptor)));
     }
 
