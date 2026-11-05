@@ -16,9 +16,10 @@ Two jobs, in this order:
 
 People can ask for the same notes:
 
-    python3 .claude/hooks/check-file.py --advise FILE [--diff DIFF_FILE]
+    python3 .claude/hooks/check-file.py --advise FILE... [--diff DIFF_FILE]
 
-`--diff` supplies a unified diff of FILE instead of the diff against HEAD.
+The notes of every FILE come back in the order given. `--diff` supplies a unified
+diff of FILE instead of the diff against HEAD, and needs exactly one FILE.
 
 Files outside the checked directories, and files `bin/check` does not know, are
 ignored.
@@ -230,16 +231,52 @@ def project_root():
     return r.stdout.strip() or os.getcwd()
 
 
+USAGE = "usage: python3 .claude/hooks/check-file.py --advise FILE... [--diff DIFF_FILE]"
+
+
+def advise_args(argv):
+    """Read the arguments after `--advise`: the files, and the diff path or None.
+
+    `--diff` may come before or after the files. Raises ValueError with the reason
+    when there is no file, `--diff` has no value or more than one file, or an option
+    is unknown. Reads nothing from disk.
+    """
+    files = []
+    diff_path = None
+    rest = list(argv)
+    while rest:
+        arg = rest.pop(0)
+        if arg == "--diff":
+            if not rest or rest[0].startswith("--"):
+                raise ValueError("--diff needs a DIFF_FILE")
+            diff_path = rest.pop(0)
+        elif arg.startswith("--"):
+            raise ValueError(f"unknown option {arg}")
+        else:
+            files.append(arg)
+    if not files:
+        raise ValueError("no FILE given")
+    if diff_path is not None and len(files) > 1:
+        raise ValueError("--diff takes exactly one FILE")
+    return files, diff_path
+
+
 def main():
-    if len(sys.argv) > 2 and sys.argv[1] == "--advise":
+    if sys.argv[1:2] == ["--advise"]:
+        try:
+            files, diff_path = advise_args(sys.argv[2:])
+        except ValueError as e:
+            sys.stderr.write(f"{e}\n{USAGE}\n")
+            sys.exit(2)
         root = project_root()
-        rel = os.path.relpath(os.path.abspath(sys.argv[2]), root)
         diff_text = None
-        if "--diff" in sys.argv:
-            with open(sys.argv[sys.argv.index("--diff") + 1], encoding="utf-8") as fh:
+        if diff_path is not None:
+            with open(diff_path, encoding="utf-8") as fh:
                 diff_text = fh.read()
-        for note in advice(root, rel, diff_text):
-            print(note)
+        for file in files:
+            rel = os.path.relpath(os.path.abspath(file), root)
+            for note in advice(root, rel, diff_text):
+                print(note)
         return
     try:
         payload = json.load(sys.stdin)
