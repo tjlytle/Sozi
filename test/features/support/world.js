@@ -29,6 +29,9 @@ export const SCREENSHOTS = path.join(root, "build", "features", "screenshots");
 
 setDefaultTimeout(30000);
 
+/** The size of every page a scenario opens. */
+const VIEWPORT = {width: 1280, height: 800};
+
 /** @type {import("playwright").Browser} */
 let browser;
 /** @type {Map<string, {dir: string, html: string, presenter: string, cleanup: Function}>} */
@@ -58,7 +61,9 @@ export function builtDeck(name) {
     return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
 }
 
-/** What a scenario can reach: the browser context, the pages it opened and Cucumber's attach. */
+/** What a scenario can reach: the browser context, the pages it opened, the deck's first view
+ * and Cucumber's attach.
+ */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
      *
@@ -77,14 +82,27 @@ export class SoziWorld extends World {
         this.deck = null;
         /** @type {string} */
         this.fixture = "";
+        /** Where the deck page looked when it opened, for the steps that check the view.
+         *
+         * @type {?{cx: number, cy: number, width: number, angle: number}}
+         */
+        this.initialView = null;
     }
 
     /** Open the exported player page of a built deck and wait for window.sozi.
      *
+     * A touch screen replaces the scenario's context with one that has touch support,
+     * so that the page receives real touch events.
+     *
      * @param {string} fixture - The fixture name.
+     * @param {{touch?: boolean}} [options] - Whether the page is on a touch screen.
      */
-    async openDeck(fixture) {
+    async openDeck(fixture, {touch = false} = {}) {
         const deck = builtDeck(fixture);
+        if (touch) {
+            await this.context?.close();
+            this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
+        }
         // Cast: the Before hook opens a context for every scenario.
         this.deck = await /** @type {import("playwright").BrowserContext} */ (
             this.context
@@ -93,6 +111,26 @@ export class SoziWorld extends World {
         await this.deck.waitForFunction(() =>
             Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame)
         );
+        // The blank screen fades out over half a second; until then it takes the pointer
+        // and the touches meant for the slide.
+        await this.deck.waitForFunction(() => {
+            const blank = document.querySelector(".sozi-blank-screen");
+            return !blank || getComputedStyle(blank).visibility === "hidden";
+        });
+        this.initialView = await this.readView();
+    }
+
+    /** Where the deck page's first camera looks, through window.sozi.
+     *
+     * @returns {Promise<{cx: number, cy: number, width: number, angle: number}>} - The
+     *     camera's centre, width and angle.
+     */
+    readView() {
+        // Cast: openDeck opened the deck page.
+        return /** @type {import("playwright").Page} */ (this.deck).evaluate(() => {
+            const {cx, cy, width, angle} = /** @type {any} */ (window).sozi.viewport.cameras[0];
+            return {cx, cy, width, angle};
+        });
     }
 
     /** Open the presenter page of a built deck and wait for the audience window it opens.
@@ -115,12 +153,13 @@ export class SoziWorld extends World {
 setWorldConstructor(SoziWorld);
 
 BeforeAll(async () => {
-    browser = await chromium.launch();
+    // Media may play without a gesture, so that a clip starting too early is seen to start.
+    browser = await chromium.launch({args: ["--autoplay-policy=no-user-gesture-required"]});
     fs.mkdirSync(SCREENSHOTS, {recursive: true});
 });
 
 Before(async function () {
-    this.context = await browser.newContext({viewport: {width: 1280, height: 800}});
+    this.context = await browser.newContext({viewport: VIEWPORT});
 });
 
 After(async function (scenario) {
