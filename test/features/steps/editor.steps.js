@@ -216,3 +216,62 @@ Then(
             .toEqual(BASIC_LAYERS.map(() => opacity));
     }
 );
+
+// Layers in the preview (#240). A layer's row in the timeline holds its eye
+// (i.sozi-timeline__visibility, fa-eye while visible, fa-eye-slash while hidden) and its label
+// (th.sozi-timeline__layer-label); only the deck's editable layers have a row. The preview
+// shows the deck's own layer groups, found by their inkscape:label; whether one is displayed
+// is read from its computed style, so an author's inline style="display:inline" counts.
+
+/** The eye of a layer's row in the timeline, in the state it shows.
+ *
+ * @param {import("playwright").Page} window - The editor window.
+ * @param {string} label - The layer's label.
+ * @param {string} icon - "fa-eye" for a visible layer, "fa-eye-slash" for a hidden one.
+ * @returns {import("playwright").Locator} - The eye.
+ */
+function layerEye(window, label, icon) {
+    const name = window.locator("th.sozi-timeline__layer-label").getByText(label, {exact: true});
+    return window.locator("tr", {has: name}).locator(`i.sozi-timeline__visibility.${icon}`);
+}
+
+/** The computed display of a layer group in the preview.
+ *
+ * @param {import("playwright").Page} window - The editor window.
+ * @param {string} label - The layer's inkscape:label.
+ * @returns {Promise<?string>} - Its display, or null when the preview has no such layer.
+ */
+function layerDisplay(window, label) {
+    return window.evaluate(l => {
+        const group = [...document.querySelectorAll("#sozi-editor-view-preview g")].find(
+            g => g.getAttribute("inkscape:label") === l
+        );
+        return group ? getComputedStyle(group).display : null;
+    }, label);
+}
+
+Given("the editor is open on a copy of the {string} deck", async function (fixture) {
+    this.editor = await launchEditor(fixture);
+    this.window = this.editor.window;
+});
+
+When("the layer {string} is hidden in the timeline", async function (label) {
+    await layerEye(this.window, label, "fa-eye").click();
+});
+
+When("the layer {string} is shown in the timeline", async function (label) {
+    await layerEye(this.window, label, "fa-eye-slash").click();
+});
+
+Then("the layer {string} is not displayed in the preview", async function (label) {
+    await expect.poll(() => layerDisplay(this.window, label)).toBe("none");
+});
+
+Then("the layer {string} is displayed in the preview", async function (label) {
+    await expect
+        .poll(async () => {
+            const display = await layerDisplay(this.window, label);
+            return display !== null && display !== "none";
+        })
+        .toBe(true);
+});
