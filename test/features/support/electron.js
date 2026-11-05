@@ -33,16 +33,31 @@ const openEditors = new Set();
 
 /** Copy a fixture deck into a temporary directory and open it in the editor.
  *
+ * A system language is given to Chromium with --lang, before the app path, and in LANG,
+ * which Electron reads on Linux.
+ *
  * @param {string} fixture - The fixture name under test/fixtures.
+ * @param {{lang?: string}} [options] - The system language the editor starts with.
  * @returns {Promise<Editor>} - The running app, its window, the deck and the temporary HOME.
  */
-export async function launchEditor(fixture) {
+export async function launchEditor(fixture, {lang} = {}) {
     const deck = withTempDeck(fixture);
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-editor-home-"));
+    const langArgs = lang ? [`--lang=${lang}`] : [];
+    /** @type {Record<string, string>} */
+    const langEnv = lang ? {LANG: `${lang.replace(/-/g, "_")}.UTF-8`, LANGUAGE: lang} : {};
     const app = await _electron.launch({
         // The editor opens the last argument as the deck.
-        args: [path.join(root, "build", "electron"), deck.svg],
-        env: {...process.env, HOME: home, ELECTRON_ENABLE_LOGGING: "1"}
+        args: [...langArgs, path.join(root, "build", "electron"), deck.svg],
+        // Electron keeps its profile, and the preferences in it, under XDG_CONFIG_HOME when
+        // the environment sets it, so it is pointed into the fresh HOME too.
+        env: {
+            ...process.env,
+            HOME: home,
+            XDG_CONFIG_HOME: path.join(home, ".config"),
+            ELECTRON_ENABLE_LOGGING: "1",
+            ...langEnv
+        }
     });
     const window = await app.firstWindow();
     const editor = {app, window, deck, home};

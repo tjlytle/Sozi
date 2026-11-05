@@ -6,10 +6,9 @@
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
-import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
-import {SCREENSHOTS, builtDeck} from "../support/world.js";
+import {builtDeck} from "../support/world.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.
 const WITHIN_A_FRAME = 250;
@@ -152,8 +151,4 @@ Then("every preview has the shape {int}:{int}", async function (width, height) {
             timeout: WITHIN_A_FRAME
         })
         .toEqual([]);
-});
-
-Then("a screenshot {string} is saved", async function (name) {
-    await this.presenter.screenshot({path: path.join(SCREENSHOTS, `${name}.png`)});
 });
