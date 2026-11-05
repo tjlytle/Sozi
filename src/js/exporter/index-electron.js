@@ -221,7 +221,7 @@ export function exportSettings(presentation) {
  *
  * @param {object[]} frames - The frames, with `timeoutMs`, `timeoutEnable` and `transitionDurationMs`.
  * @param {number} frameRate - The number of images per second.
- * @returns {object[]} - A list of `{type: "hold", frame, count}` and `{type: "transition", to, progress: number[]}`.
+ * @returns {object[]} - A list of `{type: "hold", frame, count}` and `{type: "transition", from, to, progress: number[]}`.
  */
 export function videoTimeline(frames, frameRate) {
     const timeStepMs = 1000 / frameRate;
@@ -246,7 +246,7 @@ export function videoTimeline(frames, frameRate) {
         for (let k = 0; k * timeStepMs < durationMs; k++) {
             progress.push((k * timeStepMs) / durationMs);
         }
-        steps.push({type: "transition", to: next, progress});
+        steps.push({type: "transition", from: index, to: next, progress});
 
         if (next === 0) {
             break;
@@ -1224,11 +1224,8 @@ async function videoExport(presentation, htmlPath, opts) {
             transparent: isPNG && opts.transparent
         });
         const {warnings, capture} = await withExportWindow(htmlPath, windowOpts, async ew => {
-            // The frame a transition starts from: the frame of the hold before it.
-            let from = 0;
             for (const step of timeline) {
                 if (step.type === "hold") {
-                    from = step.frame;
                     await ew.jumpToFrame(step.frame);
                     const first = write(await ew.capture());
                     for (let i = 1; i < step.count; i++) {
@@ -1239,7 +1236,7 @@ async function videoExport(presentation, htmlPath, opts) {
                     for (const p of step.progress) {
                         await ew.run(`__soziExport.step(${p})`);
                         await ew.settle();
-                        await ew.expectFrame(from);
+                        await ew.expectFrame(step.from);
                         write(await ew.capture());
                     }
                     await ew.run("__soziExport.finish()");
