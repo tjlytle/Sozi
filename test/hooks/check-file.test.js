@@ -49,17 +49,41 @@ function withScratch(name, content) {
     }
 }
 
-/** Run the hook in advise mode on a file and return its notes.
+/** Run the hook in advise mode with the given arguments and return what it reported.
  *
- * @param {string} file - The file to advise on.
+ * @param {string[]} args - The arguments after `--advise`.
+ * @returns {{status: ?number, stdout: string, stderr: string}} - What the hook reported.
+ */
+function adviseRaw(args) {
+    const result = spawnSync("python3", [hook, "--advise", ...args], {
+        encoding: "utf8",
+        timeout: 120000
+    });
+    return {status: result.status, stdout: result.stdout, stderr: result.stderr};
+}
+
+/** Run the hook in advise mode on one or more files and return their notes.
+ *
+ * @param {string|string[]} files - The file or files to advise on.
  * @param {string} [diffFile] - A unified diff of the file to use instead of the one against HEAD.
  * @returns {string[]} - One note per line.
  */
-function advise(file, diffFile) {
-    const args = [hook, "--advise", file, ...(diffFile ? ["--diff", diffFile] : [])];
-    const result = spawnSync("python3", args, {encoding: "utf8", timeout: 120000});
+function advise(files, diffFile) {
+    const result = adviseRaw([].concat(files, diffFile ? ["--diff", diffFile] : []));
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.split("\n").filter(Boolean);
+}
+
+/** Assert the hook refused its arguments: exit 2, the usage line on stderr, nothing on stdout.
+ *
+ * @param {string[]} args - The arguments after `--advise`.
+ */
+function assertUsage(args) {
+    const result = adviseRaw(args);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /usage: .*--advise FILE\.\.\. \[--diff DIFF_FILE\]/);
+    assert.doesNotMatch(result.stderr, /Traceback/);
+    assert.equal(result.stdout, "");
 }
 
 describe("edit hook: advice, not failure (standard 2.8)", () => {
@@ -119,6 +143,79 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
             fs.unlinkSync(file);
             fs.unlinkSync(diff);
         }
+    });
+});
+
+describe("edit hook: advise on several files", () => {
+    const big = path.join(root, "src", "js", "zz-many-big.js");
+    const wide = path.join(root, "src", "js", "ZzManyWide.js");
+    const stale = path.join(root, "src", "js", "zz-many-stale.js");
+    const diff = path.join(root, "src", "js", "zz-many-stale.diff");
+
+    /** Write the scratch files, run the test body, and remove them.
+     *
+     * @param {() => void} body - The test body.
+     */
+    function withFiles(body) {
+        fs.writeFileSync(
+            big,
+            Array.from({length: 420}, (_, i) => `export const v${i} = ${i};`).join("\n") + "\n"
+        );
+        const methods = Array.from(
+            {length: 12},
+            (_, i) => `    /** Method ${i}. */\n    m${i}() {\n        return ${i};\n    }`
+        ).join("\n\n");
+        fs.writeFileSync(wide, `/** A wide class. */\nexport class ZzWide {\n${methods}\n}\n`);
+        fs.writeFileSync(
+            stale,
+            "/** Adds one. */\nexport function addOne(n) {\n    return n + 1;\n}\n"
+        );
+        fs.writeFileSync(
+            diff,
+            "--- a\n+++ b\n@@ -3,1 +3,1 @@\n-    return n + 2;\n+    return n + 1;\n"
+        );
+        try {
+            body();
+        } finally {
+            [big, wide, stale, diff].forEach(f => fs.unlinkSync(f));
+        }
+    }
+
+    test("gives the notes of every file, whichever order they are passed in", () => {
+        withFiles(() => {
+            for (const files of [
+                [big, wide],
+                [wide, big]
+            ]) {
+                const notes = advise(files);
+                assert.ok(
+                    notes.some(n => /zz-many-big\.js is 420 lines/.test(n)),
+                    notes.join("\n")
+                );
+                assert.ok(
+                    notes.some(n => /ZzManyWide\.js: class `ZzWide` has 12 public methods/.test(n)),
+                    notes.join("\n")
+                );
+            }
+        });
+    });
+    test("refuses --diff with more than one file", () => {
+        withFiles(() => assertUsage([big, wide, "--diff", diff]));
+    });
+    test("refuses --diff without a value", () => {
+        withFiles(() => assertUsage([stale, "--diff"]));
+    });
+    test("refuses no file", () => {
+        assertUsage([]);
+    });
+    test("takes --diff before the file as after it", () => {
+        withFiles(() => {
+            const after = adviseRaw([stale, "--diff", diff]);
+            const before = adviseRaw(["--diff", diff, stale]);
+            assert.equal(after.status, 0, after.stderr);
+            assert.match(after.stdout, /code of `addOne` changed but the summary comment/);
+            assert.deepEqual(before, after);
+        });
     });
 });
 
