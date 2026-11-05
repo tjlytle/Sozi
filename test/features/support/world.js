@@ -61,8 +61,8 @@ export function builtDeck(name) {
     return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
 }
 
-/** What a scenario can reach: the browser context, the pages it opened, the deck's first view
- * and Cucumber's attach.
+/** What a scenario can reach: the browser context, the pages it opened, the dialogs they
+ * showed, the deck's first view and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
@@ -87,6 +87,11 @@ export class SoziWorld extends World {
          * @type {?{cx: number, cy: number, width: number, angle: number}}
          */
         this.initialView = null;
+        /** The message of every dialog a page of the scenario showed, in order.
+         *
+         * @type {string[]}
+         */
+        this.dialogs = [];
     }
 
     /** Open the exported player page of a built deck and wait for window.sozi.
@@ -160,6 +165,13 @@ BeforeAll(async () => {
 
 Before(async function () {
     this.context = await browser.newContext({viewport: VIEWPORT});
+    // Record every alert, confirm or prompt, then dismiss it so that the page goes on.
+    this.context.on("page", page =>
+        page.on("dialog", dialog => {
+            this.dialogs.push(dialog.message());
+            dialog.dismiss().catch(() => {});
+        })
+    );
 });
 
 After(async function (scenario) {
