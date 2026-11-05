@@ -49,7 +49,10 @@ describe("dependency check", () => {
             "(MIT AND ISC)",
             "(MIT AND (BSD-3-Clause OR GPL-2.0))",
             "MIT or Apache-2.0",
-            "GPL-3.0 AND MIT OR ISC"
+            "GPL-3.0 AND MIT OR ISC",
+            "MIT OR GPL-2.0+",
+            "MIT OR LicenseRef-custom",
+            "MIT OR DocumentRef-spdx:LicenseRef-custom"
         ]) {
             assert.ok(licenceAllowed(expression), expression);
         }
@@ -66,7 +69,13 @@ describe("dependency check", () => {
             "MIT OR GPL-2.0 WITH (MIT)",
             "MIT OR GPL-2.0 WITH x WITH y",
             "MIT OR GPL-2.0 WITH",
-            "MIT OR GPL-2.0 WITH OR ISC"
+            "MIT OR GPL-2.0 WITH OR ISC",
+            "MIT OR ?",
+            "MIT OR +",
+            "MIT OR GPL_2.0",
+            "MIT OR GPL-2.0 WITH +",
+            "MIT OR GPL-2.0 WITH Classpath-exception-2.0+",
+            "MIT OR GPL-2.0 WITH DocumentRef-spdx:x"
         ]) {
             assert.ok(!licenceAllowed(expression), expression);
         }

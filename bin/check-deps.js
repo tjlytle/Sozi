@@ -40,13 +40,16 @@ export const ALLOWED_LICENCES = new Set([
 ]);
 export const MAX_AGE_DAYS = 365;
 const RUNTIME_URL = /(?:src|href)\s*=\s*["']https?:\/\/|import\(\s*["']https?:\/\//;
+// SPDX ids are letters, digits, "-" and "."; a licence may add "+" or a DocumentRef- prefix.
+const EXCEPTION_ID = /^[A-Za-z0-9.-]+$/;
+const LICENCE_ID = /^(?:DocumentRef-[A-Za-z0-9.-]+:)?[A-Za-z0-9.-]+\+?$/;
 const COMMENTS = /<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g;
 
 /** Whether an SPDX licence expression is allowed: one side of an OR, every side of an AND.
  *
  * AND binds tighter than OR, parentheses nest, operators are all upper or all lower case,
  * and an id with a WITH exception (a single id) fails. Anything that does not parse fails,
- * even when another alternative is allowed.
+ * a malformed id included, even when another alternative is allowed.
  *
  * @param {string} expression - The `license` field of a package.
  * @param {Set<string>} allowed - The allowed licence ids.
@@ -56,14 +59,9 @@ export function licenceAllowed(expression, allowed = ALLOWED_LICENCES) {
     const tokens = expression.match(/[()]|[^\s()]+/g) || [];
     let i = 0;
     const isOperator = (token, name) => token === name || token === name.toLowerCase();
-    const id = () => {
-        const token = tokens[i++];
-        if (
-            token === undefined ||
-            token === "(" ||
-            token === ")" ||
-            ["AND", "OR", "WITH"].some(o => isOperator(token, o))
-        ) {
+    const id = syntax => {
+        const token = tokens[i++] ?? "";
+        if (!syntax.test(token) || ["AND", "OR", "WITH"].some(o => isOperator(token, o))) {
             throw new SyntaxError(`expected a licence id, found ${token}`);
         }
         return token;
@@ -77,10 +75,10 @@ export function licenceAllowed(expression, allowed = ALLOWED_LICENCES) {
             }
             return value;
         }
-        const licence = id();
+        const licence = id(LICENCE_ID);
         if (isOperator(tokens[i], "WITH")) {
             i++;
-            id();
+            id(EXCEPTION_ID);
             return false;
         }
         return allowed.has(licence);
