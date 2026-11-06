@@ -17,9 +17,11 @@ import {
 } from "@cucumber/cucumber";
 import fs from "node:fs";
 import {createRequire} from "node:module";
+import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {chromium} from "playwright";
+import {serveDirectory} from "./server.js";
 
 const require = createRequire(import.meta.url);
 const {runSozi, withTempDeck} = require("../../cli/helpers.js");
@@ -34,31 +36,59 @@ const VIEWPORT = {width: 1280, height: 800};
 
 /** @type {import("playwright").Browser} */
 let browser;
-/** @type {Map<string, {dir: string, html: string, presenter: string, cleanup: Function}>} */
+/** @type {Map<string, {dir: string, svg: string, html: string, presenter: string, cleanup: Function}>} */
 const decks = new Map();
+
+/** Build a deck in its directory with the CLI.
+ *
+ * @param {string} name - The fixture name, for the error.
+ * @param {{dir: string, svg: string}} deck - Where the deck is.
+ */
+function buildDeck(name, {dir, svg}) {
+    const run = runSozi(["build", path.basename(svg)], {cwd: dir});
+    if (run.code !== 0) {
+        throw new Error(`sozi build ${name} failed:\n${run.stdout}\n${run.stderr}`);
+    }
+}
 
 /** The built deck for a fixture, building it with the CLI on first use.
  *
  * @param {string} name - The fixture name under test/fixtures.
- * @returns {{dir: string, html: string, presenter: string}} - Where the built pages are.
+ * @returns {{dir: string, svg: string, html: string, presenter: string}} - Where the built
+ *     pages are.
  */
 export function builtDeck(name) {
     if (!decks.has(name)) {
         const deck = withTempDeck(name);
-        const run = runSozi(["build", path.basename(deck.svg)], {cwd: deck.dir});
-        if (run.code !== 0) {
-            throw new Error(`sozi build ${name} failed:\n${run.stdout}\n${run.stderr}`);
-        }
+        buildDeck(name, deck);
         const base = deck.svg.replace(/\.svg$/, "");
         decks.set(name, {
             dir: deck.dir,
+            svg: deck.svg,
             html: base + ".sozi.html",
             presenter: base + "-presenter.sozi.html",
             cleanup: deck.cleanup
         });
     }
     // Cast: the deck was built above if it was missing.
-    return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
+    return /** @type {{dir: string, svg: string, html: string, presenter: string}} */ (
+        decks.get(name)
+    );
+}
+
+/** Remove the notes file of a built deck and build it again, in place.
+ *
+ * The deck's pages stay where they are, for the page already open on them. A later scenario
+ * that asks for this fixture gets a fresh copy, with its notes file.
+ *
+ * @param {string} name - The fixture name.
+ */
+export function rebuildWithoutNotesFile(name) {
+    const deck = builtDeck(name);
+    fs.rmSync(path.join(deck.dir, `${name}.notes.md`));
+    buildDeck(name, deck);
+    decks.delete(name);
+    decks.set(`${name} without its notes file`, deck);
 }
 
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
@@ -92,6 +122,16 @@ export class SoziWorld extends World {
          * @type {string[]}
          */
         this.dialogs = [];
+        /** The font size of the notes before a step changed it, in pixels.
+         *
+         * @type {number}
+         */
+        this.notesFontSize = 0;
+        /** The copy of a deck this scenario serves over http.
+         *
+         * @type {?{presenter: string, dir: string, close: () => Promise<void>}}
+         */
+        this.served = null;
     }
 
     /** Open the exported player page of a built deck and wait for window.sozi.
@@ -143,15 +183,40 @@ export class SoziWorld extends World {
      * @param {string} fixture - The fixture name.
      */
     async openPresenter(fixture) {
-        const deck = builtDeck(fixture);
+        await this.openPresenterAt(pathToFileURL(builtDeck(fixture).presenter).href);
+    }
+
+    /** Open a presenter page from its address and wait for the audience window it opens.
+     *
+     * @param {string} href - The page's address.
+     */
+    async openPresenterAt(href) {
         // Cast: the Before hook opens a context for every scenario.
         this.presenter = await /** @type {import("playwright").BrowserContext} */ (
             this.context
         ).newPage();
         const popup = this.presenter.waitForEvent("popup");
-        await this.presenter.goto(pathToFileURL(deck.presenter).href);
+        await this.presenter.goto(href);
         this.audience = await popup;
         await this.audience.waitForLoadState("load");
+    }
+
+    /** Serve a copy of a built deck over http until the scenario ends.
+     *
+     * The notes file goes into the copy after the build, as a published file does.
+     *
+     * @param {string} fixture - The fixture name.
+     * @param {string} [notesFile] - The text of a notes file beside the deck.
+     */
+    async serveDeck(fixture, notesFile) {
+        const deck = builtDeck(fixture);
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-served-"));
+        fs.cpSync(deck.dir, dir, {recursive: true});
+        if (notesFile !== undefined) {
+            fs.writeFileSync(path.join(dir, `${fixture}.notes.md`), notesFile);
+        }
+        const {url, close} = await serveDirectory(dir);
+        this.served = {presenter: `${url}/${path.basename(deck.presenter)}`, dir, close};
     }
 }
 
@@ -186,6 +251,10 @@ After(async function (scenario) {
         await this.attach(fs.readFileSync(file), "image/png");
     }
     await this.context?.close();
+    if (this.served) {
+        await this.served.close();
+        fs.rmSync(this.served.dir, {recursive: true, force: true});
+    }
 });
 
 AfterAll(async () => {
