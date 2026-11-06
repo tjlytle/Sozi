@@ -98,6 +98,21 @@ function describeFrame(frame, index) {
     };
 }
 
+/** Describe the layout presets of a presentation.
+ *
+ * @param {module:model/Presentation.Presentation} presentation - The presentation.
+ * @returns {{name: string, match: any, panels: string[], rail: string[]}[]} - One entry per
+ *  preset, in the deck's order.
+ */
+function describeLayouts(presentation) {
+    return Object.entries(presentation.presenterLayouts).map(([name, {match, layout}]) => ({
+        name,
+        match,
+        panels: Object.keys(layout.dock.panels),
+        rail: layout.rail.map(({id}) => id)
+    }));
+}
+
 /** Describe a presentation that has been loaded.
  *
  * With `--frame N`, only the frame with 0-based index N, or with frame id N,
@@ -122,7 +137,7 @@ function describeFrame(frame, index) {
  * @param {string} context.svgSource - How the SVG file was found.
  * @param {string} context.cwd - The working directory.
  * @param {object} context.flags - The command-line flags.
- * @returns {object} - The command result: `{ok, svgSource, outputDir, outputSource, title, titleSource, svgTitle, aspect, customFiles, layers, frames}`,
+ * @returns {object} - The command result: `{ok, svgSource, outputDir, outputSource, title, titleSource, svgTitle, aspect, customFiles, layers, layouts, frames}`,
  *  or `{ok: false, error}`, with `exitCode: 2` for an output directory that is a file.
  */
 export function inspect({storage, svg, presentation: jsonPath, svgSource, cwd, flags}) {
@@ -171,6 +186,7 @@ export function inspect({storage, svg, presentation: jsonPath, svgSource, cwd, f
             index: layer.index,
             inJson: inJson.has(layer.groupId)
         })),
+        layouts: describeLayouts(presentation),
         frames: frames.map(({frame, index}) => describeFrame(frame, index))
     };
 }

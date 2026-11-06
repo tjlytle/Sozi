@@ -53,13 +53,15 @@ const KEY_PREFIX = "sozi-presenter-layout:";
 /**
  * The localStorage key of a deck's layout.
  *
- * Every deck opened from a file shares one localStorage, so the path tells them apart.
+ * Every deck opened from a file shares one localStorage, so the path tells them apart. A
+ * deck has two slots, wide and narrow, so that a phone's arrangement and a laptop's both last.
  *
  * @param {string} pathname - The presenter page's path, as `location.pathname` gives it.
+ * @param {boolean} [narrow] - Is it the slot of a narrow page?
  * @returns {string} The key.
  */
-export function layoutKey(pathname) {
-    return KEY_PREFIX + pathname;
+export function layoutKey(pathname, narrow = false) {
+    return KEY_PREFIX + (narrow ? "narrow:" : "") + pathname;
 }
 
 /**
@@ -73,6 +75,37 @@ export function isNarrow(width) {
 }
 
 /**
+ * What a page shows, by precedence: what was saved here, then the deck's preset, then the
+ * derived stack on a narrow page or the default layout on a wide one.
+ *
+ * @param {object} state - What this page has.
+ * @param {boolean} state.narrow - Is the page narrow?
+ * @param {boolean} state.saved - Is a layout saved for this width?
+ * @param {boolean} state.preset - Does a preset of the deck suit this page?
+ * @returns {"saved" | "preset" | "stack" | "default"} The source.
+ */
+export function layoutSource({narrow, saved, preset}) {
+    if (saved) {
+        return "saved";
+    }
+    if (preset) {
+        return "preset";
+    }
+    return narrow ? "stack" : "default";
+}
+
+/**
+ * A layout in its stored form.
+ *
+ * @param {any} dock - The dock, as dockview's `toJSON` gives it.
+ * @param {RailEntry[]} rail - The panels on the rail.
+ * @returns {{version: number, dock: any, rail: RailEntry[]}} The layout.
+ */
+export function layoutOf(dock, rail) {
+    return {version: LAYOUT_VERSION, dock, rail};
+}
+
+/**
  * The text that saves a layout.
  *
  * @param {any} dock - The dock, as dockview's `toJSON` gives it.
@@ -80,7 +113,7 @@ export function isNarrow(width) {
  * @returns {string} The text to store.
  */
 export function savedLayoutText(dock, rail) {
-    return JSON.stringify({version: LAYOUT_VERSION, dock, rail});
+    return JSON.stringify(layoutOf(dock, rail));
 }
 
 /**
@@ -123,17 +156,16 @@ function parsed(text) {
 }
 
 /**
- * Read a saved layout.
+ * Read a layout, from what this device saved or from a preset of the deck.
  *
- * It is refused when the text is not JSON, its version is not 1, or its panels are not
- * exactly the known ones, each either docked or on the rail.
+ * It is refused when its version is not 1, or its panels are not exactly the known ones,
+ * each either docked or on the rail.
  *
- * @param {string} text - The stored text.
+ * @param {any} data - The layout.
  * @param {string[]} knownIds - The id of every panel the workspace has.
  * @returns {?SavedLayout} The layout, or null when it cannot be used.
  */
-export function readSavedLayout(text, knownIds) {
-    const data = parsed(text);
+export function readLayout(data, knownIds) {
     if (!isObject(data) || data.version !== LAYOUT_VERSION) {
         return null;
     }
@@ -148,4 +180,15 @@ export function readSavedLayout(text, knownIds) {
     const ids = [...Object.keys(dock.panels), ...rail.map(entry => entry.id)];
     const exact = ids.length === knownIds.length && knownIds.every(id => ids.includes(id));
     return exact ? {dock, rail} : null;
+}
+
+/**
+ * Read a saved layout from its text; text that is not JSON is refused.
+ *
+ * @param {string} text - The stored text.
+ * @param {string[]} knownIds - The id of every panel the workspace has.
+ * @returns {?SavedLayout} The layout, or null when it cannot be used.
+ */
+export function readSavedLayout(text, knownIds) {
+    return readLayout(parsed(text), knownIds);
 }

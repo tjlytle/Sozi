@@ -20,7 +20,12 @@ import {viewportMessage} from "../../../src/js/protocol/viewport.js";
 
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
-const displayState = {deckId: "basic", frameCount: 2, viewport, frame, blank: false};
+const dock = {grid: {}, panels: {current: {id: "current"}}};
+// Cast: the field's own literal types are lost on a constant.
+const layouts = /** @type {any} */ ({
+    phone: {match: "phone", layout: {version: 1, dock, rail: []}}
+});
+const displayState = {deckId: "basic", frameCount: 2, viewport, frame, blank: false, layouts};
 const noModifiers = {shift: false, alt: false, ctrl: false, meta: false};
 
 /** One built message of each kind, as the protocol sends it.
@@ -97,6 +102,37 @@ describe("protocol messages", () => {
         for (const data of [null, undefined, "next", 3, [], {}, {name: "moveToNext"}]) {
             assert.equal(readMessage(data), null, JSON.stringify(data));
         }
+    });
+
+    test("a display's hello keeps the deck's layout presets", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        assert.deepEqual(/** @type {any} */ (readMessage(hello)).layouts, layouts);
+    });
+
+    test("a hello from a deck that has no presets field reads as none", () => {
+        const older = {...helloMessage(Roles.display, displayState), layouts: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).layouts, {});
+        const state = {...displayState, layouts: undefined};
+        assert.deepEqual(/** @type {any} */ (helloMessage(Roles.display, state)).layouts, {});
+    });
+
+    test("a bad preset is dropped, never the whole hello", () => {
+        const hello = {
+            ...helloMessage(Roles.display, displayState),
+            layouts: {...layouts, bad: {match: "tablet"}, "a.b": layouts.phone}
+        };
+        const read = /** @type {any} */ (readMessage(hello));
+        assert.equal(read.deckId, "basic");
+        assert.deepEqual(read.layouts, layouts);
+        const worse = {...hello, layouts: "none"};
+        assert.deepEqual(/** @type {any} */ (readMessage(worse)).layouts, {});
+    });
+
+    test("a surface's hello carries no presets", () => {
+        assert.deepEqual(readMessage(helloMessage(Roles.surface)), {
+            name: "hello",
+            role: "surface"
+        });
     });
 
     test("is refused with a malformed field", () => {

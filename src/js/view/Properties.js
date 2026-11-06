@@ -5,6 +5,7 @@
 /** @module */
 
 import {h} from "inferno-hyperscript";
+import Jed from "jed";
 import {serializeHTML} from "../html/sanitize";
 import {CustomFileTargets} from "../model/customFiles";
 import {VirtualDOMView} from "./VirtualDOMView";
@@ -694,8 +695,38 @@ export class Properties extends VirtualDOMView {
                         controller.setPresentationProperty
                     )
                 ])
-            ])
+            ]),
+
+            ...this.renderLayoutPresets()
         ]);
+    }
+
+    /** Render the read-only list of the deck's layout presets, nothing without any.
+     *
+     * @returns {VNode[]} - The virtual DOM nodes.
+     */
+    renderLayoutPresets() {
+        const _ = this.controller.gettext;
+        const presets = Object.entries(this.controller.presentation.presenterLayouts);
+        if (!presets.length) {
+            return [];
+        }
+        const matchLabels = {phone: _("Phone"), laptop: _("Laptop")};
+        return [
+            h("h1", _("Presenter layouts")),
+            h(
+                "ul.sozi-layout-presets",
+                presets.map(([name, {match}]) =>
+                    h("li", [
+                        h("span.sozi-layout-presets__name", name),
+                        ": ",
+                        typeof match === "string"
+                            ? matchLabels[match]
+                            : Jed.sprintf(_("At least %d pixels wide"), match.minWidth)
+                    ])
+                )
+            )
+        ];
     }
 
     /** The text of the help message for include/exclude lists in export, one entry per line.

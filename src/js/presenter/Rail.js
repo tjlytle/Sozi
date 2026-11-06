@@ -19,16 +19,19 @@
  * @typedef {object} RailOptions
  * @property {(id: string) => void} onRestore - Called with the id of a panel to put back.
  * @property {() => void} onReset - Called when Reset layout is pressed.
+ * @property {() => void} onSavePreset - Called when Save as preset is pressed.
  */
 
-/** The rail on the workspace's left edge: a button per minimised panel, and Reset layout. */
+/** The rail on the workspace's left edge: a button per minimised panel, Reset layout and Save
+ * as preset.
+ */
 export class Rail {
     /** Build the rail, empty.
      *
      * @param {Document} doc - The page the rail is drawn in.
      * @param {RailOptions} options - What its buttons do.
      */
-    constructor(doc, {onRestore, onReset}) {
+    constructor(doc, {onRestore, onReset, onSavePreset}) {
         this.element = doc.createElement("nav");
         this.element.className = "sozi-rail";
         this.element.setAttribute("aria-label", "Minimised panels");
@@ -52,7 +55,16 @@ export class Rail {
         this.onResetClick = () => onReset();
         this.reset.addEventListener("click", this.onResetClick, false);
 
-        this.element.append(this.list, this.reset);
+        this.savePreset = doc.createElement("button");
+        this.savePreset.type = "button";
+        this.savePreset.className = "sozi-rail__save-preset";
+        this.savePreset.textContent = "⤓";
+        this.savePreset.title = "Save as preset";
+        this.savePreset.setAttribute("aria-label", "Save as preset");
+        this.onSavePresetClick = () => onSavePreset();
+        this.savePreset.addEventListener("click", this.onSavePresetClick, false);
+
+        this.element.append(this.list, this.reset, this.savePreset);
     }
 
     /** Show a button for each minimised panel, in order.
@@ -79,6 +91,7 @@ export class Rail {
     dispose() {
         this.list.removeEventListener("click", this.onListClick, false);
         this.reset.removeEventListener("click", this.onResetClick, false);
+        this.savePreset.removeEventListener("click", this.onSavePresetClick, false);
         this.element.remove();
     }
 }

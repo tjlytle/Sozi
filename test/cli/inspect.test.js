@@ -289,6 +289,55 @@ describe("inspect", () => {
     });
 });
 
+describe("inspect layout presets", () => {
+    test("lists each preset's name, match, dock panels and rail panels", () => {
+        const deck = withTempDeck("layouts");
+        try {
+            const {json, stderr} = inspect(deck);
+            assert.equal(json.ok, true, stderr);
+            assert.deepEqual(
+                json.layouts.map(preset => preset.name),
+                ["wide", "phone", "laptop"]
+            );
+            assert.deepEqual(json.layouts[0].match, {minWidth: 1600});
+            assert.deepEqual(json.layouts[1], {
+                name: "phone",
+                match: "phone",
+                panels: ["current", "notes"],
+                rail: ["previous", "next", "controls", "connection"]
+            });
+        } finally {
+            deck.cleanup();
+        }
+    });
+
+    test("a deck with no presets lists none", () => {
+        const deck = withTempDeck("basic");
+        try {
+            assert.deepEqual(inspect(deck).json.layouts, []);
+        } finally {
+            deck.cleanup();
+        }
+    });
+
+    test("warns about an invalid preset and lists the others", () => {
+        const deck = withTempDeck("layouts");
+        try {
+            const data = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            data.presenter.layouts["a.b"] = data.presenter.layouts.phone;
+            data.presenter.layouts.broken = {match: "tablet"};
+            fs.writeFileSync(deck.json, JSON.stringify(data));
+            const {json} = inspect(deck);
+            assert.equal(json.ok, true);
+            assert.equal(json.layouts.length, 3);
+            assert.ok(json.warnings.includes("ignored invalid layout preset a.b"));
+            assert.ok(json.warnings.includes("ignored invalid layout preset broken"));
+        } finally {
+            deck.cleanup();
+        }
+    });
+});
+
 describe("runner errors", () => {
     test("missing file argument exits 2", () => {
         const {code, json} = runSozi(["inspect"]);

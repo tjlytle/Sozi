@@ -9,8 +9,33 @@ import {CameraState} from "./CameraState";
 import {customFilesFor, readCustomFile, storableCustomFile} from "./customFiles";
 import {hasReliableBoundaries} from "../player/Camera";
 import * as authorStyle from "../svg/authorStyle";
+import {readPresets} from "../protocol/layoutPresets";
 
 /** @typedef {import("../svg/SVGDocumentWrapper.js").SVGDocumentWrapper} SVGDocumentWrapper */
+/** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
+
+/** The stored form of a deck's layout presets, nothing at all when it has none.
+ *
+ * Other decks stay byte for byte the same.
+ *
+ * @param {Record<string, LayoutPreset>} layouts - The presets.
+ * @returns {object} - The keys to add to the stored presentation.
+ */
+function presenterStorable(layouts) {
+    return Object.keys(layouts).length ? {presenter: {layouts}} : {};
+}
+
+/** The deck's layout presets as they are read back.
+ *
+ * @param {object} storable - The stored presentation.
+ * @param {any} storable.presenter - Its presenter key, if it has one.
+ * @returns {{presenterLayouts: Record<string, LayoutPreset>, ignoredPresets: string[]}} - The
+ *  valid presets, and the names of the ones ignored because they are invalid.
+ */
+function presenterFromStorable({presenter}) {
+    const {presets, ignored} = readPresets((presenter || {}).layouts);
+    return {presenterLayouts: presets, ignoredPresets: ignored};
+}
 
 /** Copy a property from an object to another.
  *
@@ -798,6 +823,13 @@ export class Presentation extends EventEmitter {
          */
         this.updateURLOnFrameChange = true;
 
+        /** The named layouts this deck carries for the presenter, in the file's order.
+         *
+         * @default
+         * @type {Record<string, LayoutPreset>}
+         */
+        this.presenterLayouts = {};
+
         /** The last export document type.
          *
          * @default
@@ -998,7 +1030,8 @@ export class Presentation extends EventEmitter {
             exportToVideoBitRate: this.exportToVideoBitRate,
             frames: this.frames.map(frame => frame.toStorable()),
             elementsToHide: this.elementsToHide.slice(),
-            customFiles: this.customFiles.map(storableCustomFile)
+            customFiles: this.customFiles.map(storableCustomFile),
+            ...presenterStorable(this.presenterLayouts)
         };
     }
 
@@ -1021,7 +1054,8 @@ export class Presentation extends EventEmitter {
             enableMouseNavigation: this.enableMouseNavigation,
             updateURLOnFrameChange: this.updateURLOnFrameChange,
             frames: this.frames.map(frame => frame.toMinimalStorable()),
-            elementsToHide: this.elementsToHide.slice()
+            elementsToHide: this.elementsToHide.slice(),
+            ...presenterStorable(this.presenterLayouts)
         };
     }
 
@@ -1086,6 +1120,8 @@ export class Presentation extends EventEmitter {
         if (storable.customFiles) {
             this.customFiles = storable.customFiles.map(readCustomFile);
         }
+
+        Object.assign(this, presenterFromStorable(storable));
     }
 
     /** Create a new unique identifier for a frame in this presentation.

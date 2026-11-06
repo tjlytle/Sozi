@@ -8,9 +8,10 @@
 
 import {LocalTransport, TransportStatus} from "./protocol/LocalTransport";
 import {TransportSet} from "./protocol/TransportSet";
-import {Roles, helloMessage} from "./protocol/messages";
+import {Roles, deckIdOf, helloMessage} from "./protocol/messages";
 import {DisplayMirror, DisplayMirrorEvents} from "./presenter/DisplayMirror";
 import {PresenterApi} from "./presenter/PresenterApi";
+import {PresetForm} from "./presenter/PresetForm";
 import {Workspace} from "./presenter/Workspace";
 import {NARROW_MAX_WIDTH, layoutKey} from "./presenter/layout";
 import {isEditableTarget, messageForKey} from "./presenter/keys";
@@ -71,6 +72,21 @@ const PANELS = Object.freeze([
  */
 const PREVIEW_OFFSETS = Object.freeze({current: 0, previous: -1, next: 1});
 
+/** The function that shows a text in the page's layout notice, until it is dismissed.
+ *
+ * @returns {(text: string) => void} The function.
+ */
+function layoutNotice() {
+    const notice = /** @type {HTMLElement} */ (document.querySelector(".sozi-layout-notice"));
+    const text = /** @type {HTMLElement} */ (notice.querySelector(".sozi-layout-notice__text"));
+    const dismiss = /** @type {HTMLElement} */ (notice.querySelector("button"));
+    dismiss.addEventListener("click", () => (notice.hidden = true));
+    return message => {
+        text.textContent = message;
+        notice.hidden = false;
+    };
+}
+
 /** Open the link to the audience window.
  *
  * @param {Window} audience - The audience window.
@@ -127,6 +143,34 @@ function panelSpecs(mirror, send, src) {
     }));
 }
 
+/** Build the empty workspace, with the form that saves its layout as a preset.
+ *
+ * @param {HTMLElement} element - The workspace's element.
+ * @returns {Workspace} The workspace.
+ */
+function buildWorkspace(element) {
+    const showNotice = layoutNotice();
+    const workspace = new Workspace(element, {
+        storage: window.localStorage,
+        keys: {
+            wide: layoutKey(location.pathname),
+            narrow: layoutKey(location.pathname, true)
+        },
+        media: window.matchMedia(`(max-width: ${NARROW_MAX_WIDTH}px)`),
+        onNotice: showNotice,
+        onSavePreset: () => presetForm.open()
+    });
+    const presetForm = new PresetForm(document, window, {
+        // The template names the deck's page as a file; deckIdOf reads an encoded path.
+        deckId: deckIdOf(encodeURIComponent(/** @type {string} */ (element.dataset.deck))),
+        width: () => window.innerWidth,
+        layout: () => workspace.layout,
+        onSaved: showNotice
+    });
+    document.body.append(presetForm.element);
+    return workspace;
+}
+
 /** Build the page when it has loaded: the audience window, the workspace and the keys.
  *
  * @param {object} options - What the module has built.
@@ -161,10 +205,12 @@ function startPresenter({presenter, mirror, transports, element}) {
         }
     });
 
-    const workspace = new Workspace(element, {
-        storage: window.localStorage,
-        key: layoutKey(location.pathname),
-        media: window.matchMedia(`(max-width: ${NARROW_MAX_WIDTH}px)`)
+    const workspace = buildWorkspace(element);
+    // Before the mount: a transport an add-on registered can answer as soon as it is added.
+    mirror.on(DisplayMirrorEvents.change, ({layouts}) => {
+        if (layouts) {
+            workspace.offerPresets(layouts);
+        }
     });
     presenter.mount(workspace);
     workspace.open();

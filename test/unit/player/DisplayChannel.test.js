@@ -208,6 +208,15 @@ describe("DisplayChannel", () => {
         assert.deepEqual(startSent, [displayHello(), {name: "loaded", length: 2}]);
     });
 
+    test("a hello carries the deck's layout presets", () => {
+        const {channel, transport} = startedDisplay();
+        const dock = {grid: {}, panels: {current: {id: "current"}}};
+        const presenterLayouts = {phone: {match: "phone", layout: {version: 1, dock, rail: []}}};
+        channel.presentation.presenterLayouts = presenterLayouts;
+        transport.deliver(helloMessage(Roles.surface));
+        assert.deepEqual(transport.sent, [displayHello({layouts: presenterLayouts})]);
+    });
+
     test("answers a surface hello with its current frame and blank state", () => {
         const {transport, player} = startedDisplay();
         player.showFrame(1);
