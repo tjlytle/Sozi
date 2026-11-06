@@ -271,6 +271,11 @@ export class Electron extends AbstractBackend {
     }
 
     /** @inheritdoc */
+    loadOptionalSync(fileDescriptor) {
+        return fs.existsSync(fileDescriptor) ? this.loadSync(fileDescriptor) : null;
+    }
+
+    /** @inheritdoc */
     create(name, location, mimeType, data) {
         const fileName = path.join(location, name);
         return new Promise((resolve, reject) => {

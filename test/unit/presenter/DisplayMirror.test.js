@@ -13,12 +13,13 @@ import {TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 const one = {index: 0, id: "f1", title: "One", notes: "<p>First</p>"};
 const two = {index: 1, id: "f2", title: "Two", notes: ""};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
+const frames = [one, two];
 const dock = {grid: {}, panels: {current: {id: "current"}}};
 // Cast: the field's own literal types are lost on a constant.
 const layouts = /** @type {any} */ ({
     phone: {match: "phone", layout: {version: 1, dock, rail: []}}
 });
-const state = {deckId: "basic", frameCount: 2, viewport, frame: one, blank: false, layouts};
+const state = {deckId: "basic", frameCount: 2, viewport, frame: one, frames, blank: false, layouts};
 
 /** A mirror and the changes it has emitted.
  *
@@ -50,10 +51,19 @@ describe("DisplayMirror", () => {
         assert.deepEqual(mirror.frame, one);
         assert.equal(mirror.blank, false);
         assert.deepEqual(mirror.viewport, viewport);
+        assert.deepEqual(mirror.frames, frames);
         assert.deepEqual(mirror.layouts, layouts);
         assert.deepEqual(changes, [
-            {frameCount: 2, blank: false, viewport, frame: one, index: 0, layouts}
+            {frameCount: 2, blank: false, viewport, frame: one, frames, index: 0, layouts}
         ]);
+    });
+
+    test("has no frames until the display says hello, and a frame change keeps them", () => {
+        const {mirror} = watchedMirror();
+        assert.deepEqual(mirror.frames, []);
+        mirror.apply(helloMessage(Roles.display, state));
+        mirror.apply(frameChangeMessage(two));
+        assert.deepEqual(mirror.frames, frames);
     });
 
     test("has no layout presets until the display says hello", () => {

@@ -260,7 +260,16 @@ function makeTemplateTask(target, tpl) {
     return function templateTask() {
         return src(`src/templates/${tpl}.html`)
             .pipe(newer({dest: destPath, extra: jsPath}))
-            .pipe(nunjucks.compile({js: fs.readFileSync(jsPath)}))
+            .pipe(
+                nunjucks.compile({
+                    js: fs.readFileSync(jsPath),
+                    // The presenter's notes styles are inlined: nothing comes from a CDN (standard 4).
+                    markdownCss: fs.readFileSync(
+                        "node_modules/github-markdown-css/github-markdown-light.css"
+                    ),
+                    highlightCss: fs.readFileSync("node_modules/highlight.js/styles/github.min.css")
+                })
+            )
             .pipe(dest(destPath));
     };
 }

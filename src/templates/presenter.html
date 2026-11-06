@@ -9,6 +9,9 @@
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <title>{{ pres.title | escape }}</title>
+{% endraw %}
+        <style>{{'{% raw %}'}}{{ markdownCss|safe }}{{ highlightCss|safe }}{{'{% endraw %}'}}</style>
+{% raw %}
         <style>
             /* The deck's aspect ratio until the display reports its own. */
             :root {
@@ -54,7 +57,7 @@
                 gap: var(--sozi-space);
             }
 
-            .sozi-rail button, .sozi-group-actions__button, .sozi-controls button {
+            .sozi-rail button, .sozi-group-actions__button, .sozi-controls button, .sozi-notes__toolbar button {
                 min-width: 2rem;
                 min-height: 2rem;
                 border: 1px solid var(--sozi-button-border);
@@ -146,11 +149,64 @@
                 margin: 0 calc(2 * var(--sozi-space)) 0 var(--sozi-space);
             }
 
+            /* A fixed toolbar over the document, which scrolls by itself. */
             .sozi-notes {
-                min-height: 100%;
-                padding: var(--sozi-space) calc(2 * var(--sozi-space));
-                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                container-type: size;
                 background: var(--sozi-surface);
+            }
+
+            .sozi-notes__toolbar {
+                display: flex;
+                flex: none;
+                align-items: center;
+                gap: var(--sozi-space);
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+            }
+
+            .sozi-notes__toolbar button[aria-pressed="true"] {
+                background: var(--sozi-rail-background);
+            }
+
+            /* Hidden with visibility, so that showing it does not shift the text. */
+            .sozi-notes-title {
+                flex: auto;
+                min-width: 0;
+                overflow: hidden;
+                font-weight: bold;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .sozi-notes-title--hidden {
+                visibility: hidden;
+            }
+
+            .sozi-notes-body.markdown-body {
+                flex: auto;
+                min-height: 0;
+                overflow-y: auto;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+                font-size: var(--sozi-notes-font-size);
+            }
+
+            /* One panel height of room, so that the last section can reach the top. */
+            .sozi-notes-body::after {
+                content: "";
+                display: block;
+                height: 100cqh;
+            }
+
+            .sozi-notes__section[aria-current] > h1 {
+                border-left: 4px solid var(--sozi-button-border);
+                padding-left: var(--sozi-space);
+            }
+
+            /* An h1 in a frame's notes sits below the frame's own heading. */
+            .sozi-notes__section-notes h1 {
+                font-size: 1.5em;
             }
 
             .sozi-connection {

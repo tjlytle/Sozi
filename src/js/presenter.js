@@ -99,6 +99,43 @@ function connect(audience, transports) {
     toAudience.send(helloMessage(Roles.surface));
 }
 
+/** Open the audience window, or find the one this page opened before it was reloaded.
+ *
+ * A page that reloads must leave the talk where it is: opening the deck's address in a
+ * window that is on `#frame6` would restart it. So a reload asks for the window by name
+ * alone, and sends it to the deck only if it comes back empty, because it was closed.
+ *
+ * @param {string} src - The deck's page.
+ * @returns {?Window} The audience window, null if the popup was blocked.
+ */
+function openAudience(src) {
+    const name = "sozi-presentation";
+    const features = "width=600, height=400, scrollbars=yes, toolbar=yes";
+    const [navigation] = performance.getEntriesByType("navigation");
+    if (/** @type {PerformanceNavigationTiming} */ (navigation).type !== "reload") {
+        return window.open(src, name, features);
+    }
+    const found = window.open("", name, features);
+    if (found && isEmptyWindow(found)) {
+        found.location.href = src;
+    }
+    return found;
+}
+
+/** Is a window still on its first empty page?
+ *
+ * @param {Window} target - The window.
+ * @returns {boolean} False for a window on a deck, including one the browser will not let
+ *     this page read: decks on `file:` have opaque origins.
+ */
+function isEmptyWindow(target) {
+    try {
+        return target.location.href === "about:blank";
+    } catch {
+        return false;
+    }
+}
+
 /** The six panels of the workspace, in the order the default layout adds them.
  *
  * @param {DisplayMirror} mirror - What the display last reported.
@@ -116,7 +153,10 @@ function panelSpecs(mirror, send, src) {
     const create = (id, element) => {
         switch (id) {
             case "notes":
-                return new NotesPanel(element, mirror);
+                return new NotesPanel(element, mirror, {
+                    storage: window.localStorage,
+                    deckHref: () => new URL(src, location.href).href
+                });
             case "connection":
                 return new ConnectionPanel(element, mirror);
             case "controls":
@@ -181,11 +221,7 @@ function buildWorkspace(element) {
  */
 function startPresenter({presenter, mirror, transports, element}) {
     // Open a new window for the main presentation view.
-    const audience = window.open(
-        /** @type {string} */ (element.dataset.deck),
-        "sozi-presentation",
-        "width=600, height=400, scrollbars=yes, toolbar=yes"
-    );
+    const audience = openAudience(/** @type {string} */ (element.dataset.deck));
     // A blocked popup leaves audience null: the page says so and stays usable (standard 2.7).
     if (audience) {
         connect(audience, transports);

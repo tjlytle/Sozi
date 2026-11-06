@@ -17,10 +17,12 @@ import {
 } from "@cucumber/cucumber";
 import fs from "node:fs";
 import {createRequire} from "node:module";
+import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {chromium} from "playwright";
 import {expect} from "playwright/test";
+import {serveDirectory} from "./server.js";
 
 const require = createRequire(import.meta.url);
 const {runSozi, withTempDeck} = require("../../cli/helpers.js");
@@ -35,7 +37,12 @@ const VIEWPORT = {width: 1280, height: 800};
 
 /** @type {import("playwright").Browser} */
 let browser;
-/** @type {Map<string, {dir: string, html: string, presenter: string, cleanup: Function}>} */
+/** A built deck: where its files and pages are, and the function that removes them.
+ *
+ * @typedef {{dir: string, svg: string, html: string, presenter: string, cleanup: Function}} BuiltDeck
+ */
+
+/** @type {Map<string, BuiltDeck>} */
 const decks = new Map();
 /** The decks scenarios copied for themselves, to remove at the end of the run.
  *
@@ -46,8 +53,7 @@ const copies = [];
 /** Build a deck with the CLI.
  *
  * @param {{dir: string, svg: string, cleanup: Function}} deck - A deck `withTempDeck` copied.
- * @returns {{dir: string, html: string, presenter: string, cleanup: Function}} - Where the
- *     built pages are.
+ * @returns {BuiltDeck} - Where the built pages are.
  */
 export function buildDeck(deck) {
     const run = runSozi(["build", path.basename(deck.svg)], {cwd: deck.dir});
@@ -57,6 +63,7 @@ export function buildDeck(deck) {
     const base = deck.svg.replace(/\.svg$/, "");
     return {
         dir: deck.dir,
+        svg: deck.svg,
         html: base + ".sozi.html",
         presenter: base + "-presenter.sozi.html",
         cleanup: deck.cleanup
@@ -66,14 +73,29 @@ export function buildDeck(deck) {
 /** The built deck for a fixture, building it with the CLI on first use.
  *
  * @param {string} name - The fixture name under test/fixtures.
- * @returns {{dir: string, html: string, presenter: string}} - Where the built pages are.
+ * @returns {BuiltDeck} - Where the built pages are.
  */
 export function builtDeck(name) {
     if (!decks.has(name)) {
         decks.set(name, buildDeck(withTempDeck(name)));
     }
     // Cast: the deck was built above if it was missing.
-    return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
+    return /** @type {BuiltDeck} */ (decks.get(name));
+}
+
+/** Remove the notes file of a built deck and build it again, in place.
+ *
+ * The deck's pages stay where they are, for the page already open on them. A later scenario
+ * that asks for this fixture gets a fresh copy, with its notes file.
+ *
+ * @param {string} name - The fixture name.
+ */
+export function rebuildWithoutNotesFile(name) {
+    const deck = builtDeck(name);
+    fs.rmSync(path.join(deck.dir, `${name}.notes.md`));
+    buildDeck(deck);
+    decks.delete(name);
+    decks.set(`${name} without its notes file`, deck);
 }
 
 /** A copy of a fixture for one scenario that changes it; built decks are shared.
@@ -88,7 +110,8 @@ export function copyDeck(name) {
 }
 
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
- * showed, the deck's first view and Cucumber's attach.
+ * showed, the deck's first view, the notes' font size before a change, the deck it serves
+ * over http and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
@@ -118,6 +141,16 @@ export class SoziWorld extends World {
          * @type {string[]}
          */
         this.dialogs = [];
+        /** The font size of the notes before a step changed it, in pixels.
+         *
+         * @type {number}
+         */
+        this.notesFontSize = 0;
+        /** The copy of a deck this scenario serves over http.
+         *
+         * @type {?{presenter: string, dir: string, close: () => Promise<void>}}
+         */
+        this.served = null;
     }
 
     /** Open the exported player page of a built deck and wait for window.sozi.
@@ -190,6 +223,15 @@ export class SoziWorld extends World {
      * @param {{width: number, height: number}} [size] - The page's size from its first paint.
      */
     async openBuiltPresenter(deck, size) {
+        await this.openPresenterAt(pathToFileURL(deck.presenter).href, size);
+    }
+
+    /** Open a presenter page from its address and wait for the audience window it opens.
+     *
+     * @param {string} href - The page's address.
+     * @param {{width: number, height: number}} [size] - The page's size from its first paint.
+     */
+    async openPresenterAt(href, size) {
         // Cast: the Before hook opens a context for every scenario.
         this.presenter = await /** @type {import("playwright").BrowserContext} */ (
             this.context
@@ -198,9 +240,27 @@ export class SoziWorld extends World {
             await this.presenter.setViewportSize(size);
         }
         const popup = this.presenter.waitForEvent("popup");
-        await this.presenter.goto(pathToFileURL(deck.presenter).href);
+        await this.presenter.goto(href);
         this.audience = await popup;
         await this.audience.waitForLoadState("load");
+    }
+
+    /** Serve a copy of a built deck over http until the scenario ends.
+     *
+     * The notes file goes into the copy after the build, as a published file does.
+     *
+     * @param {string} fixture - The fixture name.
+     * @param {string} [notesFile] - The text of a notes file beside the deck.
+     */
+    async serveDeck(fixture, notesFile) {
+        const deck = builtDeck(fixture);
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-served-"));
+        fs.cpSync(deck.dir, dir, {recursive: true});
+        if (notesFile !== undefined) {
+            fs.writeFileSync(path.join(dir, `${fixture}.notes.md`), notesFile);
+        }
+        const {url, close} = await serveDirectory(dir);
+        this.served = {presenter: `${url}/${path.basename(deck.presenter)}`, dir, close};
     }
 
     /** Wait until the presenter page has heard from the display.
@@ -250,6 +310,10 @@ After(async function (scenario) {
         await this.attach(fs.readFileSync(file), "image/png");
     }
     await this.context?.close();
+    if (this.served) {
+        await this.served.close();
+        fs.rmSync(this.served.dir, {recursive: true, force: true});
+    }
 });
 
 AfterAll(async () => {

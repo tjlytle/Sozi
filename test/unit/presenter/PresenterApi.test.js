@@ -92,6 +92,7 @@ describe("PresenterApi", () => {
                 frameCount: 2,
                 viewport: VIEWPORT,
                 frame: FRAME,
+                frames: [FRAME],
                 blank: true
             })
         );
