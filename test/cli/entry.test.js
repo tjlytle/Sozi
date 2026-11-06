@@ -21,7 +21,9 @@ const FLAGS = {
     set: {title: "maybe-empty"}
 };
 
-const USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg>";
+const USAGE =
+    "sozi --cli <inspect|build|set|render|export> [options] <file.svg>; " +
+    "sozi --cli notes <export|import> <file.sozi.json> [file.md]";
 
 /**
  * The fields that every CLI result carries.
