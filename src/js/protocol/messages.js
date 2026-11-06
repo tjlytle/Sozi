@@ -297,8 +297,8 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
- * A missing `layouts` reads as none, so a newer surface can join an older deck, and a bad
- * preset is dropped, never the whole message.
+ * A missing `frames` or `layouts` reads as none, so a newer surface can join an older deck. A
+ * bad preset is dropped, never the whole message; a malformed `frames` refuses it.
  *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
