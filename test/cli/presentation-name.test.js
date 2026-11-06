@@ -103,7 +103,11 @@ describe("several presentations from one SVG", () => {
             assert.equal(readJson(b).svg, "basic.svg");
             assert.equal(readJson(b).frames.length, 2);
 
-            assert.match(fs.readFileSync(htmlOf(b).presenter, "utf8"), /src="talk-b\.sozi\.html"/);
+            // The presenter page names its deck on the workspace, which opens it in every preview.
+            assert.match(
+                fs.readFileSync(htmlOf(b).presenter, "utf8"),
+                /data-deck="talk-b\.sozi\.html"/
+            );
             assert.equal(fs.existsSync(path.join(deck.dir, "basic.sozi.html")), false);
             assert.equal(fs.existsSync(path.join(deck.dir, "basic-presenter.sozi.html")), false);
             // The default presentation is left alone.
@@ -133,7 +137,7 @@ describe("several presentations from one SVG", () => {
             assert.match(fs.readFileSync(htmlOf(spanish).html, "utf8"), /soziPresentationData/);
             assert.match(
                 fs.readFileSync(htmlOf(spanish).presenter, "utf8"),
-                /src="spanish\.sozi\.html"/
+                /data-deck="spanish\.sozi\.html"/
             );
             assert.equal(fs.existsSync(path.join(deck.dir, "basic.sozi.html")), false);
         } finally {
