@@ -180,8 +180,8 @@ function framePicker(element, presenter, src) {
  * @param {PresenterApi} presenter - The published API.
  * @param {DisplayMirror} mirror - What the display last reported.
  * @param {(message: Message) => void} send - Sends a message to the audience window.
- * @param {() => string} src - The deck's page, for the previews, as it is when a panel is
- *     drawn: the hosted shell learns it on load, and a restored panel is drawn again.
+ * @param {() => string} src - The deck's page, for the panels that load it, as it is when a
+ *     panel is drawn: the hosted shell learns it on load, and a restored panel is drawn again.
  * @returns {PanelDefinition[]} The panels.
  */
 function panelSpecs(presenter, mirror, send, src) {
