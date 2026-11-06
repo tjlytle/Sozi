@@ -9,6 +9,8 @@ import {Player} from "./player/Player";
 import {PlayerEvents} from "./player/playerEvents";
 import {PlayerController} from "./player/PlayerController";
 import {DisplayChannel} from "./player/DisplayChannel";
+import {DisplayApi} from "./player/DisplayApi";
+import {PairingOverlay} from "./player/PairingOverlay";
 import {ExportDriver} from "./player/ExportDriver";
 import {enterPreviewMode} from "./player/PreviewMode";
 import * as Media from "./player/Media";
@@ -18,8 +20,12 @@ import * as FrameURL from "./player/FrameURL";
 import * as TouchGestures from "./player/TouchGestures";
 import {LocalTransport} from "./protocol/LocalTransport";
 
-// Initialize the Sozi player when the document is loaded.
-window.addEventListener("load", () => {
+/** Initialize the Sozi player when the document is loaded.
+ *
+ * @param {DisplayApi} display - The API add-ons have been calling since the module loaded.
+ * @param {any} deck - What `window.sozi` reads the deck's objects from; filled here.
+ */
+function startPlayer(display, deck) {
     // Show the SVG before the viewport measures it; the same class hides the spinner.
     document.body.classList.add("sozi-player--ready");
 
@@ -52,23 +58,7 @@ window.addEventListener("load", () => {
 
     const exportDriver = new ExportDriver(player, presentation, viewport);
 
-    window.sozi = {
-        get presentation() {
-            return presentation;
-        },
-        get viewport() {
-            return viewport;
-        },
-        get player() {
-            return player;
-        },
-        get playerController() {
-            return playerController;
-        },
-        get exportDriver() {
-            return exportDriver;
-        }
-    };
+    Object.assign(deck, {presentation, viewport, player, playerController, exportDriver});
 
     player.on(PlayerEvents.stateChange, () => {
         if (player.playing) {
@@ -88,13 +78,50 @@ window.addEventListener("load", () => {
     // The presenter console that opened this window, the page this deck is framed in, or
     // this window itself: then the transport only hands on what the page posts to itself.
     const transport = new LocalTransport(window, window.opener || window.parent);
-    new DisplayChannel({
+    // Cast: src/templates/player.html holds the overlay's element.
+    const pairingElement = /** @type {HTMLElement} */ (document.querySelector(".sozi-pairing"));
+    const pairing = new PairingOverlay(pairingElement, window, display);
+    const channel = new DisplayChannel({
         player,
         controller: playerController,
         presentation,
         transport,
         host: window,
-        enterPreviewMode: (isCurrent, onFollowLink, onKey) =>
-            enterPreviewMode(player, presentation, isCurrent, onFollowLink, onKey)
-    }).start();
-});
+        enterPreviewMode: (isCurrent, onFollowLink, onKey) => {
+            // A preview hands its keys to the presenter: Q is not for it.
+            pairing.dispose();
+            enterPreviewMode(player, presentation, isCurrent, onFollowLink, onKey);
+        }
+    });
+    channel.start();
+    display.start(channel, pairing);
+}
+
+/** Publish `window.sozi` when the module loads. Custom scripts run before `load`, so
+ * `display` must be there at once; the deck's objects are filled on load.
+ */
+function publish() {
+    const display = new DisplayApi();
+    const deck = {};
+    window.sozi = {
+        display,
+        get presentation() {
+            return deck.presentation;
+        },
+        get viewport() {
+            return deck.viewport;
+        },
+        get player() {
+            return deck.player;
+        },
+        get playerController() {
+            return deck.playerController;
+        },
+        get exportDriver() {
+            return deck.exportDriver;
+        }
+    };
+    window.addEventListener("load", () => startPlayer(display, deck));
+}
+
+publish();
