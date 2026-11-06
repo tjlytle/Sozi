@@ -43,7 +43,12 @@ the message.
 | `frameCount` | integer ≥ 0                     | How many frames the deck has.                     |
 | `viewport`   | `{width, height, pixelRatio}` or null | The display's size; null while it is minimised. |
 | `frame`      | `{index, id, title, notes}`     | The current frame.                                |
+| `frames`     | array of `{index, id, title, notes}` | Every frame, in deck order.                  |
 | `blank`      | boolean                         | Is the blank screen shown?                        |
+
+`readMessage` refuses a `hello` whose `frames` is not a list or holds a malformed entry. A
+display from the release before this field sends none, which reads as an empty list; a
+surface then has the current frame only. `frameChange` is unchanged.
 
 A surface's `hello` carries `role` only. The display says `hello` when it has loaded, and
 answers every surface `hello` with a fresh one, so a surface that loads or reloads after the

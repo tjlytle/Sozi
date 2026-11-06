@@ -50,6 +50,12 @@ export class DisplayMirror extends EventEmitter {
          */
         this.frame = null;
 
+        /** Every frame in deck order, empty until the display says hello.
+         *
+         * @type {FrameInfo[]}
+         */
+        this.frames = [];
+
         /** Is the blank screen shown?
          *
          * @type {boolean}
@@ -77,10 +83,10 @@ export class DisplayMirror extends EventEmitter {
                 if (message.role !== Roles.display) {
                     return null;
                 }
-                const {frameCount, blank, viewport, frame} = message;
+                const {frameCount, blank, viewport, frame, frames} = message;
                 // A display without a size yet keeps the one it had.
                 const part = viewport ? {frameCount, blank, viewport} : {frameCount, blank};
-                return {...part, frame, index: frame.index};
+                return {...part, frame, frames, index: frame.index};
             },
             [MessageNames.frameChange]: ({index, id, title, notes}) => ({
                 frame: {index, id, title, notes},

@@ -47,6 +47,15 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  *   Turns the deck into a presenter preview that reports its link clicks and its keys.
  */
 
+/** A frame of the deck, as the protocol reports it.
+ *
+ * @param {any} frame - The frame.
+ * @returns {FrameInfo} What the protocol carries.
+ */
+function frameInfoOf({index, frameId, title, notes}) {
+    return {index, id: frameId, title, notes};
+}
+
 /** The display side of the presenter protocol (docs/presenter-protocol.md).
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
@@ -119,8 +128,7 @@ export class DisplayChannel extends EventEmitter {
      * @type {FrameInfo}
      */
     get frameInfo() {
-        const {index, frameId, title, notes} = this.player.currentFrame;
-        return {index, id: frameId, title, notes};
+        return frameInfoOf(this.player.currentFrame);
     }
 
     /** The display's `hello`, with its state as it is now.
@@ -134,6 +142,7 @@ export class DisplayChannel extends EventEmitter {
             frameCount: this.presentation.frames.length,
             viewport: readViewport(viewportMessage(this.host)),
             frame: this.frameInfo,
+            frames: this.presentation.frames.map(frameInfoOf),
             blank: this.player.blankScreenIsVisible
         });
     }
