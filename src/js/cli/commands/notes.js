@@ -18,6 +18,7 @@ import {
     parseSections,
     sectionHtml
 } from "../../notes/notesDocument";
+import {patchFrameNotes} from "../../notes/patchFrameNotes";
 
 /** The flags of this command (see {@link module:cli/args.GLOBAL_FLAGS}).
  *
@@ -41,14 +42,14 @@ export function checkFlags(_flags, [action, file, markdownFile]) {
 /** The frames of a parsed presentation file, with what the document needs filled in.
  *
  * @param {any} data - The parsed presentation file.
- * @returns {import("../../notes/notesDocument").NotesFrame[]} - The frames, as they are in `data`.
+ * @returns {import("../../notes/notesDocument").NotesFrame[]} - Copies, in the order of `data`.
  */
 function framesOf(data) {
-    for (const frame of data.frames) {
-        frame.title = frame.title || "";
-        frame.notes = frame.notes || "";
-    }
-    return data.frames;
+    return data.frames.map(frame => ({
+        ...frame,
+        title: frame.title || "",
+        notes: frame.notes || ""
+    }));
 }
 
 /** Export the notes of a presentation to a Markdown file, or into the result.
@@ -72,8 +73,9 @@ function exportNotes({cwd, positionals, presentation, document}) {
 
 /** Write the sections of a Markdown file back to the presentation file.
  *
- * The parsed file is patched and written back, not saved through the model, which drifts
- * camera coordinates (see the `build` command): only the notes of the frames changed differ.
+ * The file's text is patched, not saved through the model, which drifts camera coordinates
+ * (see the `build` command), nor written out of the parsed data, which loses its formatting:
+ * only the notes of the frames changed differ, byte for byte.
  * A section whose Markdown is what the frame's notes export to is left alone, since HTML to
  * Markdown to HTML is not the identity. Unmatched sections do not fail the import.
  *
@@ -89,22 +91,23 @@ function importNotes({cwd, positionals, presentation, document, warnings}) {
         return {ok: false, error: `file not found: ${file}`};
     }
     const text = fs.readFileSync(presentation, {encoding: "utf-8"});
-    const data = JSON.parse(text);
+    const allFrames = framesOf(JSON.parse(text));
     const sections = parseSections(fs.readFileSync(file, {encoding: "utf-8"}));
-    const {pairs, unmatchedHeadings, unmatchedFrames} = pairSections(sections, framesOf(data));
+    const {pairs, unmatchedHeadings, unmatchedFrames} = pairSections(sections, allFrames);
 
     const edited = pairs.filter(
         ({section, frame}) => section.body !== htmlToMarkdown(frame.notes, document).trim()
     );
-    for (const {section, frame} of edited) {
-        frame.notes = sectionHtml(section);
-    }
     if (edited.length) {
-        // Keep whatever followed the JSON in the file, usually a line end.
-        const tail = text.slice(text.trimEnd().length);
-        fs.writeFileSync(presentation, JSON.stringify(data, null, "  ") + tail, {
-            encoding: "utf-8"
-        });
+        const newNotes = edited.map(({section, frame}) => [
+            allFrames.indexOf(frame),
+            sectionHtml(section)
+        ]);
+        fs.writeFileSync(
+            presentation,
+            patchFrameNotes(text, new Map(/** @type {[number, string][]} */ (newNotes))),
+            {encoding: "utf-8"}
+        );
     }
 
     // Only a frame with notes is worth reporting: export gives an empty frame no section.
