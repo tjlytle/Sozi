@@ -39,6 +39,8 @@ import {pickPreset} from "./presets.js";
  * @property {MediaQueryList} media - Matches while the page is narrow.
  * @property {(text: string) => void} onNotice - Says something to the speaker.
  * @property {() => void} onSavePreset - Called when Save as preset is pressed.
+ * @property {typeof createDockview} [createDock] - What builds the dock; dockview unless a
+ *   test passes a fake, as dockview needs a real page.
  */
 
 /**
@@ -128,7 +130,10 @@ export class Workspace {
      * @param {WorkspaceOptions} options - Where the layouts are saved, the narrow query, and
      *   what the workspace tells its owner.
      */
-    constructor(element, {storage, keys, media, onNotice, onSavePreset}) {
+    constructor(
+        element,
+        {storage, keys, media, onNotice, onSavePreset, createDock = createDockview}
+    ) {
         this.element = element;
         this.storage = storage;
         this.keys = keys;
@@ -211,7 +216,7 @@ export class Workspace {
         root.className = "sozi-dock";
         element.append(this.rail.element, root);
 
-        this.dock = createDockview(root, {
+        this.dock = createDock(root, {
             theme: themeLight,
             defaultRenderer: "always",
             // Pointer events, not HTML5 drag and drop: a tab dragged over an iframe still docks.
@@ -295,8 +300,9 @@ export class Workspace {
         this.presets = presets;
         if (!this.offered) {
             this.offered = true;
+            // With nothing saved, the dock is still the default, or the stack on a narrow page.
             if (!this.savedLayout()) {
-                this.whileArranging(() => this.showPreset());
+                this.arrange(true);
             }
         }
     }
