@@ -109,6 +109,12 @@
                 border: none;
             }
 
+            .sozi-url-panel {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+
             /* Each preview is letterboxed in its box with the display's shape. */
             .sozi-preview-box {
                 display: flex;
@@ -171,6 +177,8 @@
                 text-align: center;
                 background: var(--sozi-notice-background);
             }
+
+            {{ customCSS }}
         </style>
     </head>
     <body>
@@ -178,5 +186,10 @@
         <main class="sozi-workspace" data-deck="{{ soziHtml }}"></main>
 {% endraw %}
         <script>{{'{% raw %}'}}{{ js|safe }}{{'{% endraw %}'}}</script>
+{% raw %}
+        <script>
+            {{ customJS|safe }}
+        </script>
+{% endraw %}
     </body>
 </html>

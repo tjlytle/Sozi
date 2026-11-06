@@ -225,8 +225,23 @@ export class Workspace {
         content.className = "sozi-panel";
         const cleanup = spec.render(content);
         this.panels.set(spec.id, {spec, content, cleanup});
+        this.dockPanel(spec);
+    }
+
+    /** Dock a panel at its default place, or in the active group when that cannot be: the
+     * stack is the only place while narrow, and its reference panel may be on the rail.
+     *
+     * @param {PanelSpec} spec - The panel.
+     */
+    dockPanel(spec) {
         const {position, inactive} = spec;
-        this.dock.addPanel({...panelOptions(spec), position, inactive});
+        const reference = position && position.referencePanel;
+        const placeable = !this.narrow && (!reference || this.dock.getPanel(reference));
+        this.dock.addPanel({
+            ...panelOptions(spec),
+            position: placeable ? position : undefined,
+            inactive
+        });
     }
 
     /** Size the default layout, remember it, bring back the saved one, and start saving. */
@@ -334,6 +349,12 @@ export class Workspace {
             const panel = this.dock.getPanel(id);
             if (panel) {
                 this.dock.removePanel(panel);
+            }
+        }
+        // A panel registered after this layout was made is not in it, and dockview dropped it.
+        for (const {spec} of this.panels.values()) {
+            if (!this.dock.getPanel(spec.id) && !this.railEntries.some(e => e.id === spec.id)) {
+                this.dockPanel(spec);
             }
         }
     }
