@@ -19,7 +19,7 @@ Feature: The presenter arranges a workspace of panels
 
   @issue-26
   Scenario: The presenter opens on the default workspace
-    Then the workspace shows the panels "Current, Previous, Next, Notes, Controls, Connection"
+    Then the workspace shows the panels "Current, Previous, Next, Notes, Frames, Controls, Connection"
     And the "Connection" panel reads "Connected"
     And a screenshot "presenter-workspace-default" is saved
 
@@ -46,7 +46,7 @@ Feature: The presenter arranges a workspace of panels
     When the "Current" panel is maximised
     Then the "Current" panel fills the workspace
     When the "Current" panel is maximised
-    Then the workspace shows the panels "Current, Previous, Next, Notes, Controls, Connection"
+    Then the workspace shows the panels "Current, Previous, Next, Notes, Frames, Controls, Connection"
 
   @issue-26
   Scenario: Reset brings back the default layout
@@ -68,12 +68,12 @@ Feature: The presenter arranges a workspace of panels
   Scenario: A saved layout that cannot be read gives the default layout
     Given the saved layout for the deck is "{not json"
     When the presenter page is reloaded
-    Then the workspace shows the panels "Current, Previous, Next, Notes, Controls, Connection"
+    Then the workspace shows the panels "Current, Previous, Next, Notes, Frames, Controls, Connection"
 
   @issue-26
   Scenario: On a phone-width page the panels are tabs that keep their state
     When the presenter page is resized to 390 by 844
-    Then the panels are tabs "Current, Previous, Next, Notes, Controls, Connection"
+    Then the panels are tabs "Current, Previous, Next, Notes, Frames, Controls, Connection"
     When the "Controls" tab is chosen
     And the next button is pressed
     And the "Notes" tab is chosen

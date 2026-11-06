@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {setTimeout as sleep} from "node:timers/promises";
 import {expect} from "playwright/test";
-import {buildDeck, builtDeck} from "../support/world.js";
+import {buildDeck, builtDeck, copyDeck} from "../support/world.js";
 import {installFakeTransport} from "./addons.steps.js";
 import {scriptsAndHandlers} from "./notes.steps.js";
 import {LAYOUT_KEY, WAIT, tabOf} from "./workspace.steps.js";
@@ -58,6 +58,9 @@ const TOLERANCE = 2;
 // One turn of the wheel, and how many it may take to reach the end of a 100-frame grid.
 const WHEEL_PIXELS = 300;
 const WHEEL_TURNS = 300;
+
+// The basic deck's layer that lies over the other one.
+const SECOND_LAYER = "layer2";
 
 // The class of the three preview iframes, which were there before the picker.
 const PREVIEW = /sozi-(current|previous|next)-frame/;
@@ -317,7 +320,18 @@ Then("every tile in the picker has a thumbnail", async function () {
     await expect.poll(() => tilesWithoutThumbnail(page), THUMBNAILS_WAIT).toBe(0);
 });
 
-Then("the thumbnails of {string} and {string} differ", async function (first, second) {
+Then("the thumbnails of {string} and {string} differ", CLI_STEP, async function (first, second) {
+    // The basic deck's two frames look alike, and its golden images rely on that. So the scenario
+    // goes on with a copy whose second frame hides a layer, and shows two frames that differ.
+    const copy = copyDeck("basic");
+    const data = JSON.parse(fs.readFileSync(copy.json, "utf8"));
+    data.frames[1].cameraStates[SECOND_LAYER].opacity = 0;
+    fs.writeFileSync(copy.json, JSON.stringify(data));
+    await this.openBuiltPresenter(buildDeck(copy));
+    await this.presenterIsReady();
+    await showPicker(this.presenter);
+    await expect(this.presenter.locator(TILE).first()).toBeAttached(WAIT);
+    await expect.poll(() => tilesWithoutThumbnail(this.presenter), THUMBNAILS_WAIT).toBe(0);
     const source = title => tileOf(this.presenter, title).locator("img").getAttribute("src", WAIT);
     assert.notEqual(await source(first), await source(second));
 });

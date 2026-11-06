@@ -23,6 +23,7 @@
                 --sozi-button-background: rgb(255, 255, 255);
                 --sozi-button-border: rgb(170, 170, 180);
                 --sozi-notice-background: rgb(255, 236, 179);
+                --sozi-accent: rgb(25, 118, 210);
             }
 
             html, body {
@@ -212,6 +213,132 @@
             .sozi-connection {
                 margin: 0;
                 padding: var(--sozi-space) calc(2 * var(--sozi-space));
+            }
+
+            /* The filter over the grid, which scrolls by itself. */
+            .sozi-frame-picker {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                background: var(--sozi-surface);
+            }
+
+            .sozi-frame-picker__filter {
+                flex: none;
+                margin: var(--sozi-space);
+                padding: var(--sozi-space);
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                font: inherit;
+            }
+
+            /* The notes share the grid's cell, so that showing them moves no tile under the
+               pointer, and take no pointer themselves. */
+            .sozi-frame-picker__body {
+                display: grid;
+                flex: auto;
+                grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+                min-height: 0;
+            }
+
+            .sozi-frame-picker__body > * {
+                grid-area: 1 / 1;
+            }
+
+            /* One rule for a docked panel and a phone. Long decks stay cheap: a tile off screen
+               is not drawn. */
+            .sozi-frame-picker__grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+                align-content: start;
+                gap: var(--sozi-space);
+                overflow-y: auto;
+                padding: 0 var(--sozi-space) var(--sozi-space);
+            }
+
+            .sozi-frame-picker__tile {
+                display: flex;
+                flex-direction: column;
+                gap: calc(var(--sozi-space) / 2);
+                padding: calc(var(--sozi-space) / 2);
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                background: var(--sozi-button-background);
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+                user-select: none;
+                content-visibility: auto;
+                contain-intrinsic-size: auto 9rem;
+            }
+
+            .sozi-frame-picker__tile[hidden] {
+                display: none;
+            }
+
+            .sozi-frame-picker__tile[aria-current] {
+                border-color: var(--sozi-accent);
+                outline: 2px solid var(--sozi-accent);
+            }
+
+            .sozi-frame-picker__thumbnail {
+                display: block;
+                aspect-ratio: var(--sozi-display-aspect);
+                background: var(--sozi-rail-background);
+            }
+
+            .sozi-frame-picker__thumbnail img {
+                display: block;
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+            }
+
+            .sozi-frame-picker__caption {
+                display: flex;
+                gap: var(--sozi-space);
+                min-width: 0;
+            }
+
+            .sozi-frame-picker__number {
+                flex: none;
+                font-weight: bold;
+            }
+
+            .sozi-frame-picker__title {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .sozi-frame-picker__empty {
+                margin: var(--sozi-space);
+            }
+
+            .sozi-frame-picker__empty:empty {
+                display: none;
+            }
+
+            .sozi-frame-picker__notes.markdown-body {
+                align-self: end;
+                max-height: 40%;
+                overflow: hidden;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+                border-top: 1px solid var(--sozi-button-border);
+                pointer-events: none;
+            }
+
+            .sozi-frame-picker__notes[hidden] {
+                display: none;
+            }
+
+            /* Rendering thumbnails, with a size of its own but off the page. */
+            .sozi-thumbnail-deck {
+                position: fixed;
+                top: 0;
+                left: -200vw;
+                visibility: hidden;
             }
 
             /* The stack of tabs has no rail and no header buttons; a dock on a phone keeps them. */
