@@ -26,7 +26,8 @@ export const DisplayMirrorEvents = Object.freeze({change: "change"});
 /** What the display last reported, for every panel of the presenter to read.
  *
  * The presenter holds no frame state of its own: a panel in a tab, on the rail or in the
- * narrow stack reads this one object and listens for its changes.
+ * narrow stack reads this one object and listens for its changes. The timer is the one thing
+ * it works out for itself: it counts on from the display's last report, by this device's clock.
  *
  * @extends EventEmitter
  */
@@ -191,7 +192,8 @@ export class DisplayMirror extends EventEmitter {
         }
     }
 
-    /** Take the status of the transport to the display.
+    /** Take the status of the transport to the display, and note when the display was lost,
+     * as the timer stops counting there.
      *
      * @param {string} status - One of `TransportStatus`.
      *
