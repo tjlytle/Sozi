@@ -312,6 +312,29 @@ Then("the presentation JSON file on disk contains {string}", async function (tex
         .toBe(true);
 });
 
+// Custom files (#27): a row of table.sozi-properties__custom-css-js in src/js/view/Properties.js
+// holds a file's name and the select of its target. The file on disk has either the plain
+// string of a display file or an object with its path and target.
+
+When("the target of custom file {string} is set to {string}", async function (file, target) {
+    await this.window
+        .locator("table.sozi-properties__custom-css-js tr", {hasText: file})
+        .locator("select")
+        .selectOption(target, {timeout: 5000});
+});
+
+Then(
+    "the presentation file on disk lists {string} with target {string}",
+    async function (file, target) {
+        const json = this.editor.deck.json;
+        await expect
+            .poll(() => readPresentation(json)?.customFiles?.find(f => f.path === file)?.target, {
+                timeout: 5000
+            })
+            .toBe(target);
+    }
+);
+
 When("the layer {string} is hidden in the timeline", async function (label) {
     await layerEye(this.window, label, "fa-eye").click();
 });

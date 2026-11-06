@@ -20,6 +20,9 @@ const WORKSPACE = ".sozi-workspace";
 const RAIL = ".sozi-rail";
 const CONNECTION = ".sozi-connection";
 
+// The page the url panel of test/fixtures/addons points at.
+const URL_PANEL_PAGE = "page.html";
+
 // The prefix of the localStorage key of a deck's layout; the page's path completes it.
 const LAYOUT_KEY = "sozi-presenter-layout:";
 
@@ -81,6 +84,20 @@ function titlesIn(list) {
         .split(",")
         .map(title => title.trim())
         .sort();
+}
+
+/** What a panel drew.
+ *
+ * With `renderer: "always"` dockview keeps a panel's content in an overlay, away from its
+ * tab, so a tab does not lead to its content: the Connection panel is found by its own
+ * class, an add-on's by the attribute the test/fixtures/addons panels draw.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @returns {import("playwright").Locator} - The content.
+ */
+function contentOf(page, title) {
+    return page.locator(title === "Connection" ? CONNECTION : `[data-addon-panel="${title}"]`);
 }
 
 /** The layout saved for the deck.
@@ -254,6 +271,12 @@ When("the {string} tab is chosen", async function (title) {
     await tabOf(this.presenter, title).click(WAIT);
 });
 
+When("the {string} button in the {string} panel is pressed", async function (name, title) {
+    // Dockview hides a tab that is behind another one, its buttons with it.
+    await tabOf(this.presenter, title).click(WAIT);
+    await contentOf(this.presenter, title).getByRole("button", {name}).click(WAIT);
+});
+
 When("the audience window is closed", async function () {
     await this.audience.close();
 });
@@ -272,7 +295,13 @@ Then("the workspace does not show a panel {string}", async function (title) {
 
 Then("the {string} panel reads {string}", async function (title, text) {
     await expect(tabOf(this.presenter, title)).toBeVisible();
-    await expect(this.presenter.locator(CONNECTION)).toHaveText(text);
+    await expect(contentOf(this.presenter, title)).toContainText(text);
+});
+
+Then("the {string} panel's page reads {string}", async function (title, text) {
+    await expect(tabOf(this.presenter, title)).toBeVisible();
+    const body = this.presenter.frameLocator(`iframe[src$="${URL_PANEL_PAGE}"]`).locator("body");
+    await expect(body).toContainText(text);
 });
 
 Then("the {string} panel is to the left of {string}", async function (title, other) {
