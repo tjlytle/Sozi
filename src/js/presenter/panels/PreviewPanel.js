@@ -27,7 +27,7 @@ import {
  * @typedef {object} PreviewOptions
  * @property {number} offset - The frame it shows, relative to the current one.
  * @property {string} className - The class of its iframe.
- * @property {string} src - The deck's page.
+ * @property {string} src - The deck's page, empty when there is none to show.
  */
 
 /** A preview panel: the deck in an iframe, kept on a frame relative to the display's.
@@ -70,7 +70,10 @@ export class PreviewPanel {
         this.iframe.title = className;
         this.onLoad = () => this.connect();
         this.iframe.addEventListener("load", this.onLoad, false);
-        this.iframe.src = src;
+        // A hosted shell with no deck to show leaves its previews empty.
+        if (src) {
+            this.iframe.src = src;
+        }
         box.append(this.iframe);
         element.append(box);
 

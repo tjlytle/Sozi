@@ -40,7 +40,7 @@ export const WAIT = {timeout: 5000};
  * @param {string} title - The panel's title.
  * @returns {import("playwright").Locator} - The tab with exactly this title.
  */
-function tabOf(page, title) {
+export function tabOf(page, title) {
     return page.locator(TAB).filter({hasText: new RegExp(`^\\s*${title}\\s*$`)});
 }
 
