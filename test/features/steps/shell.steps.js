@@ -12,6 +12,8 @@ import path from "node:path";
 import {expect} from "playwright/test";
 import {tabOf, WAIT} from "./workspace.steps.js";
 
+/** @typedef {import("../support/world.js").SoziWorld} SoziWorld */
+
 const ROOT = path.resolve(import.meta.dirname, "..", "..", "..");
 // What `npx gulp` writes.
 const BUILT_SHELL = path.join(ROOT, "build", "shell");
@@ -43,7 +45,7 @@ function pairingHash(deck, session) {
  * Devices share the context, because a BroadcastChannel reaches no further. The first page
  * is the scenario's presenter page, the one a screenshot shows.
  *
- * @param {import("../support/world.js").SoziWorld} world - The scenario.
+ * @param {SoziWorld} world - The scenario.
  * @param {string} device - A name in DEVICES.
  * @param {string} hash - The fragment of the address.
  * @returns {Promise<void>} - Resolves when the page has loaded.
@@ -92,7 +94,8 @@ Given("the deck page is open on the fake relay session {string}", async function
 Given(
     "the shell has been opened once with the pairing link for session {string}",
     async function (session) {
-        await openShell(this, "laptop", pairingHash(this.served.html, session));
+        const world = /** @type {SoziWorld} */ (this);
+        await openShell(world, "laptop", pairingHash(this.served.html, session));
         // Installed: the worker has its files, so that the next load needs no network.
         await expect
             .poll(
@@ -110,16 +113,17 @@ Given(
 When(
     "the shell is opened on a {word} with the pairing link for session {string}",
     async function (device, session) {
-        await openShell(this, device, pairingHash(this.served.html, session));
+        const world = /** @type {SoziWorld} */ (this);
+        await openShell(world, device, pairingHash(this.served.html, session));
     }
 );
 
 When("the shell is opened without a pairing link", async function () {
-    await openShell(this, "laptop", "");
+    await openShell(/** @type {SoziWorld} */ (this), "laptop", "");
 });
 
 When("the shell is opened with a pairing link whose deck is {string}", async function (deck) {
-    await openShell(this, "laptop", pairingHash(deck, "s1"));
+    await openShell(/** @type {SoziWorld} */ (this), "laptop", pairingHash(deck, "s1"));
 });
 
 When("the browser goes offline", async function () {
