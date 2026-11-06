@@ -17,17 +17,19 @@ const SASH = ".dv-sash";
 
 // What the workspace draws around dockview.
 const WORKSPACE = ".sozi-workspace";
-const RAIL = ".sozi-rail";
+export const RAIL = ".sozi-rail";
+const RAIL_PANELS = ".sozi-rail__panels";
 const CONNECTION = ".sozi-connection";
 
-// The prefix of the localStorage key of a deck's layout; the page's path completes it.
+// The prefix of the localStorage key of a deck's layout; the page's path completes it. A deck
+// may have more than one, one per width, each with this prefix and the path in its key.
 const LAYOUT_KEY = "sozi-presenter-layout:";
 
 // How far a width or an edge may be from the expected one, in pixels.
 const TOLERANCE = 2;
 
 // A panel that is not there fails its step with this wait, not with the step's timeout.
-const WAIT = {timeout: 5000};
+export const WAIT = {timeout: 5000};
 
 /** The tab of a panel.
  *
@@ -83,13 +85,18 @@ function titlesIn(list) {
         .sort();
 }
 
-/** The layout saved for the deck.
+/** Every layout saved for the deck, whichever width it was saved at.
  *
  * @param {import("playwright").Page} page - The presenter page.
- * @returns {Promise<?string>} - The stored text, or null when there is none.
+ * @returns {Promise<?string>} - The stored texts as one string, or null when there is none.
  */
-function savedLayout(page) {
-    return page.evaluate(prefix => localStorage.getItem(prefix + location.pathname), LAYOUT_KEY);
+export function savedLayout(page) {
+    return page.evaluate(prefix => {
+        const keys = Object.keys(localStorage)
+            .filter(key => key.startsWith(prefix) && key.includes(location.pathname))
+            .sort();
+        return keys.length ? keys.map(key => localStorage.getItem(key)).join("\n") : null;
+    }, LAYOUT_KEY);
 }
 
 /** Do something that changes the layout, and wait until the change is saved.
@@ -278,9 +285,21 @@ Then("the {string} panel reads {string}", async function (title, text) {
 Then("the {string} panel is to the left of {string}", async function (title, other) {
     await expect
         .poll(async () => {
-            const box = await groupBox(this.presenter, title);
-            const otherBox = await groupBox(this.presenter, other);
-            return box.x + box.width - otherBox.x;
+            const box = await groupOf(this.presenter, title).boundingBox(WAIT);
+            const otherBox = await groupOf(this.presenter, other).boundingBox(WAIT);
+            // A dock that is being rebuilt has no box for a moment: look again.
+            return box && otherBox ? box.x + box.width - otherBox.x : Infinity;
+        })
+        .toBeLessThanOrEqual(TOLERANCE);
+});
+
+Then("the {string} panel is above {string}", async function (title, other) {
+    await expect
+        .poll(async () => {
+            const box = await groupOf(this.presenter, title).boundingBox(WAIT);
+            const otherBox = await groupOf(this.presenter, other).boundingBox(WAIT);
+            // A dock that is being rebuilt has no box for a moment: look again.
+            return box && otherBox ? box.y + box.height - otherBox.y : Infinity;
         })
         .toBeLessThanOrEqual(TOLERANCE);
 });
@@ -301,16 +320,18 @@ Then("the {string} panel fills the workspace", async function (title) {
     await expect.poll(() => visibleTabTitles(this.presenter)).toEqual([title]);
 });
 
-Then("the rail shows {string}", async function (title) {
+Then("the rail shows {string}", async function (list) {
     const rail = this.presenter.locator(RAIL);
-    await expect(rail.getByRole("button", {name: title, exact: true})).toBeVisible();
+    for (const title of titlesIn(list)) {
+        await expect(rail.getByRole("button", {name: title, exact: true})).toBeVisible();
+    }
 });
 
 Then("the rail is empty", async function () {
-    // Reset layout is the one button that stays.
+    // Reset layout stays, and it is not a panel; neither are the rail's other tools.
     const rail = this.presenter.locator(RAIL);
     await expect(rail.getByRole("button", {name: "Reset layout"})).toBeVisible();
-    await expect(rail.getByRole("button")).toHaveCount(1);
+    await expect(rail.locator(RAIL_PANELS).getByRole("button")).toHaveCount(0);
 });
 
 Then("the panels are tabs {string}", async function (list) {

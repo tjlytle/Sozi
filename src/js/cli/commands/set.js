@@ -11,6 +11,7 @@
  */
 
 import {resolveOutputDir} from "../output";
+import {isPresetName, readPreset} from "../../protocol/layoutPresets";
 
 /** Convert the value of `--out-dir` to the `outputDir` key of a presentation file.
  *
@@ -48,13 +49,92 @@ function checkOutputDir(value, context) {
     return value ? resolveOutputDir({...context, flags: {"out-dir": value}}).error : null;
 }
 
+/** Split the value of `--layout`, at the first `=`.
+ *
+ * @param {string} flag - The flag value: `NAME=FILE`, or `NAME=` to remove the preset.
+ * @returns {?{name: string, file: string}} - The two parts, or `null` without a `=`.
+ */
+function splitLayoutFlag(flag) {
+    const at = flag.indexOf("=");
+    return at < 0 ? null : {name: flag.slice(0, at), file: flag.slice(at + 1)};
+}
+
+/** Read the file that `--layout` names.
+ *
+ * @param {string} file - The file, relative to the working directory.
+ * @param {string} cwd - The working directory.
+ * @returns {{preset: ?object, error: ?string}} - The preset, or why it cannot be read.
+ */
+function readPresetFile(file, cwd) {
+    const fs = require("fs");
+    const path = require("path");
+
+    let text;
+    try {
+        text = fs.readFileSync(path.resolve(cwd, file), {encoding: "utf-8"});
+    } catch (err) {
+        return {preset: null, error: `cannot read layout preset file ${file}: ${err}`};
+    }
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (err) {
+        return {preset: null, error: `layout preset file ${file} is not JSON: ${err}`};
+    }
+    const preset = readPreset(data);
+    return preset
+        ? {preset, error: null}
+        : {preset: null, error: `layout preset file ${file} does not hold a match and a layout`};
+}
+
+/** Check the value of `--layout`.
+ *
+ * @param {string} value - The flag value.
+ * @param {object} context - The command context.
+ * @param {string} context.cwd - The working directory.
+ * @returns {?string} - An error message, or `null`.
+ */
+function checkLayout(value, {cwd}) {
+    const parts = splitLayoutFlag(value);
+    if (!parts) {
+        return `--layout needs NAME=FILE, or NAME= to remove a preset: ${value}`;
+    }
+    if (!isPresetName(parts.name)) {
+        return `invalid preset name "${parts.name}": it starts with a letter and holds only letters, digits, - and _`;
+    }
+    return parts.file ? readPresetFile(parts.file, cwd).error : null;
+}
+
+/** Convert the value of `--layout` to the presets of the presentation.
+ *
+ * A new preset goes last; one that exists keeps its place, which decides the first match.
+ *
+ * @param {string} value - The flag value, already checked.
+ * @param {object} context - The command context.
+ * @param {string} context.cwd - The working directory.
+ * @param {module:Controller.Controller} context.controller - The controller.
+ * @returns {object} - The presets; the same object when nothing changes.
+ */
+function layoutsWith(value, {cwd, controller}) {
+    const layouts = controller.presentation.presenterLayouts;
+    const {name, file} = /** @type {{name: string, file: string}} */ (splitLayoutFlag(value));
+    if (!file) {
+        const {[name]: removed, ...others} = layouts;
+        return removed ? others : layouts;
+    }
+    const {preset} = readPresetFile(file, cwd);
+    const same = JSON.stringify(layouts[name]) === JSON.stringify(preset);
+    return same ? layouts : {...layouts, [name]: preset};
+}
+
 /** The options of this command, with the presentation property each one sets.
  *
  * `kind` is the entry of the option in the flag table
  * (see {@link module:cli/args.GLOBAL_FLAGS}).
  * `value(flag, context)`, if any, converts the trimmed flag value to the property value;
  * `check(flag, context)`, if any, returns a usage error for the flag value, or `null`.
- * `build: false` marks an option that `build` uses for one run without storing it.
+ * `build: false` marks an option that `build` does not store: it uses `--out-dir` for one run,
+ * and does not take `--layout`.
  *
  * @type {{[option: string]: {property: string, kind: (boolean|string), value?: Function, check?: Function, build?: boolean}}}
  */
@@ -65,6 +145,13 @@ export const OPTIONS = {
         kind: "maybe-empty",
         value: outputDirKey,
         check: checkOutputDir,
+        build: false
+    },
+    layout: {
+        property: "presenterLayouts",
+        kind: true,
+        value: layoutsWith,
+        check: checkLayout,
         build: false
     }
 };
