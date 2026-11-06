@@ -17,7 +17,15 @@ import {
     deckIdOf
 } from "../../../src/js/protocol/messages.js";
 import {viewportMessage} from "../../../src/js/protocol/viewport.js";
+import {
+    STOPPED_TIMER,
+    TimerActions,
+    timerActionMessage,
+    timerMessage,
+    timerTargetMessage
+} from "../../../src/js/protocol/timer.js";
 
+const timer = {elapsedMs: 1500, running: true, targetMs: 60000};
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
 const frames = [{index: 0, id: "frame1", title: "One", notes: ""}, frame];
@@ -34,7 +42,8 @@ const displayState = {
     frame,
     frames,
     blank: false,
-    layouts
+    layouts,
+    timer
 };
 const noModifiers = {shift: false, alt: false, ctrl: false, meta: false};
 
@@ -61,7 +70,11 @@ function everyMessage() {
         followLinkMessage("link1"),
         keyMessage(" ", noModifiers),
         keyMessage("End", {shift: true, alt: true, ctrl: true, meta: true}),
-        viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2})
+        viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2}),
+        timerMessage(timer),
+        timerActionMessage(TimerActions.reset),
+        timerTargetMessage(60000),
+        timerTargetMessage(null)
     ];
 }
 
@@ -157,6 +170,34 @@ describe("protocol messages", () => {
         assert.deepEqual(read.layouts, layouts);
         const worse = {...hello, layouts: "none"};
         assert.deepEqual(/** @type {any} */ (readMessage(worse)).layouts, {});
+    });
+
+    test("a display's hello keeps the timer and drops its other fields", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        const read = readMessage({...hello, timer: {...timer, extra: 1}});
+        assert.deepEqual(/** @type {any} */ (read).timer, timer);
+    });
+
+    test("a hello from a deck from before the timer reads as a stopped timer", () => {
+        const older = {...helloMessage(Roles.display, displayState), timer: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).timer, STOPPED_TIMER);
+    });
+
+    test("a hello with a malformed timer is refused", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        for (const bad of [null, "running", {...timer, elapsedMs: -1}, {...timer, targetMs: 0}]) {
+            assert.equal(readMessage({...hello, timer: bad}), null, JSON.stringify(bad));
+        }
+    });
+
+    test("the timer's messages are refused when a field is malformed", () => {
+        for (const bad of [
+            {name: "timer", ...timer, running: "yes"},
+            {name: "timerAction", action: "stop"},
+            {name: "timerTarget", targetMs: 0}
+        ]) {
+            assert.equal(readMessage(bad), null, bad.name);
+        }
     });
 
     test("a surface's hello carries no presets", () => {

@@ -15,6 +15,13 @@ import {
     nextMessage,
     previousMessage
 } from "../../../src/js/protocol/messages.js";
+import {
+    STOPPED_TIMER,
+    TimerActions,
+    timerActionMessage,
+    timerMessage,
+    timerTargetMessage
+} from "../../../src/js/protocol/timer.js";
 
 const FRAME = {index: 1, id: "f2", title: "Two", notes: "second"};
 const VIEWPORT = {width: 800, height: 600, pixelRatio: 2};
@@ -87,7 +94,8 @@ describe("PresenterApi", () => {
             version: "",
             viewport: null,
             blank: false,
-            status: TransportStatus.connected
+            status: TransportStatus.connected,
+            timer: STOPPED_TIMER
         });
         transport.deliver(
             helloMessage(Roles.display, {
@@ -108,12 +116,43 @@ describe("PresenterApi", () => {
             version: "v1",
             viewport: VIEWPORT,
             blank: true,
-            status: TransportStatus.connected
+            status: TransportStatus.connected,
+            timer: STOPPED_TIMER
         });
         const other = fakeTransport();
         api.registerTransport(other);
         other.deliver(blankMessage(false));
         assert.equal(api.state.blank, false);
+    });
+
+    test("state.timer reads the time counted so far", () => {
+        const clock = {time: 0};
+        const mirror = new DisplayMirror(() => clock.time);
+        const api = new PresenterApi({mirror, transports: new TransportSet()});
+        mirror.apply(timerMessage({elapsedMs: 1000, running: true, targetMs: 60000}));
+        clock.time = 500;
+        assert.deepEqual(api.state.timer, {elapsedMs: 1500, running: true, targetMs: 60000});
+    });
+
+    test("a change of the timer is an event, with what the display reported", () => {
+        const {api, transport} = mountedApi();
+        const heard = [];
+        api.on(PresenterEvents.timer, timer => heard.push(timer));
+        const timer = {elapsedMs: 1000, running: true, targetMs: null};
+        transport.deliver(timerMessage(timer));
+        assert.deepEqual(heard, [timer]);
+    });
+
+    test("an add-on drives the timer the way the panel does", () => {
+        const {api, transport} = mountedApi();
+        api.display.timerAction(TimerActions.pause);
+        api.display.setTimerTarget(60000);
+        api.display.setTimerTarget(null);
+        assert.deepEqual(transport.sent, [
+            timerActionMessage(TimerActions.pause),
+            timerTargetMessage(60000),
+            timerTargetMessage(null)
+        ]);
     });
 
     test("frame changes, sizes and status are events, and every message is one too", () => {
