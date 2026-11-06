@@ -195,6 +195,7 @@ waits for it, in the order it came.
 | `display.jumpToFrame(index, transition = true)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport. |
 | `display.send(name, payload)`                     | A `custom` message, to the primary transport.    |
 | `registerTransport(transport)`                    | Adds a transport, after the audience window's, and says `hello` on it. |
+| `link`                                            | The [pairing link](#hosted-shell), frozen, read at `load`; `null` on the page next to a deck and in a shell with no good link. |
 
 A bad panel throws a `TypeError` naming the field; so does an id already taken. The built-in
 panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `frames`, `connection`,
@@ -228,6 +229,46 @@ work.
 
 `window.sozi.presentation`, `viewport`, `player` and `playerController` are undefined until
 `load`.
+
+## Hosted shell
+
+`npx gulp` also writes `build/shell/`: the presenter page as static files, with a manifest and
+a service worker, so that it can be installed. Every URL in it is relative, so any static host
+can serve it under any path. It is the same page as `deck-presenter.sozi.html`, with one
+difference: it opens no audience window. Its links to the display come from add-ons.
+
+A person joins a talk with a pairing link:
+
+```
+<shell>/#deck=<published .sozi.html URL>&session=<id>[&<name>=<value>…]
+```
+
+Each value is URL-encoded. The link is in the fragment because a fragment never reaches the
+host's logs, and a field may carry a key. A new fragment reloads the page.
+
+| Field       | What it is                                                                 |
+| ----------- | -------------------------------------------------------------------------- |
+| `deck`      | The published deck, for the previews. It must be an `http:` or `https:` URL. |
+| `session`   | The session the transport joins.                                           |
+| Any other   | Kept for the add-on, in `presenter.link.params`.                           |
+
+Add-ons read it as `window.sozi.presenter.link`: `{deck, session, params}`. It is set when the
+page's `load` starts, so read it in a `load` listener: `addons.js` runs before `load`, and the
+page's listener comes first. It stays `null` with no link, or a link with no `session` or a
+`deck` that is refused, and the page then says so in its notice. The shell also says "Not
+connected" until a transport reports `connected`, and again whenever none does.
+
+A host gives the shell its transport by replacing the empty `addons.js` with its own script,
+which calls `presenter.registerTransport`. Transports come only from there, never from the
+deck: a deck's presenter scripts do not run in the shell, as a link could otherwise run code
+next to the stored layouts and logins. The previews load the deck in iframes, so a deck on
+another origin works.
+
+The service worker keeps the shell's files in a cache named after the Sozi version, serves them
+from it first, and leaves every other request to the network. It does not cache the deck, so
+opened offline the shell shows empty previews until the browser is back online. The worker
+keeps serving the `addons.js` it installed with: a host that changes the file later must also
+change `sw.js`, by any byte, so that browsers install it again.
 
 ## Legacy names
 

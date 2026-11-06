@@ -230,6 +230,21 @@ describe("PresenterApi", () => {
         assert.throws(() => api.registerPanel(panel), {name: "TypeError", message: /"a"/});
     });
 
+    test("link is null on the local page", () => {
+        assert.equal(mountedApi().api.link, null);
+    });
+
+    test("link is frozen once set, and can be set only once", () => {
+        const {api} = mountedApi();
+        api.link = {deck: "https://a.example/d.sozi.html", session: "s1", params: {key: "k"}};
+        assert.equal(api.link.session, "s1");
+        assert.equal(api.link.params.key, "k");
+        assert.throws(() => (api.link.session = "s2"), TypeError);
+        assert.throws(() => (api.link.params.key = "other"), TypeError);
+        assert.throws(() => (api.link = {deck: "", session: "", params: {}}), TypeError);
+        assert.equal(api.link.session, "s1");
+    });
+
     test("dispose removes every listener it added", () => {
         const {api, mirror, transports, transport} = mountedApi();
         api.on(PresenterEvents.message, () => assert.fail("heard after dispose"));

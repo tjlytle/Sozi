@@ -254,22 +254,28 @@ function browserEditorBrowserifyTask() {
         .pipe(dest("build/browser/src/js/"));
 }
 
+/**
+ * What a page's template inlines in the first of its two renderings.
+ *
+ * @param {string} jsPath - The page's bundled script.
+ * @returns {object} The template's variables.
+ */
+function templateFiles(jsPath) {
+    return {
+        js: fs.readFileSync(jsPath),
+        // The presenter's notes styles are inlined: nothing comes from a CDN (standard 4).
+        markdownCss: fs.readFileSync("node_modules/github-markdown-css/github-markdown-light.css"),
+        highlightCss: fs.readFileSync("node_modules/highlight.js/styles/github.min.css")
+    };
+}
+
 function makeTemplateTask(target, tpl) {
     const jsPath   = `build/tmp/${tpl}.js`;
     const destPath = `build/${target}/src/templates/`;
     return function templateTask() {
         return src(`src/templates/${tpl}.html`)
             .pipe(newer({dest: destPath, extra: jsPath}))
-            .pipe(
-                nunjucks.compile({
-                    js: fs.readFileSync(jsPath),
-                    // The presenter's notes styles are inlined: nothing comes from a CDN (standard 4).
-                    markdownCss: fs.readFileSync(
-                        "node_modules/github-markdown-css/github-markdown-light.css"
-                    ),
-                    highlightCss: fs.readFileSync("node_modules/highlight.js/styles/github.min.css")
-                })
-            )
+            .pipe(nunjucks.compile(templateFiles(jsPath)))
             .pipe(dest(destPath));
     };
 }
@@ -339,9 +345,51 @@ const browserBuildTask =
         )
     );
 
+/* -------------------------------------------------------------------------- *
+ * The hosted presenter shell: static files that any host can serve, at any path.
+ * -------------------------------------------------------------------------- */
+
+const {Environment} = require("nunjucks");
+
+const shellDir = "build/shell";
+
+// Every file the service worker keeps, relative to it. "./" is what a link to the shell asks for.
+const shellFiles = [
+    "./",
+    "index.html",
+    "manifest.webmanifest",
+    "addons.js",
+    "icons/192x192.png",
+    "icons/512x512.png"
+];
+
+/**
+ * Write the shell's files. It needs build/tmp/presenter.js: the default task builds it first.
+ *
+ * @returns {Promise<void>} Resolves when they are written.
+ */
+async function shellBuildTask() {
+    const engine = new Environment(null, {autoescape: false});
+    const template = fs.readFileSync("src/templates/presenter.html", "utf8");
+    // The same two renderings as a deck's presenter page: the build's, then the page's own.
+    const compiled = engine.renderString(template, templateFiles("build/tmp/presenter.js"));
+    await writeFile(`${shellDir}/index.html`, engine.renderString(compiled, {shell: true}));
+    const worker = fs.readFileSync("src/templates/sw.js", "utf8");
+    await writeFile(
+        `${shellDir}/sw.js`,
+        engine.renderString(worker, {version: soziVersion, files: shellFiles})
+    );
+    await copyFile("src/shell/manifest.webmanifest", `${shellDir}/manifest.webmanifest`);
+    await copyFile("src/shell/addons.js", `${shellDir}/addons.js`);
+    await copyFile("resources/icons/192x192.png", `${shellDir}/icons/192x192.png`);
+    await copyFile("resources/icons/512x512.png", `${shellDir}/icons/512x512.png`);
+}
+
 exports.browserBuild  = browserBuildTask;
 exports.electronBuild = electronBuildTask;
-exports.default       = electronBuildTask;
+
+exports.shell = shellBuildTask;
+exports.default = series(electronBuildTask, shellBuildTask);
 
 /* -------------------------------------------------------------------------- *
  * Package the desktop application.

@@ -102,6 +102,13 @@ jobs:
                   name: electron-${{ github.sha }}
                   path: build/electron
                   retention-days: 30
+            - name: Keep the hosted presenter shell of this commit
+              if: github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: shell-${{ github.sha }}
+                  path: build/shell
+                  retention-days: 30
             - name: Package the AppImage
               if: github.event_name == 'push'
               run: npx gulp packageLinux

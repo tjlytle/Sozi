@@ -22,6 +22,7 @@ import {
 /** @typedef {import("./DisplayMirror.js").DisplayMirror} DisplayMirror */
 /** @typedef {import("./Workspace.js").Workspace} Workspace */
 /** @typedef {import("./panels.js").PanelDefinition} PanelDefinition */
+/** @typedef {import("./shellLink.js").ShellLink} ShellLink */
 /** @typedef {import("../protocol/TransportSet.js").TransportSet} TransportSet */
 /** @typedef {import("../protocol/TransportSet.js").Transport} Transport */
 
@@ -96,6 +97,12 @@ export class PresenterApi {
          * @type {Set<string>}
          */
         this.panelIds = new Set();
+
+        /** The pairing link, once the hosted shell has read one.
+         *
+         * @type {?ShellLink}
+         */
+        this.pairingLink = null;
 
         /** What an add-on's script uses to drive the display.
          *
@@ -207,6 +214,22 @@ export class PresenterApi {
     get state() {
         const {frame, frames, frameCount, deckId, version, viewport, blank, status} = this.mirror;
         return {frame, frames, frameCount, deckId, version, viewport, blank, status};
+    }
+
+    /** The pairing link of the hosted shell, for add-ons; null on the local page.
+     *
+     * @type {?ShellLink}
+     * @throws {TypeError} If it is set twice: it is read-only to add-ons.
+     */
+    get link() {
+        return this.pairingLink;
+    }
+
+    set link(link) {
+        if (this.pairingLink) {
+            throw new TypeError("The presenter's pairing link is already set");
+        }
+        this.pairingLink = link && Object.freeze({...link, params: Object.freeze(link.params)});
     }
 
     /** Give the API its workspace, and do what waited for it.

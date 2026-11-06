@@ -8,14 +8,21 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        {% if shell %}
+        <meta name="sozi-presenter" content="shell">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="manifest" href="manifest.webmanifest">
+        <title>Sozi presenter</title>
+        {% else %}
         <title>{{ pres.title | escape }}</title>
+        {% endif %}
 {% endraw %}
         <style>{{'{% raw %}'}}{{ markdownCss|safe }}{{ highlightCss|safe }}{{'{% endraw %}'}}</style>
 {% raw %}
         <style>
             /* The deck's aspect ratio until the display reports its own. */
             :root {
-                --sozi-display-aspect: {{ pres.aspectWidth / pres.aspectHeight }};
+                --sozi-display-aspect: {% if shell %}{{ 16 / 9 }}{% else %}{{ pres.aspectWidth / pres.aspectHeight }}{% endif %};
                 --sozi-rail-width: 2.5rem;
                 --sozi-space: 0.5rem;
                 --sozi-surface: rgb(245, 245, 245);
@@ -359,6 +366,19 @@
                 background: var(--sozi-notice-background);
             }
 
+            /* It can stay for a whole talk: at the bottom, like the layout notice below, for the tabs. */
+            .sozi-connection-notice {
+                position: fixed;
+                bottom: 0;
+                left: var(--sozi-rail-width);
+                right: 0;
+                z-index: 2;
+                margin: 0;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+                text-align: center;
+                background: var(--sozi-notice-background);
+            }
+
             /* At the bottom beside the rail, so it covers neither the tabs nor the rail's buttons. */
             .sozi-layout-notice {
                 position: fixed;
@@ -426,15 +446,23 @@
         </style>
     </head>
     <body>
+        {% if shell %}
+        <p class="sozi-connection-notice" role="status" hidden></p>
+        {% else %}
         <p class="sozi-notice" role="alert" hidden>Could not open the presentation window. Allow pop-ups for this page, then reload it.</p>
+        {% endif %}
         <p class="sozi-layout-notice" role="status" hidden><span class="sozi-layout-notice__text"></span><button type="button">Dismiss</button></p>
         <main class="sozi-workspace" data-deck="{{ soziHtml }}"></main>
 {% endraw %}
         <script>{{'{% raw %}'}}{{ js|safe }}{{'{% endraw %}'}}</script>
 {% raw %}
+        {% if shell %}
+        <script src="addons.js"></script>
+        {% else %}
         <script>
             {{ customJS|safe }}
         </script>
+        {% endif %}
 {% endraw %}
     </body>
 </html>

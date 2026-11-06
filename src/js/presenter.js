@@ -4,7 +4,8 @@
 
 // The presenter console: a surface of the presenter protocol (docs/presenter-protocol.md).
 // It mirrors what the audience window reports in a workspace of panels the speaker
-// arranges, and drives the audience window and the three previews.
+// arranges, and drives the audience window and the three previews. The same page, built as
+// the hosted shell, opens no audience window and joins a talk from a pairing link instead.
 
 import {LocalTransport, TransportStatus} from "./protocol/LocalTransport";
 import {TransportSet} from "./protocol/TransportSet";
@@ -12,6 +13,7 @@ import {Roles, deckIdOf, helloMessage} from "./protocol/messages";
 import {DisplayMirror, DisplayMirrorEvents} from "./presenter/DisplayMirror";
 import {PresenterApi} from "./presenter/PresenterApi";
 import {PresetForm} from "./presenter/PresetForm";
+import {ShellJoin} from "./presenter/ShellJoin";
 import {Workspace} from "./presenter/Workspace";
 import {NARROW_MAX_WIDTH, layoutKey} from "./presenter/layout";
 import {isEditableTarget, messageForKey} from "./presenter/keys";
@@ -178,7 +180,8 @@ function framePicker(element, presenter, src) {
  * @param {PresenterApi} presenter - The published API.
  * @param {DisplayMirror} mirror - What the display last reported.
  * @param {(message: Message) => void} send - Sends a message to the audience window.
- * @param {string} src - The deck's page, for the previews.
+ * @param {() => string} src - The deck's page, for the previews, as it is when a panel is
+ *     drawn: the hosted shell learns it on load, and a restored panel is drawn again.
  * @returns {PanelDefinition[]} The panels.
  */
 function panelSpecs(presenter, mirror, send, src) {
@@ -193,7 +196,7 @@ function panelSpecs(presenter, mirror, send, src) {
             case "notes":
                 return new NotesPanel(element, mirror, {
                     storage: window.localStorage,
-                    deckHref: () => new URL(src, location.href).href
+                    deckHref: () => new URL(src(), location.href).href
                 });
             case "frames":
                 return framePicker(element, presenter, src);
@@ -206,7 +209,7 @@ function panelSpecs(presenter, mirror, send, src) {
                 return new PreviewPanel(element, mirror, send, {
                     offset,
                     className: `sozi-${id}-frame`,
-                    src
+                    src: src()
                 });
             }
         }
@@ -226,9 +229,10 @@ function panelSpecs(presenter, mirror, send, src) {
 /** Build the empty workspace, with the form that saves its layout as a preset.
  *
  * @param {HTMLElement} element - The workspace's element.
+ * @param {string} deckId - The deck's id, for the presets.
  * @returns {Workspace} The workspace.
  */
-function buildWorkspace(element) {
+function buildWorkspace(element, deckId) {
     const showNotice = layoutNotice();
     const workspace = new Workspace(element, {
         storage: window.localStorage,
@@ -241,8 +245,7 @@ function buildWorkspace(element) {
         onSavePreset: () => presetForm.open()
     });
     const presetForm = new PresetForm(document, window, {
-        // The template names the deck's page as a file; deckIdOf reads an encoded path.
-        deckId: deckIdOf(encodeURIComponent(/** @type {string} */ (element.dataset.deck))),
+        deckId,
         width: () => window.innerWidth,
         layout: () => workspace.layout,
         onSaved: showNotice
@@ -251,15 +254,14 @@ function buildWorkspace(element) {
     return workspace;
 }
 
-/** Build the page when it has loaded: the audience window, the workspace and the keys.
+/** Join the display on the local page: open the audience window and link to it.
  *
  * @param {object} options - What the module has built.
- * @param {PresenterApi} options.presenter - The published API.
  * @param {DisplayMirror} options.mirror - What the display last reported.
  * @param {TransportSet} options.transports - The links to the display.
  * @param {HTMLElement} options.element - The workspace's element.
  */
-function startPresenter({presenter, mirror, transports, element}) {
+function joinAudience({mirror, transports, element}) {
     // Open a new window for the main presentation view.
     const audience = openAudience(/** @type {string} */ (element.dataset.deck));
     // A blocked popup leaves audience null: the page says so and stays usable (standard 2.7).
@@ -269,6 +271,37 @@ function startPresenter({presenter, mirror, transports, element}) {
     } else {
         /** @type {HTMLElement} */ (document.querySelector(".sozi-notice")).hidden = false;
         mirror.setStatus(TransportStatus.closed);
+    }
+}
+
+/** The deck's id, for the presets.
+ *
+ * @param {PresenterApi} presenter - The published API, with the hosted shell's link on it.
+ * @param {HTMLElement} element - The workspace's element.
+ * @returns {string} The id.
+ */
+function deckIdOfPage({link}, element) {
+    // The template names the deck's page as a file; deckIdOf reads an encoded path.
+    return link
+        ? deckIdOf(new URL(link.deck).pathname)
+        : deckIdOf(encodeURIComponent(/** @type {string} */ (element.dataset.deck)));
+}
+
+/** Build the page when it has loaded: the link to the display, the workspace and the keys.
+ *
+ * @param {object} options - What the module has built.
+ * @param {PresenterApi} options.presenter - The published API.
+ * @param {DisplayMirror} options.mirror - What the display last reported.
+ * @param {TransportSet} options.transports - The links to the display.
+ * @param {HTMLElement} options.element - The workspace's element.
+ */
+function startPresenter({presenter, mirror, transports, element}) {
+    if (document.querySelector('meta[name="sozi-presenter"][content="shell"]')) {
+        // No transport yet: an add-on brings it, so the display cannot be reached until then.
+        mirror.setStatus(TransportStatus.closed);
+        new ShellJoin({api: presenter, document, window}).start();
+    } else {
+        joinAudience({mirror, transports, element});
     }
 
     mirror.on(DisplayMirrorEvents.change, ({viewport}) => {
@@ -281,7 +314,7 @@ function startPresenter({presenter, mirror, transports, element}) {
         }
     });
 
-    const workspace = buildWorkspace(element);
+    const workspace = buildWorkspace(element, deckIdOfPage(presenter, element));
     // Before the mount: a transport an add-on registered can answer as soon as it is added.
     mirror.on(DisplayMirrorEvents.change, ({layouts}) => {
         if (layouts) {
@@ -324,7 +357,7 @@ function publish() {
 
     // Cast: the presenter page holds the workspace, with the deck's page on it.
     const element = /** @type {HTMLElement} */ (document.querySelector(".sozi-workspace"));
-    const src = /** @type {string} */ (element.dataset.deck);
+    const src = () => /** @type {string} */ (element.dataset.deck);
     const send = message => transports.sendToPrimary(message);
     for (const panel of panelSpecs(presenter, mirror, send, src)) {
         presenter.registerPanel(panel);
