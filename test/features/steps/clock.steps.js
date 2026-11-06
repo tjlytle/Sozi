@@ -338,7 +338,10 @@ Then("the elapsed time is at least {int} pixels tall and fits its panel", async 
         const context = /** @type {CanvasRenderingContext2D} */ (
             document.createElement("canvas").getContext("2d")
         );
-        context.font = getComputedStyle(element).font;
+        // Not the computed `font`: it is empty when `font-variant-numeric` is set, as the shorthand
+        // cannot say it, and the canvas then measures with its default 10 pixels.
+        const {fontWeight, fontSize, fontFamily} = getComputedStyle(element);
+        context.font = `${fontWeight} ${fontSize} ${fontFamily}`;
         const digit = context.measureText("0");
         const box = rect => rect.toJSON();
         return {
