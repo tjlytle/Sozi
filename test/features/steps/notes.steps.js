@@ -72,7 +72,7 @@ async function documentHeadings(page) {
  * @param {import("playwright").Locator} locator - The element.
  * @returns {Promise<string[]>} - One line per script or attribute found.
  */
-function scriptsAndHandlers(locator) {
+export function scriptsAndHandlers(locator) {
     return locator.evaluate(element =>
         [...element.querySelectorAll("*")].flatMap(child => [
             ...(child.localName === "script" ? ["<script>"] : []),

@@ -35,6 +35,34 @@ function namesIn(list) {
         .sort();
 }
 
+/** Put a fake transport in a page as `window.fakeTransport`; it runs inside the page.
+ *
+ * It is what a transport is (src/js/protocol/LocalTransport.js), with no window behind it.
+ */
+export function installFakeTransport() {
+    const listeners = new Set();
+    /** @type {any} */ (window).fakeTransport = {
+        status: "connected",
+        sent: [],
+        send(message) {
+            this.sent.push(message);
+            return true;
+        },
+        onMessage(handler) {
+            listeners.add(handler);
+            return () => listeners.delete(handler);
+        },
+        on() {},
+        off() {},
+        dispose() {
+            listeners.clear();
+        },
+        deliver(message) {
+            listeners.forEach(handler => handler(message));
+        }
+    };
+}
+
 When("a panel {string} is registered from the console", async function (title) {
     await this.presenter.evaluate(panelTitle => {
         const {presenter} = /** @type {any} */ (window).sozi;
@@ -54,31 +82,10 @@ When("a panel {string} is registered from the console", async function (title) {
 });
 
 When("a fake transport is registered on the presenter page", async function () {
+    await this.presenter.evaluate(installFakeTransport);
     await this.presenter.evaluate(() => {
-        const page = /** @type {any} */ (window);
-        const listeners = new Set();
-        // What a transport is (src/js/protocol/LocalTransport.js), with no window behind it.
-        page.fakeTransport = {
-            status: "connected",
-            sent: [],
-            send(message) {
-                this.sent.push(message);
-                return true;
-            },
-            onMessage(handler) {
-                listeners.add(handler);
-                return () => listeners.delete(handler);
-            },
-            on() {},
-            off() {},
-            dispose() {
-                listeners.clear();
-            },
-            deliver(message) {
-                listeners.forEach(handler => handler(message));
-            }
-        };
-        page.sozi.presenter.registerTransport(page.fakeTransport);
+        const {sozi, fakeTransport} = /** @type {any} */ (window);
+        sozi.presenter.registerTransport(fakeTransport);
     });
 });
 
