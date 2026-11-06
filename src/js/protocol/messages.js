@@ -29,7 +29,8 @@ export const MessageNames = Object.freeze({
     previous: "previous",
     custom: "custom",
     preview: "preview",
-    followLink: "followLink"
+    followLink: "followLink",
+    key: "key"
 });
 
 /** Who says `hello`: the deck that plays the presentation, or a surface that watches it.
@@ -72,11 +73,23 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
 /** @typedef {{name: "followLink", id: string}} FollowLinkMessage */
 
 /**
+ * The modifier keys held down with a key.
+ *
+ * @typedef {object} KeyModifiers
+ * @property {boolean} shift - Shift.
+ * @property {boolean} alt - Alt (Option).
+ * @property {boolean} ctrl - Control.
+ * @property {boolean} meta - Meta (Command, Windows).
+ */
+
+/** @typedef {{name: "key", key: string, modifiers: KeyModifiers}} KeyMessage */
+
+/**
  * Any message of the protocol.
  *
  * @typedef {HelloMessage | FrameChangeMessage | ViewportMessage | BlankMessage
  *   | JumpToFrameMessage | NextMessage | PreviousMessage | CustomMessage | PreviewMessage
- *   | FollowLinkMessage} Message
+ *   | FollowLinkMessage | KeyMessage} Message
  */
 
 /**
@@ -174,6 +187,32 @@ export function previewMessage(current) {
  */
 export function followLinkMessage(id) {
     return {name: "followLink", id};
+}
+
+/**
+ * Build a `key`: a key was pressed in a preview, for the presenter to act on.
+ *
+ * @param {string} key - The key, as `KeyboardEvent.key` names it.
+ * @param {KeyModifiers} modifiers - The modifier keys held down with it.
+ * @returns {KeyMessage} The message.
+ */
+export function keyMessage(key, {shift, alt, ctrl, meta}) {
+    return {name: "key", key, modifiers: {shift, alt, ctrl, meta}};
+}
+
+/**
+ * Read the modifiers of a received `key`.
+ *
+ * @param {any} m - The `modifiers` field as received.
+ * @returns {KeyModifiers | null} The modifiers, or null if one is missing or not a boolean.
+ */
+function readModifiers(m) {
+    if (m === null || typeof m !== "object") {
+        return null;
+    }
+    const {shift, alt, ctrl, meta} = m;
+    const valid = [shift, alt, ctrl, meta].every(v => typeof v === "boolean");
+    return valid ? {shift, alt, ctrl, meta} : null;
 }
 
 /**
@@ -298,7 +337,11 @@ const READERS = Object.freeze({
     [MessageNames.custom]: data => (isName(data.type) ? customMessage(data.type, data.data) : null),
     [MessageNames.preview]: data =>
         typeof data.current === "boolean" ? previewMessage(data.current) : null,
-    [MessageNames.followLink]: data => (isName(data.id) ? followLinkMessage(data.id) : null)
+    [MessageNames.followLink]: data => (isName(data.id) ? followLinkMessage(data.id) : null),
+    [MessageNames.key]: data => {
+        const modifiers = readModifiers(data.modifiers);
+        return isName(data.key) && modifiers ? keyMessage(data.key, modifiers) : null;
+    }
 });
 
 /**
