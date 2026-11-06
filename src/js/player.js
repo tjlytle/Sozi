@@ -13,6 +13,7 @@ import {DisplayApi} from "./player/DisplayApi";
 import {PairingOverlay} from "./player/PairingOverlay";
 import {ExportDriver} from "./player/ExportDriver";
 import {enterPreviewMode} from "./player/PreviewMode";
+import {ThumbnailRenderer} from "./player/ThumbnailRenderer";
 import * as Media from "./player/Media";
 import * as FrameList from "./player/FrameList";
 import * as FrameNumber from "./player/FrameNumber";
@@ -92,6 +93,12 @@ function startDisplay(display, player, controller, presentation) {
     // Cast: src/templates/player.html holds the overlay's element.
     const pairingElement = /** @type {HTMLElement} */ (document.querySelector(".sozi-pairing"));
     const pairing = new PairingOverlay(pairingElement, window, display);
+    const thumbnails = new ThumbnailRenderer({
+        player,
+        viewport: player.viewport,
+        presentation,
+        host: window
+    });
     const channel = new DisplayChannel({
         player,
         controller,
@@ -102,7 +109,8 @@ function startDisplay(display, player, controller, presentation) {
             // A preview hands its keys to the presenter: Q is not for it.
             pairing.dispose();
             enterPreviewMode(player, presentation, isCurrent, onFollowLink, onKey);
-        }
+        },
+        renderThumbnail: (index, width) => thumbnails.render(index, width)
     });
     channel.start();
     display.start(channel, pairing);

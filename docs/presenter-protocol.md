@@ -34,6 +34,8 @@ the message.
 | `preview`     | surface → display | `current`                                                 |
 | `followLink`  | both ways         | `id`                                                      |
 | `key`         | display → surface | `key`, `modifiers`                                        |
+| `thumbnailRequest` | surface → preview deck | `index`, `width`                                 |
+| `thumbnail`   | preview deck → surface | `index`, `url`                                       |
 | `custom`      | both ways         | `type`, `data`                                            |
 
 ### `hello`
@@ -42,6 +44,7 @@ the message.
 | ------------ | ------------------------------- | ------------------------------------------------- |
 | `role`       | `"display"` or `"surface"`      | Who says it.                                      |
 | `deckId`     | string                          | The deck's file name without `.sozi.html`.        |
+| `version`    | string                          | The date of the deck's page (`document.lastModified`). |
 | `frameCount` | integer ≥ 0                     | How many frames the deck has.                     |
 | `viewport`   | `{width, height, pixelRatio}` or null | The display's size; null while it is minimised. |
 | `frame`      | `{index, id, title, notes}`     | The current frame.                                |
@@ -58,6 +61,9 @@ answers every surface `hello` with a fresh one, so a surface that loads or reloa
 display gets the whole state in one message and needs no replay. A display ignores another
 display's `hello`: a deck that is not in a presenter is bound to its own window, and `role`
 keeps it from answering itself.
+
+`version` is new. A `hello` without it reads as an empty string; anything else that is not a
+string refuses the `hello`.
 
 `layouts` is new. A `hello` without it reads as no presets, so a newer surface can join an
 older deck, and a surface that does not know it ignores it. A bad preset is dropped, never
@@ -124,6 +130,15 @@ this message lets the presentation keys work while a preview has the focus. The 
 turns it into `next`, `previous`, `jumpToFrame` or `blank` for the display, exactly as a
 key pressed on its own page, and ignores any other key.
 
+### `thumbnailRequest`, `thumbnail`
+
+A surface asks one of its own preview decks to draw a frame: `index` is the frame, `width` a
+positive integer in pixels. The deck answers on the same transport with `thumbnail`, and only
+in preview mode, so nothing can move the audience window's camera to make a thumbnail. `url`
+is a JPEG `data:` URL, or `""` when rendering failed; a reader refuses anything else, so a
+message cannot point an `<img>` anywhere. Thumbnails do not cross the link to the display:
+every surface already loads the deck for its previews, so each renders its own.
+
 ### `custom`
 
 A message of an add-on's own: `type` is a non-empty string, `data` anything
@@ -176,23 +191,24 @@ waits for it, in the order it came.
 | `registerPanel({id, title, icon, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
 | `registerPanel({id, title, icon, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
 | `on(name, handler)` / `off(name, handler)`        | `frameChange` (the frame), `viewport` (the size), `status`, and `message` (every valid message). |
-| `state`                                           | `{frame, frameCount, viewport, blank, status}`, for a panel that registers late. |
-| `display.jumpToFrame(index)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport.     |
+| `state`                                           | `{frame, frames, frameCount, deckId, version, viewport, blank, status}`, for a panel that registers late. |
+| `display.jumpToFrame(index, transition = true)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport. |
 | `display.send(name, payload)`                     | A `custom` message, to the primary transport.    |
 | `registerTransport(transport)`                    | Adds a transport, after the audience window's, and says `hello` on it. |
 | `link`                                            | The [pairing link](#hosted-shell), frozen, read at `load`; `null` on the page next to a deck and in a shell with no good link. |
 
 A bad panel throws a `TypeError` naming the field; so does an id already taken. The built-in
-panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `connection`,
+panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `frames`, `connection`,
 `controls`, `previous`, `next`) can be named in a panel's place. `icon` is the text of its
 button on the rail, by default the title's first letter. `defaults` is its place in the
 default layout, `{position, inactive, initialHeight}`, with `position` as dockview's
 `addPanel` takes it. Without `defaults` the panel is a tab behind Notes.
 
 A panel is remembered in the saved layout with the others. A saved layout or a deck's preset
-must name exactly the panels of the page, so adding or removing a panel starts from the default
-layout again, and a panel registered after `load` is not there yet when the next load reads the
-layout: register at the top level of the script. Registering a panel saves nothing by itself;
+may not name a panel the page lacks, or one twice, so removing a panel starts from the default
+layout again. A panel it does not name goes to its default place, so adding one costs nobody
+their layout. A panel registered after `load` is not there yet when the next load reads the
+layout, so it is refused: register at the top level of the script. Registering a panel saves nothing by itself;
 it joins the saved layout at the speaker's next change.
 
 ### `window.sozi.display`, on the presentation page

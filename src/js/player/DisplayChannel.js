@@ -19,6 +19,7 @@ import {
     deckIdOf
 } from "../protocol/messages.js";
 import {fromLegacy, legacyLoadedMessage} from "../protocol/legacy.js";
+import {thumbnailMessage} from "../protocol/thumbnails.js";
 import {viewportMessage, readViewport} from "../protocol/viewport.js";
 import {TransportSet} from "../protocol/TransportSet.js";
 
@@ -47,6 +48,8 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  * @property {(isCurrent: boolean, onFollowLink: (id: string) => void,
  *   onKey: (key: string, modifiers: KeyModifiers) => void) => void} enterPreviewMode -
  *   Turns the deck into a presenter preview that reports its link clicks and its keys.
+ * @property {(index: number, width: number) => Promise<string>} renderThumbnail - Moves the deck
+ *   to a frame and draws it, as a JPEG `data:` URL.
  */
 
 /** A frame of the deck, as the protocol reports it.
@@ -62,7 +65,8 @@ function frameInfoOf({index, frameId, title, notes}) {
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
  * reports frame changes, the window size and the blank screen as they change. It hands each
- * command to the controller, or to the player once the deck is a preview.
+ * command to the controller, or to the player once the deck is a preview. A preview also
+ * draws its frames as thumbnails, on request.
  *
  * @extends EventEmitter
  */
@@ -71,7 +75,15 @@ export class DisplayChannel extends EventEmitter {
      *
      * @param {DisplayChannelOptions} options - The deck's objects and the transport.
      */
-    constructor({player, controller, presentation, transport, host, enterPreviewMode}) {
+    constructor({
+        player,
+        controller,
+        presentation,
+        transport,
+        host,
+        enterPreviewMode,
+        renderThumbnail
+    }) {
         super();
         this.player = player;
         this.controller = controller;
@@ -85,6 +97,7 @@ export class DisplayChannel extends EventEmitter {
         this.transport.add(transport);
         this.host = host;
         this.enterPreviewMode = enterPreviewMode;
+        this.renderThumbnail = renderThumbnail;
 
         /** Is the deck a preview in a presenter? A preview reports nothing about itself.
          *
@@ -120,6 +133,8 @@ export class DisplayChannel extends EventEmitter {
             [MessageNames.blank]: ({on}) => this.blank(on),
             [MessageNames.preview]: ({current}) => this.preview(current),
             [MessageNames.followLink]: ({id}) => this.followLink(id),
+            [MessageNames.thumbnailRequest]: ({index, width}, legacy, from) =>
+                this.answerThumbnail(index, width, from),
             [MessageNames.custom]: ({type, data}) =>
                 this.emit(DisplayChannelEvents.custom, type, data)
         });
@@ -157,6 +172,7 @@ export class DisplayChannel extends EventEmitter {
     get hello() {
         return helloMessage(Roles.display, {
             deckId: deckIdOf(this.host.location.pathname),
+            version: this.host.document.lastModified,
             frameCount: this.presentation.frames.length,
             viewport: readViewport(viewportMessage(this.host)),
             frame: this.frameInfo,
@@ -327,6 +343,27 @@ export class DisplayChannel extends EventEmitter {
         if (link) {
             link.dispatchEvent(new this.host.MouseEvent("click"));
         }
+    }
+
+    /** Draw a frame and answer with it, in a preview only: nothing may move the audience
+     * window's camera to make a thumbnail.
+     *
+     * @param {number} index - The frame's position, from 0.
+     * @param {number} width - The thumbnail's width, in pixels.
+     * @param {Transport} from - The transport the request came on, the only one answered.
+     */
+    async answerThumbnail(index, width, from) {
+        if (!this.previewMode) {
+            return;
+        }
+        let url = "";
+        try {
+            url = await this.renderThumbnail(index, width);
+        } catch (err) {
+            // The empty URL tells the surface; the tile keeps its number and title.
+            console.warn(`No thumbnail for frame ${index}: ${err}`);
+        }
+        from.send(thumbnailMessage(index, url));
     }
 
     /** Remove every listener the channel added, and close its transports. */

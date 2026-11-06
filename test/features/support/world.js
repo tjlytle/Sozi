@@ -109,6 +109,27 @@ export function copyDeck(name) {
     return deck;
 }
 
+/** Keep every iframe a top-level page adds in `window.addedIframes`, even one it removes again;
+ * it runs inside the page, before the page's own scripts.
+ */
+function recordAddedIframes() {
+    if (window !== window.top) {
+        return;
+    }
+    const added = new Set();
+    /** @type {any} */ (window).addedIframes = added;
+    new MutationObserver(records => {
+        for (const node of records.flatMap(record => [...record.addedNodes])) {
+            if (node instanceof Element) {
+                const inside = [...node.querySelectorAll("iframe")];
+                [...(node.localName === "iframe" ? [node] : []), ...inside].forEach(iframe =>
+                    added.add(iframe)
+                );
+            }
+        }
+    }).observe(document, {childList: true, subtree: true});
+}
+
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
  * showed, the deck's first view, the notes' font size before a change, the deck and the shell
  * it serves over http and Cucumber's attach.
@@ -235,6 +256,17 @@ export class SoziWorld extends World {
         await this.openBuiltPresenter(deck, size);
     }
 
+    /** Open the presenter page of a built deck again, in a context with touch support.
+     *
+     * @param {string} fixture - The fixture name.
+     */
+    async openPresenterOnTouchScreen(fixture) {
+        await this.context?.close();
+        this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
+        await this.context.addInitScript(recordAddedIframes);
+        await this.openPresenter(fixture);
+    }
+
     /** Open the presenter page of a built deck and wait for the audience window it opens.
      *
      * @param {{presenter: string}} deck - The built deck.
@@ -313,6 +345,7 @@ BeforeAll(async () => {
 
 Before(async function () {
     this.context = await browser.newContext({viewport: VIEWPORT});
+    await this.context.addInitScript(recordAddedIframes);
     // Record every alert, confirm or prompt, then dismiss it so that the page goes on.
     this.context.on("page", page =>
         page.on("dialog", dialog => {

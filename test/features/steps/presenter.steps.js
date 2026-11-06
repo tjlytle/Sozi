@@ -25,7 +25,8 @@ const WITHIN_A_FRAME = 250;
 function previewShapeProblems(page, ratio) {
     return page.evaluate(expected => {
         const problems = [];
-        for (const iframe of document.querySelectorAll("iframe")) {
+        const previews = ".sozi-current-frame, .sozi-previous-frame, .sozi-next-frame";
+        for (const iframe of document.querySelectorAll(previews)) {
             const own = iframe.getBoundingClientRect();
             const box = /** @type {Element} */ (iframe.parentElement).getBoundingClientRect();
             const actual = own.width / own.height;

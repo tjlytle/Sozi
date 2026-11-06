@@ -112,9 +112,10 @@ export class PresenterApi {
             /** Go to the frame at an index.
              *
              * @param {number} index - Its position, from 0.
+             * @param {boolean} [transition] - Animate the move; false jumps straight there.
              */
-            jumpToFrame: index => {
-                this.command(jumpToFrameMessage(index));
+            jumpToFrame: (index, transition = true) => {
+                this.command(jumpToFrameMessage(index, transition));
             },
             /** Go to the next frame. */
             next: () => {
@@ -207,11 +208,12 @@ export class PresenterApi {
     /** What the display last reported, for a panel that registers late.
      *
      * @readonly
-     * @type {{frame: any, frameCount: number, viewport: any, blank: boolean, status: string}}
+     * @type {{frame: any, frames: any[], frameCount: number, deckId: string, version: string,
+     *   viewport: any, blank: boolean, status: string}}
      */
     get state() {
-        const {frame, frameCount, viewport, blank, status} = this.mirror;
-        return {frame, frameCount, viewport, blank, status};
+        const {frame, frames, frameCount, deckId, version, viewport, blank, status} = this.mirror;
+        return {frame, frames, frameCount, deckId, version, viewport, blank, status};
     }
 
     /** The pairing link of the hosted shell, for add-ons; null on the local page.

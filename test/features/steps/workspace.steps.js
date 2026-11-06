@@ -26,7 +26,7 @@ const URL_PANEL_PAGE = "page.html";
 
 // The prefix of the localStorage key of a deck's layout; the page's path completes it. A deck
 // may have more than one, one per width, each with this prefix and the path in its key.
-const LAYOUT_KEY = "sozi-presenter-layout:";
+export const LAYOUT_KEY = "sozi-presenter-layout:";
 
 // How far a width or an edge may be from the expected one, in pixels.
 const TOLERANCE = 2;

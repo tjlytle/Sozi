@@ -81,7 +81,10 @@ describe("PresenterApi", () => {
         const {api, transport} = mountedApi();
         assert.deepEqual(api.state, {
             frame: null,
+            frames: [],
             frameCount: 0,
+            deckId: "",
+            version: "",
             viewport: null,
             blank: false,
             status: TransportStatus.connected
@@ -89,6 +92,7 @@ describe("PresenterApi", () => {
         transport.deliver(
             helloMessage(Roles.display, {
                 deckId: "d",
+                version: "v1",
                 frameCount: 2,
                 viewport: VIEWPORT,
                 frame: FRAME,
@@ -98,7 +102,10 @@ describe("PresenterApi", () => {
         );
         assert.deepEqual(api.state, {
             frame: FRAME,
+            frames: [FRAME],
             frameCount: 2,
+            deckId: "d",
+            version: "v1",
             viewport: VIEWPORT,
             blank: true,
             status: TransportStatus.connected
@@ -152,6 +159,12 @@ describe("PresenterApi", () => {
         transport.deliver(customMessage("x", 1));
         assert.equal(heard, 0);
         assert.throws(() => api.on("nothing", handler), {name: "TypeError", message: /nothing/});
+    });
+
+    test("display.jumpToFrame takes the transition as its second argument", () => {
+        const {api, transport} = mountedApi();
+        api.display.jumpToFrame(1, false);
+        assert.deepEqual(transport.sent, [jumpToFrameMessage(1, false)]);
     });
 
     test("display builds protocol messages and is frozen", () => {

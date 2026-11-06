@@ -21,14 +21,25 @@ import {PreviewPanel} from "./presenter/panels/PreviewPanel";
 import {NotesPanel} from "./presenter/panels/NotesPanel";
 import {ControlsPanel} from "./presenter/panels/ControlsPanel";
 import {ConnectionPanel} from "./presenter/panels/ConnectionPanel";
+import {FramePickerPanel} from "./presenter/panels/FramePickerPanel";
+import {ThumbnailCache} from "./presenter/ThumbnailCache";
+import {ThumbnailSource} from "./presenter/ThumbnailSource";
 
 /** @typedef {import("./protocol/messages").Message} Message */
 /** @typedef {import("./presenter/panels").PanelDefinition} PanelDefinition */
 
-/** The six panels, in the order the default layout adds them, and their place in it.
+/** The width of a thumbnail in the Frames panel, in pixels: a tile's width on a sharp phone.
  *
- * Current over Controls over Previous and Next, on the left; Notes right, with Connection
- * as a tab behind it.
+ * @readonly
+ * @default
+ * @type {number}
+ */
+const THUMBNAIL_WIDTH = 320;
+
+/** The seven panels, in the order the default layout adds them, and their place in it.
+ *
+ * Current over Controls over Previous and Next, on the left; Notes right, with Frames and
+ * Connection as tabs behind it.
  *
  * @readonly
  */
@@ -39,6 +50,13 @@ const PANELS = Object.freeze([
         title: "Notes",
         icon: "✎",
         position: {referencePanel: "current", direction: "right"}
+    },
+    {
+        id: "frames",
+        title: "Frames",
+        icon: "▦",
+        position: {referencePanel: "notes", direction: "within"},
+        inactive: true
     },
     {
         id: "connection",
@@ -138,15 +156,35 @@ function isEmptyWindow(target) {
     }
 }
 
-/** The six panels of the workspace, in the order the default layout adds them.
+/** The Frames panel, with the thumbnails behind it.
  *
+ * @param {HTMLElement} element - The panel's element.
+ * @param {PresenterApi} presenter - The published API, as an add-on's panel would use it.
+ * @param {string} src - The deck's page, which renders the thumbnails.
+ * @returns {FramePickerPanel} The panel.
+ */
+function framePicker(element, presenter, src) {
+    const thumbnails = new ThumbnailSource({
+        cache: new ThumbnailCache(window.indexedDB),
+        doc: document,
+        src,
+        pageVersion: document.lastModified,
+        width: THUMBNAIL_WIDTH,
+        createTransport: target => new LocalTransport(window, target)
+    });
+    return new FramePickerPanel(element, presenter, thumbnails);
+}
+
+/** The seven panels of the workspace, in the order the default layout adds them.
+ *
+ * @param {PresenterApi} presenter - The published API.
  * @param {DisplayMirror} mirror - What the display last reported.
  * @param {(message: Message) => void} send - Sends a message to the audience window.
- * @param {() => string} src - The deck's page, for the previews, as it is when a panel is
- *     drawn: the hosted shell learns it on load, and a restored panel is drawn again.
+ * @param {() => string} src - The deck's page, for the panels that load it, as it is when a
+ *     panel is drawn: the hosted shell learns it on load, and a restored panel is drawn again.
  * @returns {PanelDefinition[]} The panels.
  */
-function panelSpecs(mirror, send, src) {
+function panelSpecs(presenter, mirror, send, src) {
     /** Draw a panel into its element.
      *
      * @param {string} id - The panel's id.
@@ -160,6 +198,8 @@ function panelSpecs(mirror, send, src) {
                     storage: window.localStorage,
                     deckHref: () => new URL(src(), location.href).href
                 });
+            case "frames":
+                return framePicker(element, presenter, src());
             case "connection":
                 return new ConnectionPanel(element, mirror);
             case "controls":
@@ -319,7 +359,7 @@ function publish() {
     const element = /** @type {HTMLElement} */ (document.querySelector(".sozi-workspace"));
     const src = () => /** @type {string} */ (element.dataset.deck);
     const send = message => transports.sendToPrimary(message);
-    for (const panel of panelSpecs(mirror, send, src)) {
+    for (const panel of panelSpecs(presenter, mirror, send, src)) {
         presenter.registerPanel(panel);
     }
 
