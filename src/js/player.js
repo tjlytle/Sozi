@@ -94,7 +94,7 @@ window.addEventListener("load", () => {
         presentation,
         transport,
         host: window,
-        enterPreviewMode: (isCurrent, onFollowLink) =>
-            enterPreviewMode(player, presentation, isCurrent, onFollowLink)
+        enterPreviewMode: (isCurrent, onFollowLink, onKey) =>
+            enterPreviewMode(player, presentation, isCurrent, onFollowLink, onKey)
     }).start();
 });

@@ -14,6 +14,7 @@ import {
     blankMessage,
     customMessage,
     followLinkMessage,
+    keyMessage,
     readMessage,
     deckIdOf
 } from "../protocol/messages.js";
@@ -22,6 +23,7 @@ import {viewportMessage, readViewport} from "../protocol/viewport.js";
 
 /** @typedef {import("../protocol/messages.js").Message} Message */
 /** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 
 /** The events a display channel emits.
  *
@@ -40,8 +42,9 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  * @property {any} presentation - The deck's presentation.
  * @property {any} transport - The transport to the surface (a `LocalTransport`).
  * @property {any} host - The window the deck plays in.
- * @property {(isCurrent: boolean, onFollowLink: (id: string) => void) => void} enterPreviewMode -
- *   Turns the deck into a presenter preview.
+ * @property {(isCurrent: boolean, onFollowLink: (id: string) => void,
+ *   onKey: (key: string, modifiers: KeyModifiers) => void) => void} enterPreviewMode -
+ *   Turns the deck into a presenter preview that reports its link clicks and its keys.
  */
 
 /** The display side of the presenter protocol (docs/presenter-protocol.md).
@@ -276,7 +279,11 @@ export class DisplayChannel extends EventEmitter {
     preview(current) {
         if (!this.previewMode) {
             this.previewMode = true;
-            this.enterPreviewMode(current, id => this.transport.send(followLinkMessage(id)));
+            this.enterPreviewMode(
+                current,
+                id => this.transport.send(followLinkMessage(id)),
+                (key, modifiers) => this.transport.send(keyMessage(key, modifiers))
+            );
         }
     }
 

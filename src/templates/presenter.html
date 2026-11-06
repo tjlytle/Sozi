@@ -13,51 +13,106 @@
             /* The deck's aspect ratio until the display reports its own. */
             :root {
                 --sozi-display-aspect: {{ pres.aspectWidth / pres.aspectHeight }};
+                --sozi-rail-width: 2.5rem;
+                --sozi-space: 0.5rem;
+                --sozi-surface: rgb(245, 245, 245);
+                --sozi-rail-background: rgb(225, 225, 230);
+                --sozi-button-background: rgb(255, 255, 255);
+                --sozi-button-border: rgb(170, 170, 180);
+                --sozi-notice-background: rgb(255, 236, 179);
             }
 
-            body {
-                display: flex;
-                width: 100vw;
-                height: 100vh;
+            html, body {
+                height: 100%;
                 margin: 0;
                 padding: 0;
+                font-family: sans-serif;
+            }
+
+            /* The rail on the left edge, the dock beside it. */
+            .sozi-workspace {
+                display: flex;
+                height: 100vh;
+            }
+
+            .sozi-rail {
+                display: flex;
+                flex: none;
+                flex-direction: column;
+                align-items: center;
+                gap: var(--sozi-space);
+                width: var(--sozi-rail-width);
+                padding: var(--sozi-space) 0;
+                box-sizing: border-box;
+                background: var(--sozi-rail-background);
+            }
+
+            .sozi-rail__panels {
+                display: flex;
+                flex: auto;
+                flex-direction: column;
+                gap: var(--sozi-space);
+            }
+
+            .sozi-rail button, .sozi-group-actions__button, .sozi-controls button {
+                min-width: 2rem;
+                min-height: 2rem;
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                background: var(--sozi-button-background);
+                font: inherit;
+                cursor: pointer;
+            }
+
+            .sozi-dock {
+                flex: auto;
+                min-width: 0;
+                height: 100%;
+            }
+
+            .sozi-tab {
+                display: flex;
+                align-items: center;
+                height: 100%;
+                padding: 0 var(--sozi-space);
+            }
+
+            /* While a group is maximised, the others are not shown, their tabs included. */
+            .sozi-dock .dv-view:not(.visible) {
+                visibility: hidden;
+            }
+
+            .sozi-group-actions {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+                height: 100%;
+                padding: 0 var(--sozi-space);
+            }
+
+            .sozi-group-actions__button {
+                min-width: 1.5rem;
+                min-height: 1.5rem;
+                padding: 0;
+            }
+
+            .sozi-panel-frame, .sozi-panel {
+                height: 100%;
+            }
+
+            .sozi-panel {
+                overflow: auto;
+                box-sizing: border-box;
             }
 
             iframe {
                 border: none;
             }
 
-            .sozi-frame-preview {
-                display: flex;
-                flex-direction: column;
-                resize: horizontal;
-                overflow: hidden;
-                width: 50vw;
-                padding: 0.5rem 0;
-                box-shadow: 5px 0px 5px rgb(150,150,150);
-                z-index: 1;
-            }
-
-            .sozi-current-frame-container {
-                height: 50%;
-                margin-bottom: 0.5rem;
-                resize: vertical;
-                overflow: hidden;
-            }
-
-            .sozi-frame-previews-prev-next {
-                display: flex;
-                flex: auto;
-            }
-
-            .sozi-preview-box {
-                flex: 1 1 0;
-                margin-right: 0.5rem;
-            }
-
             /* Each preview is letterboxed in its box with the display's shape. */
-            .sozi-current-frame-container, .sozi-preview-box {
+            .sozi-preview-box {
                 display: flex;
+                height: 100%;
                 container-type: size;
             }
 
@@ -69,30 +124,42 @@
             }
 
             .sozi-controls {
-                text-align: center;
-                margin-bottom: 0.5rem;
-            }
-
-            .sozi-controls input {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: var(--sozi-space);
+                height: 100%;
                 font-size: 150%;
-                font-family: sans-serif;
-            }
-
-            .sozi-notes {
-                flex: auto;
-                padding: 0.5rem 1rem;
-                background: rgb(245, 245, 245);
             }
 
             .sozi-current-index {
-                margin: 0 0.5rem 0 1rem;
+                margin: 0 var(--sozi-space) 0 calc(2 * var(--sozi-space));
             }
 
             .sozi-presentation-length {
-                margin: 0 1rem 0 0.5rem;
+                margin: 0 calc(2 * var(--sozi-space)) 0 var(--sozi-space);
             }
 
-            /* Over the page, so showing it does not move the previews. */
+            .sozi-notes {
+                min-height: 100%;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+                box-sizing: border-box;
+                background: var(--sozi-surface);
+            }
+
+            .sozi-connection {
+                margin: 0;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+            }
+
+            /* A phone-width page shows one stack of tabs: no rail, no header buttons. */
+            @media (max-width: 600px) {
+                .sozi-rail, .sozi-group-actions {
+                    display: none;
+                }
+            }
+
+            /* Over the page, so showing it does not move the panels. */
             .sozi-notice {
                 position: fixed;
                 top: 0;
@@ -100,37 +167,15 @@
                 right: 0;
                 z-index: 2;
                 margin: 0;
-                padding: 0.5rem 1rem;
-                font-family: sans-serif;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
                 text-align: center;
-                background: rgb(255, 236, 179);
+                background: var(--sozi-notice-background);
             }
         </style>
     </head>
     <body>
         <p class="sozi-notice" role="alert" hidden>Could not open the presentation window. Allow pop-ups for this page, then reload it.</p>
-        <div class="sozi-frame-preview">
-            <div class="sozi-current-frame-container">
-                <iframe class="sozi-current-frame" src="{{ soziHtml }}"></iframe>
-            </div>
-            <div class="sozi-controls">
-                <input type="button" id="sozi-previous-btn" value="&laquo;" title="Previous">
-                <span class="sozi-current-index"></span>/<span class="sozi-presentation-length"></span>
-                <input type="button" id="sozi-next-btn" value="&raquo;" title="Next">
-            </div>
-            <div class="sozi-frame-previews-prev-next">
-                <div class="sozi-preview-box">
-                    <iframe class="sozi-previous-frame" src="{{ soziHtml }}"></iframe>
-                </div>
-                <div class="sozi-preview-box">
-                    <iframe class="sozi-next-frame" src="{{ soziHtml }}"></iframe>
-                </div>
-            </div>
-        </div>
-        <div class="sozi-notes">
-            <h1 class="sozi-notes-title"></h1>
-            <div class="sozi-notes-body"></div>
-        </div>
+        <main class="sozi-workspace" data-deck="{{ soziHtml }}"></main>
 {% endraw %}
         <script>{{'{% raw %}'}}{{ js|safe }}{{'{% endraw %}'}}</script>
     </body>

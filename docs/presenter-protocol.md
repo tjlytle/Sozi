@@ -31,6 +31,7 @@ the message.
 | `jumpToFrame` | surface → display | `index`, `transition`                                     |
 | `preview`     | surface → display | `current`                                                 |
 | `followLink`  | both ways         | `id`                                                      |
+| `key`         | display → surface | `key`, `modifiers`                                        |
 | `custom`      | both ways         | `type`, `data`                                            |
 
 ### `hello`
@@ -80,13 +81,23 @@ sends `false` when Shift is held). The presenter's Home and End send `jumpToFram
 Sent by the presenter to each of its preview frames. The deck stops its media and its
 keyboard and mouse navigation, hides frame numbers, and from then on takes `next`,
 `previous`, `jumpToFrame` and `blank` directly on its player. With `current: true` its
-link clicks are reported as `followLink`; otherwise its links are disabled. A preview
-reports nothing about itself but its `hello`.
+link clicks are reported as `followLink`; otherwise its links are disabled. Every key
+pressed in it is reported as `key`. A preview reports nothing else about itself but its
+`hello`.
 
 ### `followLink`
 
 Follow the link element with this `id`, as if it was clicked. The current preview sends
 it to the presenter, which sends it on to the display.
+
+### `key`
+
+A key was pressed in a preview. `key` is the key as `KeyboardEvent.key` names it, a
+non-empty string; `modifiers` is `{shift, alt, ctrl, meta}`, four booleans. Decks opened
+from a file have opaque origins, so the presenter cannot listen inside its preview frames;
+this message lets the presentation keys work while a preview has the focus. The presenter
+turns it into `next`, `previous`, `jumpToFrame` or `blank` for the display, exactly as a
+key pressed on its own page, and ignores any other key.
 
 ### `custom`
 

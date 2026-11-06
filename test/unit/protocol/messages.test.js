@@ -12,6 +12,7 @@ import {
     customMessage,
     previewMessage,
     followLinkMessage,
+    keyMessage,
     readMessage,
     deckIdOf
 } from "../../../src/js/protocol/messages.js";
@@ -20,6 +21,7 @@ import {viewportMessage} from "../../../src/js/protocol/viewport.js";
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
 const displayState = {deckId: "basic", frameCount: 2, viewport, frame, blank: false};
+const noModifiers = {shift: false, alt: false, ctrl: false, meta: false};
 
 /** One built message of each kind, as the protocol sends it.
  *
@@ -42,6 +44,8 @@ function everyMessage() {
         customMessage("poll", {question: "Ready?"}),
         previewMessage(true),
         followLinkMessage("link1"),
+        keyMessage(" ", noModifiers),
+        keyMessage("End", {shift: true, alt: true, ctrl: true, meta: true}),
         viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2})
     ];
 }
@@ -62,6 +66,11 @@ describe("protocol messages", () => {
         assert.deepEqual(customMessage("t", 1), {name: "custom", type: "t", data: 1});
         assert.deepEqual(previewMessage(false), {name: "preview", current: false});
         assert.deepEqual(followLinkMessage("a"), {name: "followLink", id: "a"});
+        assert.deepEqual(keyMessage("Home", {...noModifiers, shift: true}), {
+            name: "key",
+            key: "Home",
+            modifiers: {shift: true, alt: false, ctrl: false, meta: false}
+        });
     });
 
     test("every built message reads back unchanged", () => {
@@ -78,6 +87,10 @@ describe("protocol messages", () => {
 
     test("fields that are not part of the message are dropped", () => {
         assert.deepEqual(readMessage({name: "blank", on: true, extra: 1}), blankMessage(true));
+        assert.deepEqual(
+            readMessage({name: "key", key: "a", modifiers: {...noModifiers, fn: true}}),
+            keyMessage("a", noModifiers)
+        );
     });
 
     test("is refused when it is not an object or has an unknown name", () => {
@@ -114,6 +127,12 @@ describe("protocol messages", () => {
             {name: "preview", current: "true"},
             {name: "followLink"},
             {name: "followLink", id: ""},
+            {name: "key", modifiers: noModifiers},
+            {name: "key", key: "", modifiers: noModifiers},
+            {name: "key", key: " "},
+            {name: "key", key: " ", modifiers: null},
+            {name: "key", key: " ", modifiers: {shift: false, alt: false, ctrl: false}},
+            {name: "key", key: " ", modifiers: {...noModifiers, shift: "no"}},
             {name: "viewport", width: 0, height: 1, pixelRatio: 1}
         ];
         for (const data of bad) {

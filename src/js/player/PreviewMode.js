@@ -10,6 +10,7 @@
 /** @typedef {import("./Player.js").Player} Player */
 /** @typedef {import("../model/Presentation.js").Presentation} Presentation */
 /** @typedef {import("../svg/SVGDocumentWrapper.js").SVGDocumentWrapper} SVGDocumentWrapper */
+/** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 
 /** Put a player in preview mode.
  *
@@ -18,14 +19,16 @@
  *
  * In preview mode, keyboard and mouse navigation are disabled, frame numbers are hidden,
  * hyperlinks in the previous and next views are disabled, and in the current view,
- * hyperlink clicks are reported so that the display follows them.
+ * hyperlink clicks are reported so that the display follows them. Every key pressed in a
+ * preview is reported, so that the presentation keys work while it has the focus.
  *
  * @param {Player} player - The deck's player.
  * @param {Presentation} presentation - The deck's presentation.
  * @param {boolean} isCurrent - Does this preview show the current frame?
  * @param {(id: string) => void} onFollowLink - Called with the id of each link clicked in the current view.
+ * @param {(key: string, modifiers: KeyModifiers) => void} onKey - Called with each key pressed in the preview.
  */
-export function enterPreviewMode(player, presentation, isCurrent, onFollowLink) {
+export function enterPreviewMode(player, presentation, isCurrent, onFollowLink, onKey) {
     // Cast of presentation.document in this function: previews start after the player has loaded.
     player.disableMedia();
     player.pause();
@@ -42,6 +45,18 @@ export function enterPreviewMode(player, presentation, isCurrent, onFollowLink) 
     }
 
     const svg = /** @type {SVGDocumentWrapper} */ (presentation.document);
+    svg.root.ownerDocument.addEventListener(
+        "keydown",
+        evt =>
+            onKey(evt.key, {
+                shift: evt.shiftKey,
+                alt: evt.altKey,
+                ctrl: evt.ctrlKey,
+                meta: evt.metaKey
+            }),
+        false
+    );
+
     if (isCurrent) {
         // Report hyperlink clicks so that the display follows them.
         for (const link of svg.root.getElementsByTagName("a")) {

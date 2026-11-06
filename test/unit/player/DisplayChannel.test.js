@@ -13,7 +13,8 @@ import {
     previousMessage,
     customMessage,
     previewMessage,
-    followLinkMessage
+    followLinkMessage,
+    keyMessage
 } from "../../../src/js/protocol/messages.js";
 import {viewportMessage} from "../../../src/js/protocol/viewport.js";
 
@@ -168,7 +169,8 @@ function startedDisplay() {
         presentation,
         transport,
         host,
-        enterPreviewMode: (current, onFollowLink) => previews.push({current, onFollowLink})
+        enterPreviewMode: (current, onFollowLink, onKey) =>
+            previews.push({current, onFollowLink, onKey})
     });
     channel.start();
     const startSent = transport.sent.splice(0);
@@ -363,6 +365,14 @@ describe("DisplayChannel", () => {
         assert.deepEqual(transport.sent.slice(0, 1), [followLinkMessage("a1")]);
         assert.equal(transport.sent.length, 2);
         assert.equal(transport.sent[1].name, "hello");
+    });
+
+    test("a preview reports the keys pressed in it as key", () => {
+        const {transport, previews} = startedDisplay();
+        transport.deliver(previewMessage(false));
+        const modifiers = {shift: true, alt: false, ctrl: false, meta: false};
+        previews[0].onKey("End", modifiers);
+        assert.deepEqual(transport.sent, [keyMessage("End", modifiers)]);
     });
 
     test("enters preview mode once", () => {
