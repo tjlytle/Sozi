@@ -5,11 +5,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+# A CI runner has few cores and starts Electron slowly under load (#232): run fewer test
+# files at once and stretch every spawned browser's time limit (test/cli/helpers.js).
+if [ -n "${CI:-}" ]; then
+    export SOZI_TEST_TIMEOUT_SCALE="${SOZI_TEST_TIMEOUT_SCALE:-3}"
+    set -- --test-concurrency="${SOZI_TEST_CONCURRENCY:-2}"
+fi
+
 if command -v xvfb-run >/dev/null 2>&1; then
-    exec xvfb-run -a node --test "test/cli/*.test.js" "test/golden/*.test.js" "test/unit/**/*.test.js" "test/hooks/*.test.js" "test/lint/*.test.js" "test/deps/*.test.js" "test/pr/*.test.js" "test/coverage/*.test.js" "test/standard/*.test.js" "test/pipeline/*.test.js"
+    exec xvfb-run -a node --test "$@" "test/cli/*.test.js" "test/golden/*.test.js" "test/unit/**/*.test.js" "test/hooks/*.test.js" "test/lint/*.test.js" "test/deps/*.test.js" "test/pr/*.test.js" "test/coverage/*.test.js" "test/standard/*.test.js" "test/pipeline/*.test.js"
 fi
 
 # Fallback for a desktop session without xvfb-run.
 export DISPLAY="${DISPLAY:-:1}"
 export XAUTHORITY="${XAUTHORITY:-/run/user/1000/gdm/Xauthority}"
-exec node --test "test/cli/*.test.js" "test/golden/*.test.js" "test/unit/**/*.test.js" "test/hooks/*.test.js" "test/lint/*.test.js" "test/deps/*.test.js" "test/pr/*.test.js" "test/coverage/*.test.js" "test/standard/*.test.js" "test/pipeline/*.test.js"
+exec node --test "$@" "test/cli/*.test.js" "test/golden/*.test.js" "test/unit/**/*.test.js" "test/hooks/*.test.js" "test/lint/*.test.js" "test/deps/*.test.js" "test/pr/*.test.js" "test/coverage/*.test.js" "test/standard/*.test.js" "test/pipeline/*.test.js"
