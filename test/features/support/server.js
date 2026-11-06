@@ -14,7 +14,9 @@ const CONTENT_TYPES = Object.freeze({
     ".js": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".md": "text/markdown; charset=utf-8",
-    ".svg": "image/svg+xml"
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".webmanifest": "application/manifest+json"
 });
 
 /** Serve a directory on a free port of this machine.
@@ -26,8 +28,10 @@ const CONTENT_TYPES = Object.freeze({
 export async function serveDirectory(dir) {
     const server = http.createServer((request, response) => {
         const {pathname} = new URL(request.url ?? "/", "http://localhost");
-        // Normalising an absolute path drops every "..", so the file stays under dir.
-        const file = path.join(dir, path.normalize(decodeURIComponent(pathname)));
+        // Normalising an absolute path drops every "..", so the file stays under dir. A
+        // directory's address serves its index.html, as a static host does.
+        const relative = path.normalize(decodeURIComponent(pathname));
+        const file = path.join(dir, relative.endsWith("/") ? `${relative}index.html` : relative);
         fs.readFile(file, (error, content) => {
             if (error) {
                 response.writeHead(404).end();

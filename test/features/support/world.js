@@ -110,8 +110,8 @@ export function copyDeck(name) {
 }
 
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
- * showed, the deck's first view, the notes' font size before a change, the deck it serves
- * over http and Cucumber's attach.
+ * showed, the deck's first view, the notes' font size before a change, the deck and the shell
+ * it serves over http and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
@@ -148,9 +148,19 @@ export class SoziWorld extends World {
         this.notesFontSize = 0;
         /** The copy of a deck this scenario serves over http.
          *
-         * @type {?{presenter: string, dir: string, close: () => Promise<void>}}
+         * @type {?{url: string, html: string, presenter: string, dir: string, close: () => Promise<void>}}
          */
         this.served = null;
+        /** Where the scenario serves the hosted shell, with the trailing slash.
+         *
+         * @type {string}
+         */
+        this.shellUrl = "";
+        /** The shell's page on each device the scenario opened it on.
+         *
+         * @type {Record<string, import("playwright").Page>}
+         */
+        this.shells = {};
     }
 
     /** Open the exported player page of a built deck and wait for window.sozi.
@@ -167,11 +177,19 @@ export class SoziWorld extends World {
             await this.context?.close();
             this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
         }
+        await this.loadDeck(pathToFileURL(deck.html).href);
+    }
+
+    /** Open a deck page from its address and wait for window.sozi.
+     *
+     * @param {string} href - The page's address.
+     */
+    async loadDeck(href) {
         // Cast: the Before hook opens a context for every scenario.
         this.deck = await /** @type {import("playwright").BrowserContext} */ (
             this.context
         ).newPage();
-        await this.deck.goto(pathToFileURL(deck.html).href);
+        await this.deck.goto(href);
         await this.deck.waitForFunction(() =>
             Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame)
         );
@@ -260,7 +278,13 @@ export class SoziWorld extends World {
             fs.writeFileSync(path.join(dir, `${fixture}.notes.md`), notesFile);
         }
         const {url, close} = await serveDirectory(dir);
-        this.served = {presenter: `${url}/${path.basename(deck.presenter)}`, dir, close};
+        this.served = {
+            url,
+            html: `${url}/${path.basename(deck.html)}`,
+            presenter: `${url}/${path.basename(deck.presenter)}`,
+            dir,
+            close
+        };
     }
 
     /** Wait until the presenter page has heard from the display.
