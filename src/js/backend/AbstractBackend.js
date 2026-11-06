@@ -118,6 +118,19 @@ export class AbstractBackend {
         return "";
     }
 
+    /** Load a file synchronously, if it is there.
+     *
+     * Unlike {@link module:backend/AbstractBackend.AbstractBackend#loadSync|loadSync},
+     * a missing file is not an error.
+     *
+     * @param {any} _fileDescriptor - A file to load (backend-dependent).
+     * @returns {?string} - The content of the file, or `null` if it is absent.
+     */
+    loadOptionalSync(_fileDescriptor) {
+        // Not implemented
+        return null;
+    }
+
     /** Create a new file.
      *
      * @param {string} _name - The name of the file to create.

@@ -107,6 +107,8 @@ sozi --cli render (--frame N | --all) --out PATH [--size WxH] [--frame-number] [
 sozi --cli export [--export-type pdf|pptx|video] [--format mp4|webm|ogv|png] [--fps N] [--width W] [--height H]
                   [--bitrate B] [--include LIST] [--exclude LIST] [--ffmpeg PATH] [--out PATH] [--transparent]
                   [--frame-number] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli notes export deck.sozi.json [file.md]
+sozi --cli notes import deck.sozi.json file.md
 ```
 
 The file argument may also be a presentation file, e.g.
@@ -144,6 +146,18 @@ When running from the source tree, replace `sozi` with
   files written. It writes `deck.sozi.json` only when the file does not exist
   or when loading or an option changed the presentation, so setting a
   property to its current value usually writes nothing. At least one option is required.
+* `--cli notes export` writes the deck's notes as one Markdown document, a `#` heading
+  per frame with notes, to `file.md`, or returns it as `markdown` in the result when no
+  file is named. `--cli notes import` writes the sections of `file.md` back to
+  `deck.sozi.json`, pairing by a `<!-- frame: id -->` line under the heading first, then by
+  title (duplicates in deck order). It reports the frames it changed in `changed`, and in
+  `unmatched` the `headings` and `frames` that did not pair, which are also warnings.
+  Sections that were not edited leave their frames untouched, and unmatched frames keep
+  their notes.
+* A `deck.notes.md` beside `deck.sozi.json` is what a build puts in front of the presenter,
+  with no import: it wins whole, and the build's warnings name what did not pair. Remove it
+  and the next build uses the notes in the JSON again. A presenter served over http also
+  fetches `deck.notes.md` beside the deck when it loads, so a published file needs no rebuild.
 * `--title TITLE` (for `build` and `set`) sets the explicit title of the
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
