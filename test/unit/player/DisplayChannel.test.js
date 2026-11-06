@@ -371,7 +371,11 @@ describe("DisplayChannel", () => {
         transport.sent.length = 0;
         transport.deliver(helloMessage(Roles.surface));
         assert.deepEqual(transport.sent, [
-            displayHello({frame: {index: 1, id: "f2", title: "Two", notes: "second"}, blank: true})
+            displayHello({
+                frame: {index: 1, id: "f2", title: "Two", notes: "second"},
+                blank: true,
+                timer: {elapsedMs: 0, running: true, targetMs: null}
+            })
         ]);
     });
 
@@ -406,6 +410,7 @@ describe("DisplayChannel", () => {
         player.setBlank(false);
         assert.deepEqual(transport.sent, [
             frameChangeMessage({index: 1, id: "f2", title: "Two", notes: "second"}),
+            timerMessage({elapsedMs: 0, running: true, targetMs: null}),
             viewportMessage({innerWidth: 800, innerHeight: 600, devicePixelRatio: 2}),
             blankMessage(true),
             blankMessage(false)
@@ -413,7 +418,9 @@ describe("DisplayChannel", () => {
     });
 
     test("sends each frame change once however many surfaces said hello", () => {
-        const {transport, player} = startedDisplay();
+        const {transport, player, timer} = startedDisplay();
+        // Started already, so that the frame change is all there is to send.
+        timer.start();
         transport.deliver(helloMessage(Roles.surface));
         transport.deliver(helloMessage(Roles.surface));
         transport.sent.length = 0;
@@ -563,10 +570,13 @@ describe("DisplayChannel", () => {
     });
 
     test("what the display reports reaches every transport", () => {
-        const {channel, transport, player} = startedDisplay();
+        const {channel, transport, player, timer} = startedDisplay();
         const added = fakeTransport();
         channel.addTransport(added);
+        // Started already, so that the frame change is all there is to report.
+        timer.start();
         added.sent.length = 0;
+        transport.sent.length = 0;
 
         player.showFrame(1);
         channel.sendCustom("pong", 1);
