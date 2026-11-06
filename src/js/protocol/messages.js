@@ -10,8 +10,10 @@
  * @module
  */
 
+import {readPresets} from "./layoutPresets.js";
 import {readViewport} from "./viewport.js";
 
+/** @typedef {import("./layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("./viewport.js").Viewport} Viewport */
 /** @typedef {import("./viewport.js").ViewportMessage} ViewportMessage */
 
@@ -58,6 +60,7 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @property {Viewport | null} viewport - The display's size, null while it has none.
  * @property {FrameInfo} frame - The current frame.
  * @property {boolean} blank - Is the blank screen shown?
+ * @property {Record<string, LayoutPreset>} [layouts] - The deck's layout presets, in order.
  */
 
 /** @typedef {{name: "hello", role: "surface"}} SurfaceHelloMessage */
@@ -101,8 +104,15 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  */
 export function helloMessage(role, state) {
     if (role === Roles.display) {
-        const {deckId, frameCount, viewport, frame, blank} = /** @type {DisplayState} */ (state);
-        return {name: "hello", role, deckId, frameCount, viewport, frame, blank};
+        const {
+            deckId,
+            frameCount,
+            viewport,
+            frame,
+            blank,
+            layouts = {}
+        } = /** @type {DisplayState} */ (state);
+        return {name: "hello", role, deckId, frameCount, viewport, frame, blank, layouts};
     }
     return {name: "hello", role: "surface"};
 }
@@ -266,6 +276,9 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
+ * A missing `layouts` reads as none, so a newer surface can join an older deck, and a bad
+ * preset is dropped, never the whole message.
+ *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
  */
@@ -286,7 +299,10 @@ function readHello(data) {
         (viewport !== null || data.viewport === null) &&
         frame !== null &&
         typeof blank === "boolean";
-    return valid ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, blank}) : null;
+    const layouts = readPresets(data.layouts).presets;
+    return valid
+        ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, blank, layouts})
+        : null;
 }
 
 /**

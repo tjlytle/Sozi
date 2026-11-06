@@ -102,7 +102,7 @@ messages are always in English.
 ```
 sozi --cli inspect [--frame N] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli build [--write-json] [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
-sozi --cli set [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli set [--title TITLE] [--out-dir DIR] [--layout NAME=FILE] [--presentation P.sozi.json] deck.svg
 sozi --cli render (--frame N | --all) --out PATH [--size WxH] [--frame-number] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli export [--export-type pdf|pptx|video] [--format mp4|webm|ogv|png] [--fps N] [--width W] [--height H]
                   [--bitrate B] [--include LIST] [--exclude LIST] [--ffmpeg PATH] [--out PATH] [--transparent]
@@ -148,6 +148,11 @@ When running from the source tree, replace `sozi` with
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
   explicit title. Use `--title=TITLE` for a title that starts with `--`.
+* `--layout NAME=FILE` (for `set`) adds a layout preset for the presenter to the deck, or
+  replaces the preset of that name, keeping its place in the order. A new preset goes last. The
+  first preset that matches a page's width wins. `FILE` is what the presenter's Save as preset
+  downloads. `--layout NAME=` removes the preset. Build the deck again for a device to see the
+  change. `inspect` lists each preset as `layouts`: its `name`, `match`, `panels` and `rail`.
 * `--out-dir DIR` (for `build`, `set`, `inspect`, `render` and `export`) is the directory of the
   HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)
