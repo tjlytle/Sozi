@@ -3,215 +3,198 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // The presenter console: a surface of the presenter protocol (docs/presenter-protocol.md).
-// It mirrors what the audience window reports and drives it and the three previews.
+// It mirrors what the audience window reports in a workspace of panels the speaker
+// arranges, and drives the audience window and the three previews.
 
-import {setSanitizedHTML} from "./html/sanitize";
-import {LocalTransport} from "./protocol/LocalTransport";
-import {
-    MessageNames,
-    Roles,
-    helloMessage,
-    blankMessage,
-    jumpToFrameMessage,
-    nextMessage,
-    previousMessage,
-    previewMessage,
-    followLinkMessage,
-    readMessage
-} from "./protocol/messages";
+import {LocalTransport, TransportEvents, TransportStatus} from "./protocol/LocalTransport";
+import {Roles, helloMessage, readMessage} from "./protocol/messages";
+import {DisplayMirror, DisplayMirrorEvents} from "./presenter/DisplayMirror";
+import {Workspace} from "./presenter/Workspace";
+import {NARROW_MAX_WIDTH, layoutKey} from "./presenter/layout";
+import {isEditableTarget, messageForKey} from "./presenter/keys";
+import {PreviewPanel} from "./presenter/panels/PreviewPanel";
+import {NotesPanel} from "./presenter/panels/NotesPanel";
+import {ControlsPanel} from "./presenter/panels/ControlsPanel";
+import {ConnectionPanel} from "./presenter/panels/ConnectionPanel";
 
-/** The frame each preview iframe shows, relative to the current one, in page order.
+/** @typedef {import("./protocol/messages").Message} Message */
+/** @typedef {import("./presenter/Workspace").PanelSpec} PanelSpec */
+
+/** The six panels, in the order the default layout adds them, and their place in it.
+ *
+ * Current over Controls over Previous and Next, on the left; Notes right, with Connection
+ * as a tab behind it.
  *
  * @readonly
  */
-const PREVIEW_OFFSETS = Object.freeze([0, -1, 1]);
-
-/** Set the text of the presenter page's element that matches a selector.
- *
- * @param {string} selector - The element's selector.
- * @param {string} text - Its new text.
- */
-function setText(selector, text) {
-    // Cast: the presenter page holds the elements this file names.
-    /** @type {Element} */ (document.querySelector(selector)).textContent = text;
-}
-
-/** The message a key on the presenter page sends to the audience window.
- *
- * Shift moves without a transition.
- *
- * @param {KeyboardEvent} evt - The key event.
- * @param {{frameCount: number, blank: boolean}} display - The display as it last reported itself.
- * @returns {?import("./protocol/messages").Message} The message, or null for any other key.
- */
-function messageForKey(evt, display) {
-    switch (evt.key) {
-        case "Home":
-            return jumpToFrameMessage(0, !evt.shiftKey);
-        case "End":
-            return jumpToFrameMessage(Math.max(display.frameCount - 1, 0), !evt.shiftKey);
-        case "ArrowUp":
-        case "PageUp":
-        case "ArrowLeft":
-            return previousMessage(!evt.shiftKey);
-        case "ArrowDown":
-        case "PageDown":
-        case "ArrowRight":
-        case "Enter":
-        case " ":
-            return nextMessage(!evt.shiftKey);
-        case ".":
-            return blankMessage(!display.blank);
-        default:
-            return null;
+const PANELS = Object.freeze([
+    {id: "current", title: "Current", icon: "◉"},
+    {
+        id: "notes",
+        title: "Notes",
+        icon: "✎",
+        position: {referencePanel: "current", direction: "right"}
+    },
+    {
+        id: "connection",
+        title: "Connection",
+        icon: "⇄",
+        position: {referencePanel: "notes", direction: "within"},
+        inactive: true
+    },
+    {
+        id: "controls",
+        title: "Controls",
+        icon: "⏯",
+        position: {referencePanel: "current", direction: "below"},
+        initialHeight: 96
+    },
+    {
+        id: "previous",
+        title: "Previous",
+        icon: "◀",
+        position: {referencePanel: "controls", direction: "below"}
+    },
+    {
+        id: "next",
+        title: "Next",
+        icon: "▶",
+        position: {referencePanel: "previous", direction: "right"}
     }
-}
+]);
 
-/** Connect the presenter page to the audience window and the previews.
+/** The frame each preview shows, relative to the current one, by panel id.
+ *
+ * @readonly
+ */
+const PREVIEW_OFFSETS = Object.freeze({current: 0, previous: -1, next: 1});
+
+/** Connect the mirror to the audience window.
  *
  * @param {Window} audience - The audience window.
- * @param {Window[]} frames - The windows of the preview iframes, in page order.
+ * @param {DisplayMirror} mirror - The mirror to keep up to date.
+ * @returns {LocalTransport} The transport to the audience window.
  */
-function connect(audience, frames) {
-    // The display as it last reported itself: the presenter holds no other frame state.
-    const display = {frameCount: 0, index: 0, blank: false};
+function connect(audience, mirror) {
     const toAudience = new LocalTransport(window, audience);
-    const previews = frames.map((frame, i) => ({
-        offset: PREVIEW_OFFSETS[i],
-        current: PREVIEW_OFFSETS[i] === 0,
-        transport: new LocalTransport(window, frame),
-        ready: false
-    }));
-
-    const updatePreview = p => {
-        const index = display.index + p.offset;
-        if (p.ready) {
-            p.transport.send(
-                index >= 0 && index < display.frameCount
-                    ? jumpToFrameMessage(index, false)
-                    : blankMessage(true)
-            );
-        }
-    };
-
-    const showFrame = ({index, title, notes}) => {
-        display.index = index;
-        setText(".sozi-current-index", String(index + 1));
-        setText(".sozi-presentation-length", String(display.frameCount));
-        setText(".sozi-notes-title", title);
-        setSanitizedHTML(
-            /** @type {Element} */ (document.querySelector(".sozi-notes-body")),
-            notes
-        );
-        previews.forEach(updatePreview);
-    };
-
-    const showViewport = viewport => {
-        // Only the audience window's size shapes the previews.
-        document.documentElement.style.setProperty(
-            "--sozi-display-aspect",
-            String(viewport.width / viewport.height)
-        );
-    };
-
-    // What each message from the audience window does, by name (standard 2.5).
-    const fromAudience = {
-        [MessageNames.hello]: message => {
-            if (message.role === Roles.display) {
-                display.frameCount = message.frameCount;
-                display.blank = message.blank;
-                if (message.viewport) {
-                    showViewport(message.viewport);
-                }
-                showFrame(message.frame);
-            }
-        },
-        [MessageNames.frameChange]: showFrame,
-        [MessageNames.viewport]: showViewport,
-        [MessageNames.blank]: ({on}) => {
-            display.blank = on;
-        }
-    };
     toAudience.onMessage(data => {
         const message = readMessage(data);
-        if (message && Object.hasOwn(fromAudience, message.name)) {
-            fromAudience[message.name](message);
+        if (message) {
+            mirror.apply(message);
         }
     });
-
-    for (const p of previews) {
-        p.transport.onMessage(data => {
-            const message = readMessage(data);
-            if (!message) {
-                return;
-            }
-            if (message.name === MessageNames.hello && message.role === Roles.display) {
-                // A preview is a display too: it becomes a preview once it says hello.
-                p.ready = true;
-                p.transport.send(previewMessage(p.current));
-                updatePreview(p);
-            } else if (message.name === MessageNames.followLink && p.current) {
-                toAudience.send(followLinkMessage(message.id));
-            }
-        });
-    }
-
+    toAudience.on(TransportEvents.statusChange, status => mirror.setStatus(status));
     // A display that loaded before this page answers with its hello.
     toAudience.send(helloMessage(Roles.surface));
-    previews.forEach(p => p.transport.send(helloMessage(Roles.surface)));
+    return toAudience;
+}
 
-    /** @type {HTMLElement} */ (document.getElementById("sozi-previous-btn")).addEventListener(
-        "click",
-        () => toAudience.send(previousMessage()),
-        false
-    );
-    /** @type {HTMLElement} */ (document.getElementById("sozi-next-btn")).addEventListener(
-        "click",
-        () => toAudience.send(nextMessage()),
-        false
-    );
-
-    window.addEventListener("keydown", evt => {
-        // Keys with Alt/Ctrl/Meta modifiers are ignored
-        const message =
-            evt.altKey || evt.ctrlKey || evt.metaKey ? null : messageForKey(evt, display);
-        if (message) {
-            toAudience.send(message);
-            evt.stopPropagation();
-            evt.preventDefault();
+/** The six panels of the workspace, in the order the default layout adds them.
+ *
+ * @param {DisplayMirror} mirror - What the display last reported.
+ * @param {(message: Message) => void} send - Sends a message to the audience window.
+ * @param {string} src - The deck's page, for the previews.
+ * @returns {PanelSpec[]} The panels.
+ */
+function panelSpecs(mirror, send, src) {
+    /** Draw a panel into its element.
+     *
+     * @param {string} id - The panel's id.
+     * @param {HTMLElement} element - Its element.
+     * @returns {{dispose: () => void}} The panel.
+     */
+    const create = (id, element) => {
+        switch (id) {
+            case "notes":
+                return new NotesPanel(element, mirror);
+            case "connection":
+                return new ConnectionPanel(element, mirror);
+            case "controls":
+                return new ControlsPanel(element, mirror, send);
+            default: {
+                const offset = PREVIEW_OFFSETS[id];
+                return new PreviewPanel(element, mirror, send, {
+                    offset,
+                    className: `sozi-${id}-frame`,
+                    src
+                });
+            }
         }
-    });
+    };
+    return PANELS.map(panel => ({
+        ...panel,
+        render: element => {
+            const drawn = create(panel.id, element);
+            return () => drawn.dispose();
+        }
+    }));
 }
 
 window.addEventListener(
     "load",
     () => {
-        const iframes = document.querySelectorAll("iframe");
-
-        // Prevent the notes pane to change size when its content is updated.
-        // Casts: the presenter page holds these elements.
-        const preview = /** @type {HTMLElement} */ (document.querySelector(".sozi-frame-preview"));
-        const notes = /** @type {HTMLElement} */ (document.querySelector(".sozi-notes"));
-        new ResizeObserver(() => {
-            notes.style.width = `calc(100vw - ${preview.offsetWidth}px`;
-        }).observe(preview);
+        // Cast: the presenter page holds the workspace, with the deck's page on it.
+        const element = /** @type {HTMLElement} */ (document.querySelector(".sozi-workspace"));
+        const src = /** @type {string} */ (element.dataset.deck);
+        const mirror = new DisplayMirror();
 
         // Open a new window for the main presentation view.
-        const presWindow = window.open(
-            iframes[0].src,
+        const audience = window.open(
+            src,
             "sozi-presentation",
             "width=600, height=400, scrollbars=yes, toolbar=yes"
         );
-        // A blocked popup leaves presWindow null: the page says so and stays usable (standard 2.7).
-        if (!presWindow) {
+        // A blocked popup leaves audience null: the page says so and stays usable (standard 2.7).
+        const toAudience = audience ? connect(audience, mirror) : null;
+        if (audience) {
+            audience.focus();
+        } else {
             /** @type {HTMLElement} */ (document.querySelector(".sozi-notice")).hidden = false;
-            return;
+            mirror.setStatus(TransportStatus.closed);
         }
-        presWindow.focus();
-        connect(
-            presWindow,
-            Array.from(iframes, iframe => /** @type {Window} */ (iframe.contentWindow))
-        );
+        const send = message => {
+            if (toAudience) {
+                toAudience.send(message);
+            }
+        };
+
+        mirror.on(DisplayMirrorEvents.change, ({viewport}) => {
+            // Only the audience window's size shapes the previews.
+            if (viewport) {
+                document.documentElement.style.setProperty(
+                    "--sozi-display-aspect",
+                    String(viewport.width / viewport.height)
+                );
+            }
+        });
+
+        const workspace = new Workspace(element, {
+            storage: window.localStorage,
+            key: layoutKey(location.pathname),
+            media: window.matchMedia(`(max-width: ${NARROW_MAX_WIDTH}px)`)
+        });
+        for (const spec of panelSpecs(mirror, send, src)) {
+            workspace.addPanel(spec);
+        }
+        workspace.open();
+
+        window.addEventListener("keydown", evt => {
+            if (isEditableTarget(evt.target)) {
+                return;
+            }
+            const modifiers = {
+                shift: evt.shiftKey,
+                alt: evt.altKey,
+                ctrl: evt.ctrlKey,
+                meta: evt.metaKey
+            };
+            const message = messageForKey(evt.key, modifiers, mirror);
+            if (message) {
+                send(message);
+                evt.stopPropagation();
+                evt.preventDefault();
+            }
+        });
     },
     false
 );
