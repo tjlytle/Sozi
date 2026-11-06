@@ -595,7 +595,7 @@ export class Storage {
      * It contains a copy of the following items:
      * - the SVG document,
      * - the presentation data needed by the player,
-     * - a copy of the custom style sheets and scripts.
+     * - a copy of the custom style sheets and scripts for the presentation page.
      *
      * When the HTML file is written in another directory than the SVG file,
      * the relative image and media hrefs of the SVG document are rewritten
@@ -630,6 +630,7 @@ export class Storage {
     /** Generate the content of the presenter console HTML file.
      *
      * The result is derived from the `presenter.html` template.
+     * It contains a copy of the custom style sheets and scripts for the presenter page.
      *
      * @param {string} htmlFileName - The name of the presentation HTML file to play.
      * @returns {string} - An HTML document content, as text.

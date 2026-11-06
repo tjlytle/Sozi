@@ -432,7 +432,7 @@ export class Controller extends EventEmitter {
         this.storage.reload();
     }
 
-    /** Add a custom stylesheet or script to the current presentation.
+    /** Add a custom stylesheet or script to the current presentation, for the presentation page.
      *
      * This action supports undo and redo.
      *
