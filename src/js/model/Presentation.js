@@ -6,6 +6,7 @@
 
 import {EventEmitter} from "events";
 import {CameraState} from "./CameraState";
+import {customFilesFor, readCustomFile, storableCustomFile} from "./customFiles";
 import {hasReliableBoundaries} from "../player/Camera";
 import * as authorStyle from "../svg/authorStyle";
 
@@ -720,10 +721,10 @@ export class Presentation extends EventEmitter {
          */
         this.elementsToHide = [];
 
-        /** The custom CSS and JavaScript files to add to the generated HTML presentation.
+        /** The custom CSS and JavaScript files to add to the generated HTML pages.
          *
          * @default
-         * @type {string[]}
+         * @type {import("./customFiles").CustomFile[]}
          */
         this.customFiles = [];
 
@@ -997,7 +998,7 @@ export class Presentation extends EventEmitter {
             exportToVideoBitRate: this.exportToVideoBitRate,
             frames: this.frames.map(frame => frame.toStorable()),
             elementsToHide: this.elementsToHide.slice(),
-            customFiles: this.customFiles.slice()
+            customFiles: this.customFiles.map(storableCustomFile)
         };
     }
 
@@ -1083,7 +1084,7 @@ export class Presentation extends EventEmitter {
         }
 
         if (storable.customFiles) {
-            this.customFiles = storable.customFiles.slice();
+            this.customFiles = storable.customFiles.map(readCustomFile);
         }
     }
 
@@ -1168,9 +1169,10 @@ export class Presentation extends EventEmitter {
     /** Get the custom files with the given extension.
      *
      * @param {string} ext - The file extension.
-     * @returns {string[]} - The custom files that have that extension.
+     * @param {"display" | "presenter"} [page] - The page they are for.
+     * @returns {string[]} - The paths of the custom files for that page with that extension.
      */
-    getCustomFiles(ext) {
-        return this.customFiles.filter(path => path.endsWith(ext));
+    getCustomFiles(ext, page = "display") {
+        return customFilesFor(this.customFiles, page, ext);
     }
 }

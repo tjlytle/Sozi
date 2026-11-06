@@ -622,8 +622,8 @@ export class Storage {
                 .replace(/</g, "\\u003c")
                 .replace(/\u2028/g, "\\u2028")
                 .replace(/\u2029/g, "\\u2029"),
-            customCSS: this.readCustomFiles(".css"),
-            customJS: this.readCustomFiles(".js")
+            customCSS: this.readCustomFiles(".css", "display"),
+            customJS: this.readCustomFiles(".js", "display")
         });
     }
 
@@ -637,7 +637,9 @@ export class Storage {
     exportPresenterHTML(htmlFileName) {
         return nunjucks.render("presenter.html", {
             pres: this.presentation,
-            soziHtml: htmlFileName
+            soziHtml: htmlFileName,
+            customCSS: this.readCustomFiles(".css", "presenter"),
+            customJS: this.readCustomFiles(".js", "presenter")
         });
     }
 
@@ -651,14 +653,15 @@ export class Storage {
         return path.relative(svgLoc, filePath);
     }
 
-    /** Read custom files to include in the presentation HTML.
+    /** Read custom files to include in a generated HTML page.
      *
      * @param {string} ext - The extension of the files to read.
+     * @param {"display" | "presenter"} page - The page they are for.
      * @returns {string} - The concatenated content of all the files read.
      */
-    readCustomFiles(ext) {
+    readCustomFiles(ext, page) {
         const svgLoc = this.backend.getLocation(this.svgFileDescriptor);
-        const paths = this.presentation.customFiles.filter(path => path.endsWith(ext));
+        const paths = this.presentation.getCustomFiles(ext, page);
         const contents = paths.map(relPath => {
             const absPath = path.join(svgLoc, relPath);
             return this.backend.loadSync(absPath);

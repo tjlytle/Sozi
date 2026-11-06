@@ -7,6 +7,7 @@
 import {Storage} from "./Storage";
 import {Frame, LayerProperties} from "./model/Presentation";
 import {CameraState} from "./model/CameraState";
+import {CustomFileTargets} from "./model/customFiles";
 import {EventEmitter} from "events";
 import * as i18n from "./i18n";
 import * as exporter from "./exporter";
@@ -443,7 +444,10 @@ export class Controller extends EventEmitter {
     addCustomFile(path) {
         this.perform(
             function onDo() {
-                this.presentation.customFiles.push(this.storage.toRelativePath(path));
+                this.presentation.customFiles.push({
+                    path: this.storage.toRelativePath(path),
+                    target: CustomFileTargets.display
+                });
             },
             function onUndo() {
                 this.presentation.customFiles.pop();
@@ -476,9 +480,33 @@ export class Controller extends EventEmitter {
         );
     }
 
+    /** Choose the page a custom stylesheet or script is for.
+     *
+     * This action supports undo and redo.
+     *
+     * @param {number} index - The index of the entry in the custom file list.
+     * @param {string} target - One of `CustomFileTargets`.
+     *
+     * @fires module:Controller.presentationChange
+     * @fires module:Controller.repaint
+     */
+    setCustomFileTarget(index, target) {
+        const file = this.presentation.customFiles[index];
+        this.perform(
+            function onDo() {
+                this.presentation.customFiles[index] = {...file, target};
+            },
+            function onUndo() {
+                this.presentation.customFiles[index] = file;
+            },
+            false,
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
+        );
+    }
+
     /** Get the list of custom stylesheets and scripts added to the current presentation.
      *
-     * @returns {string[]} - An array of file paths.
+     * @returns {import("./model/customFiles").CustomFile[]} - Each file's path and target.
      */
     getCustomFiles() {
         return this.presentation.customFiles;

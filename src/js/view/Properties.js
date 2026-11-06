@@ -6,6 +6,7 @@
 
 import {h} from "inferno-hyperscript";
 import {serializeHTML} from "../html/sanitize";
+import {CustomFileTargets} from "../model/customFiles";
 import {VirtualDOMView} from "./VirtualDOMView";
 import {getLanguages} from "./languages";
 
@@ -21,6 +22,31 @@ import {getLanguages} from "./languages";
  */
 function asArray(v) {
     return v instanceof Array ? v : [v];
+}
+
+/** The select of the page a custom file is for.
+ *
+ * @param {any} controller - The controller.
+ * @param {(s: string) => string} _ - The function that translates a string.
+ * @param {string} target - The file's target.
+ * @param {number} index - The file's index in the custom file list.
+ * @returns {VNode} - The select.
+ */
+function customFileTargetSelect(controller, _, target, index) {
+    return h(
+        "select",
+        {
+            title: _("The page this file is for"),
+            onChange(evt) {
+                controller.setCustomFileTarget(index, evt.target.value);
+            }
+        },
+        [
+            [CustomFileTargets.display, _("Presentation")],
+            [CustomFileTargets.presenter, _("Presenter")],
+            [CustomFileTargets.both, _("Both")]
+        ].map(([value, label]) => h("option", {value, selected: target === value}, label))
+    );
 }
 
 /** Signals that the mode of the properties view has changed.
@@ -554,9 +580,10 @@ export class Properties extends VirtualDOMView {
                         )
                     ])
                 ]),
-                controller.getCustomFiles().map((name, index) =>
+                controller.getCustomFiles().map(({path, target}, index) =>
                     h("tr", [
-                        h("td", name),
+                        h("td", path),
+                        h("td", [customFileTargetSelect(controller, _, target, index)]),
                         h("td", [
                             h(
                                 "button",
