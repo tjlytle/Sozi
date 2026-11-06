@@ -36,7 +36,12 @@ const VIEWPORT = {width: 1280, height: 800};
 
 /** @type {import("playwright").Browser} */
 let browser;
-/** @type {Map<string, {dir: string, svg: string, html: string, presenter: string, cleanup: Function}>} */
+/** A built deck: where its files and pages are, and the function that removes them.
+ *
+ * @typedef {{dir: string, svg: string, html: string, presenter: string, cleanup: Function}} BuiltDeck
+ */
+
+/** @type {Map<string, BuiltDeck>} */
 const decks = new Map();
 
 /** Build a deck in its directory with the CLI.
@@ -54,8 +59,7 @@ function buildDeck(name, {dir, svg}) {
 /** The built deck for a fixture, building it with the CLI on first use.
  *
  * @param {string} name - The fixture name under test/fixtures.
- * @returns {{dir: string, svg: string, html: string, presenter: string}} - Where the built
- *     pages are.
+ * @returns {BuiltDeck} - Where the built pages are.
  */
 export function builtDeck(name) {
     if (!decks.has(name)) {
@@ -71,9 +75,7 @@ export function builtDeck(name) {
         });
     }
     // Cast: the deck was built above if it was missing.
-    return /** @type {{dir: string, svg: string, html: string, presenter: string}} */ (
-        decks.get(name)
-    );
+    return /** @type {BuiltDeck} */ (decks.get(name));
 }
 
 /** Remove the notes file of a built deck and build it again, in place.
@@ -92,7 +94,8 @@ export function rebuildWithoutNotesFile(name) {
 }
 
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
- * showed, the deck's first view and Cucumber's attach.
+ * showed, the deck's first view, the notes' font size before a change, the deck it serves
+ * over http and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
