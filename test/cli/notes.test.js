@@ -48,6 +48,28 @@ function exported(deck) {
     return {file, text: fs.readFileSync(file, "utf8")};
 }
 
+/** Give a deck a file's text, edit the section of its frame Six, and compare the text it ends with.
+ *
+ * @param {Deck} deck - The deck.
+ * @param {string} before - The presentation file's text.
+ */
+function assertOnlySixChanges(deck, before) {
+    fs.writeFileSync(deck.json, before);
+    const {file, text} = exported(deck);
+    fs.writeFileSync(file, text.replace("Second short line.", "Second, edited."));
+
+    const {code, json} = notes(deck, "import", path.basename(deck.json), "edit.md");
+    assert.equal(code, 0, JSON.stringify(json));
+    assert.deepEqual(json.changed, ["frame6"]);
+
+    const edited = "<p>First short line.</p>\n<p>Second, edited.</p>\n";
+    const old = JSON.stringify(JSON.parse(before).frames[5].notes);
+    assert.equal(
+        fs.readFileSync(deck.json, "utf8"),
+        before.replace(old, () => JSON.stringify(edited))
+    );
+}
+
 describe("notes export", () => {
     test("returns the document in the result when no file is named", () => {
         withDeck("notes-document", deck => {
@@ -115,6 +137,43 @@ describe("notes import", () => {
             // Every other byte equal: put the old notes back and compare the text.
             const encoded = html => JSON.stringify(html);
             assert.equal(after.replace(encoded(newNotes[5]), encoded(oldNotes[5])), before);
+        });
+    });
+
+    test("a file in another format keeps it: only the edited notes differ", () => {
+        withDeck("notes-document", deck => {
+            const parsed = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            assertOnlySixChanges(
+                deck,
+                JSON.stringify(parsed, null, "\t").replace(/\n/g, "\r\n") + "\r\n\r\n"
+            );
+        });
+    });
+
+    test("an untouched frame without title or notes stays without them", () => {
+        withDeck("notes-document", deck => {
+            const parsed = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            delete parsed.frames[1].title;
+            delete parsed.frames[1].notes;
+            assertOnlySixChanges(deck, JSON.stringify(parsed, null, "  ") + "\n");
+        });
+    });
+
+    test("a section for a frame with no notes field adds only that field", () => {
+        withDeck("notes-document", deck => {
+            const parsed = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            const title = parsed.frames[1].title;
+            delete parsed.frames[1].notes;
+            fs.writeFileSync(deck.json, JSON.stringify(parsed, null, "  ") + "\n");
+            fs.writeFileSync(path.join(deck.dir, "edit.md"), `# ${title}\n\nnew\n`);
+
+            const {code, json} = notes(deck, "import", path.basename(deck.json), "edit.md");
+            assert.equal(code, 0, JSON.stringify(json));
+            assert.deepEqual(json.changed, [parsed.frames[1].frameId]);
+
+            const after = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            parsed.frames[1].notes = "<p>new</p>\n";
+            assert.deepEqual(after, parsed);
         });
     });
 
