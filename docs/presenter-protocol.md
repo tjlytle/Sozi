@@ -183,10 +183,11 @@ button on the rail, by default the title's first letter. `defaults` is its place
 default layout, `{position, inactive, initialHeight}`, with `position` as dockview's
 `addPanel` takes it. Without `defaults` the panel is a tab behind Notes.
 
-A panel is remembered in the saved layout with the others. A saved layout must name exactly
-the panels of the page, so adding or removing a panel starts from the default layout again,
-and a panel registered after `load` is not there yet when the next load reads the layout:
-register at the top level of the script.
+A panel is remembered in the saved layout with the others. A saved layout or a deck's preset
+must name exactly the panels of the page, so adding or removing a panel starts from the default
+layout again, and a panel registered after `load` is not there yet when the next load reads the
+layout: register at the top level of the script. Registering a panel saves nothing by itself;
+it joins the saved layout at the speaker's next change.
 
 ### `window.sozi.display`, on the presentation page
 
