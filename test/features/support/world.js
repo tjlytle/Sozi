@@ -20,6 +20,7 @@ import {createRequire} from "node:module";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {chromium} from "playwright";
+import {expect} from "playwright/test";
 
 const require = createRequire(import.meta.url);
 const {runSozi, withTempDeck} = require("../../cli/helpers.js");
@@ -36,6 +37,31 @@ const VIEWPORT = {width: 1280, height: 800};
 let browser;
 /** @type {Map<string, {dir: string, html: string, presenter: string, cleanup: Function}>} */
 const decks = new Map();
+/** The decks scenarios copied for themselves, to remove at the end of the run.
+ *
+ * @type {{cleanup: Function}[]}
+ */
+const copies = [];
+
+/** Build a deck with the CLI.
+ *
+ * @param {{dir: string, svg: string, cleanup: Function}} deck - A deck `withTempDeck` copied.
+ * @returns {{dir: string, html: string, presenter: string, cleanup: Function}} - Where the
+ *     built pages are.
+ */
+export function buildDeck(deck) {
+    const run = runSozi(["build", path.basename(deck.svg)], {cwd: deck.dir});
+    if (run.code !== 0) {
+        throw new Error(`sozi build ${deck.svg} failed:\n${run.stdout}\n${run.stderr}`);
+    }
+    const base = deck.svg.replace(/\.svg$/, "");
+    return {
+        dir: deck.dir,
+        html: base + ".sozi.html",
+        presenter: base + "-presenter.sozi.html",
+        cleanup: deck.cleanup
+    };
+}
 
 /** The built deck for a fixture, building it with the CLI on first use.
  *
@@ -44,21 +70,21 @@ const decks = new Map();
  */
 export function builtDeck(name) {
     if (!decks.has(name)) {
-        const deck = withTempDeck(name);
-        const run = runSozi(["build", path.basename(deck.svg)], {cwd: deck.dir});
-        if (run.code !== 0) {
-            throw new Error(`sozi build ${name} failed:\n${run.stdout}\n${run.stderr}`);
-        }
-        const base = deck.svg.replace(/\.svg$/, "");
-        decks.set(name, {
-            dir: deck.dir,
-            html: base + ".sozi.html",
-            presenter: base + "-presenter.sozi.html",
-            cleanup: deck.cleanup
-        });
+        decks.set(name, buildDeck(withTempDeck(name)));
     }
     // Cast: the deck was built above if it was missing.
     return /** @type {{dir: string, html: string, presenter: string}} */ (decks.get(name));
+}
+
+/** A copy of a fixture for one scenario that changes it; built decks are shared.
+ *
+ * @param {string} name - The fixture name under test/fixtures.
+ * @returns {{dir: string, svg: string, json: string, cleanup: Function}} - The copy.
+ */
+export function copyDeck(name) {
+    const deck = withTempDeck(name);
+    copies.push(deck);
+    return deck;
 }
 
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
@@ -141,17 +167,55 @@ export class SoziWorld extends World {
     /** Open the presenter page of a built deck and wait for the audience window it opens.
      *
      * @param {string} fixture - The fixture name.
+     * @param {{width: number, height: number}} [size] - The page's size from its first paint.
      */
-    async openPresenter(fixture) {
-        const deck = builtDeck(fixture);
+    async openPresenter(fixture, size) {
+        await this.openBuiltPresenter(builtDeck(fixture), size);
+    }
+
+    /** Open the presenter page of a deck on a device that has saved nothing for it.
+     *
+     * @param {{presenter: string}} deck - The built deck.
+     * @param {{width: number, height: number}} [size] - The page's size from its first paint.
+     */
+    async openPresenterOnNewDevice(deck, size) {
+        await this.context?.close();
+        this.context = await browser.newContext({viewport: VIEWPORT});
+        await this.openBuiltPresenter(deck, size);
+    }
+
+    /** Open the presenter page of a built deck and wait for the audience window it opens.
+     *
+     * @param {{presenter: string}} deck - The built deck.
+     * @param {{width: number, height: number}} [size] - The page's size from its first paint.
+     */
+    async openBuiltPresenter(deck, size) {
         // Cast: the Before hook opens a context for every scenario.
         this.presenter = await /** @type {import("playwright").BrowserContext} */ (
             this.context
         ).newPage();
+        if (size) {
+            await this.presenter.setViewportSize(size);
+        }
         const popup = this.presenter.waitForEvent("popup");
         await this.presenter.goto(pathToFileURL(deck.presenter).href);
         this.audience = await popup;
         await this.audience.waitForLoadState("load");
+    }
+
+    /** Wait until the presenter page has heard from the display.
+     *
+     * The frame counter fills in when the display says hello. It is in the Controls panel, so
+     * a layout that has that panel on the rail has no counter to look at, and its button is
+     * the sign instead.
+     */
+    async presenterIsReady() {
+        // Cast: the scenario opened the presenter page.
+        const page = /** @type {import("playwright").Page} */ (this.presenter);
+        const sign = page.locator(
+            '.sozi-current-index:not(:empty), .sozi-rail__panels [aria-label="Controls"]'
+        );
+        await expect(sign.first()).toBeAttached();
     }
 }
 
@@ -190,7 +254,7 @@ After(async function (scenario) {
 
 AfterAll(async () => {
     await browser?.close();
-    for (const deck of decks.values()) {
+    for (const deck of [...decks.values(), ...copies]) {
         deck.cleanup();
     }
 });

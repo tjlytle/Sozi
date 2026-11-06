@@ -5,7 +5,8 @@ Feature: The properties panel in the editor
   typed in seconds and saved in milliseconds. The layer opacity shows at once in the
   preview and is saved with the frame. The toolbar's Undo takes an edit back, in the
   preview and in the panel. The notes field shows the frame's notes with their
-  formatting, and what is typed there is saved with the frame.
+  formatting, and what is typed there is saved with the frame. The layout presets a deck
+  carries for the presenter are listed by name and match; they are read-only here.
 
   The editor opens a deck with its first frame and both layers selected.
 
@@ -43,3 +44,11 @@ Feature: The properties panel in the editor
       When the notes field is changed to "<p>bye</p>"
       And the presentation is saved
       Then the presentation JSON file on disk contains "<p>bye</p>"
+
+  Rule: On a deck with layout presets
+
+    @issue-33
+    Scenario: The properties list the deck's layout presets
+      Given the editor is open on a copy of the "layouts" deck
+      Then the layout presets read "wide, phone, laptop"
+      And a screenshot "editor-layout-presets" is saved

@@ -88,7 +88,7 @@ When("the presenter page is resized to {int} by {int}", async function (width, h
 
 When("the presenter page is reloaded", async function () {
     await this.presenter.reload();
-    await expect(this.presenter.locator(".sozi-current-index")).not.toBeEmpty();
+    await this.presenterIsReady();
 });
 
 When("the next button is pressed", async function () {
