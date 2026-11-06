@@ -8,7 +8,7 @@ import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
-import {builtDeck} from "../support/world.js";
+import {audienceWindow, builtDeck} from "../support/world.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.
 const WITHIN_A_FRAME = 250;
@@ -89,6 +89,24 @@ When("the presenter page is resized to {int} by {int}", async function (width, h
 
 When("the presenter page is reloaded", async function () {
     await this.presenter.reload();
+    await this.presenterIsReady();
+});
+
+When("the presenter page is opened again at its address", async function () {
+    await this.presenter.goto(this.presenter.url());
+    await this.presenterIsReady();
+});
+
+When("the speaker leaves the presenter page and goes back to it", async function () {
+    await this.presenter.goto("about:blank");
+    await this.presenter.goBack();
+    await this.presenterIsReady();
+});
+
+When("the presenter page is reloaded and opens a new audience window", async function () {
+    const popup = this.presenter.waitForEvent("popup");
+    await this.presenter.reload();
+    this.audience = await audienceWindow(popup);
     await this.presenterIsReady();
 });
 

@@ -109,6 +109,19 @@ export function copyDeck(name) {
     return deck;
 }
 
+/** The audience window a presenter page opens, once the deck has loaded in it.
+ *
+ * A new window can start on `about:blank`, whose own load does not count.
+ *
+ * @param {Promise<import("playwright").Page>} popup - The page's coming popup event.
+ * @returns {Promise<import("playwright").Page>} - The audience window.
+ */
+export async function audienceWindow(popup) {
+    const audience = await popup;
+    await audience.waitForURL(url => url.protocol !== "about:", {waitUntil: "load"});
+    return audience;
+}
+
 /** Keep every iframe a top-level page adds in `window.addedIframes`, even one it removes again;
  * it runs inside the page, before the page's own scripts.
  */
@@ -291,8 +304,7 @@ export class SoziWorld extends World {
         }
         const popup = this.presenter.waitForEvent("popup");
         await this.presenter.goto(href);
-        this.audience = await popup;
-        await this.audience.waitForLoadState("load");
+        this.audience = await audienceWindow(popup);
     }
 
     /** Serve a copy of a built deck over http until the scenario ends.
