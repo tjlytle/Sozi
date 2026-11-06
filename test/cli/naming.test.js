@@ -15,7 +15,8 @@ const {
     svgOfPresentation,
     svgKeyOf,
     isPresentationFile,
-    presentationDataError
+    presentationDataError,
+    notesFileOf
 } = require(path.resolve(__dirname, "..", "..", "src", "js", "naming.js"));
 
 describe("replaceFileExtWith", () => {
@@ -206,6 +207,13 @@ describe("isPresentationFile", () => {
         assert.equal(isPresentationFile("/decks/chart.json"), false);
         assert.equal(isPresentationFile("/decks/talk.svg"), false);
         assert.equal(isPresentationFile("sozi.json"), false);
+    });
+});
+
+describe("notesFileOf", () => {
+    test("is the presentation file's name with .notes.md, in the same form", () => {
+        assert.equal(notesFileOf("/decks/talk.sozi.json"), "/decks/talk.notes.md");
+        assert.equal(notesFileOf("TALK.SOZI.JSON"), "TALK.notes.md");
     });
 });
 

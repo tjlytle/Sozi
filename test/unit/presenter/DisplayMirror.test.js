@@ -13,7 +13,8 @@ import {TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 const one = {index: 0, id: "f1", title: "One", notes: "<p>First</p>"};
 const two = {index: 1, id: "f2", title: "Two", notes: ""};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
-const state = {deckId: "basic", frameCount: 2, viewport, frame: one, blank: false};
+const frames = [one, two];
+const state = {deckId: "basic", frameCount: 2, viewport, frame: one, frames, blank: false};
 
 /** A mirror and the changes it has emitted.
  *
@@ -45,7 +46,18 @@ describe("DisplayMirror", () => {
         assert.deepEqual(mirror.frame, one);
         assert.equal(mirror.blank, false);
         assert.deepEqual(mirror.viewport, viewport);
-        assert.deepEqual(changes, [{frameCount: 2, blank: false, viewport, frame: one, index: 0}]);
+        assert.deepEqual(mirror.frames, frames);
+        assert.deepEqual(changes, [
+            {frameCount: 2, blank: false, viewport, frame: one, frames, index: 0}
+        ]);
+    });
+
+    test("has no frames until the display says hello, and a frame change keeps them", () => {
+        const {mirror} = watchedMirror();
+        assert.deepEqual(mirror.frames, []);
+        mirror.apply(helloMessage(Roles.display, state));
+        mirror.apply(frameChangeMessage(two));
+        assert.deepEqual(mirror.frames, frames);
     });
 
     test("a hello without a viewport keeps the last one", () => {

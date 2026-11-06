@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {parseArgs, validateArgs, parseSize} = require("../../src/js/cli/args.js");
+const {parseArgs, validateArgs, parseSize, fileArgument} = require("../../src/js/cli/args.js");
 const {runSozi, runSoziAsync, withTempDeck} = require("./helpers.js");
 
 const ELECTRON = "/path/to/electron";
@@ -215,6 +215,18 @@ describe("validateArgs", () => {
 
     test("extra positionals", () => {
         assert.equal(check("build", "deck.svg", "other.svg"), "unexpected argument: other.svg");
+    });
+
+    test("notes takes three positionals, and the file is the second", () => {
+        assert.equal(check("notes", "import", "deck.sozi.json", "deck.notes.md"), null);
+        assert.equal(
+            check("notes", "import", "deck.sozi.json", "deck.notes.md", "more.md"),
+            "unexpected argument: more.md"
+        );
+        const parse = (...args) => parseArgs([ELECTRON, APP, "--cli", ...args], FLAGS);
+        assert.equal(fileArgument(parse("notes", "export", "deck.sozi.json")), "deck.sozi.json");
+        assert.equal(fileArgument(parse("notes", "export")), undefined);
+        assert.equal(fileArgument(parse("build", "deck.svg")), "deck.svg");
     });
 });
 

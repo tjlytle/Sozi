@@ -319,3 +319,62 @@ describe("runner", () => {
         }
     });
 });
+
+describe("build with a notes file", () => {
+    test("a notes file beside the deck goes in the deck, and the JSON file stays as it is", () => {
+        const deck = withTempDeck("notes-file");
+        try {
+            const before = fs.readFileSync(deck.json, "utf8");
+            const {code, json} = build(deck);
+            assert.equal(code, 0);
+            assert.deepEqual(json.warnings, []);
+            const {frames} = presentationData(htmlPaths(deck).html);
+            assert.match(frames[0].notes, /fromfile/);
+            assert.equal(fs.readFileSync(deck.json, "utf8"), before);
+        } finally {
+            deck.cleanup();
+        }
+    });
+
+    test("warns for the headings and the frames with notes that did not pair", () => {
+        const deck = withTempDeck("notes-file");
+        try {
+            fs.writeFileSync(
+                deck.json.replace(/\.sozi\.json$/, ".notes.md"),
+                "# One\n\nfromfile\n\n# Nowhere\n\nstray\n"
+            );
+            const {json} = build(deck);
+            assert.equal(json.ok, true);
+            const lines = json.warnings.filter(warning => warning.includes("notes-file.notes.md"));
+            assert.ok(
+                lines.some(line => line.includes("Nowhere")),
+                lines.join("\n")
+            );
+            assert.ok(
+                lines.some(line => line.includes("Four")),
+                lines.join("\n")
+            );
+            assert.ok(
+                lines.some(line => line.includes("Six")),
+                lines.join("\n")
+            );
+            // Frame Two has no notes in the JSON, so it loses nothing.
+            assert.ok(!lines.some(line => line.includes("Two")), lines.join("\n"));
+        } finally {
+            deck.cleanup();
+        }
+    });
+
+    test("no notes file, no warning about one, and the JSON notes go in the deck", () => {
+        const deck = withTempDeck("notes-file");
+        try {
+            fs.rmSync(deck.json.replace(/\.sozi\.json$/, ".notes.md"));
+            const {json} = build(deck);
+            assert.deepEqual(json.warnings, []);
+            const {frames} = presentationData(htmlPaths(deck).html);
+            assert.equal(frames[0].notes, "<p>One, from the JSON.</p>");
+        } finally {
+            deck.cleanup();
+        }
+    });
+});

@@ -178,6 +178,7 @@ function startedDisplay() {
 }
 
 const firstFrame = {index: 0, id: "f1", title: "One", notes: "first"};
+const everyFrame = [firstFrame, {index: 1, id: "f2", title: "Two", notes: "second"}];
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
 
 /** The hello a display sends in the given state.
@@ -191,12 +192,20 @@ function displayHello(changes = {}) {
         frameCount: 2,
         viewport,
         frame: firstFrame,
+        frames: everyFrame,
         blank: false,
         ...changes
     });
 }
 
 describe("DisplayChannel", () => {
+    test("its hello lists every frame in deck order, whichever is current", () => {
+        const {player, transport} = startedDisplay();
+        player.showFrame(1);
+        transport.deliver(helloMessage(Roles.surface));
+        assert.deepEqual(transport.sent.at(-1).frames, everyFrame);
+    });
+
     test("sends a display hello and the old loaded message on start", () => {
         const {startSent} = startedDisplay();
         assert.deepEqual(startSent, [displayHello(), {name: "loaded", length: 2}]);
