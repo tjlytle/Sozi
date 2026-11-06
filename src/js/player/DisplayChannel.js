@@ -166,7 +166,7 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Send a `custom` message to the surface.
+    /** Send a `custom` message to every surface.
      *
      * @param {string} type - The add-on's name for the message.
      * @param {any} data - Its content.
