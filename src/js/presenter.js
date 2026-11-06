@@ -199,7 +199,7 @@ function panelSpecs(presenter, mirror, send, src) {
                     deckHref: () => new URL(src(), location.href).href
                 });
             case "frames":
-                return framePicker(element, presenter, src);
+                return framePicker(element, presenter, src());
             case "connection":
                 return new ConnectionPanel(element, mirror);
             case "controls":
