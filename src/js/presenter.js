@@ -119,22 +119,20 @@ function connect(audience, transports) {
     toAudience.send(helloMessage(Roles.surface));
 }
 
-/** Open the audience window, or find the one this page opened before it was reloaded.
+/** Open the audience window, or find the one this page opened before the speaker came back.
  *
- * A page that reloads must leave the talk where it is: opening the deck's address in a
- * window that is on `#frame6` would restart it. So a reload asks for the window by name
- * alone, and sends it to the deck only if it comes back empty, because it was closed.
+ * Returning to this page, by any route, must leave the talk where it is: opening the deck's
+ * address in a window that is on `#frame6` would restart it. So this asks for the window by
+ * name alone, and sends it to the deck only if it comes back empty: it is new, or it was
+ * closed. The name holds the deck's address, because a deck on `file:` cannot be asked which
+ * deck it is: another deck's presenter page in this tab gets its own window.
  *
  * @param {string} src - The deck's page.
  * @returns {?Window} The audience window, null if the popup was blocked.
  */
 function openAudience(src) {
-    const name = "sozi-presentation";
+    const name = `sozi-presentation ${new URL(src, window.location.href).href}`;
     const features = "width=600, height=400, scrollbars=yes, toolbar=yes";
-    const [navigation] = performance.getEntriesByType("navigation");
-    if (/** @type {PerformanceNavigationTiming} */ (navigation).type !== "reload") {
-        return window.open(src, name, features);
-    }
     const found = window.open("", name, features);
     if (found && isEmptyWindow(found)) {
         found.location.href = src;
