@@ -54,6 +54,21 @@ function panelOptions({id, title}) {
 }
 
 /**
+ * Dock a panel at its default place, or in the active group when that cannot be: the stack
+ * is the only place while it shows, and its reference panel may be on the rail.
+ *
+ * @param {any} dock - The dockview dock.
+ * @param {PanelSpec} spec - The panel.
+ * @param {boolean} stacked - Is the page showing one stack of tabs?
+ */
+function dockPanel(dock, spec, stacked) {
+    const {position, inactive} = spec;
+    const reference = position && position.referencePanel;
+    const placeable = !stacked && (!reference || dock.getPanel(reference));
+    dock.addPanel({...panelOptions(spec), position: placeable ? position : undefined, inactive});
+}
+
+/**
  * The Minimise and Maximise buttons of a group header, as dockview takes them.
  *
  * Each acts on the group's active panel.
@@ -170,11 +185,12 @@ export class Workspace {
          */
         this.offered = false;
 
-        /** Is the workspace changing the dock itself? What that fires is not the speaker's.
+        /** How many of the workspace's own changes to the dock are still being told; what
+         * they fire is not the speaker's.
          *
-         * @type {boolean}
+         * @type {number}
          */
-        this.arranging = false;
+        this.arranging = 0;
 
         /** The default dock, as built from the panels' positions.
          *
@@ -261,7 +277,7 @@ export class Workspace {
         media.addEventListener("change", this.onMediaChange);
     }
 
-    /** Add a panel at its place in the default layout and draw it.
+    /** Add a panel at its place in the default layout and draw it; that saves nothing.
      *
      * @param {PanelSpec} spec - The panel.
      */
@@ -270,8 +286,7 @@ export class Workspace {
         content.className = "sozi-panel";
         const cleanup = spec.render(content);
         this.panels.set(spec.id, {spec, content, cleanup});
-        const {position, inactive} = spec;
-        this.dock.addPanel({...panelOptions(spec), position, inactive});
+        this.whileArranging(() => dockPanel(this.dock, spec, this.stacked));
     }
 
     /** Size the default layout, remember it, show what this width shows, and start saving. */
@@ -292,7 +307,8 @@ export class Workspace {
     /** Take the deck's presets; the first offer shows one, unless a layout is saved here.
      *
      * The display can answer many times, and a talk must not rearrange itself when it does:
-     * later presets wait for a reset or a move across the narrow width.
+     * later presets wait for a reset or a move across the narrow width. Presets that come
+     * before `open` wait for it, as it shows them.
      *
      * @param {Record<string, LayoutPreset>} presets - The presets, in the deck's order.
      */
@@ -301,7 +317,7 @@ export class Workspace {
         if (!this.offered) {
             this.offered = true;
             // With nothing saved, the dock is still the default, or the stack on a narrow page.
-            if (!this.savedLayout()) {
+            if (this.opened && !this.savedLayout()) {
                 this.arrange(true);
             }
         }
@@ -395,14 +411,15 @@ export class Workspace {
     /** Change the dock without what that fires counting as the speaker's change.
      *
      * Dockview tells its listeners in a microtask queued by the first change, so this one,
-     * queued after them all, ends the guard once they have been told.
+     * queued after them all, ends the guard once they have been told. Changes in one turn
+     * overlap, so the guard lasts until the last of them ends.
      *
      * @param {() => void} change - What changes the dock.
      */
     whileArranging(change) {
-        this.arranging = true;
+        this.arranging++;
         change();
-        queueMicrotask(() => (this.arranging = false));
+        queueMicrotask(() => this.arranging--);
     }
 
     /** Show what the page's width shows, by the precedence of `layoutSource`.
@@ -452,6 +469,8 @@ export class Workspace {
 
     /** Show a layout: its dock, and its panels on the rail.
      *
+     * A panel it does not name goes to its default place.
+     *
      * @param {SavedLayout} layout - The layout.
      * @returns {boolean} False if dockview refused its dock, which leaves the default one.
      */
@@ -477,12 +496,18 @@ export class Workspace {
                 this.dock.removePanel(panel);
             }
         }
+        // A panel registered after this layout was made is not in it, and dockview dropped it.
+        for (const {spec} of this.panels.values()) {
+            if (!this.dock.getPanel(spec.id) && !this.railEntries.some(e => e.id === spec.id)) {
+                dockPanel(this.dock, spec, this.stacked);
+            }
+        }
         return shown;
     }
 
     /** Save the layout for the page's width, unless the speaker did not change it. */
     save() {
-        const noChange = !this.opened || this.arranging || this.stacked;
+        const noChange = !this.opened || this.arranging > 0 || this.stacked;
         if (noChange || this.dock.hasMaximizedGroup()) {
             return;
         }

@@ -137,7 +137,7 @@ function describeLayouts(presentation) {
  * @param {string} context.svgSource - How the SVG file was found.
  * @param {string} context.cwd - The working directory.
  * @param {object} context.flags - The command-line flags.
- * @returns {object} - The command result: `{ok, svgSource, outputDir, outputSource, title, titleSource, svgTitle, aspect, layers, layouts, frames}`,
+ * @returns {object} - The command result: `{ok, svgSource, outputDir, outputSource, title, titleSource, svgTitle, aspect, customFiles, layers, layouts, frames}`,
  *  or `{ok: false, error}`, with `exitCode: 2` for an output directory that is a file.
  */
 export function inspect({storage, svg, presentation: jsonPath, svgSource, cwd, flags}) {
@@ -179,6 +179,7 @@ export function inspect({storage, svg, presentation: jsonPath, svgSource, cwd, f
               : "default",
         svgTitle: presentation.svgTitle,
         aspect: {width: presentation.aspectWidth, height: presentation.aspectHeight},
+        customFiles: presentation.customFiles.map(({path, target}) => ({path, target})),
         layers: svgLayers(presentation).map(layer => ({
             id: layer.groupId,
             label: layer.label,

@@ -118,6 +118,23 @@ describe("inspect", () => {
         }
     });
 
+    test("lists the custom files with their targets", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const data = JSON.parse(fs.readFileSync(deck.json, "utf8"));
+            data.customFiles = ["a.css", {path: "b.js", target: "presenter"}];
+            fs.writeFileSync(deck.json, JSON.stringify(data, null, 2));
+            const {code, json} = inspect(deck);
+            assert.equal(code, 0, JSON.stringify(json));
+            assert.deepEqual(json.customFiles, [
+                {path: "a.css", target: "display"},
+                {path: "b.js", target: "presenter"}
+            ]);
+        } finally {
+            deck.cleanup();
+        }
+    });
+
     test("flags a reference element that is not in the SVG", () => {
         const deck = withTempDeck("basic");
         try {

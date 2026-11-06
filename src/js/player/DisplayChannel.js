@@ -20,10 +20,12 @@ import {
 } from "../protocol/messages.js";
 import {fromLegacy, legacyLoadedMessage} from "../protocol/legacy.js";
 import {viewportMessage, readViewport} from "../protocol/viewport.js";
+import {TransportSet} from "../protocol/TransportSet.js";
 
 /** @typedef {import("../protocol/messages.js").Message} Message */
 /** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
+/** @typedef {import("../protocol/TransportSet.js").Transport} Transport */
 
 /** The events a display channel emits.
  *
@@ -40,7 +42,7 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  * @property {any} player - The deck's player.
  * @property {any} controller - The deck's player controller.
  * @property {any} presentation - The deck's presentation.
- * @property {any} transport - The transport to the surface (a `LocalTransport`).
+ * @property {Transport} transport - The first transport to a surface (a `LocalTransport`).
  * @property {any} host - The window the deck plays in.
  * @property {(isCurrent: boolean, onFollowLink: (id: string) => void,
  *   onKey: (key: string, modifiers: KeyModifiers) => void) => void} enterPreviewMode -
@@ -74,7 +76,13 @@ export class DisplayChannel extends EventEmitter {
         this.player = player;
         this.controller = controller;
         this.presentation = presentation;
-        this.transport = transport;
+
+        /** The links to the surfaces: a report goes out on all of them.
+         *
+         * @type {TransportSet}
+         */
+        this.transport = new TransportSet();
+        this.transport.add(transport);
         this.host = host;
         this.enterPreviewMode = enterPreviewMode;
 
@@ -90,18 +98,19 @@ export class DisplayChannel extends EventEmitter {
         player.on(PlayerEvents.frameChange, this.onFrameChange);
         player.on(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         host.addEventListener("resize", this.onResize);
-        this.stopReceiving = transport.onMessage(data => this.receive(data));
+        this.stopReceiving = this.transport.onMessage((data, from) => this.receive(data, from));
 
         /** What each message from a surface does, by name: the explicit table (2.5).
          *
-         * `legacy` is true when the message was mapped from an old name.
+         * `legacy` is true when the message was mapped from an old name; `from` is the
+         * transport it came on.
          *
-         * @type {Readonly<Record<string, (message: any, legacy: boolean) => void>>}
+         * @type {Readonly<Record<string, (message: any, legacy: boolean, from: Transport) => void>>}
          */
         this.handlers = Object.freeze({
-            [MessageNames.hello]: (message, legacy) => {
+            [MessageNames.hello]: (message, legacy, from) => {
                 if (message.role === Roles.surface) {
-                    this.answerHello(legacy);
+                    this.answerHello(legacy, from);
                 }
             },
             [MessageNames.next]: ({transition}) => this.next(transition),
@@ -118,8 +127,17 @@ export class DisplayChannel extends EventEmitter {
 
     /** Say `hello`, and send the old `loaded` announcement for one release. */
     start() {
-        this.transport.send(this.hello);
-        this.transport.send(legacyLoadedMessage(this.presentation.frames.length));
+        this.transport.broadcast(this.hello);
+        this.transport.broadcast(legacyLoadedMessage(this.presentation.frames.length));
+    }
+
+    /** Add a link to a surface, and say `hello` on it alone.
+     *
+     * @param {Transport} transport - The transport.
+     */
+    addTransport(transport) {
+        this.transport.add(transport);
+        transport.send(this.hello);
     }
 
     /** The current frame, as the protocol reports it.
@@ -154,28 +172,29 @@ export class DisplayChannel extends EventEmitter {
      */
     report(message) {
         if (!this.previewMode) {
-            this.transport.send(message);
+            this.transport.broadcast(message);
         }
     }
 
-    /** Send a `custom` message to the surface.
+    /** Send a `custom` message to every surface.
      *
      * @param {string} type - The add-on's name for the message.
      * @param {any} data - Its content.
      */
     sendCustom(type, data) {
-        this.transport.send(customMessage(type, data));
+        this.transport.broadcast(customMessage(type, data));
     }
 
     /** Act on the data of a received message; an old name goes through the legacy table.
      *
      * @param {any} data - The data of a message event.
+     * @param {Transport} from - The transport it came on.
      */
-    receive(data) {
+    receive(data, from) {
         const current = readMessage(data);
         const message = current || fromLegacy(data, this.legacyState);
         if (message && Object.hasOwn(this.handlers, message.name)) {
-            this.handlers[message.name](message, !current);
+            this.handlers[message.name](message, !current, from);
         } else {
             console.log(`Unsupported message: ${data && data.name}`);
         }
@@ -201,12 +220,13 @@ export class DisplayChannel extends EventEmitter {
      * the window size, so it gets both as well, for one release.
      *
      * @param {boolean} legacy - Did the hello come from an old name?
+     * @param {Transport} from - The transport it came on, the only one answered.
      */
-    answerHello(legacy) {
-        this.transport.send(this.hello);
+    answerHello(legacy, from) {
+        from.send(this.hello);
         if (legacy) {
-            this.transport.send(frameChangeMessage(this.frameInfo));
-            this.transport.send(viewportMessage(this.host));
+            from.send(frameChangeMessage(this.frameInfo));
+            from.send(viewportMessage(this.host));
         }
     }
 
@@ -291,8 +311,8 @@ export class DisplayChannel extends EventEmitter {
             this.previewMode = true;
             this.enterPreviewMode(
                 current,
-                id => this.transport.send(followLinkMessage(id)),
-                (key, modifiers) => this.transport.send(keyMessage(key, modifiers))
+                id => this.transport.broadcast(followLinkMessage(id)),
+                (key, modifiers) => this.transport.broadcast(keyMessage(key, modifiers))
             );
         }
     }
@@ -309,12 +329,13 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Remove every listener the channel added. */
+    /** Remove every listener the channel added, and close its transports. */
     dispose() {
         this.player.off(PlayerEvents.frameChange, this.onFrameChange);
         this.player.off(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         this.host.removeEventListener("resize", this.onResize);
         this.stopReceiving();
+        this.transport.dispose();
         this.removeAllListeners();
     }
 }

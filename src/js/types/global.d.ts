@@ -7,9 +7,16 @@ import type {Viewport} from "../player/Viewport.js";
 import type {Player} from "../player/Player.js";
 import type {PlayerController} from "../player/PlayerController.js";
 import type {ExportDriver} from "../player/ExportDriver.js";
+import type {DisplayApi} from "../player/DisplayApi.js";
+import type {PresenterApi} from "../presenter/PresenterApi.js";
 
-/** The player API that player.js assigns to `window.sozi` once the deck has loaded. */
+/** The API player.js assigns to `window.sozi` when the module loads: `display` is there at
+ * once, and the others are undefined until the deck has loaded. On the presenter page,
+ * presenter.js assigns `presenter` instead.
+ */
 export interface SoziPlayerApi {
+    readonly display: DisplayApi;
+    readonly presenter?: PresenterApi;
     readonly presentation: Presentation;
     readonly viewport: Viewport;
     readonly player: Player;
@@ -23,7 +30,9 @@ declare global {
     const sozi: SoziPlayerApi;
 
     interface Window {
-        /** Assigned by player.js on load (standard 2.3); every reader runs after load or tests it. */
+        /** Assigned when the module loads (standard 2.3); a reader of the deck's objects runs
+         * after load or tests it.
+         */
         sozi: SoziPlayerApi;
 
         /** The deck data that the generated HTML page defines before player.js runs. */

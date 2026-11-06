@@ -10,6 +10,7 @@ The display (the audience window that plays the deck) and a presenter surface ta
 | `src/js/protocol/viewport.js`       | The `viewport` message.                                           |
 | `src/js/protocol/layoutPresets.js`  | The layout presets a deck carries: their names and their shape.   |
 | `src/js/protocol/LocalTransport.js` | The transport between two windows of one browser.                 |
+| `src/js/protocol/TransportSet.js`   | Several transports acting as one.                                 |
 | `src/js/protocol/legacy.js`         | The names used before this protocol, mapped onto it (one release). |
 
 The display side is `src/js/player/DisplayChannel.js`; the presenter console
@@ -127,7 +128,7 @@ key pressed on its own page, and ignores any other key.
 
 A message of an add-on's own: `type` is a non-empty string, `data` anything
 `postMessage` can clone. The display emits it as `DisplayChannelEvents.custom` and sends
-one with `sendCustom(type, data)`.
+one with `sendCustom(type, data)`. Add-ons use them through the [API](#api).
 
 ## Transport
 
@@ -144,6 +145,73 @@ listener and its timer.
 When `target` is `host` (a deck opened on its own, not by a presenter nor in a frame), the
 transport posts nothing and still hands on what the page posts to itself, so code in the
 page can drive the deck with `window.postMessage`.
+
+A `TransportSet` holds several. The display broadcasts on all of them and answers a `hello`
+on the one it came from. A surface sends each command to its primary alone, the most
+recently added `connected` one, because `next` sent on two links to one display would move
+two frames. Both hear from every member. The set's `status` is the best of its members'.
+
+An add-on's transport has what `LocalTransport` has:
+
+| Member                  | What it does                                                        |
+| ----------------------- | ------------------------------------------------------------------- |
+| `status`                | `connected`, `reconnecting`, `stale` or `closed`.                   |
+| `send(message)`         | Sends a message; returns false if it could not.                     |
+| `onMessage(handler)`    | Calls `handler(data)` for each message; returns a function that stops. |
+| `on` / `off`            | Add and remove a listener for `statusChange`, which carries the status. |
+| `dispose()`             | Closes it.                                                          |
+
+## API
+
+A deck's custom CSS or JS file has a target: `display` (the default), `presenter` or
+`both`. In the presentation file a `display` file is the plain string it always was, and
+any other is `{path, target}`. Each page inlines its files after its own script, so a
+custom script runs before `load`. Both APIs exist by then, and a call made before `load`
+waits for it, in the order it came.
+
+### `window.sozi.presenter`, on the presenter page
+
+| Member                                            | What it does                                     |
+| ------------------------------------------------- | ------------------------------------------------ |
+| `registerPanel({id, title, icon, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
+| `registerPanel({id, title, icon, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
+| `on(name, handler)` / `off(name, handler)`        | `frameChange` (the frame), `viewport` (the size), `status`, and `message` (every valid message). |
+| `state`                                           | `{frame, frameCount, viewport, blank, status}`, for a panel that registers late. |
+| `display.jumpToFrame(index)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport.     |
+| `display.send(name, payload)`                     | A `custom` message, to the primary transport.    |
+| `registerTransport(transport)`                    | Adds a transport, after the audience window's, and says `hello` on it. |
+
+A bad panel throws a `TypeError` naming the field; so does an id already taken. The built-in
+panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `connection`,
+`controls`, `previous`, `next`) can be named in a panel's place. `icon` is the text of its
+button on the rail, by default the title's first letter. `defaults` is its place in the
+default layout, `{position, inactive, initialHeight}`, with `position` as dockview's
+`addPanel` takes it. Without `defaults` the panel is a tab behind Notes.
+
+A panel is remembered in the saved layout with the others. A saved layout or a deck's preset
+must name exactly the panels of the page, so adding or removing a panel starts from the default
+layout again, and a panel registered after `load` is not there yet when the next load reads the
+layout: register at the top level of the script. Registering a panel saves nothing by itself;
+it joins the saved layout at the speaker's next change.
+
+### `window.sozi.display`, on the presentation page
+
+| Member                                     | What it does                                               |
+| ------------------------------------------ | ---------------------------------------------------------- |
+| `registerTransport(transport)`             | Adds a transport and says `hello` on it.                   |
+| `send(name, payload)`                      | A `custom` message, on every transport.                    |
+| `on("custom", handler)` / `off`            | Calls `handler(type, data)` for a `custom` message from a surface. |
+| `registerPairing({render})`                | What `Q` shows; a second one replaces the first.           |
+
+`Q` calls `render(element, display)` and shows the overlay; `Escape` or `Q` again hides it
+and empties the element. With no pairing registered, `Q` does nothing.
+
+A presenter's three previews are the same page in iframes, so a `display` script runs in
+them too. In a preview `Q` does nothing, and the script's own transports and `send` still
+work.
+
+`window.sozi.presentation`, `viewport`, `player` and `playerController` are undefined until
+`load`.
 
 ## Legacy names
 

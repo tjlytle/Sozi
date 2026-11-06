@@ -98,6 +98,7 @@ function fakeTransport() {
         sent: [],
         handlers: new Set(),
         disposed: false,
+        status: "connected",
         send(message) {
             this.sent.push(message);
             return true;
@@ -105,6 +106,11 @@ function fakeTransport() {
         onMessage(handler) {
             this.handlers.add(handler);
             return () => this.handlers.delete(handler);
+        },
+        on() {},
+        off() {},
+        dispose() {
+            this.disposed = true;
         },
         deliver(data) {
             for (const handler of this.handlers) {
@@ -400,10 +406,53 @@ describe("DisplayChannel", () => {
         assert.equal(previews.length, 1);
     });
 
+    test("a transport added says hello on its own, and each hello is answered on its own", () => {
+        const {channel, transport} = startedDisplay();
+        const added = fakeTransport();
+        channel.addTransport(added);
+        assert.deepEqual(added.sent, [channel.hello]);
+        assert.deepEqual(transport.sent, []);
+        added.sent.length = 0;
+
+        added.deliver(helloMessage(Roles.surface));
+        assert.deepEqual(added.sent, [channel.hello]);
+        assert.deepEqual(transport.sent, []);
+        added.sent.length = 0;
+
+        transport.deliver(helloMessage(Roles.surface));
+        assert.deepEqual(transport.sent, [channel.hello]);
+        assert.deepEqual(added.sent, []);
+    });
+
+    test("what the display reports reaches every transport", () => {
+        const {channel, transport, player} = startedDisplay();
+        const added = fakeTransport();
+        channel.addTransport(added);
+        added.sent.length = 0;
+
+        player.showFrame(1);
+        channel.sendCustom("pong", 1);
+        const expected = [frameChangeMessage(channel.frameInfo), customMessage("pong", 1)];
+        assert.deepEqual(transport.sent, expected);
+        assert.deepEqual(added.sent, expected);
+    });
+
+    test("a command from an added transport moves the deck", () => {
+        const {channel, controller} = startedDisplay();
+        const added = fakeTransport();
+        channel.addTransport(added);
+        added.deliver(nextMessage());
+        assert.deepEqual(controller.calls, [["moveToNext"]]);
+    });
+
     test("dispose removes every listener it added", () => {
         const {channel, transport, player, host} = startedDisplay();
+        const added = fakeTransport();
+        channel.addTransport(added);
         channel.dispose();
         assert.equal(transport.handlers.size, 0);
+        assert.equal(added.handlers.size, 0);
+        assert.equal(added.disposed, true);
         assert.equal(host.listeners.size, 0);
         assert.equal(player.listenerCount(PlayerEvents.frameChange), 0);
         assert.equal(player.listenerCount(PlayerEvents.blankScreenChange), 0);

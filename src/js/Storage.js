@@ -601,7 +601,7 @@ export class Storage {
      * It contains a copy of the following items:
      * - the SVG document,
      * - the presentation data needed by the player,
-     * - a copy of the custom style sheets and scripts.
+     * - a copy of the custom style sheets and scripts for the presentation page.
      *
      * A notes file beside the presentation file replaces the notes in the copy of the
      * presentation data, whole; the presentation itself keeps its own.
@@ -636,8 +636,8 @@ export class Storage {
                 .replace(/</g, "\\u003c")
                 .replace(/\u2028/g, "\\u2028")
                 .replace(/\u2029/g, "\\u2029"),
-            customCSS: this.readCustomFiles(".css"),
-            customJS: this.readCustomFiles(".js")
+            customCSS: this.readCustomFiles(".css", "display"),
+            customJS: this.readCustomFiles(".js", "display")
         });
     }
 
@@ -708,6 +708,7 @@ export class Storage {
     /** Generate the content of the presenter console HTML file.
      *
      * The result is derived from the `presenter.html` template.
+     * It contains a copy of the custom style sheets and scripts for the presenter page.
      *
      * @param {string} htmlFileName - The name of the presentation HTML file to play.
      * @returns {string} - An HTML document content, as text.
@@ -715,7 +716,9 @@ export class Storage {
     exportPresenterHTML(htmlFileName) {
         return nunjucks.render("presenter.html", {
             pres: this.presentation,
-            soziHtml: htmlFileName
+            soziHtml: htmlFileName,
+            customCSS: this.readCustomFiles(".css", "presenter"),
+            customJS: this.readCustomFiles(".js", "presenter")
         });
     }
 
@@ -729,14 +732,15 @@ export class Storage {
         return path.relative(svgLoc, filePath);
     }
 
-    /** Read custom files to include in the presentation HTML.
+    /** Read custom files to include in a generated HTML page.
      *
      * @param {string} ext - The extension of the files to read.
+     * @param {"display" | "presenter"} page - The page they are for.
      * @returns {string} - The concatenated content of all the files read.
      */
-    readCustomFiles(ext) {
+    readCustomFiles(ext, page) {
         const svgLoc = this.backend.getLocation(this.svgFileDescriptor);
-        const paths = this.presentation.customFiles.filter(path => path.endsWith(ext));
+        const paths = this.presentation.getCustomFiles(ext, page);
         const contents = paths.map(relPath => {
             const absPath = path.join(svgLoc, relPath);
             return this.backend.loadSync(absPath);

@@ -1,0 +1,130 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// Steps for add-ons (#27): a panel registered from the console, a fake transport on the
+// presenter page, which page loaded which custom file, and the pairing overlay.
+
+import {Then, When} from "@cucumber/cucumber";
+import {expect} from "playwright/test";
+
+// The element of src/templates/player.html that holds an add-on's pairing.
+const PAIRING = ".sozi-pairing";
+
+/** The custom files that left their name on a page, sorted.
+ *
+ * @param {import("playwright").Page} page - The page.
+ * @returns {Promise<string[]>} - The names test/fixtures/addons/marker*.js wrote.
+ */
+function loadedAddons(page) {
+    return page.evaluate(() => {
+        const {addonMarkers = []} = /** @type {any} */ (window);
+        return [...addonMarkers].sort();
+    });
+}
+
+/** The names a step lists in one comma-separated string, sorted.
+ *
+ * @param {string} list - The names, separated by commas.
+ * @returns {string[]} - The names.
+ */
+function namesIn(list) {
+    return list
+        .split(",")
+        .map(name => name.trim())
+        .sort();
+}
+
+When("a panel {string} is registered from the console", async function (title) {
+    await this.presenter.evaluate(panelTitle => {
+        const {presenter} = /** @type {any} */ (window).sozi;
+        presenter.registerPanel({
+            id: panelTitle.toLowerCase(),
+            title: panelTitle,
+            render(element) {
+                const root = element.ownerDocument.createElement("div");
+                root.dataset.addonPanel = panelTitle;
+                // Only what the panel finds in the state: it listens to nothing.
+                root.textContent = `frame ${presenter.state.frame.index + 1}`;
+                element.append(root);
+                return () => root.remove();
+            }
+        });
+    }, title);
+});
+
+When("a fake transport is registered on the presenter page", async function () {
+    await this.presenter.evaluate(() => {
+        const page = /** @type {any} */ (window);
+        const listeners = new Set();
+        // What a transport is (src/js/protocol/LocalTransport.js), with no window behind it.
+        page.fakeTransport = {
+            status: "connected",
+            sent: [],
+            send(message) {
+                this.sent.push(message);
+                return true;
+            },
+            onMessage(handler) {
+                listeners.add(handler);
+                return () => listeners.delete(handler);
+            },
+            on() {},
+            off() {},
+            dispose() {
+                listeners.clear();
+            },
+            deliver(message) {
+                listeners.forEach(handler => handler(message));
+            }
+        };
+        page.sozi.presenter.registerTransport(page.fakeTransport);
+    });
+});
+
+When("the fake transport delivers a frame change to index {int}", async function (index) {
+    await this.presenter.evaluate(i => {
+        /** @type {any} */ (window).fakeTransport.deliver({
+            name: "frameChange",
+            index: i,
+            id: "frame2",
+            title: "Two",
+            notes: ""
+        });
+    }, index);
+});
+
+Then("the fake transport received {string} with index {int}", async function (name, index) {
+    await expect
+        .poll(() =>
+            this.presenter.evaluate(
+                ([n, i]) =>
+                    /** @type {any} */ (window).fakeTransport.sent.some(
+                        message => message.name === n && message.index === i
+                    ),
+                [name, index]
+            )
+        )
+        .toBe(true);
+});
+
+Then("the presenter page loaded the add-ons {string}", async function (list) {
+    await expect.poll(() => loadedAddons(this.presenter)).toEqual(namesIn(list));
+});
+
+Then("the audience window loaded the add-ons {string}", async function (list) {
+    await expect.poll(() => loadedAddons(this.audience)).toEqual(namesIn(list));
+});
+
+Then("the pairing overlay shows {string}", async function (text) {
+    const overlay = this.deck.locator(PAIRING);
+    await expect(overlay).toBeVisible();
+    await expect(overlay).toContainText(text);
+});
+
+Then("the pairing overlay is hidden", async function () {
+    // The overlay is in the page but hidden, so a page without one does not pass.
+    const overlay = this.deck.locator(PAIRING);
+    await expect(overlay).toHaveCount(1);
+    await expect(overlay).toBeHidden();
+});

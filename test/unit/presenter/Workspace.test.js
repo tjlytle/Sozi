@@ -189,9 +189,10 @@ const REFUSED = {refused: true};
  * @param {object} [options] - The page.
  * @param {number} [options.width] - Its width.
  * @param {Record<string, string>} [options.stored] - What the storage holds.
+ * @param {(workspace: Workspace) => void} [options.beforeOpen] - What happens before it opens.
  * @returns {Promise<object>} The workspace, its dock and what it said and saved.
  */
-async function openWorkspace({width = 390, stored = {}} = {}) {
+async function openWorkspace({width = 390, stored = {}, beforeOpen = () => {}} = {}) {
     const doc = {defaultView: {innerWidth: width}, createElement: () => fakeElement(doc)};
     const element = fakeElement(doc);
     const items = new Map(Object.entries(stored));
@@ -218,6 +219,7 @@ async function openWorkspace({width = 390, stored = {}} = {}) {
     for (const id of IDS) {
         workspace.addPanel({id, title: id, icon: id, render: () => () => {}});
     }
+    beforeOpen(workspace);
     workspace.open();
     // A hello is a later message, never in the same turn as the opening.
     await settled();
@@ -241,6 +243,33 @@ function settled() {
  */
 function groupsOf(dock) {
     return IDS.map(id => dock.getPanel(id).group.id);
+}
+
+const POSITION = {referencePanel: "current", direction: "right"};
+
+/**
+ * A panel that comes after the others, with a place in the default layout.
+ *
+ * @returns {object} The panel.
+ */
+function latePanel() {
+    return {id: "late", title: "Late", icon: "L", position: POSITION, render: () => () => {}};
+}
+
+/**
+ * Record where the dock is asked to add each panel from now on.
+ *
+ * @param {FakeDock} dock - The dock.
+ * @returns {object[]} The positions, filled as they come.
+ */
+function addedPositions(dock) {
+    const positions = [];
+    const add = dock.addPanel.bind(dock);
+    dock.addPanel = options => {
+        positions.push(options.position);
+        add(options);
+    };
+    return positions;
 }
 
 describe("Workspace", () => {
@@ -324,5 +353,47 @@ describe("Workspace", () => {
         workspace.offerPresets({laptop: preset()});
         await settled();
         assert.deepEqual(dock.loads, []);
+    });
+
+    test("a panel added after the opening saves nothing, so a later preset still arrives", async () => {
+        const {workspace, items} = await openWorkspace();
+        workspace.offerPresets({phone: preset()});
+        await settled();
+        workspace.addPanel(latePanel());
+        await settled();
+        assert.equal(items.size, 0);
+    });
+
+    test("two panels added in one turn save nothing", async () => {
+        const {workspace, items} = await openWorkspace({width: 1280});
+        workspace.addPanel(latePanel());
+        workspace.addPanel({...latePanel(), id: "later"});
+        await settled();
+        assert.equal(items.size, 0);
+    });
+
+    test("a panel added on a phone's preset takes its default place", async () => {
+        const {workspace, dock} = await openWorkspace();
+        workspace.offerPresets({phone: preset()});
+        await settled();
+        const added = addedPositions(dock);
+        workspace.addPanel(latePanel());
+        assert.deepEqual(added, [POSITION]);
+    });
+
+    test("a panel added on the stack joins it", async () => {
+        const {workspace, dock} = await openWorkspace();
+        const added = addedPositions(dock);
+        workspace.addPanel(latePanel());
+        assert.deepEqual(added, [undefined]);
+    });
+
+    test("presets offered before the opening are shown by it", async () => {
+        const {workspace, dock} = await openWorkspace({
+            beforeOpen: early => early.offerPresets({phone: preset()})
+        });
+        assert.equal(workspace.stacked, false);
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+        assert.equal(dock.loads.length, 1);
     });
 });
