@@ -285,9 +285,10 @@ Then("the {string} panel reads {string}", async function (title, text) {
 Then("the {string} panel is to the left of {string}", async function (title, other) {
     await expect
         .poll(async () => {
-            const box = await groupBox(this.presenter, title);
-            const otherBox = await groupBox(this.presenter, other);
-            return box.x + box.width - otherBox.x;
+            const box = await groupOf(this.presenter, title).boundingBox(WAIT);
+            const otherBox = await groupOf(this.presenter, other).boundingBox(WAIT);
+            // A dock that is being rebuilt has no box for a moment: look again.
+            return box && otherBox ? box.x + box.width - otherBox.x : Infinity;
         })
         .toBeLessThanOrEqual(TOLERANCE);
 });
@@ -295,9 +296,10 @@ Then("the {string} panel is to the left of {string}", async function (title, oth
 Then("the {string} panel is above {string}", async function (title, other) {
     await expect
         .poll(async () => {
-            const box = await groupBox(this.presenter, title);
-            const otherBox = await groupBox(this.presenter, other);
-            return box.y + box.height - otherBox.y;
+            const box = await groupOf(this.presenter, title).boundingBox(WAIT);
+            const otherBox = await groupOf(this.presenter, other).boundingBox(WAIT);
+            // A dock that is being rebuilt has no box for a moment: look again.
+            return box && otherBox ? box.y + box.height - otherBox.y : Infinity;
         })
         .toBeLessThanOrEqual(TOLERANCE);
 });

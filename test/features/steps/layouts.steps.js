@@ -137,4 +137,6 @@ Then("the file {string} is downloaded", async function (name) {
 Then("the layout presets read {string}", async function (list) {
     const names = list.split(",").map(name => name.trim());
     await expect(this.window.locator(PRESET_NAME)).toHaveText(names, WAIT);
+    // The list ends a long pane, and the screenshot that follows has to show it.
+    await this.window.locator(PRESET_NAME).last().scrollIntoViewIfNeeded(WAIT);
 });
