@@ -1,0 +1,334 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// Steps for the presenter workspace (#26): finding a panel by its tab title, docking,
+// resizing, the rail, maximise and the narrow stack.
+
+import {Given, Then, When} from "@cucumber/cucumber";
+import assert from "node:assert/strict";
+import {expect} from "playwright/test";
+
+// What dockview-core draws. These three selectors are the only ones here that name the
+// library, so a change of version or of engine changes them and nothing else.
+const TAB = ".dv-tab";
+const GROUP = ".dv-groupview";
+const SASH = ".dv-sash";
+
+// What the workspace draws around dockview.
+const WORKSPACE = ".sozi-workspace";
+const RAIL = ".sozi-rail";
+const CONNECTION = ".sozi-connection";
+
+// The prefix of the localStorage key of a deck's layout; the page's path completes it.
+const LAYOUT_KEY = "sozi-presenter-layout:";
+
+// How far a width or an edge may be from the expected one, in pixels.
+const TOLERANCE = 2;
+
+// A panel that is not there fails its step with this wait, not with the step's timeout.
+const WAIT = {timeout: 5000};
+
+/** The tab of a panel.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @returns {import("playwright").Locator} - The tab with exactly this title.
+ */
+function tabOf(page, title) {
+    return page.locator(TAB).filter({hasText: new RegExp(`^\\s*${title}\\s*$`)});
+}
+
+/** The group that holds a panel's tab.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @returns {import("playwright").Locator} - The group.
+ */
+function groupOf(page, title) {
+    return page.locator(GROUP).filter({has: tabOf(page, title)});
+}
+
+/** The box of the group that holds a panel's tab.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @returns {Promise<{x: number, y: number, width: number, height: number}>} - The box.
+ */
+async function groupBox(page, title) {
+    const box = await groupOf(page, title).boundingBox(WAIT);
+    assert.ok(box, `the group of "${title}" is visible`);
+    return box;
+}
+
+/** The titles of the tabs a person can see, sorted.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @returns {Promise<string[]>} - The titles.
+ */
+async function visibleTabTitles(page) {
+    const titles = await page.locator(`${TAB}:visible`).allTextContents();
+    return titles.map(title => title.trim()).sort();
+}
+
+/** The titles a step names in one comma-separated string, sorted.
+ *
+ * @param {string} list - The titles, separated by commas.
+ * @returns {string[]} - The titles.
+ */
+function titlesIn(list) {
+    return list
+        .split(",")
+        .map(title => title.trim())
+        .sort();
+}
+
+/** The layout saved for the deck.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @returns {Promise<?string>} - The stored text, or null when there is none.
+ */
+function savedLayout(page) {
+    return page.evaluate(prefix => localStorage.getItem(prefix + location.pathname), LAYOUT_KEY);
+}
+
+/** Do something that changes the layout, and wait until the change is saved.
+ *
+ * The page saves when the layout has settled. A reload that comes in the next step must
+ * find what a person who paused for a moment would find.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {() => Promise<void>} action - What changes the layout.
+ */
+async function savedAfter(page, action) {
+    const before = await savedLayout(page);
+    await action();
+    await expect.poll(() => savedLayout(page)).not.toBe(before);
+}
+
+/** Drag from one point to another with the mouse, as a person does.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {{x: number, y: number}} from - Where the button goes down.
+ * @param {{x: number, y: number}} to - Where it comes up.
+ */
+async function drag(page, from, to) {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    // The first small move starts the drag, the last one lets the target see where it ends.
+    await page.mouse.move(from.x + 5, from.y + 5);
+    await page.mouse.move(to.x, to.y, {steps: 5});
+    await page.mouse.move(to.x, to.y);
+    await page.mouse.up();
+}
+
+/** The middle of a box.
+ *
+ * @param {{x: number, y: number, width: number, height: number}} box - The box.
+ * @returns {{x: number, y: number}} - Its middle.
+ */
+function middleOf(box) {
+    return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+}
+
+/** The splitter on the right or the left edge of a box, the right one if there are both.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {{x: number, width: number}} box - The box.
+ * @returns {Promise<{x: number, onRight: boolean}>} - Where the splitter is along the
+ *     width, and whether it is on the box's right edge.
+ */
+async function splitterBeside(page, box) {
+    const boxes = await page
+        .locator(`${SASH}:visible`)
+        .evaluateAll(sashes => sashes.map(sash => sash.getBoundingClientRect().toJSON()));
+    const centres = boxes
+        .filter(sash => sash.height > sash.width)
+        .map(sash => sash.x + sash.width / 2);
+    const near = edge => centres.find(centre => Math.abs(centre - edge) <= 8);
+    const right = near(box.x + box.width);
+    const left = near(box.x);
+    assert.ok(right !== undefined || left !== undefined, "the panel has a splitter beside it");
+    return right !== undefined ? {x: right, onRight: true} : {x: left, onRight: false};
+}
+
+/** The button of a panel's group header, with that panel's tab active.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @param {RegExp} name - The button's accessible name.
+ * @returns {Promise<import("playwright").Locator>} - The button.
+ */
+async function headerButton(page, title, name) {
+    await tabOf(page, title).click(WAIT);
+    return groupOf(page, title).getByRole("button", {name});
+}
+
+/** The window of a preview's iframe.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title: "Current", "Previous" or "Next".
+ * @returns {Promise<import("playwright").Frame>} - The frame.
+ */
+async function previewFrame(page, title) {
+    const iframe = await page.locator(previewSelector(title)).elementHandle(WAIT);
+    const frame = await iframe?.contentFrame();
+    assert.ok(frame, `the "${title}" preview has a window`);
+    return frame;
+}
+
+/** The selector of a preview's iframe.
+ *
+ * @param {string} title - The panel's title: "Current", "Previous" or "Next".
+ * @returns {string} - The selector.
+ */
+function previewSelector(title) {
+    return `.sozi-${title.toLowerCase()}-frame`;
+}
+
+Given("the saved layout for the deck is {string}", async function (text) {
+    await this.presenter.evaluate(
+        ([prefix, value]) => localStorage.setItem(prefix + location.pathname, value),
+        [LAYOUT_KEY, text]
+    );
+});
+
+When("the {string} panel is dragged to the left of {string}", async function (title, target) {
+    const tab = await tabOf(this.presenter, title).boundingBox(WAIT);
+    assert.ok(tab, `the tab of "${title}" is visible`);
+    const box = await groupBox(this.presenter, target);
+    // A tenth of the way in is inside the drop zone of the target's left edge.
+    const onLeftEdge = {x: box.x + box.width / 10, y: box.y + box.height / 2};
+    await savedAfter(this.presenter, () => drag(this.presenter, middleOf(tab), onLeftEdge));
+});
+
+When("the {string} panel is resized to {int} pixels wide", async function (title, width) {
+    const box = await groupBox(this.presenter, title);
+    const splitter = await splitterBeside(this.presenter, box);
+    const change = width - box.width;
+    const y = box.y + box.height / 2;
+    await savedAfter(this.presenter, () =>
+        drag(
+            this.presenter,
+            {x: splitter.x, y},
+            {x: splitter.onRight ? splitter.x + change : splitter.x - change, y}
+        )
+    );
+});
+
+When("the {string} panel is minimised", async function (title) {
+    const button = await headerButton(this.presenter, title, /^Minimise$/);
+    await savedAfter(this.presenter, () => button.click(WAIT));
+});
+
+When("the {string} icon on the rail is clicked", async function (title) {
+    const button = this.presenter.locator(RAIL).getByRole("button", {name: title, exact: true});
+    await savedAfter(this.presenter, () => button.click(WAIT));
+});
+
+When("the {string} panel is maximised", async function (title) {
+    // Pressed again it restores, and it may then say so.
+    const button = await headerButton(this.presenter, title, /^(Maximise|Restore)$/);
+    await button.click(WAIT);
+});
+
+When("the layout is reset", async function () {
+    const button = this.presenter.locator(RAIL).getByRole("button", {name: "Reset layout"});
+    await savedAfter(this.presenter, () => button.click(WAIT));
+});
+
+When("the {string} preview is clicked", async function (title) {
+    const frame = await previewFrame(this.presenter, title);
+    // The preview takes the key only once the presenter has made it a preview.
+    await frame.waitForFunction(
+        () => window.sozi?.presentation?.enableKeyboardNavigation === false,
+        undefined,
+        WAIT
+    );
+    const iframe = this.presenter.locator(previewSelector(title));
+    await iframe.click(WAIT);
+    await expect(iframe).toBeFocused();
+});
+
+When("the {string} tab is chosen", async function (title) {
+    await tabOf(this.presenter, title).click(WAIT);
+});
+
+When("the audience window is closed", async function () {
+    await this.audience.close();
+});
+
+Then("the workspace shows the panels {string}", async function (list) {
+    await expect.poll(() => visibleTabTitles(this.presenter)).toEqual(titlesIn(list));
+});
+
+Then("the workspace shows a panel {string}", async function (title) {
+    await expect(tabOf(this.presenter, title)).toBeVisible();
+});
+
+Then("the workspace does not show a panel {string}", async function (title) {
+    await expect(tabOf(this.presenter, title)).toBeHidden();
+});
+
+Then("the {string} panel reads {string}", async function (title, text) {
+    await expect(tabOf(this.presenter, title)).toBeVisible();
+    await expect(this.presenter.locator(CONNECTION)).toHaveText(text);
+});
+
+Then("the {string} panel is to the left of {string}", async function (title, other) {
+    await expect
+        .poll(async () => {
+            const box = await groupBox(this.presenter, title);
+            const otherBox = await groupBox(this.presenter, other);
+            return box.x + box.width - otherBox.x;
+        })
+        .toBeLessThanOrEqual(TOLERANCE);
+});
+
+Then("the {string} panel is {int} pixels wide", async function (title, width) {
+    await expect
+        .poll(async () => Math.abs((await groupBox(this.presenter, title)).width - width))
+        .toBeLessThanOrEqual(TOLERANCE);
+});
+
+Then("the {string} panel fills the workspace", async function (title) {
+    const box = await groupBox(this.presenter, title);
+    const workspace = await this.presenter.locator(WORKSPACE).boundingBox(WAIT);
+    const rail = await this.presenter.locator(RAIL).boundingBox(WAIT);
+    assert.ok(workspace && rail, "the workspace and its rail are visible");
+    assert.ok(box.width >= workspace.width - rail.width - TOLERANCE, `width ${box.width}`);
+    assert.ok(box.height >= workspace.height - TOLERANCE, `height ${box.height}`);
+    await expect.poll(() => visibleTabTitles(this.presenter)).toEqual([title]);
+});
+
+Then("the rail shows {string}", async function (title) {
+    const rail = this.presenter.locator(RAIL);
+    await expect(rail.getByRole("button", {name: title, exact: true})).toBeVisible();
+});
+
+Then("the rail is empty", async function () {
+    // Reset layout is the one button that stays.
+    const rail = this.presenter.locator(RAIL);
+    await expect(rail.getByRole("button", {name: "Reset layout"})).toBeVisible();
+    await expect(rail.getByRole("button")).toHaveCount(1);
+});
+
+Then("the panels are tabs {string}", async function (list) {
+    const groups = this.presenter.locator(`${GROUP}:visible`);
+    await expect(groups).toHaveCount(1);
+    // A tab that does not fit may be scrolled away; it is still a tab of the stack.
+    await expect
+        .poll(async () => {
+            const titles = await groups.locator(TAB).allTextContents();
+            return titles.map(title => title.trim()).sort();
+        })
+        .toEqual(titlesIn(list));
+});
+
+Then("the {string} preview shows frame {string}", async function (title, frameTitle) {
+    const frame = await previewFrame(this.presenter, title);
+    await expect
+        .poll(() => frame.evaluate(() => window.sozi?.player?.currentFrame?.title))
+        .toBe(frameTitle);
+    await expect(this.presenter.locator(previewSelector(title))).toBeVisible();
+});
