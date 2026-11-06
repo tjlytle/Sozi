@@ -47,6 +47,21 @@ function panelOptions({id, title}) {
 }
 
 /**
+ * Dock a panel at its default place, or in the active group when that cannot be: the stack
+ * is the only place while narrow, and its reference panel may be on the rail.
+ *
+ * @param {any} dock - The dockview dock.
+ * @param {PanelSpec} spec - The panel.
+ * @param {boolean} narrow - Is the page showing one stack of tabs?
+ */
+function dockPanel(dock, spec, narrow) {
+    const {position, inactive} = spec;
+    const reference = position && position.referencePanel;
+    const placeable = !narrow && (!reference || dock.getPanel(reference));
+    dock.addPanel({...panelOptions(spec), position: placeable ? position : undefined, inactive});
+}
+
+/**
  * The Minimise and Maximise buttons of a group header, as dockview takes them.
  *
  * Each acts on the group's active panel.
@@ -225,23 +240,7 @@ export class Workspace {
         content.className = "sozi-panel";
         const cleanup = spec.render(content);
         this.panels.set(spec.id, {spec, content, cleanup});
-        this.dockPanel(spec);
-    }
-
-    /** Dock a panel at its default place, or in the active group when that cannot be: the
-     * stack is the only place while narrow, and its reference panel may be on the rail.
-     *
-     * @param {PanelSpec} spec - The panel.
-     */
-    dockPanel(spec) {
-        const {position, inactive} = spec;
-        const reference = position && position.referencePanel;
-        const placeable = !this.narrow && (!reference || this.dock.getPanel(reference));
-        this.dock.addPanel({
-            ...panelOptions(spec),
-            position: placeable ? position : undefined,
-            inactive
-        });
+        dockPanel(this.dock, spec, this.narrow);
     }
 
     /** Size the default layout, remember it, bring back the saved one, and start saving. */
@@ -330,6 +329,8 @@ export class Workspace {
 
     /** Show a wide layout: its dock, and its panels on the rail.
      *
+     * A panel it does not name goes to its default place.
+     *
      * @param {SavedLayout} layout - The layout.
      */
     showLayout(layout) {
@@ -354,7 +355,7 @@ export class Workspace {
         // A panel registered after this layout was made is not in it, and dockview dropped it.
         for (const {spec} of this.panels.values()) {
             if (!this.dock.getPanel(spec.id) && !this.railEntries.some(e => e.id === spec.id)) {
-                this.dockPanel(spec);
+                dockPanel(this.dock, spec, this.narrow);
             }
         }
     }

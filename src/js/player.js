@@ -75,6 +75,17 @@ function startPlayer(display, deck) {
     viewport.repaint();
     player.disableBlankScreen();
 
+    startDisplay(display, player, playerController, presentation);
+}
+
+/** Connect the deck to its surfaces, and do what add-ons have asked of `display` so far.
+ *
+ * @param {DisplayApi} display - The API add-ons have been calling since the module loaded.
+ * @param {Player} player - The deck's player.
+ * @param {PlayerController} controller - The deck's player controller.
+ * @param {Presentation} presentation - The deck's presentation.
+ */
+function startDisplay(display, player, controller, presentation) {
     // The presenter console that opened this window, the page this deck is framed in, or
     // this window itself: then the transport only hands on what the page posts to itself.
     const transport = new LocalTransport(window, window.opener || window.parent);
@@ -83,7 +94,7 @@ function startPlayer(display, deck) {
     const pairing = new PairingOverlay(pairingElement, window, display);
     const channel = new DisplayChannel({
         player,
-        controller: playerController,
+        controller,
         presentation,
         transport,
         host: window,

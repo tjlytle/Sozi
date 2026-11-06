@@ -39,6 +39,24 @@ export const PresenterEvents = Object.freeze({
     message: "message"
 });
 
+/**
+ * Emit the events for what changed in the mirror.
+ *
+ * @param {EventEmitter} events - Where the events go.
+ * @param {{frame?: any, viewport?: any, status?: string}} part - The fields that changed.
+ */
+function emitChanges(events, {frame, viewport, status}) {
+    if (frame) {
+        events.emit(PresenterEvents.frameChange, frame);
+    }
+    if (viewport) {
+        events.emit(PresenterEvents.viewport, viewport);
+    }
+    if (status) {
+        events.emit(PresenterEvents.status, status);
+    }
+}
+
 /** What the page publishes as `window.sozi.presenter`: the API of the presenter console.
  *
  * It exists when the module loads, because custom scripts run before `load`. A call made
@@ -116,10 +134,17 @@ export class PresenterApi {
             }
         });
 
-        this.stopReceiving = transports.onMessage(data => this.receive(data));
+        // The mirror takes a message first, so that a handler can read it.
+        this.stopReceiving = transports.onMessage(data => {
+            const message = readMessage(data);
+            if (message) {
+                mirror.apply(message);
+                this.events.emit(PresenterEvents.message, message);
+            }
+        });
         this.onStatus = status => mirror.setStatus(status);
         transports.on(TransportEvents.statusChange, this.onStatus);
-        this.onMirrorChange = part => this.report(part);
+        this.onMirrorChange = part => emitChanges(this.events, part);
         mirror.on(DisplayMirrorEvents.change, this.onMirrorChange);
     }
 
@@ -219,33 +244,5 @@ export class PresenterApi {
      */
     command(message) {
         this.whenMounted(() => this.transports.sendToPrimary(message));
-    }
-
-    /** Take the data of a received message: the mirror first, so that a handler can read it.
-     *
-     * @param {any} data - The data of a message event.
-     */
-    receive(data) {
-        const message = readMessage(data);
-        if (message) {
-            this.mirror.apply(message);
-            this.events.emit(PresenterEvents.message, message);
-        }
-    }
-
-    /** Emit the events for what changed in the mirror.
-     *
-     * @param {{frame?: any, viewport?: any, status?: string}} part - The fields that changed.
-     */
-    report({frame, viewport, status}) {
-        if (frame) {
-            this.events.emit(PresenterEvents.frameChange, frame);
-        }
-        if (viewport) {
-            this.events.emit(PresenterEvents.viewport, viewport);
-        }
-        if (status) {
-            this.events.emit(PresenterEvents.status, status);
-        }
     }
 }
