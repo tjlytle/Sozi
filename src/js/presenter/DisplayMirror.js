@@ -7,10 +7,12 @@
 import {EventEmitter} from "events";
 import {MessageNames, Roles} from "../protocol/messages.js";
 import {TransportStatus} from "../protocol/LocalTransport.js";
+import {STOPPED_TIMER, elapsedAfter} from "../protocol/timer.js";
 
 /** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").Message} Message */
+/** @typedef {import("../protocol/timer.js").TimerState} TimerState */
 /** @typedef {import("../protocol/viewport.js").Viewport} Viewport */
 
 /** The events a display mirror emits.
@@ -29,9 +31,14 @@ export const DisplayMirrorEvents = Object.freeze({change: "change"});
  * @extends EventEmitter
  */
 export class DisplayMirror extends EventEmitter {
-    /** A mirror of a display that has reported nothing yet. */
-    constructor() {
+    /** A mirror of a display that has reported nothing yet.
+     *
+     * @param {() => number} [now] - This device's time in milliseconds, from a clock that does
+     *   not jump.
+     */
+    constructor(now = () => performance.now()) {
         super();
+        this.now = now;
 
         /** How many frames the deck has.
          *
@@ -93,6 +100,24 @@ export class DisplayMirror extends EventEmitter {
          */
         this.layouts = {};
 
+        /** The talk timer, as the display last reported it.
+         *
+         * @type {Readonly<TimerState>}
+         */
+        this.timer = STOPPED_TIMER;
+
+        /** When the timer's last report arrived, by this device's clock.
+         *
+         * @type {number}
+         */
+        this.timerArrivedAt = now();
+
+        /** When the display was last reached, by this device's clock, once it cannot be.
+         *
+         * @type {number}
+         */
+        this.lostAt = this.timerArrivedAt;
+
         /** What each message from the display changes, by name (standard 2.5).
          *
          * @type {Readonly<Record<string, (message: any) => ?object>>}
@@ -106,7 +131,16 @@ export class DisplayMirror extends EventEmitter {
                     message;
                 // A display without a size yet keeps the one it had.
                 const part = viewport ? {frameCount, blank, viewport} : {frameCount, blank};
-                return {...part, frame, frames, index: frame.index, layouts, deckId, version};
+                return {
+                    ...part,
+                    frame,
+                    frames,
+                    index: frame.index,
+                    layouts,
+                    deckId,
+                    version,
+                    ...this.timerPart(message.timer)
+                };
             },
             [MessageNames.frameChange]: ({index, id, title, notes}) => ({
                 frame: {index, id, title, notes},
@@ -115,8 +149,31 @@ export class DisplayMirror extends EventEmitter {
             [MessageNames.viewport]: ({width, height, pixelRatio}) => ({
                 viewport: {width, height, pixelRatio}
             }),
-            [MessageNames.blank]: ({on}) => ({blank: on})
+            [MessageNames.blank]: ({on}) => ({blank: on}),
+            [MessageNames.timer]: ({elapsedMs, running, targetMs}) =>
+                this.timerPart({elapsedMs, running, targetMs})
         });
+    }
+
+    /** Note when a report of the timer arrived, and give the part it changes.
+     *
+     * @param {TimerState} timer - The timer as reported.
+     * @returns {{timer: TimerState}} The part.
+     */
+    timerPart(timer) {
+        this.timerArrivedAt = this.now();
+        return {timer};
+    }
+
+    /** The time the timer has counted, as far as this surface can know: it stops counting
+     * while the display cannot be reached.
+     *
+     * @param {number} [at] - The time to read it at, by this device's clock; by default, now.
+     * @returns {number} The time counted, in milliseconds.
+     */
+    elapsedAt(at = this.now()) {
+        const until = this.status === TransportStatus.connected ? at : this.lostAt;
+        return elapsedAfter(this.timer, Math.max(until - this.timerArrivedAt, 0));
     }
 
     /** Take a message from the display; any other message changes nothing.
@@ -141,6 +198,9 @@ export class DisplayMirror extends EventEmitter {
      * @fires DisplayMirrorEvents.change
      */
     setStatus(status) {
+        if (this.status === TransportStatus.connected) {
+            this.lostAt = this.now();
+        }
         this.change({status});
     }
 

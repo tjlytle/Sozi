@@ -178,13 +178,13 @@ function fakeMirror() {
 
 /** A panel on fakes, with what it has sent.
  *
+ * @param {any} [mirror] - The mirror.
  * @returns {any} - The panel and its fakes.
  */
-function drawnPanel() {
-    const doc = {activeElement: null};
+function drawnPanel(mirror = fakeMirror()) {
+    const doc = /** @type {any} */ ({activeElement: null});
     doc.createElement = name => new FakeElement(name, doc);
-    const element = new FakeElement("div", doc);
-    const mirror = fakeMirror();
+    const element = /** @type {any} */ (new FakeElement("div", doc));
     const host = fakeHost();
     const sent = [];
     const panel = new ClockPanel(element, mirror, message => sent.push(message), host);
@@ -202,11 +202,7 @@ describe("ClockPanel", () => {
     });
 
     test("shows no frame until the display has said hello", () => {
-        const doc = {activeElement: null};
-        doc.createElement = name => new FakeElement(name, doc);
-        const element = new FakeElement("div", doc);
-        const mirror = Object.assign(fakeMirror(), {frame: null});
-        new ClockPanel(element, mirror, () => {}, fakeHost());
+        const {element} = drawnPanel(Object.assign(fakeMirror(), {frame: null}));
         assert.equal(element.part("sozi-clock__frame").textContent, "");
     });
 
@@ -313,7 +309,9 @@ describe("ClockPanel", () => {
 
     test("the field is labelled, and the elapsed time is a timer", () => {
         const {element} = drawnPanel();
-        const label = allIn(element).find(e => e.localName === "label");
+        const label = /** @type {FakeElement} */ (
+            allIn(element).find(e => e.localName === "label")
+        );
         assert.ok(label.children.includes("Target (min)"));
         assert.ok(label.children.includes(element.field));
         assert.equal(element.part("sozi-clock__elapsed").attributes.get("role"), "timer");
