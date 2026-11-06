@@ -16,6 +16,7 @@ import {
     followLinkMessage,
     keyMessage
 } from "../../../src/js/protocol/messages.js";
+import {thumbnailMessage, thumbnailRequestMessage} from "../../../src/js/protocol/thumbnails.js";
 import {viewportMessage} from "../../../src/js/protocol/viewport.js";
 
 const frames = [
@@ -129,6 +130,7 @@ function fakeHost() {
     return {
         listeners,
         location: {pathname: "/talks/basic.sozi.html"},
+        document: {lastModified: "11/06/2026 18:26:48"},
         innerWidth: 1200,
         innerHeight: 400,
         devicePixelRatio: 2,
@@ -156,9 +158,10 @@ function fakeHost() {
 
 /** Build a display channel on fakes, started, with what it sent on start cleared.
  *
+ * @param {(index: number) => Promise<string>} [renderResult] - What a thumbnail render gives.
  * @returns {any} - The channel and its fakes.
  */
-function startedDisplay() {
+function startedDisplay(renderResult = async () => JPEG) {
     const player = fakePlayer();
     const controller = fakeController(player);
     const transport = fakeTransport();
@@ -169,7 +172,12 @@ function startedDisplay() {
         document: {root: {getElementById: id => links.get(id) ?? null}}
     };
     const previews = [];
+    const renders = [];
     const channel = new DisplayChannel({
+        renderThumbnail: (index, width) => {
+            renders.push([index, width]);
+            return renderResult(index);
+        },
         player,
         controller,
         presentation,
@@ -180,9 +188,10 @@ function startedDisplay() {
     });
     channel.start();
     const startSent = transport.sent.splice(0);
-    return {channel, player, controller, transport, host, links, previews, startSent};
+    return {channel, player, controller, transport, host, links, previews, renders, startSent};
 }
 
+const JPEG = "data:image/jpeg;base64,AAAA";
 const firstFrame = {index: 0, id: "f1", title: "One", notes: "first"};
 const everyFrame = [firstFrame, {index: 1, id: "f2", title: "Two", notes: "second"}];
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
@@ -195,6 +204,7 @@ const viewport = {width: 1200, height: 400, pixelRatio: 2};
 function displayHello(changes = {}) {
     return helloMessage(Roles.display, {
         deckId: "basic",
+        version: "11/06/2026 18:26:48",
         frameCount: 2,
         viewport,
         frame: firstFrame,
@@ -205,6 +215,39 @@ function displayHello(changes = {}) {
 }
 
 describe("DisplayChannel", () => {
+    test("its hello names the deck page's date as its version", () => {
+        const {transport} = startedDisplay();
+        transport.deliver(helloMessage(Roles.surface));
+        assert.equal(transport.sent.at(-1).version, "11/06/2026 18:26:48");
+    });
+
+    test("a thumbnail request outside preview mode is ignored", async () => {
+        const {transport, renders} = startedDisplay();
+        transport.deliver(thumbnailRequestMessage(1, 320));
+        await new Promise(setImmediate);
+        assert.deepEqual(renders, []);
+        assert.deepEqual(transport.sent, []);
+    });
+
+    test("a thumbnail request in preview mode is rendered and answered", async () => {
+        const {transport, renders} = startedDisplay();
+        transport.deliver(previewMessage(false));
+        transport.deliver(thumbnailRequestMessage(1, 320));
+        await new Promise(setImmediate);
+        assert.deepEqual(renders, [[1, 320]]);
+        assert.deepEqual(transport.sent, [thumbnailMessage(1, JPEG)]);
+    });
+
+    test("a render that rejects is answered with an empty url", async () => {
+        const {transport} = startedDisplay(async () => {
+            throw new Error("tainted");
+        });
+        transport.deliver(previewMessage(false));
+        transport.deliver(thumbnailRequestMessage(1, 320));
+        await new Promise(setImmediate);
+        assert.deepEqual(transport.sent, [thumbnailMessage(1, "")]);
+    });
+
     test("its hello lists every frame in deck order, whichever is current", () => {
         const {player, transport} = startedDisplay();
         player.showFrame(1);
