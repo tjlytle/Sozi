@@ -59,6 +59,7 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @property {number} frameCount - How many frames the deck has.
  * @property {Viewport | null} viewport - The display's size, null while it has none.
  * @property {FrameInfo} frame - The current frame.
+ * @property {FrameInfo[]} frames - Every frame, in deck order.
  * @property {boolean} blank - Is the blank screen shown?
  * @property {Record<string, LayoutPreset>} [layouts] - The deck's layout presets, in order.
  */
@@ -109,10 +110,11 @@ export function helloMessage(role, state) {
             frameCount,
             viewport,
             frame,
+            frames,
             blank,
             layouts = {}
         } = /** @type {DisplayState} */ (state);
-        return {name: "hello", role, deckId, frameCount, viewport, frame, blank, layouts};
+        return {name: "hello", role, deckId, frameCount, viewport, frame, frames, blank, layouts};
     }
     return {name: "hello", role: "surface"};
 }
@@ -261,6 +263,25 @@ function readFrame(f) {
 }
 
 /**
+ * Read the `frames` field of a display's `hello`.
+ *
+ * A display from the release before this field sends none, which reads as an empty list.
+ *
+ * @param {any} frames - The field as received.
+ * @returns {FrameInfo[] | null} The frames, or null if the list or an entry is malformed.
+ */
+function readFrames(frames) {
+    if (frames === undefined) {
+        return [];
+    }
+    if (!Array.isArray(frames)) {
+        return null;
+    }
+    const read = frames.map(readFrame);
+    return read.every(frame => frame !== null) ? /** @type {FrameInfo[]} */ (read) : null;
+}
+
+/**
  * Read the `transition` field, which defaults to true.
  *
  * @param {any} transition - The field as received.
@@ -276,8 +297,8 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
- * A missing `layouts` reads as none, so a newer surface can join an older deck, and a bad
- * preset is dropped, never the whole message.
+ * A missing `frames` or `layouts` reads as none, so a newer surface can join an older deck. A
+ * bad preset is dropped, never the whole message; a malformed `frames` refuses it.
  *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
@@ -293,15 +314,17 @@ function readHello(data) {
     const viewport =
         data.viewport === null ? null : readViewport({...data.viewport, name: "viewport"});
     const frame = readFrame(data.frame);
+    const frames = readFrames(data.frames);
     const valid =
         typeof deckId === "string" &&
         isIndex(frameCount) &&
         (viewport !== null || data.viewport === null) &&
         frame !== null &&
+        frames !== null &&
         typeof blank === "boolean";
     const layouts = readPresets(data.layouts).presets;
     return valid
-        ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, blank, layouts})
+        ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, frames, blank, layouts})
         : null;
 }
 

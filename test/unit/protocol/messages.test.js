@@ -20,12 +20,21 @@ import {viewportMessage} from "../../../src/js/protocol/viewport.js";
 
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
+const frames = [{index: 0, id: "frame1", title: "One", notes: ""}, frame];
 const dock = {grid: {}, panels: {current: {id: "current"}}};
 // Cast: the field's own literal types are lost on a constant.
 const layouts = /** @type {any} */ ({
     phone: {match: "phone", layout: {version: 1, dock, rail: []}}
 });
-const displayState = {deckId: "basic", frameCount: 2, viewport, frame, blank: false, layouts};
+const displayState = {
+    deckId: "basic",
+    frameCount: 2,
+    viewport,
+    frame,
+    frames,
+    blank: false,
+    layouts
+};
 const noModifiers = {shift: false, alt: false, ctrl: false, meta: false};
 
 /** One built message of each kind, as the protocol sends it.
@@ -98,6 +107,17 @@ describe("protocol messages", () => {
         );
     });
 
+    test("a display's hello keeps its frames and drops their other fields", () => {
+        const message = helloMessage(Roles.display, displayState);
+        const read = readMessage({...message, frames: [{...frames[0], extra: 1}, frame]});
+        assert.deepEqual(/** @type {any} */ (read).frames, frames);
+    });
+
+    test("a display's hello from before the frames list reads as an empty list", () => {
+        const older = {...helloMessage(Roles.display, displayState), frames: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).frames, []);
+    });
+
     test("is refused when it is not an object or has an unknown name", () => {
         for (const data of [null, undefined, "next", 3, [], {}, {name: "moveToNext"}]) {
             assert.equal(readMessage(data), null, JSON.stringify(data));
@@ -145,6 +165,10 @@ describe("protocol messages", () => {
             {...helloMessage(Roles.display, displayState), viewport: {width: 0}},
             {...helloMessage(Roles.display, displayState), frame: null},
             {...helloMessage(Roles.display, displayState), blank: "no"},
+            {...helloMessage(Roles.display, displayState), frames: "all"},
+            {...helloMessage(Roles.display, displayState), frames: null},
+            {...helloMessage(Roles.display, displayState), frames: [frame, {index: 2}]},
+            {...helloMessage(Roles.display, displayState), frames: [frame, null]},
             {...frameChangeMessage(frame), index: -1},
             {...frameChangeMessage(frame), index: "1"},
             {...frameChangeMessage(frame), id: 2},

@@ -77,7 +77,9 @@ if (!settings.get("enableHardwareAcceleration")) {
 // app.exit() because Electron ignores process.exitCode.
 const cliArgs = parseArgs(process.argv, COMMAND_FLAGS);
 
-const CLI_USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg>";
+const CLI_USAGE =
+    "sozi --cli <inspect|build|set|render|export> [options] <file.svg>; " +
+    "sozi --cli notes <export|import> <file.sozi.json> [file.md]";
 
 let cliExiting = false;
 
