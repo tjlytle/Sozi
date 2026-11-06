@@ -2,13 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// A static file server, for the scenarios that open a deck over http rather than file:.
+// A static file server, for the scenarios that open a deck or the hosted shell over http
+// rather than file:.
 
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 
-/** The content type of each file a built deck serves, by extension. */
+/** The content type of each file a built deck or the hosted shell serves, by extension. */
 const CONTENT_TYPES = Object.freeze({
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -21,6 +22,8 @@ const CONTENT_TYPES = Object.freeze({
 
 /** Serve a directory on a free port of this machine.
  *
+ * An address that ends in a slash serves that directory's index.html, as a static host does.
+ *
  * @param {string} dir - The directory to serve.
  * @returns {Promise<{url: string, close: () => Promise<void>}>} - The server's address, with
  *     no trailing slash, and a function that stops it.
@@ -28,8 +31,7 @@ const CONTENT_TYPES = Object.freeze({
 export async function serveDirectory(dir) {
     const server = http.createServer((request, response) => {
         const {pathname} = new URL(request.url ?? "/", "http://localhost");
-        // Normalising an absolute path drops every "..", so the file stays under dir. A
-        // directory's address serves its index.html, as a static host does.
+        // Normalising an absolute path drops every "..", so the file stays under dir.
         const relative = path.normalize(decodeURIComponent(pathname));
         const file = path.join(dir, relative.endsWith("/") ? `${relative}index.html` : relative);
         fs.readFile(file, (error, content) => {
