@@ -18,6 +18,7 @@ import {
     previousMessage,
     readMessage
 } from "../protocol/messages.js";
+import {timerActionMessage, timerTargetMessage} from "../protocol/timer.js";
 
 /** @typedef {import("./DisplayMirror.js").DisplayMirror} DisplayMirror */
 /** @typedef {import("./Workspace.js").Workspace} Workspace */
@@ -29,7 +30,8 @@ import {
 /** The events `sozi.presenter` emits.
  *
  * `frameChange` carries the frame, `viewport` the display's size, `status` the status of the
- * link to the display, and `message` every valid message, once the mirror has taken it.
+ * link to the display, `timer` the timer as the display reported it, and `message` every valid
+ * message, once the mirror has taken it.
  *
  * @readonly
  */
@@ -37,6 +39,7 @@ export const PresenterEvents = Object.freeze({
     frameChange: "frameChange",
     viewport: "viewport",
     status: "status",
+    timer: "timer",
     message: "message"
 });
 
@@ -44,9 +47,10 @@ export const PresenterEvents = Object.freeze({
  * Emit the events for what changed in the mirror.
  *
  * @param {EventEmitter} events - Where the events go.
- * @param {{frame?: any, viewport?: any, status?: string}} part - The fields that changed.
+ * @param {{frame?: any, viewport?: any, status?: string, timer?: any}} part - The fields that
+ *     changed.
  */
-function emitChanges(events, {frame, viewport, status}) {
+function emitChanges(events, {frame, viewport, status, timer}) {
     if (frame) {
         events.emit(PresenterEvents.frameChange, frame);
     }
@@ -55,6 +59,9 @@ function emitChanges(events, {frame, viewport, status}) {
     }
     if (status) {
         events.emit(PresenterEvents.status, status);
+    }
+    if (timer) {
+        events.emit(PresenterEvents.timer, timer);
     }
 }
 
@@ -139,6 +146,20 @@ export class PresenterApi {
              */
             send: (name, payload) => {
                 this.command(customMessage(name, payload));
+            },
+            /** Start, pause or reset the talk timer.
+             *
+             * @param {string} action - `start`, `pause` or `reset`.
+             */
+            timerAction: action => {
+                this.command(timerActionMessage(action));
+            },
+            /** Set the talk's target length, or clear it.
+             *
+             * @param {?number} ms - The length in milliseconds, null for none.
+             */
+            setTimerTarget: ms => {
+                this.command(timerTargetMessage(ms));
             }
         });
 
@@ -207,13 +228,17 @@ export class PresenterApi {
 
     /** What the display last reported, for a panel that registers late.
      *
+     * `timer.elapsedMs` is the time counted by now, so an add-on need not add anything to it.
+     *
      * @readonly
      * @type {{frame: any, frames: any[], frameCount: number, deckId: string, version: string,
-     *   viewport: any, blank: boolean, status: string}}
+     *   viewport: any, blank: boolean, status: string, timer: any}}
      */
     get state() {
-        const {frame, frames, frameCount, deckId, version, viewport, blank, status} = this.mirror;
-        return {frame, frames, frameCount, deckId, version, viewport, blank, status};
+        const {mirror} = this;
+        const {frame, frames, frameCount, deckId, version, viewport, blank, status} = mirror;
+        const timer = {...mirror.timer, elapsedMs: mirror.elapsedAt()};
+        return {frame, frames, frameCount, deckId, version, viewport, blank, status, timer};
     }
 
     /** The pairing link of the hosted shell, for add-ons; null on the local page.

@@ -8,6 +8,7 @@ The display (the audience window that plays the deck) and a presenter surface ta
 | ----------------------------------- | ----------------------------------------------------------------- |
 | `src/js/protocol/messages.js`       | The names, a builder per message and `readMessage`.               |
 | `src/js/protocol/viewport.js`       | The `viewport` message.                                           |
+| `src/js/protocol/timer.js`          | The talk timer's messages, and the sum a surface counts by.       |
 | `src/js/protocol/layoutPresets.js`  | The layout presets a deck carries: their names and their shape.   |
 | `src/js/protocol/LocalTransport.js` | The transport between two windows of one browser.                 |
 | `src/js/protocol/TransportSet.js`   | Several transports acting as one.                                 |
@@ -36,6 +37,9 @@ the message.
 | `key`         | display → surface | `key`, `modifiers`                                        |
 | `thumbnailRequest` | surface → preview deck | `index`, `width`                                 |
 | `thumbnail`   | preview deck → surface | `index`, `url`                                       |
+| `timer`       | display → surface | `elapsedMs`, `running`, `targetMs`                        |
+| `timerAction` | surface → display | `action`                                                  |
+| `timerTarget` | surface → display | `targetMs`                                                |
 | `custom`      | both ways         | `type`, `data`                                            |
 
 ### `hello`
@@ -51,6 +55,7 @@ the message.
 | `frames`     | array of `{index, id, title, notes}` | Every frame, in deck order.                  |
 | `blank`      | boolean                         | Is the blank screen shown?                        |
 | `layouts`    | object of presets, by name      | The deck's layout presets, in the deck's order.   |
+| `timer`      | `{elapsedMs, running, targetMs}` | The talk timer as it is now (see [`timer`](#timer)). |
 
 `readMessage` refuses a `hello` whose `frames` is not a list or holds a malformed entry. A
 display from the release before this field sends none, which reads as an empty list; a
@@ -68,6 +73,9 @@ string refuses the `hello`.
 `layouts` is new. A `hello` without it reads as no presets, so a newer surface can join an
 older deck, and a surface that does not know it ignores it. A bad preset is dropped, never
 the whole `hello`.
+
+`timer` is new. A `hello` without it reads as a stopped timer at zero, so a newer surface can
+join an older deck. A malformed one refuses the `hello`.
 
 A preset's name starts with a letter and holds only letters, digits, `-` and `_`: a numeric
 key would jump to the front of a JSON object, and the order decides which preset wins. A
@@ -139,6 +147,26 @@ is a JPEG `data:` URL, or `""` when rendering failed; a reader refuses anything 
 message cannot point an `<img>` anywhere. Thumbnails do not cross the link to the display:
 every surface already loads the deck for its previews, so each renders its own.
 
+### `timer`, `timerAction`, `timerTarget`
+
+The display owns the talk timer, so every surface shows the same time. The timer starts by
+itself on the first frame change after the deck loads or the timer is reset, or earlier on
+`start`. Reloading the display restarts it.
+
+`timer` says it was started, paused or reset, or that its target changed. `elapsedMs` is the
+time counted when the display sent it, `running` says whether it is counting, and `targetMs` is
+the talk's target length, or null with none. It is sent on a change only, not every second:
+while `running`, a surface adds the time since the message arrived, by its own clock, to
+`elapsedMs` (`elapsedAfter`). Devices' clocks disagree, so no timestamp crosses the wire. A
+surface stops counting while the display cannot be reached. A preview sends no `timer`.
+
+`timerAction` asks the display to `start`, `pause` or `reset`. `pause` holds the time, and a
+frame change does not start a paused timer. `reset` returns it to zero, stopped, and the next
+frame change starts it. `reset` keeps the target.
+
+`timerTarget` sets the target length in milliseconds, which must be positive and finite, or
+clears it with null.
+
 ### `custom`
 
 A message of an add-on's own: `type` is a non-empty string, `data` anything
@@ -190,16 +218,17 @@ waits for it, in the order it came.
 | ------------------------------------------------- | ------------------------------------------------ |
 | `registerPanel({id, title, icon, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
 | `registerPanel({id, title, icon, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
-| `on(name, handler)` / `off(name, handler)`        | `frameChange` (the frame), `viewport` (the size), `status`, and `message` (every valid message). |
-| `state`                                           | `{frame, frames, frameCount, deckId, version, viewport, blank, status}`, for a panel that registers late. |
+| `on(name, handler)` / `off(name, handler)`        | `frameChange` (the frame), `viewport` (the size), `status`, `timer` (the timer as reported), and `message` (every valid message). |
+| `state`                                           | `{frame, frames, frameCount, deckId, version, viewport, blank, status, timer}`, for a panel that registers late. `timer.elapsedMs` is the time counted by now. |
 | `display.jumpToFrame(index, transition = true)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport. |
+| `display.timerAction(action)`, `setTimerTarget(ms)` | The talk timer's commands, to the primary transport: `start`, `pause` or `reset`, and a length in milliseconds or null. |
 | `display.send(name, payload)`                     | A `custom` message, to the primary transport.    |
 | `registerTransport(transport)`                    | Adds a transport, after the audience window's, and says `hello` on it. |
 | `link`                                            | The [pairing link](#hosted-shell), frozen, read at `load`; `null` on the page next to a deck and in a shell with no good link. |
 
 A bad panel throws a `TypeError` naming the field; so does an id already taken. The built-in
 panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `frames`, `connection`,
-`controls`, `previous`, `next`) can be named in a panel's place. `icon` is the text of its
+`clock`, `controls`, `previous`, `next`) can be named in a panel's place. `icon` is the text of its
 button on the rail, by default the title's first letter. `defaults` is its place in the
 default layout, `{position, inactive, initialHeight}`, with `position` as dockview's
 `addPanel` takes it. Without `defaults` the panel is a tab behind Notes.

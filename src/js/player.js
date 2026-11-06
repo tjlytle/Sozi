@@ -9,6 +9,7 @@ import {Player} from "./player/Player";
 import {PlayerEvents} from "./player/playerEvents";
 import {PlayerController} from "./player/PlayerController";
 import {DisplayChannel} from "./player/DisplayChannel";
+import {TalkTimer} from "./player/TalkTimer";
 import {DisplayApi} from "./player/DisplayApi";
 import {PairingOverlay} from "./player/PairingOverlay";
 import {ExportDriver} from "./player/ExportDriver";
@@ -103,6 +104,8 @@ function startDisplay(display, player, controller, presentation) {
         player,
         controller,
         presentation,
+        // A clock that does not jump: a wall clock moves on a correction mid-talk.
+        timer: new TalkTimer(() => performance.now()),
         transport,
         host: window,
         enterPreviewMode: (isCurrent, onFollowLink, onKey) => {

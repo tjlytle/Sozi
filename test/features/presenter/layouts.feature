@@ -88,7 +88,7 @@ Feature: A deck carries named layouts for the presenter
   Scenario: A deck with no presets opens as before
     Given the "basic" deck is built
     And the presenter page is open at 390 by 844
-    Then the panels are tabs "Current, Previous, Next, Notes, Frames, Controls, Connection"
+    Then the panels are tabs "Current, Previous, Next, Notes, Frames, Clock, Controls, Connection"
 
   @issue-33
   Scenario: Save as preset downloads the layout and says what to do next

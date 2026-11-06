@@ -9,6 +9,7 @@ import {
     nextMessage
 } from "../../../src/js/protocol/messages.js";
 import {TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
+import {STOPPED_TIMER, timerMessage} from "../../../src/js/protocol/timer.js";
 
 const one = {index: 0, id: "f1", title: "One", notes: "<p>First</p>"};
 const two = {index: 1, id: "f2", title: "Two", notes: ""};
@@ -27,8 +28,19 @@ const state = {
     frame: one,
     frames,
     blank: false,
-    layouts
+    layouts,
+    timer: STOPPED_TIMER
 };
+const running = {elapsedMs: 1000, running: true, targetMs: null};
+
+/** A mirror on a clock the test moves.
+ *
+ * @returns {{mirror: DisplayMirror, clock: {time: number}}} - Both.
+ */
+function clockedMirror() {
+    const clock = {time: 500};
+    return {mirror: new DisplayMirror(() => clock.time), clock};
+}
 
 /** A mirror and the changes it has emitted.
  *
@@ -74,9 +86,72 @@ describe("DisplayMirror", () => {
                 index: 0,
                 layouts,
                 deckId: "basic",
-                version: "v1"
+                version: "v1",
+                timer: STOPPED_TIMER
             }
         ]);
+    });
+
+    test("holds a stopped timer until the display reports one", () => {
+        const {mirror} = clockedMirror();
+        assert.deepEqual(mirror.timer, STOPPED_TIMER);
+        assert.equal(mirror.elapsedAt(), 0);
+    });
+
+    test("a hello carries the timer, counted from when it arrived", () => {
+        const {mirror, clock} = clockedMirror();
+        mirror.apply(helloMessage(Roles.display, {...state, timer: running}));
+        assert.deepEqual(mirror.timer, running);
+        assert.equal(mirror.elapsedAt(), 1000);
+        clock.time += 250;
+        assert.equal(mirror.elapsedAt(), 1250);
+    });
+
+    test("a timer message replaces the timer, and only that", () => {
+        const {mirror, clock} = clockedMirror();
+        const changes = [];
+        mirror.on(DisplayMirrorEvents.change, part => changes.push(part));
+        clock.time = 2000;
+        mirror.apply(timerMessage(running));
+        assert.deepEqual(changes, [{timer: running}]);
+        clock.time = 3000;
+        assert.equal(mirror.elapsedAt(), 2000);
+    });
+
+    test("a stopped timer does not count", () => {
+        const {mirror, clock} = clockedMirror();
+        mirror.apply(timerMessage({...running, running: false}));
+        clock.time += 5000;
+        assert.equal(mirror.elapsedAt(), 1000);
+    });
+
+    test("elapsedAt reads the timer at a given time", () => {
+        const {mirror} = clockedMirror();
+        mirror.apply(timerMessage(running));
+        assert.equal(mirror.elapsedAt(600), 1100);
+    });
+
+    test("stops counting while the status is not connected, and takes up again", () => {
+        const {mirror, clock} = clockedMirror();
+        mirror.apply(timerMessage(running));
+        clock.time += 1000;
+        mirror.setStatus(TransportStatus.closed);
+        clock.time += 5000;
+        assert.equal(mirror.elapsedAt(), 2000);
+        mirror.setStatus("stale");
+        clock.time += 5000;
+        assert.equal(mirror.elapsedAt(), 2000);
+        mirror.setStatus(TransportStatus.connected);
+        assert.equal(mirror.elapsedAt(), 12000);
+    });
+
+    test("a timer that arrives while the link is down never reads below what it says", () => {
+        const {mirror, clock} = clockedMirror();
+        mirror.setStatus(TransportStatus.closed);
+        clock.time += 1000;
+        mirror.apply(timerMessage(running));
+        clock.time += 1000;
+        assert.equal(mirror.elapsedAt(), 1000);
     });
 
     test("has no frames until the display says hello, and a frame change keeps them", () => {

@@ -20,6 +20,7 @@ import {isEditableTarget, messageForKey} from "./presenter/keys";
 import {PreviewPanel} from "./presenter/panels/PreviewPanel";
 import {NotesPanel} from "./presenter/panels/NotesPanel";
 import {ControlsPanel} from "./presenter/panels/ControlsPanel";
+import {ClockPanel} from "./presenter/panels/ClockPanel";
 import {ConnectionPanel} from "./presenter/panels/ConnectionPanel";
 import {FramePickerPanel} from "./presenter/panels/FramePickerPanel";
 import {ThumbnailCache} from "./presenter/ThumbnailCache";
@@ -36,10 +37,10 @@ import {ThumbnailSource} from "./presenter/ThumbnailSource";
  */
 const THUMBNAIL_WIDTH = 320;
 
-/** The seven panels, in the order the default layout adds them, and their place in it.
+/** The eight panels, in the order the default layout adds them, and their place in it.
  *
  * Current over Controls over Previous and Next, on the left; Notes right, with Frames and
- * Connection as tabs behind it.
+ * Connection as tabs behind it, over Clock.
  *
  * @readonly
  */
@@ -64,6 +65,12 @@ const PANELS = Object.freeze([
         icon: "⇄",
         position: {referencePanel: "notes", direction: "within"},
         inactive: true
+    },
+    {
+        id: "clock",
+        title: "Clock",
+        icon: "◷",
+        position: {referencePanel: "notes", direction: "below"}
     },
     {
         id: "controls",
@@ -173,7 +180,7 @@ function framePicker(element, presenter, src) {
     return new FramePickerPanel(element, presenter, thumbnails);
 }
 
-/** The seven panels of the workspace, in the order the default layout adds them.
+/** The eight panels of the workspace, in the order the default layout adds them.
  *
  * @param {PresenterApi} presenter - The published API.
  * @param {DisplayMirror} mirror - What the display last reported.
@@ -200,6 +207,8 @@ function panelSpecs(presenter, mirror, send, src) {
                 return framePicker(element, presenter, src());
             case "connection":
                 return new ConnectionPanel(element, mirror);
+            case "clock":
+                return new ClockPanel(element, mirror, send, window);
             case "controls":
                 return new ControlsPanel(element, mirror, send);
             default: {

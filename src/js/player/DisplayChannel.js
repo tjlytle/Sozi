@@ -6,6 +6,7 @@
 
 import {EventEmitter} from "events";
 import {PlayerEvents} from "./playerEvents.js";
+import {TalkTimerEvents} from "./TalkTimer.js";
 import {
     MessageNames,
     Roles,
@@ -20,6 +21,7 @@ import {
 } from "../protocol/messages.js";
 import {fromLegacy, legacyLoadedMessage} from "../protocol/legacy.js";
 import {thumbnailMessage} from "../protocol/thumbnails.js";
+import {timerMessage} from "../protocol/timer.js";
 import {viewportMessage, readViewport} from "../protocol/viewport.js";
 import {TransportSet} from "../protocol/TransportSet.js";
 
@@ -43,6 +45,7 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  * @property {any} player - The deck's player.
  * @property {any} controller - The deck's player controller.
  * @property {any} presentation - The deck's presentation.
+ * @property {import("./TalkTimer.js").TalkTimer} timer - The talk timer.
  * @property {Transport} transport - The first transport to a surface (a `LocalTransport`).
  * @property {any} host - The window the deck plays in.
  * @property {(isCurrent: boolean, onFollowLink: (id: string) => void,
@@ -64,9 +67,9 @@ function frameInfoOf({index, frameId, title, notes}) {
 /** The display side of the presenter protocol (docs/presenter-protocol.md).
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
- * reports frame changes, the window size and the blank screen as they change. It hands each
- * command to the controller, or to the player once the deck is a preview. A preview also
- * draws its frames as thumbnails, on request.
+ * reports frame changes, the window size, the blank screen and the timer as they change. It
+ * hands each command to the controller, or to the player once the deck is a preview. A preview
+ * also draws its frames as thumbnails, on request.
  *
  * @extends EventEmitter
  */
@@ -79,6 +82,7 @@ export class DisplayChannel extends EventEmitter {
         player,
         controller,
         presentation,
+        timer,
         transport,
         host,
         enterPreviewMode,
@@ -88,6 +92,7 @@ export class DisplayChannel extends EventEmitter {
         this.player = player;
         this.controller = controller;
         this.presentation = presentation;
+        this.timer = timer;
 
         /** The links to the surfaces: a report goes out on all of them.
          *
@@ -105,12 +110,17 @@ export class DisplayChannel extends EventEmitter {
          */
         this.previewMode = false;
 
-        this.onFrameChange = () => this.report(frameChangeMessage(this.frameInfo));
+        this.onFrameChange = () => {
+            this.report(frameChangeMessage(this.frameInfo));
+            timer.frameChanged();
+        };
         this.onBlankScreenChange = () => this.report(blankMessage(player.blankScreenIsVisible));
         this.onResize = () => this.report(viewportMessage(host));
+        this.onTimerChange = () => this.report(timerMessage(timer.state));
         player.on(PlayerEvents.frameChange, this.onFrameChange);
         player.on(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         host.addEventListener("resize", this.onResize);
+        timer.on(TalkTimerEvents.change, this.onTimerChange);
         this.stopReceiving = this.transport.onMessage((data, from) => this.receive(data, from));
 
         /** What each message from a surface does, by name: the explicit table (2.5).
@@ -136,7 +146,10 @@ export class DisplayChannel extends EventEmitter {
             [MessageNames.thumbnailRequest]: ({index, width}, legacy, from) =>
                 this.answerThumbnail(index, width, from),
             [MessageNames.custom]: ({type, data}) =>
-                this.emit(DisplayChannelEvents.custom, type, data)
+                this.emit(DisplayChannelEvents.custom, type, data),
+            // The reader lets through only the actions of `TimerActions`, each a method of the timer.
+            [MessageNames.timerAction]: ({action}) => timer[action](),
+            [MessageNames.timerTarget]: ({targetMs}) => timer.setTarget(targetMs)
         });
     }
 
@@ -178,7 +191,8 @@ export class DisplayChannel extends EventEmitter {
             frame: this.frameInfo,
             frames: this.presentation.frames.map(frameInfoOf),
             blank: this.player.blankScreenIsVisible,
-            layouts: this.presentation.presenterLayouts
+            layouts: this.presentation.presenterLayouts,
+            timer: this.timer.state
         });
     }
 
@@ -371,6 +385,7 @@ export class DisplayChannel extends EventEmitter {
         this.player.off(PlayerEvents.frameChange, this.onFrameChange);
         this.player.off(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         this.host.removeEventListener("resize", this.onResize);
+        this.timer.off(TalkTimerEvents.change, this.onTimerChange);
         this.stopReceiving();
         this.transport.dispose();
         this.removeAllListeners();

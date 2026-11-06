@@ -31,6 +31,8 @@
                 --sozi-button-border: rgb(170, 170, 180);
                 --sozi-notice-background: rgb(255, 236, 179);
                 --sozi-accent: rgb(25, 118, 210);
+                --sozi-clock-near: rgb(140, 95, 0);
+                --sozi-clock-over: rgb(170, 50, 40);
             }
 
             html, body {
@@ -65,7 +67,7 @@
                 gap: var(--sozi-space);
             }
 
-            .sozi-rail button, .sozi-group-actions__button, .sozi-controls button, .sozi-notes__toolbar button {
+            .sozi-rail button, .sozi-group-actions__button, .sozi-controls button, .sozi-notes__toolbar button, .sozi-clock button {
                 min-width: 2rem;
                 min-height: 2rem;
                 border: 1px solid var(--sozi-button-border);
@@ -220,6 +222,75 @@
             .sozi-connection {
                 margin: 0;
                 padding: var(--sozi-space) calc(2 * var(--sozi-space));
+            }
+
+            /* The digits grow with the panel, whichever of its sides is short. */
+            .sozi-clock {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: space-evenly;
+                gap: var(--sozi-space);
+                height: 100%;
+                padding: var(--sozi-space);
+                box-sizing: border-box;
+                container-type: size;
+                background: var(--sozi-surface);
+            }
+
+            .sozi-clock__header {
+                display: flex;
+                justify-content: space-between;
+                gap: calc(2 * var(--sozi-space));
+                width: 100%;
+                font-size: 150%;
+            }
+
+            /* Same-width digits, so that the time does not jitter as it counts. The colours change
+               at once: no transition, so nothing moves in the corner of the speaker's eye. */
+            .sozi-clock__elapsed {
+                font-size: min(26cqw, 34cqh);
+                font-variant-numeric: tabular-nums;
+                line-height: 1;
+                white-space: nowrap;
+            }
+
+            .sozi-clock__elapsed--near {
+                color: var(--sozi-clock-near);
+            }
+
+            .sozi-clock__elapsed--over {
+                color: var(--sozi-clock-over);
+            }
+
+            .sozi-clock__remaining {
+                min-height: 2rem;
+                font-size: 150%;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .sozi-clock__controls {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: center;
+                gap: var(--sozi-space);
+            }
+
+            .sozi-clock__target {
+                display: flex;
+                align-items: center;
+                gap: var(--sozi-space);
+            }
+
+            .sozi-clock__target input {
+                width: 4rem;
+                min-height: 2rem;
+                padding: 0 var(--sozi-space);
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                box-sizing: border-box;
+                font: inherit;
             }
 
             /* The filter over the grid, which scrolls by itself. */
