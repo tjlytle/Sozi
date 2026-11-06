@@ -22,6 +22,24 @@ export function setSanitizedHTML(element, html) {
     element.replaceChildren(purify.sanitize(html, {RETURN_DOM_FRAGMENT: true}));
 }
 
+/** Is there nothing to show in this HTML?
+ *
+ * An empty paragraph (`<p><br></p>`, as an editor's field leaves it) is blank; an image,
+ * a table or a rule is not, even with no text in it.
+ *
+ * @param {string} html - The HTML, from data.
+ * @param {Document} document - The document to parse it in.
+ * @returns {boolean} - True when it shows no text and nothing else.
+ */
+export function isBlankHTML(html, document) {
+    const holder = document.createElement("div");
+    setSanitizedHTML(holder, html);
+    return (
+        !(holder.textContent || "").trim() &&
+        !holder.querySelector("img, svg, video, audio, table, hr, input")
+    );
+}
+
 /** Return the HTML content of an element.
  *
  * @param {Element} element - The element to read.
