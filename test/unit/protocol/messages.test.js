@@ -28,6 +28,7 @@ const layouts = /** @type {any} */ ({
 });
 const displayState = {
     deckId: "basic",
+    version: "11/06/2026 18:26:48",
     frameCount: 2,
     viewport,
     frame,
@@ -116,6 +117,16 @@ describe("protocol messages", () => {
     test("a display's hello from before the frames list reads as an empty list", () => {
         const older = {...helloMessage(Roles.display, displayState), frames: undefined};
         assert.deepEqual(/** @type {any} */ (readMessage(older)).frames, []);
+    });
+
+    test("a display's hello from before the version field reads as an empty version", () => {
+        const older = {...helloMessage(Roles.display, displayState), version: undefined};
+        assert.equal(/** @type {any} */ (readMessage(older)).version, "");
+    });
+
+    test("a display's hello with a version that is not a string is refused", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        assert.equal(readMessage({...hello, version: 3}), null);
     });
 
     test("is refused when it is not an object or has an unknown name", () => {

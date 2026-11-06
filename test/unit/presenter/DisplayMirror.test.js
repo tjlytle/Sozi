@@ -19,7 +19,16 @@ const dock = {grid: {}, panels: {current: {id: "current"}}};
 const layouts = /** @type {any} */ ({
     phone: {match: "phone", layout: {version: 1, dock, rail: []}}
 });
-const state = {deckId: "basic", frameCount: 2, viewport, frame: one, frames, blank: false, layouts};
+const state = {
+    deckId: "basic",
+    version: "v1",
+    frameCount: 2,
+    viewport,
+    frame: one,
+    frames,
+    blank: false,
+    layouts
+};
 
 /** A mirror and the changes it has emitted.
  *
@@ -53,8 +62,20 @@ describe("DisplayMirror", () => {
         assert.deepEqual(mirror.viewport, viewport);
         assert.deepEqual(mirror.frames, frames);
         assert.deepEqual(mirror.layouts, layouts);
+        assert.equal(mirror.deckId, "basic");
+        assert.equal(mirror.version, "v1");
         assert.deepEqual(changes, [
-            {frameCount: 2, blank: false, viewport, frame: one, frames, index: 0, layouts}
+            {
+                frameCount: 2,
+                blank: false,
+                viewport,
+                frame: one,
+                frames,
+                index: 0,
+                layouts,
+                deckId: "basic",
+                version: "v1"
+            }
         ]);
     });
 

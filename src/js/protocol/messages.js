@@ -5,17 +5,20 @@
 /** The messages a display and its surfaces exchange: names, builders and one reader.
  *
  * docs/presenter-protocol.md describes each one. The `viewport` message lives in
- * `viewport.js`; `readMessage` reads it too.
+ * `viewport.js` and the thumbnail messages in `thumbnails.js`; `readMessage` reads them too.
  *
  * @module
  */
 
 import {readPresets} from "./layoutPresets.js";
+import {readThumbnail, readThumbnailRequest} from "./thumbnails.js";
 import {readViewport} from "./viewport.js";
 
 /** @typedef {import("./layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("./viewport.js").Viewport} Viewport */
 /** @typedef {import("./viewport.js").ViewportMessage} ViewportMessage */
+/** @typedef {import("./thumbnails.js").ThumbnailRequestMessage} ThumbnailRequestMessage */
+/** @typedef {import("./thumbnails.js").ThumbnailMessage} ThumbnailMessage */
 
 /** The name of every message, the value of its `name` field.
  *
@@ -32,7 +35,9 @@ export const MessageNames = Object.freeze({
     custom: "custom",
     preview: "preview",
     followLink: "followLink",
-    key: "key"
+    key: "key",
+    thumbnailRequest: "thumbnailRequest",
+    thumbnail: "thumbnail"
 });
 
 /** Who says `hello`: the deck that plays the presentation, or a surface that watches it.
@@ -56,6 +61,7 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  *
  * @typedef {object} DisplayState
  * @property {string} deckId - The deck's file name without `.sozi.html`.
+ * @property {string} [version] - The date of the deck's page, as `document.lastModified` gives it.
  * @property {number} frameCount - How many frames the deck has.
  * @property {Viewport | null} viewport - The display's size, null while it has none.
  * @property {FrameInfo} frame - The current frame.
@@ -93,7 +99,7 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  *
  * @typedef {HelloMessage | FrameChangeMessage | ViewportMessage | BlankMessage
  *   | JumpToFrameMessage | NextMessage | PreviousMessage | CustomMessage | PreviewMessage
- *   | FollowLinkMessage | KeyMessage} Message
+ *   | FollowLinkMessage | KeyMessage | ThumbnailRequestMessage | ThumbnailMessage} Message
  */
 
 /**
@@ -107,6 +113,7 @@ export function helloMessage(role, state) {
     if (role === Roles.display) {
         const {
             deckId,
+            version = "",
             frameCount,
             viewport,
             frame,
@@ -114,7 +121,18 @@ export function helloMessage(role, state) {
             blank,
             layouts = {}
         } = /** @type {DisplayState} */ (state);
-        return {name: "hello", role, deckId, frameCount, viewport, frame, frames, blank, layouts};
+        return {
+            name: "hello",
+            role,
+            deckId,
+            version,
+            frameCount,
+            viewport,
+            frame,
+            frames,
+            blank,
+            layouts
+        };
     }
     return {name: "hello", role: "surface"};
 }
@@ -297,7 +315,7 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
- * A missing `frames` or `layouts` reads as none, so a newer surface can join an older deck. A
+ * A missing `version`, `frames` or `layouts` reads as none, so a newer surface can join an older deck. A
  * bad preset is dropped, never the whole message; a malformed `frames` refuses it.
  *
  * @param {any} data - The message.
@@ -310,13 +328,14 @@ function readHello(data) {
     if (data.role !== Roles.display) {
         return null;
     }
-    const {deckId, frameCount, blank} = data;
+    const {deckId, frameCount, blank, version = ""} = data;
     const viewport =
         data.viewport === null ? null : readViewport({...data.viewport, name: "viewport"});
     const frame = readFrame(data.frame);
     const frames = readFrames(data.frames);
     const valid =
         typeof deckId === "string" &&
+        typeof version === "string" &&
         isIndex(frameCount) &&
         (viewport !== null || data.viewport === null) &&
         frame !== null &&
@@ -324,7 +343,16 @@ function readHello(data) {
         typeof blank === "boolean";
     const layouts = readPresets(data.layouts).presets;
     return valid
-        ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, frames, blank, layouts})
+        ? helloMessage(Roles.display, {
+              deckId,
+              version,
+              frameCount,
+              viewport,
+              frame,
+              frames,
+              blank,
+              layouts
+          })
         : null;
 }
 
@@ -380,7 +408,9 @@ const READERS = Object.freeze({
     [MessageNames.key]: data => {
         const modifiers = readModifiers(data.modifiers);
         return isName(data.key) && modifiers ? keyMessage(data.key, modifiers) : null;
-    }
+    },
+    [MessageNames.thumbnailRequest]: readThumbnailRequest,
+    [MessageNames.thumbnail]: readThumbnail
 });
 
 /**
