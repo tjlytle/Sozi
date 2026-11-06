@@ -158,8 +158,9 @@ function parsed(text) {
 /**
  * Read a layout, from what this device saved or from a preset of the deck.
  *
- * It is refused when its version is not 1, or its panels are not exactly the known ones,
- * each either docked or on the rail.
+ * It is refused when its version is not 1, when it names a panel that is not known, or when it
+ * names one twice. A known panel it does not name is not a reason: the workspace adds it at its
+ * default place, so a new panel costs nobody their layout.
  *
  * @param {any} data - The layout.
  * @param {string[]} knownIds - The id of every panel the workspace has.
@@ -178,8 +179,8 @@ export function readLayout(data, knownIds) {
         return null;
     }
     const ids = [...Object.keys(dock.panels), ...rail.map(entry => entry.id)];
-    const exact = ids.length === knownIds.length && knownIds.every(id => ids.includes(id));
-    return exact ? {dock, rail} : null;
+    const usable = new Set(ids).size === ids.length && ids.every(id => knownIds.includes(id));
+    return usable ? {dock, rail} : null;
 }
 
 /**

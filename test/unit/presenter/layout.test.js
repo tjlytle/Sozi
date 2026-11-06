@@ -68,8 +68,9 @@ describe("presenter layout", () => {
         );
     });
 
-    test("a panel that is neither docked nor on the rail is refused", () => {
-        assert.equal(readSavedLayout(savedLayoutText(dock, []), knownIds), null);
+    test("a panel that is neither docked nor on the rail is not a reason to refuse", () => {
+        // The workspace adds it at its default place: a new panel must not cost a saved layout.
+        assert.deepEqual(readSavedLayout(savedLayoutText(dock, []), knownIds), {dock, rail: []});
     });
 
     test("a panel both docked and on the rail is refused", () => {
@@ -106,7 +107,7 @@ describe("presenter layout", () => {
         assert.deepEqual(layout, {version: 1, dock, rail});
         assert.deepEqual(readLayout(layout, knownIds), {dock, rail});
         assert.equal(readLayout({...layout, version: 2}, knownIds), null);
-        assert.equal(readLayout({...layout, rail: []}, knownIds), null);
+        assert.equal(readLayout({...layout, rail: null}, knownIds), null);
         assert.equal(readLayout(null, knownIds), null);
         assert.equal(readLayout(undefined, knownIds), null);
     });
