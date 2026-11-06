@@ -8,6 +8,7 @@ import {EventEmitter} from "events";
 import {MessageNames, Roles} from "../protocol/messages.js";
 import {TransportStatus} from "../protocol/LocalTransport.js";
 
+/** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").Message} Message */
 /** @typedef {import("../protocol/viewport.js").Viewport} Viewport */
@@ -74,6 +75,12 @@ export class DisplayMirror extends EventEmitter {
          */
         this.status = TransportStatus.connected;
 
+        /** The deck's layout presets, in order, none until the display says hello.
+         *
+         * @type {Record<string, LayoutPreset>}
+         */
+        this.layouts = {};
+
         /** What each message from the display changes, by name (standard 2.5).
          *
          * @type {Readonly<Record<string, (message: any) => ?object>>}
@@ -83,10 +90,10 @@ export class DisplayMirror extends EventEmitter {
                 if (message.role !== Roles.display) {
                     return null;
                 }
-                const {frameCount, blank, viewport, frame, frames} = message;
+                const {frameCount, blank, viewport, frame, frames, layouts} = message;
                 // A display without a size yet keeps the one it had.
                 const part = viewport ? {frameCount, blank, viewport} : {frameCount, blank};
-                return {...part, frame, frames, index: frame.index};
+                return {...part, frame, frames, index: frame.index, layouts};
             },
             [MessageNames.frameChange]: ({index, id, title, notes}) => ({
                 frame: {index, id, title, notes},

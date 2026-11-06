@@ -208,11 +208,9 @@
                 padding: var(--sozi-space) calc(2 * var(--sozi-space));
             }
 
-            /* A phone-width page shows one stack of tabs: no rail, no header buttons. */
-            @media (max-width: 600px) {
-                .sozi-rail, .sozi-group-actions {
-                    display: none;
-                }
+            /* The stack of tabs has no rail and no header buttons; a dock on a phone keeps them. */
+            .sozi-workspace--stack .sozi-rail, .sozi-workspace--stack .sozi-group-actions {
+                display: none;
             }
 
             /* Over the page, so showing it does not move the panels. */
@@ -227,10 +225,74 @@
                 text-align: center;
                 background: var(--sozi-notice-background);
             }
+
+            /* At the bottom beside the rail, so it covers neither the tabs nor the rail's buttons. */
+            .sozi-layout-notice {
+                position: fixed;
+                bottom: 0;
+                left: var(--sozi-rail-width);
+                right: 0;
+                z-index: 2;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--sozi-space);
+                margin: 0;
+                padding: var(--sozi-space) calc(2 * var(--sozi-space));
+                background: var(--sozi-notice-background);
+            }
+
+            .sozi-layout-notice[hidden] {
+                display: none;
+            }
+
+            .sozi-layout-notice__text {
+                overflow-wrap: anywhere;
+            }
+
+            .sozi-preset-form {
+                position: fixed;
+                bottom: calc(2 * var(--sozi-space));
+                left: calc(var(--sozi-rail-width) + var(--sozi-space));
+                z-index: 3;
+                display: flex;
+                flex-direction: column;
+                gap: var(--sozi-space);
+                max-width: 20rem;
+                padding: calc(2 * var(--sozi-space));
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                background: var(--sozi-surface);
+            }
+
+            .sozi-preset-form[hidden] {
+                display: none;
+            }
+
+            .sozi-preset-form__field {
+                display: flex;
+                justify-content: space-between;
+                gap: var(--sozi-space);
+            }
+
+            .sozi-preset-form__error {
+                margin: 0;
+            }
+
+            .sozi-preset-form__error:empty {
+                display: none;
+            }
+
+            .sozi-preset-form__buttons {
+                display: flex;
+                justify-content: flex-end;
+                gap: var(--sozi-space);
+            }
         </style>
     </head>
     <body>
         <p class="sozi-notice" role="alert" hidden>Could not open the presentation window. Allow pop-ups for this page, then reload it.</p>
+        <p class="sozi-layout-notice" role="status" hidden><span class="sozi-layout-notice__text"></span><button type="button">Dismiss</button></p>
         <main class="sozi-workspace" data-deck="{{ soziHtml }}"></main>
 {% endraw %}
         <script>{{'{% raw %}'}}{{ js|safe }}{{'{% endraw %}'}}</script>

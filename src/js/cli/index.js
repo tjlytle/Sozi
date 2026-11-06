@@ -352,6 +352,9 @@ export async function runCli(options, {controller, storage, preferences}) {
         for (const key of controller.presentation.ignoredStorableKeys || []) {
             warnings.push(`ignored non-string ${key} in ${result.presentation}`);
         }
+        for (const name of controller.presentation.ignoredPresets || []) {
+            warnings.push(`ignored invalid layout preset ${name}`);
+        }
 
         const commandResult = await command({
             controller,

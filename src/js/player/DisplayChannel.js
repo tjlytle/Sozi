@@ -143,7 +143,8 @@ export class DisplayChannel extends EventEmitter {
             viewport: readViewport(viewportMessage(this.host)),
             frame: this.frameInfo,
             frames: this.presentation.frames.map(frameInfoOf),
-            blank: this.player.blankScreenIsVisible
+            blank: this.player.blankScreenIsVisible,
+            layouts: this.presentation.presenterLayouts
         });
     }
 

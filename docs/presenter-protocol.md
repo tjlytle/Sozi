@@ -8,6 +8,7 @@ The display (the audience window that plays the deck) and a presenter surface ta
 | ----------------------------------- | ----------------------------------------------------------------- |
 | `src/js/protocol/messages.js`       | The names, a builder per message and `readMessage`.               |
 | `src/js/protocol/viewport.js`       | The `viewport` message.                                           |
+| `src/js/protocol/layoutPresets.js`  | The layout presets a deck carries: their names and their shape.   |
 | `src/js/protocol/LocalTransport.js` | The transport between two windows of one browser.                 |
 | `src/js/protocol/legacy.js`         | The names used before this protocol, mapped onto it (one release). |
 
@@ -45,6 +46,7 @@ the message.
 | `frame`      | `{index, id, title, notes}`     | The current frame.                                |
 | `frames`     | array of `{index, id, title, notes}` | Every frame, in deck order.                  |
 | `blank`      | boolean                         | Is the blank screen shown?                        |
+| `layouts`    | object of presets, by name      | The deck's layout presets, in the deck's order.   |
 
 `readMessage` refuses a `hello` whose `frames` is not a list or holds a malformed entry. A
 display from the release before this field sends none, which reads as an empty list; a
@@ -55,6 +57,23 @@ answers every surface `hello` with a fresh one, so a surface that loads or reloa
 display gets the whole state in one message and needs no replay. A display ignores another
 display's `hello`: a deck that is not in a presenter is bound to its own window, and `role`
 keeps it from answering itself.
+
+`layouts` is new. A `hello` without it reads as no presets, so a newer surface can join an
+older deck, and a surface that does not know it ignores it. A bad preset is dropped, never
+the whole `hello`.
+
+A preset's name starts with a letter and holds only letters, digits, `-` and `_`: a numeric
+key would jump to the front of a JSON object, and the order decides which preset wins. A
+preset is:
+
+```json
+{"match": "phone", "layout": {"version": 1, "dock": {}, "rail": [{"id": "next", "group": "2"}]}}
+```
+
+`match` is `"phone"` (a page up to 600 CSS pixels wide), `"laptop"` (wider than that) or
+`{"minWidth": n}` (at least n pixels). `dock` is the dock as dockview's `toJSON` writes it,
+and `rail` the panels waiting on the rail. A surface takes the first preset that matches and
+that it can use, unless the device has saved a layout of its own for that width.
 
 ### `frameChange`
 

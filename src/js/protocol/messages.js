@@ -10,8 +10,10 @@
  * @module
  */
 
+import {readPresets} from "./layoutPresets.js";
 import {readViewport} from "./viewport.js";
 
+/** @typedef {import("./layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("./viewport.js").Viewport} Viewport */
 /** @typedef {import("./viewport.js").ViewportMessage} ViewportMessage */
 
@@ -59,6 +61,7 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @property {FrameInfo} frame - The current frame.
  * @property {FrameInfo[]} frames - Every frame, in deck order.
  * @property {boolean} blank - Is the blank screen shown?
+ * @property {Record<string, LayoutPreset>} [layouts] - The deck's layout presets, in order.
  */
 
 /** @typedef {{name: "hello", role: "surface"}} SurfaceHelloMessage */
@@ -102,10 +105,16 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  */
 export function helloMessage(role, state) {
     if (role === Roles.display) {
-        const {deckId, frameCount, viewport, frame, frames, blank} = /** @type {DisplayState} */ (
-            state
-        );
-        return {name: "hello", role, deckId, frameCount, viewport, frame, frames, blank};
+        const {
+            deckId,
+            frameCount,
+            viewport,
+            frame,
+            frames,
+            blank,
+            layouts = {}
+        } = /** @type {DisplayState} */ (state);
+        return {name: "hello", role, deckId, frameCount, viewport, frame, frames, blank, layouts};
     }
     return {name: "hello", role: "surface"};
 }
@@ -288,6 +297,9 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
+ * A missing `layouts` reads as none, so a newer surface can join an older deck, and a bad
+ * preset is dropped, never the whole message.
+ *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
  */
@@ -310,8 +322,9 @@ function readHello(data) {
         frame !== null &&
         frames !== null &&
         typeof blank === "boolean";
+    const layouts = readPresets(data.layouts).presets;
     return valid
-        ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, frames, blank})
+        ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, frames, blank, layouts})
         : null;
 }
 

@@ -4,6 +4,9 @@ import {
     NARROW_MAX_WIDTH,
     isNarrow,
     layoutKey,
+    layoutOf,
+    layoutSource,
+    readLayout,
     readSavedLayout,
     savedLayoutText
 } from "../../../src/js/presenter/layout.js";
@@ -87,6 +90,43 @@ describe("presenter layout", () => {
         for (const text of bad) {
             assert.equal(readSavedLayout(text, knownIds), null, text);
         }
+    });
+
+    test("a narrow page has a slot of its own, in the deck's key space", () => {
+        const path = "/talks/a-presenter.sozi.html";
+        assert.equal(layoutKey(path, false), layoutKey(path));
+        assert.notEqual(layoutKey(path, true), layoutKey(path));
+        assert.ok(layoutKey(path, true).startsWith("sozi-presenter-layout:"));
+        assert.ok(layoutKey(path, true).includes(path));
+        assert.notEqual(layoutKey("/a/x.html", true), layoutKey("/b/x.html", true));
+    });
+
+    test("a layout as a value passes the same check as saved text", () => {
+        const layout = layoutOf(dock, rail);
+        assert.deepEqual(layout, {version: 1, dock, rail});
+        assert.deepEqual(readLayout(layout, knownIds), {dock, rail});
+        assert.equal(readLayout({...layout, version: 2}, knownIds), null);
+        assert.equal(readLayout({...layout, rail: []}, knownIds), null);
+        assert.equal(readLayout(null, knownIds), null);
+        assert.equal(readLayout(undefined, knownIds), null);
+    });
+
+    test("a saved layout comes first, at any width", () => {
+        for (const narrow of [true, false]) {
+            for (const preset of [true, false]) {
+                assert.equal(layoutSource({narrow, saved: true, preset}), "saved");
+            }
+        }
+    });
+
+    test("a preset comes next, at any width", () => {
+        assert.equal(layoutSource({narrow: true, saved: false, preset: true}), "preset");
+        assert.equal(layoutSource({narrow: false, saved: false, preset: true}), "preset");
+    });
+
+    test("with neither, a narrow page stacks and a wide one has the default", () => {
+        assert.equal(layoutSource({narrow: true, saved: false, preset: false}), "stack");
+        assert.equal(layoutSource({narrow: false, saved: false, preset: false}), "default");
     });
 
     test("a page is narrow up to 600 pixels wide", () => {
