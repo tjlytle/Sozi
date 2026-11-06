@@ -28,7 +28,8 @@ const {
     fakeFfmpeg,
     isAlive,
     which,
-    zipEntries
+    zipEntries,
+    limit
 } = require("./helpers.js");
 
 /** Run the editor on a deck with the export test hook.
@@ -43,7 +44,7 @@ function guiExport(deck, type, switches = []) {
         cwd: deck.dir,
         env: Object.assign({}, process.env, {SOZI_TEST_EXPORT: type, ELECTRON_ENABLE_LOGGING: "1"}),
         encoding: "utf8",
-        timeout: 90000,
+        timeout: limit(90000),
         // Electron ignores SIGTERM while a window is open.
         killSignal: "SIGKILL"
     });
@@ -248,7 +249,7 @@ function mainExport(args) {
     const exporterModule = path.join(appDir, "src", "js", "exporter", "index.js");
     const result = spawnSync(electronBinary, [harness, exporterModule, JSON.stringify(args)], {
         encoding: "utf8",
-        timeout: 60000,
+        timeout: limit(60000),
         killSignal: "SIGKILL"
     });
     if (result.error) {

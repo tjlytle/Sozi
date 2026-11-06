@@ -9,7 +9,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {runSozi, withTempDeck} = require("./helpers.js");
+const {limit, runSozi, withTempDeck} = require("./helpers.js");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -114,7 +114,12 @@ function browserTitle(t, file) {
                 "--dump-dom",
                 "file://" + file
             ],
-            {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024}
+            {
+                encoding: "utf8",
+                timeout: limit(60000),
+                killSignal: "SIGKILL",
+                maxBuffer: 64 * 1024 * 1024
+            }
         );
         if (result.error) {
             t.skip(`headless Chrome could not be run: ${result.error}`);

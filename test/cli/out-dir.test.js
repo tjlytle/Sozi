@@ -13,7 +13,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {runSozi, withTempDeck, decodePng} = require("./helpers.js");
+const {limit, runSozi, withTempDeck, decodePng} = require("./helpers.js");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -102,7 +102,12 @@ function browserDom(t, file) {
                 "--dump-dom",
                 "file://" + file
             ],
-            {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024}
+            {
+                encoding: "utf8",
+                timeout: limit(60000),
+                killSignal: "SIGKILL",
+                maxBuffer: 64 * 1024 * 1024
+            }
         );
         if (!chromeRan(t, result)) {
             return null;
@@ -148,7 +153,7 @@ function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
                 `--screenshot=${png}`,
                 "file://" + file
             ],
-            {encoding: "utf8", timeout: 60000, killSignal: "SIGKILL"}
+            {encoding: "utf8", timeout: limit(60000), killSignal: "SIGKILL"}
         );
         if (!chromeRan(t, result)) {
             return null;
