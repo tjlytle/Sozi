@@ -130,9 +130,24 @@
 
             /* Each preview is letterboxed in its box with the display's shape. */
             .sozi-preview-box {
+                position: relative;
                 display: flex;
                 height: 100%;
                 container-type: size;
+            }
+
+            /* Over the preview's corner while the display's camera is off its frame. */
+            .sozi-preview-box__back {
+                position: absolute;
+                top: var(--sozi-space);
+                right: var(--sozi-space);
+                min-height: 2rem;
+                padding: 0 var(--sozi-space);
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                background: var(--sozi-button-background);
+                font: inherit;
+                cursor: pointer;
             }
 
             .sozi-current-frame, .sozi-previous-frame, .sozi-next-frame {
