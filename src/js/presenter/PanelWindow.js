@@ -8,16 +8,16 @@
  * What a panel's window is built with.
  *
  * @typedef {object} PanelWindowOptions
- * @property {string} id - The panel's id, which names the window.
- * @property {string} title - The panel's title, the window's title.
+ * @property {string} id - The id of the group that pops out, which names the window.
+ * @property {string} title - The window's title: that of the panel popped out.
  * @property {{left: number, top: number, width: number, height: number}} box - Where the
- *   panel is on the page, which the window starts at.
+ *   group is on the page, which the window starts at.
  * @property {(root: HTMLElement) => any} buildDock - Builds a dock in an element of the
- *   window, with the panel in it, and returns it.
+ *   window, with the group's panels in it, and returns it.
  * @property {() => void} onClose - Called when the window closes by itself or by the speaker.
  */
 
-/** A panel in a window of its own, in a dock of its own.
+/** A group of panels in a window of its own, in a dock of its own.
  *
  * The window opens on `about:blank`, which a page on `file:` or `http:` alike can script, and
  * takes the page's styles. Dockview's own popouts load a page from the deck's origin, which a

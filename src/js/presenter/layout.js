@@ -59,6 +59,7 @@ const KEY_PREFIX = "sozi-presenter-layout:";
  * @property {string} id - The panel's id.
  * @property {string} group - The id of the dock group it left.
  * @property {any} state - The panel as dockview's `toJSON` gave it in the dock.
+ * @property {boolean} [active] - Was it the tab its group showed?
  */
 
 /**
@@ -144,9 +145,9 @@ function findGroup(node, id) {
 /**
  * A dock with the panels that are in windows of their own docked again.
  *
- * A panel goes back as the last tab of the group it left, or in a group of its own at the end
- * of the dock's outer row (or column) when that group is gone. So a saved layout never needs
- * a window to show it.
+ * A panel goes back as the last tab of the group it left. When that group is gone, the panels
+ * that left it go back together, in a group of their own at the end of the dock's outer row
+ * (or column), showing the tab it showed. So a saved layout never needs a window to show it.
  *
  * @param {any} dock - The dock, as dockview's `toJSON` gives it; it is not changed.
  * @param {WindowEntry[]} windows - The panels in windows of their own.
@@ -158,14 +159,18 @@ export function dockedLayout(dock, windows) {
     }
     const docked = structuredClone(dock);
     const {root} = docked.grid;
-    for (const {id, group, state} of windows) {
+    for (const {id, group, state, active} of windows) {
         const leaf = findGroup(root, group);
+        const gathered = findGroup(root, `window-${group}`);
         if (leaf) {
             leaf.views.push(id);
+        } else if (gathered) {
+            gathered.views.push(id);
+            gathered.activeView = active ? id : gathered.activeView;
         } else {
             const sizes = root.data.map(child => child.size || 0);
             const size = sizes.reduce((sum, s) => sum + s, 0) / Math.max(sizes.length, 1);
-            const data = {views: [id], activeView: id, id: `window-${id}`};
+            const data = {views: [id], activeView: id, id: `window-${group}`};
             root.data.push({type: "leaf", data, size});
         }
         docked.panels[id] = state;

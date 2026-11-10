@@ -121,9 +121,10 @@ export class Workspace {
          */
         this.closed = [];
 
-        /** The panels in windows of their own, by id.
+        /** The groups in windows of their own, by the id of the dock group they left: their
+         * panels in tab order, and the window.
          *
-         * @type {Map<string, {entry: WindowEntry, window: PanelWindow}>}
+         * @type {Map<string, {entries: WindowEntry[], window: PanelWindow}>}
          */
         this.windows = new Map();
 
@@ -302,11 +303,20 @@ export class Workspace {
      * @type {import("../protocol/layoutPresets.js").PresetLayout}
      */
     get layout() {
-        const windows = [...this.windows.values()].map(w => w.entry);
+        const windows = [...this.windows.values()].flatMap(w => w.entries);
         return layoutOf(
             dockedLayout(this.dock.toJSON(), windows),
             this.closed.map(e => ({...e}))
         );
+    }
+
+    /** Is a panel in a window of its own?
+     *
+     * @param {string} id - The panel's id.
+     * @returns {boolean} True if it is.
+     */
+    inWindow(id) {
+        return [...this.windows.values()].some(w => w.entries.some(e => e.id === id));
     }
 
     /** Every panel's spec, in the order added.
@@ -322,7 +332,7 @@ export class Workspace {
      * @returns {string[]} Their ids.
      */
     shownIds() {
-        return [...this.panels.keys()].filter(id => this.dock.getPanel(id) || this.windows.has(id));
+        return [...this.panels.keys()].filter(id => this.dock.getPanel(id) || this.inWindow(id));
     }
 
     /** What a panel's ⋯ menu offers now.
@@ -332,11 +342,14 @@ export class Workspace {
      */
     menuState(id) {
         const canClose = this.dock.totalPanels > 1;
-        const docked = this.specs().filter(spec => !this.windows.has(spec.id));
+        const docked = this.specs().filter(spec => !this.inWindow(spec.id));
+        const panel = this.dock.getPanel(id);
+        // A group pops out whole, and the dock keeps a panel.
+        const leaves = panel ? panel.group.panels.length : 0;
         return {
             stacked: this.stacked,
             canClose,
-            canPopOut: !this.stacked && canClose,
+            canPopOut: !this.stacked && this.dock.totalPanels > leaves,
             maximised: this.dock.hasMaximizedGroup(),
             others: panelChoices(docked, id)
         };
@@ -367,7 +380,7 @@ export class Workspace {
      */
     showPanel(id, {referenceId, direction = "right"} = {}) {
         const entry = this.panels.get(id);
-        if (!entry || this.dock.getPanel(id) || this.windows.has(id)) {
+        if (!entry || this.dock.getPanel(id) || this.inWindow(id)) {
             return;
         }
         if (this.dock.hasMaximizedGroup()) {
@@ -459,7 +472,8 @@ export class Workspace {
         }
     }
 
-    /** Move a panel to a window of its own; closing the window docks it again.
+    /** Move a panel's group, every tab of it, to a window of its own; closing the window docks
+     * it again.
      *
      * @param {string} id - The panel's id.
      */
@@ -471,46 +485,70 @@ export class Workspace {
         if (this.dock.hasMaximizedGroup()) {
             this.dock.exitMaximizedGroup();
         }
-        const {spec} = /** @type {{spec: PanelSpec}} */ (this.panels.get(id));
-        const entry = {id, group: panel.group.id, state: panel.toJSON()};
+        const {group} = panel;
+        /** @type {any[]} */
+        const tabs = [...group.panels];
+        const entries = tabs.map(tab => ({
+            id: tab.id,
+            group: group.id,
+            state: tab.toJSON(),
+            active: tab === group.activePanel
+        }));
+        const title = /** @type {{spec: PanelSpec}} */ (this.panels.get(id)).spec.title;
         const view = /** @type {Window} */ (this.element.ownerDocument.defaultView);
         const window = new PanelWindow(view, {
-            id,
-            title: spec.title,
-            box: panel.group.element.getBoundingClientRect(),
+            id: group.id,
+            title,
+            box: group.element.getBoundingClientRect(),
             buildDock: root => {
-                // Its content can be in one place only: it leaves this dock first.
-                this.dock.removePanel(panel);
+                // A panel's content can be in one place only: it leaves this dock first.
+                for (const tab of tabs) {
+                    this.dock.removePanel(tab);
+                }
                 const dock = this.createDock(root, this.dockOptions(root.ownerDocument));
-                dock.addPanel(panelOptions(spec));
+                this.dockEntries(dock, entries, undefined);
                 return dock;
             },
-            onClose: () => this.dockBack(id)
+            onClose: () => this.dockBack(group.id)
         });
         if (!window.open()) {
             this.onNotice(
-                `The browser blocked the window for "${spec.title}": allow pop-ups for this page.`
+                `The browser blocked the window for "${title}": allow pop-ups for this page.`
             );
             return;
         }
-        this.windows.set(id, {entry, window});
+        this.windows.set(group.id, {entries, window});
         this.save();
     }
 
-    /** Dock a panel whose window closed, in the group it left or right of the dock.
+    /** Dock a group's panels as one group, in tab order, showing the tab it showed.
      *
-     * @param {string} id - The panel's id.
+     * @param {any} dock - The dock they go in.
+     * @param {WindowEntry[]} entries - The panels.
+     * @param {object | undefined} position - Where the group goes, as dockview takes it.
      */
-    dockBack(id) {
-        const popped = this.windows.get(id);
-        const entry = this.panels.get(id);
-        if (!popped || !entry) {
+    dockEntries(dock, entries, position) {
+        let place = position;
+        for (const {id, active} of entries) {
+            const {spec} = /** @type {{spec: PanelSpec}} */ (this.panels.get(id));
+            dock.addPanel({...panelOptions(spec), position: place, inactive: !active});
+            place = {referenceGroup: dock.getPanel(id).group.id};
+        }
+    }
+
+    /** Dock a group whose window closed, in the group it left or right of the dock.
+     *
+     * @param {string} key - The id of the dock group it left.
+     */
+    dockBack(key) {
+        const popped = this.windows.get(key);
+        if (!popped) {
             return;
         }
-        this.windows.delete(id);
-        const group = this.dock.getGroup(popped.entry.group);
+        this.windows.delete(key);
+        const group = this.dock.getGroup(key);
         const position = group ? {referenceGroup: group.id} : this.placeOf(undefined, "right");
-        this.dock.addPanel({...panelOptions(entry.spec), position});
+        this.dockEntries(this.dock, popped.entries, position);
         this.save();
     }
 
