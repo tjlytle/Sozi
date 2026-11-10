@@ -61,6 +61,11 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
      our own would not do. Only the plan may add a package.
    - **Decisions taken**: each choice the issue did not settle, one line each with the
      reason, the route not taken, and its `idea` issue when you filed one.
+   - **Harness**: load the `harness-routing` skill and write one line per stage it moves
+     off its default, `- <stage>: <harness> <model>` (for example `- review: codex
+     gpt-5.5`), for the stages `tests`, `build`, `review` and `qa`; "none" when no rule
+     applies. The loop starts each stage on the line for it, and refuses a line it cannot
+     read.
    - **Blocked by**: `Blocked by #n, #m` on its own line for open issues that must merge
      first, or "none".
 4. **File the alternatives worth an issue.** For each route not taken that passes the test

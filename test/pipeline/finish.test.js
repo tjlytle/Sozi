@@ -156,3 +156,20 @@ describe("spawned sessions", () => {
         assert.ok(w.logs.some((/** @type {string} */ l) => /spawn advocate dropped/.test(l)));
     });
 });
+
+describe("a stub harness the plan named", () => {
+    test("the park names the plan's harness and points to its Harness line", async () => {
+        const w = world({issues: [issue(25, ["stage:review"])]});
+        w.github.planComment = async () =>
+            "**Harness**\n\n- review: opencode some-model\n\n**Blocked by**\n\nnone.\n";
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 69, status: "unsupported"});
+        await w.p.pass();
+        assert.equal(w.state.issues[25].stage, "stage:parked");
+        const comments = w.calls.filter((/** @type {any[]} */ c) => c[0] === "comment");
+        assert.equal(comments.length, 1);
+        assert.match(comments[0][3], /`opencode` harness is a stub/);
+        assert.match(comments[0][3], /the plan's \*\*Harness\*\* line for `review`/);
+        assert.doesNotMatch(comments[0][3], /PIPELINE_HARNESS_REVIEW/);
+    });
+});

@@ -94,7 +94,7 @@ describe("sandbox", () => {
             const a = answer(cmd);
             return {code: a.code, stdout: a.stdout ?? "", stderr: a.stderr ?? ""};
         };
-        return {sb: createSandbox({settings, root, run, pluginDir: "/plugins/gh-personas"}), calls};
+        return {sb: createSandbox({settings, root, run}), calls};
     }
 
     test("status: running, exited, gone when docker does not know it, unknown when docker fails", async () => {
@@ -168,13 +168,12 @@ describe("sandbox", () => {
         assert.equal(calls[1].opts.env.CLAUDE_CODE_OAUTH_TOKEN, "tok");
         assert.equal(calls[1].opts.env.ANTHROPIC_API_KEY, "key");
     });
-    test("buildImage builds from the repo root with the plugin as a named context", async () => {
+    test("buildImage builds from the repo root alone, no named context", async () => {
         const {sb: s, calls} = recording(() => ({code: 0}));
         await s.buildImage();
         const cmd = calls[0].cmd;
         assert.deepEqual(cmd.slice(0, 3), ["docker", "build", "-t"]);
-        assert.ok(cmd.includes("--build-context"));
-        assert.equal(cmd[cmd.indexOf("--build-context") + 1], "ghp=/plugins/gh-personas");
+        assert.ok(!cmd.includes("--build-context"));
         assert.equal(
             cmd[cmd.indexOf("--build-arg") + 1],
             `FACTORY_UID=${process.getuid?.() ?? 1000}`
@@ -236,6 +235,12 @@ describe("sandbox", () => {
             mintKey: "k"
         });
         assert.ok(!args.some(a => a.includes("/profile")));
+    });
+    test("startArgs passes the persona by value as PIPELINE_PERSONA", () => {
+        const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
+        const args = sb.startArgs({...base, persona: "architect"});
+        assert.equal(args[args.indexOf("PIPELINE_PERSONA=architect") - 1], "-e");
+        assert.ok(!sb.startArgs(base).some(a => a.startsWith("PIPELINE_PERSONA")));
     });
     test("login runs an interactive container on the host network with the volume", async () => {
         /** @type {string[]} */

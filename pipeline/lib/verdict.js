@@ -10,9 +10,6 @@ import {addUsage} from "./state.js";
 
 const MAX_BACKOFF_MINUTES = 120;
 
-/** Usage reports after which a session that moved nothing costs no try. */
-const NO_TRY_STATUSES = ["rate-limited", "auth"];
-
 /** The moves each stage's session may ask for with a done request, by prompt name. */
 const TRANSITIONS = {
     plan: ["stage:tests", "stage:blocked", "triage"],
@@ -49,7 +46,7 @@ export function allowedMoves(stage) {
  * @returns {boolean} True when the session costs no try.
  */
 export function costsNoTry(result) {
-    return result !== null && NO_TRY_STATUSES.includes(result.usage.status);
+    return result?.usage.status === "rate-limited" || loggedOut(result);
 }
 
 /**
