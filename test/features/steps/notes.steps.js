@@ -11,6 +11,8 @@ import assert from "node:assert/strict";
 import {expect} from "playwright/test";
 import {rebuildWithoutNotesFile} from "../support/world.js";
 
+/** @typedef {import("../support/world.js").SoziWorld} SoziWorld */
+
 // What the Notes panel draws: the document, with an h1 per section, and the title line.
 const NOTES_DOCUMENT = ".sozi-notes-body";
 const NOTES_TITLE_LINE = ".sozi-notes-title";
@@ -74,7 +76,7 @@ function notesLink(page, text) {
 /** Click a link in the notes, as a person does, and keep what a step checks afterwards: the
  * presenter page's address before the click, and every page the click opens.
  *
- * @param {import("../support/world.js").SoziWorld} world - The scenario.
+ * @param {SoziWorld} world - The scenario.
  * @param {string} text - The link's text.
  * @param {("Shift")[]} modifiers - The keys held during the click.
  */
@@ -162,11 +164,11 @@ When("the notes file is removed and the deck is rebuilt", function () {
 });
 
 When("the notes link {string} is clicked", async function (text) {
-    await clickNotesLink(this, text, []);
+    await clickNotesLink(/** @type {SoziWorld} */ (this), text, []);
 });
 
 When("the notes link {string} is clicked with Shift", async function (text) {
-    await clickNotesLink(this, text, ["Shift"]);
+    await clickNotesLink(/** @type {SoziWorld} */ (this), text, ["Shift"]);
 });
 
 Then("the notes link {string} is marked broken", async function (text) {
