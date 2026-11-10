@@ -5,7 +5,8 @@
 // Cucumber support for the editor: each scenario launches the built Electron app
 // through Playwright's Electron launcher on its own temporary deck, with HOME pointed
 // at a fresh directory so that settings and preferences never leak between runs.
-// No BeforeAll: the Chromium world in world.js is untouched.
+// No BeforeAll: the Chromium world in world.js is untouched. A failed scenario gets a
+// screenshot of every editor window still open, as world.js gives a browser page one.
 
 import {After} from "@cucumber/cucumber";
 import fs from "node:fs";
@@ -13,6 +14,7 @@ import {createRequire} from "node:module";
 import os from "node:os";
 import path from "node:path";
 import {_electron} from "playwright";
+import {SCREENSHOTS} from "./world.js";
 
 const require = createRequire(import.meta.url);
 const {withTempDeck} = require("../../cli/helpers.js");
@@ -121,7 +123,33 @@ async function closeApp(app) {
     clearTimeout(timer);
 }
 
-After(async function () {
+/** Attach a screenshot of every open editor window to a failed scenario's report.
+ *
+ * Each PNG is also left in SCREENSHOTS. A window that can no longer be captured, as when
+ * the app crashed, gets a warning instead, so that the step's error stays the only failure.
+ *
+ * @param {import("@cucumber/cucumber").World} world - The scenario's world, for attach.
+ * @param {import("@cucumber/cucumber").ITestCaseHookParameter} scenario - The finished scenario.
+ */
+async function screenshotEditors(world, scenario) {
+    const name = `failed-${scenario.pickle.name.replace(/\W+/g, "-")}`;
+    const editors = [...openEditors];
+    for (const [index, editor] of editors.entries()) {
+        const suffix = editors.length > 1 ? `-editor-${index + 1}` : "";
+        const file = path.join(SCREENSHOTS, `${name}${suffix}.png`);
+        try {
+            await editor.window.screenshot({path: file});
+            await world.attach(fs.readFileSync(file), "image/png");
+        } catch (err) {
+            console.warn(`screenshotEditors: could not capture the editor window: ${err}`);
+        }
+    }
+}
+
+After(async function (scenario) {
+    if (scenario.result?.status === "FAILED") {
+        await screenshotEditors(this, scenario);
+    }
     for (const editor of [...openEditors]) {
         await closeEditor(editor);
     }
