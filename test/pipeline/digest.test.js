@@ -292,6 +292,19 @@ describe("digest", () => {
         assert.equal(pageId(`Deadbeef-${ID}`, "x"), ID);
         assert.equal(pageId(ID.toUpperCase(), "x"), ID);
     });
+    test("pageId takes the side peek's ?p= over the database in the path", () => {
+        const peek = "fedcba0987654321fedcba0987654321";
+        const db = `https://www.notion.so/ws/Db-${ID}`;
+        assert.equal(pageId(`${db}?v=${PAGE}&p=${peek}&pm=s`, "x"), peek);
+        assert.equal(pageId(`${db}?p=fedcba09-8765-4321-fedc-ba0987654321`, "x"), peek);
+        assert.equal(pageId(`${db}?p=${peek.toUpperCase()}`, "x"), peek);
+    });
+    test("pageId keeps the path id when the query has no page id in p", () => {
+        const db = `https://www.notion.so/ws/Db-${ID}`;
+        for (const value of [`${db}?p=abc`, `${db}?pvs=4`, `${db}?pm=s`, `${db}#p=${PAGE}`]) {
+            assert.equal(pageId(value, "x"), ID, value);
+        }
+    });
     test("pageId throws naming the setting when there is no id", () => {
         for (const value of ["Sozi", ID.slice(1)]) {
             assert.throws(() => pageId(value, "--parent or PIPELINE_NOTION_PARENT"), {

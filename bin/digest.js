@@ -49,8 +49,9 @@ export function runs(text, {link} = {}) {
     return parts;
 }
 
-/** The Notion page id in a value pasted from Notion: the page URL, its `Title-<id>` slug,
- * the bare 32 hex digits or the dashed UUID. The query and fragment are ignored, so a
+/** The Notion page id in a value pasted from Notion: the side peek's `?p=<page id>` when
+ * the query has one, else the id in the page URL, its `Title-<id>` slug, the bare 32 hex
+ * digits or the dashed UUID. Any other query and the fragment are ignored, so a
  * `?v=<view id>` does not win; the id is the last 32 digits of the last hex run.
  *
  * @param {string} value - The value as given.
@@ -58,6 +59,11 @@ export function runs(text, {link} = {}) {
  * @returns {string} - The id as 32 lower-case hex digits.
  */
 export function pageId(value, name) {
+    const query = value.split("#")[0].split("?").slice(1).join("?");
+    const peek = (new URLSearchParams(query).get("p") ?? "").replaceAll("-", "");
+    if (/^[0-9a-f]{32}$/i.test(peek)) {
+        return peek.toLowerCase();
+    }
     const hex = value
         .split(/[?#]/)[0]
         .replaceAll("-", "")
