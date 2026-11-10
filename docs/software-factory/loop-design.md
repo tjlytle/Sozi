@@ -321,6 +321,14 @@ the log stream. The harness is chosen per stage and per run (`PIPELINE_HARNESS`,
 `PIPELINE_HARNESS_PLAN` and so on), so Tim can switch mid-backlog or run one stage on a
 different agent to compare. The container image carries every supported harness.
 
+The plan can override the setting for one issue (#124). The architect fills a **Harness**
+heading in the Implementation Plan from the `harness-routing` skill, one
+`- <stage>: <harness> <model>` line per stage that leaves its setting. When the loop starts
+`tests`, `build`, `review` or `qa`, it reads the newest plan and runs the stage on the line
+for it, or on the setting when there is none. A line that does not parse, or a harness the
+persona has no login for, is refused and the issue waits: it is never moved to another
+harness. `--status` names the harness and model of each running session.
+
 Constraint that follows: nothing that matters may depend on a Claude Code hook, because
 the other harnesses have none. The repo lock and the edit hook stay as the fast path when
 the harness is Claude; the container is the isolation and CI with the `bin/` scripts is
