@@ -32,7 +32,9 @@ function fakeElement(doc) {
     };
 }
 
-/** What the workspace uses of dockview: panels in groups, and a dock it can refuse. */
+/** What the workspace uses of dockview: panels in groups, the one shown, and a dock it can
+ * refuse.
+ */
 class FakeDock {
     /** Create an empty dock. */
     constructor() {
