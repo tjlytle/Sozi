@@ -32,8 +32,8 @@ has written:
   a killed session still leaves its id.
 - `DIR/usage.json`: `{"tokensIn", "tokensOut", "costUsd", "turns", "status"}`,
   the session's totals over every call of this OUT dir: tokens and turns summed
-  (a `resume` adds to the file it finds, a `run` starts from zero), cost and
-  status from the latest call. `status` is one of `ok`, `error`,
+  (a `resume` adds to the file it finds, a `run` starts from zero), cost the
+  larger of the previous cost and this call's, status from the latest call. `status` is one of `ok`, `error`,
   `rate-limited`, `auth`, `budget`, `unsupported`. `auth` means the call failed to
   authenticate before any model call; the loop then starts nothing more as that
   persona until its credentials change.
@@ -53,8 +53,9 @@ stream to `DIR/stream.jsonl` and prints a readable log (`▶` for a tool call,
 `PLUGIN_DIR` (default `/opt/gh-personas`) exists. `CLAUDE_BIN` overrides the
 binary; it is one word, a path, not a command with arguments (the tests use `test/fixtures/pipeline/fake-claude`). Usage comes from
 the last `result` event of the call: its tokens and turns are per call and
-added up, its `total_cost_usd` is already the session's and taken as it is (a
-call with no result event keeps the previous cost); `rate-limited` when its `subtype` or `error`, or its `result` when `is_error`,
+added up, its `total_cost_usd` is already the session's, and the cost kept is the
+larger of the previous cost and this call's (a call stopped by a usage limit
+reports 0, a call with no result event none); `rate-limited` when its `subtype` or `error`, or its `result` when `is_error`,
 matches `rate.?limit|usage limit|hit your .*limit|429|overloaded` (case-insensitive), `auth` (checked first) when the call made no
 model call (0 tokens) and its `result` or `error`, or the lines of the call that are
 not JSON when there is no result event, say `Failed to authenticate`,
