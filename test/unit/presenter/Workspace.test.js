@@ -32,14 +32,46 @@ function fakeElement(doc) {
     };
 }
 
-/** What the workspace uses of dockview: panels in groups, and a dock it can refuse. */
+/** What the workspace uses of dockview: panels in groups that can move, the active panel,
+ * and a dock it can refuse.
+ */
 class FakeDock {
     /** Create an empty dock. */
     constructor() {
         this.panels = new Map();
         this.nextGroup = 0;
         this.loads = [];
+        this.moves = [];
         this.layoutListener = () => {};
+        this.activeListener = /** @type {(event: {panel: any}) => void} */ (() => {});
+    }
+
+    /**
+     * A group of its own, for a panel.
+     *
+     * @returns {string} The new group's id.
+     */
+    newGroup() {
+        return `group-${this.nextGroup++}`;
+    }
+
+    /**
+     * Make a panel the active one, as a click on its tab does.
+     *
+     * @param {string} id - The panel's id.
+     */
+    activate(id) {
+        this.activeListener({panel: this.panels.get(id)});
+    }
+
+    /**
+     * How many panels are docked.
+     *
+     * @readonly
+     * @type {number}
+     */
+    get totalPanels() {
+        return this.panels.size;
     }
 
     /** Tell the listener of a change, in a microtask, as dockview does. */
@@ -58,8 +90,10 @@ class FakeDock {
             id,
             group: {id: groupId},
             api: {
-                moveTo: ({group}) => {
-                    panel.group = group;
+                moveTo: ({group, position}) => {
+                    this.moves.push({id, group: group.id, position});
+                    const beside = position && position !== "center";
+                    panel.group = beside ? {id: this.newGroup()} : group;
                     this.changed();
                 }
             }
@@ -68,14 +102,18 @@ class FakeDock {
     }
 
     /**
-     * Add a panel, in a new group unless it names one.
+     * Add a panel: in the group it names, in its reference panel's group for `within`, or
+     * in a new group.
      *
      * @param {object} options - The panel.
      * @param {string} options.id - Its id.
-     * @param {{referenceGroup?: string}} [options.position] - Where it goes.
+     * @param {{referenceGroup?: string, referencePanel?: string, direction?: string}} [options.position] -
+     *   Where it goes.
      */
     addPanel({id, position}) {
-        const groupId = position?.referenceGroup ?? `group-${this.nextGroup++}`;
+        const within =
+            position?.direction === "within" && this.panels.get(position.referencePanel ?? "");
+        const groupId = position?.referenceGroup ?? (within ? within.group.id : this.newGroup());
         this.place(id, groupId);
         this.changed();
     }
@@ -166,6 +204,17 @@ class FakeDock {
      * @returns {{dispose: Function}} What stops it.
      */
     onDidMaximizedGroupChange() {
+        return {dispose() {}};
+    }
+
+    /**
+     * Listen for the active panel changing.
+     *
+     * @param {(event: {panel: object}) => void} listener - The listener.
+     * @returns {{dispose: Function}} What stops it.
+     */
+    onDidActivePanelChange(listener) {
+        this.activeListener = listener;
         return {dispose() {}};
     }
 }
@@ -386,6 +435,102 @@ describe("Workspace", () => {
         const added = addedPositions(dock);
         workspace.addPanel(latePanel());
         assert.deepEqual(added, [undefined]);
+    });
+
+    test("a closed panel leaves the dock, waits in the + menu and is saved so", async () => {
+        const {workspace, dock, items} = await openWorkspace({width: 1280});
+        const group = dock.getPanel("notes").group.id;
+        workspace.close("notes");
+        await settled();
+        assert.equal(dock.getPanel("notes"), undefined);
+        assert.deepEqual(workspace.layout.rail, [{id: "notes", group}]);
+        assert.deepEqual(JSON.parse(items.get(KEYS.wide)).rail, [{id: "notes", group}]);
+    });
+
+    test("the last panel showing cannot be closed", async () => {
+        const {workspace, dock} = await openWorkspace({width: 1280});
+        workspace.close("current");
+        assert.equal(workspace.menuState("notes").canClose, false);
+        workspace.close("notes");
+        assert.ok(dock.getPanel("notes"));
+    });
+
+    test("a panel added from the + menu goes right of the panel last used", async () => {
+        const {workspace, dock} = await openWorkspace({width: 1280});
+        workspace.close("notes");
+        dock.activate("current");
+        const added = addedPositions(dock);
+        workspace.showPanel("notes");
+        assert.deepEqual(added, [{referencePanel: "current", direction: "right"}]);
+        assert.deepEqual(workspace.layout.rail, []);
+    });
+
+    test("on the stack, a panel can be closed and comes back as a tab of it", async () => {
+        const {workspace, dock, items} = await openWorkspace();
+        const stack = dock.getPanel("current").group.id;
+        workspace.close("notes");
+        assert.equal(dock.getPanel("notes"), undefined);
+        assert.deepEqual(workspace.menuState("current").stacked, true);
+        workspace.showPanel("notes");
+        await settled();
+        assert.equal(dock.getPanel("notes").group.id, stack);
+        assert.equal(items.size, 0);
+    });
+
+    test("Replace with puts a closed panel in the group and closes the one it replaces", async () => {
+        const {workspace, dock} = await openWorkspace({width: 1280});
+        const group = dock.getPanel("current").group.id;
+        workspace.close("notes");
+        workspace.replace("current", "notes");
+        assert.equal(dock.getPanel("notes").group.id, group);
+        assert.equal(dock.getPanel("current"), undefined);
+        assert.deepEqual(
+            workspace.layout.rail.map(e => e.id),
+            ["current"]
+        );
+    });
+
+    test("Replace with moves a panel that is showing", async () => {
+        const {workspace, dock} = await openWorkspace({width: 1280});
+        const group = dock.getPanel("current").group.id;
+        workspace.replace("current", "notes");
+        assert.deepEqual(dock.moves, [{id: "notes", group, position: "center"}]);
+        assert.equal(dock.getPanel("current"), undefined);
+    });
+
+    test("Split opens a closed panel beside, and moves a showing one there", async () => {
+        const {workspace, dock} = await openWorkspace({width: 1280});
+        const group = dock.getPanel("current").group.id;
+        workspace.split("current", "notes", "below");
+        assert.deepEqual(dock.moves, [{id: "notes", group, position: "bottom"}]);
+        workspace.close("notes");
+        const added = addedPositions(dock);
+        workspace.split("current", "notes", "right");
+        assert.deepEqual(added, [{referencePanel: "current", direction: "right"}]);
+    });
+
+    test("the panel menu offers every other panel, and Close while another shows", async () => {
+        const {workspace} = await openWorkspace({width: 1280});
+        const state = workspace.menuState("current");
+        assert.deepEqual(
+            state.others.map(p => p.id),
+            ["notes"]
+        );
+        assert.equal(state.canClose, true);
+        assert.equal(state.stacked, false);
+        assert.equal(state.maximised, false);
+    });
+
+    test("choosing Default from the Layouts menu shows it and saves it", async () => {
+        const {workspace, dock, items} = await openWorkspace({width: 1280});
+        workspace.offerPresets({laptop: preset()});
+        await settled();
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+        assert.deepEqual(workspace.presetNames(), ["laptop", "Default"]);
+        workspace.choosePreset("Default");
+        await settled();
+        assert.notDeepEqual(groupsOf(dock), ["left", "right"]);
+        assert.ok(items.has(KEYS.wide));
     });
 
     test("presets offered before the opening are shown by it", async () => {

@@ -87,7 +87,8 @@ preset is:
 
 `match` is `"phone"` (a page up to 600 CSS pixels wide), `"laptop"` (wider than that) or
 `{"minWidth": n}` (at least n pixels). `dock` is the dock as dockview's `toJSON` writes it,
-and `rail` the panels waiting on the rail. A surface takes the first preset that matches and
+and `rail` the closed panels, which the + menu lists (the key keeps the name it had when a rail
+held them). A surface takes the first preset that matches and
 that it can use, unless the device has saved a layout of its own for that width.
 
 ### `frameChange`
@@ -216,8 +217,8 @@ waits for it, in the order it came.
 
 | Member                                            | What it does                                     |
 | ------------------------------------------------- | ------------------------------------------------ |
-| `registerPanel({id, title, icon, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
-| `registerPanel({id, title, icon, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
+| `registerPanel({id, title, icon, description, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
+| `registerPanel({id, title, icon, description, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
 | `on(name, handler)` / `off(name, handler)`        | `frameChange` (the frame), `viewport` (the size), `status`, `timer` (the timer as reported), and `message` (every valid message). |
 | `state`                                           | `{frame, frames, frameCount, deckId, version, viewport, blank, status, timer}`, for a panel that registers late. `timer.elapsedMs` is the time counted by now. |
 | `display.jumpToFrame(index, transition = true)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport. |
@@ -228,8 +229,9 @@ waits for it, in the order it came.
 
 A bad panel throws a `TypeError` naming the field; so does an id already taken. The built-in
 panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `frames`, `connection`,
-`clock`, `controls`, `previous`, `next`) can be named in a panel's place. `icon` is the text of its
-button on the rail, by default the title's first letter. `defaults` is its place in the
+`clock`, `controls`, `previous`, `next`) can be named in a panel's place. `icon` is the glyph before
+its title in the menus, by default the title's first letter. `description` is one line under
+its title in the + menu, empty by default. `defaults` is its place in the
 default layout, `{position, inactive, initialHeight}`, with `position` as dockview's
 `addPanel` takes it. Without `defaults` the panel is a tab behind Notes.
 
