@@ -25,6 +25,10 @@ const AT_TOP_TOLERANCE = 48;
 // How long the notes must stay at the top, in milliseconds, so that a late scroll is seen.
 const SETTLE_MS = 300;
 
+// The site an external link in the notes points to; the scenario answers for it, so that
+// nothing reaches the network.
+const EXTERNAL_HOST = "example.org";
+
 /** The heading of a section of the notes document.
  *
  * @param {import("playwright").Page} page - The presenter page.
@@ -55,6 +59,37 @@ function headingOffset(heading) {
         null,
         NOTES_WAIT
     );
+}
+
+/** A link in the notes document.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} text - The link's text.
+ * @returns {import("playwright").Locator} - The link with exactly this text.
+ */
+function notesLink(page, text) {
+    return page.locator(`${NOTES_DOCUMENT} a`).filter({hasText: new RegExp(`^\\s*${text}\\s*$`)});
+}
+
+/** Click a link in the notes, as a person does, and keep what a step checks afterwards: the
+ * presenter page's address before the click, and every page the click opens.
+ *
+ * @param {import("../support/world.js").SoziWorld} world - The scenario.
+ * @param {string} text - The link's text.
+ * @param {("Shift")[]} modifiers - The keys held during the click.
+ */
+async function clickNotesLink(world, text, modifiers) {
+    // Cast: the Background opened the presenter page, and the Before hook its context.
+    const page = /** @type {import("playwright").Page} */ (world.presenter);
+    const context = /** @type {import("playwright").BrowserContext} */ (world.context);
+    await context.route(
+        url => url.hostname === EXTERNAL_HOST,
+        route => route.fulfill({contentType: "text/html", body: "<title>Out</title>"})
+    );
+    world.presenterAddress = page.url();
+    world.openedPages = [];
+    context.on("page", opened => world.openedPages.push(opened));
+    await notesLink(page, text).click({modifiers, ...NOTES_WAIT});
 }
 
 /** The section headings of the notes document.
@@ -121,6 +156,35 @@ When("the notes font size is increased", async function () {
 
 When("the notes file is removed and the deck is rebuilt", function () {
     rebuildWithoutNotesFile(this.fixture);
+});
+
+When("the notes link {string} is clicked", async function (text) {
+    await clickNotesLink(this, text, []);
+});
+
+When("the notes link {string} is clicked with Shift", async function (text) {
+    await clickNotesLink(this, text, ["Shift"]);
+});
+
+Then("the notes link {string} is marked broken", async function (text) {
+    const link = notesLink(this.presenter, text);
+    await expect(link).toHaveClass(/(^|\s)sozi-notes__link--broken(\s|$)/, NOTES_WAIT);
+    await expect(link).toHaveAttribute("aria-disabled", "true");
+    // The tooltip names the frame the link asks for.
+    const target = /** @type {string} */ (await link.getAttribute("href")).slice(1);
+    await expect(link).toHaveAttribute("title", new RegExp(target));
+});
+
+Then("the presenter page's address is unchanged", async function () {
+    // A navigation the click started has had time to change the address.
+    await this.presenter.waitForTimeout(SETTLE_MS);
+    assert.equal(this.presenter.url(), this.presenterAddress);
+});
+
+Then("a new page opens at {string}", async function (address) {
+    // The browser adds a slash to an address with no path.
+    const opened = () => this.openedPages.map(page => page.url().replace(/\/$/, ""));
+    await expect.poll(opened, NOTES_WAIT).toContain(address.replace(/\/$/, ""));
 });
 
 Then("the notes title is {string}", async function (title) {

@@ -144,8 +144,9 @@ function recordAddedIframes() {
 }
 
 /** What a scenario can reach: the browser context, the pages it opened, the dialogs they
- * showed, the deck's first view, the notes' font size before a change, the deck and the shell
- * it serves over http and Cucumber's attach.
+ * showed, the deck's first view, the notes' font size before a change, the presenter's address
+ * and the pages opened around a click in the notes, the deck and the shell it serves over http
+ * and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
@@ -180,6 +181,16 @@ export class SoziWorld extends World {
          * @type {number}
          */
         this.notesFontSize = 0;
+        /** The presenter page's address just before a link in the notes was clicked.
+         *
+         * @type {string}
+         */
+        this.presenterAddress = "";
+        /** The pages that opened since a link in the notes was clicked.
+         *
+         * @type {import("playwright").Page[]}
+         */
+        this.openedPages = [];
         /** The copy of a deck this scenario serves over http.
          *
          * @type {?{url: string, html: string, presenter: string, dir: string, close: () => Promise<void>}}
