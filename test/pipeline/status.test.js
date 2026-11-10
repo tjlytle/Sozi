@@ -25,4 +25,48 @@ describe("statusText", () => {
     test("shows no logged-out line when every persona is logged in", () => {
         assert.doesNotMatch(statusText(opened()), /logged out/);
     });
+    test("a session and a spawn line name their harness and model", () => {
+        const state = opened();
+        const since = "2026-10-23T10:30:00.000Z";
+        state.issues[124] = {
+            stage: "stage:review",
+            tries: 0,
+            session: {
+                container: "factory-124-review-0130",
+                started: since,
+                stage: "review",
+                harness: "codex",
+                model: "gpt-5.5"
+            }
+        };
+        state.run.sessions.push({
+            container: "factory-0-spawn-ab12",
+            started: since,
+            persona: "advocate",
+            harness: "claude",
+            model: "claude-opus-5-5"
+        });
+        const lines = statusText(state).split("\n");
+        assert.ok(
+            lines.includes(`#124 review: factory-124-review-0130 since ${since} on codex gpt-5.5`)
+        );
+        assert.ok(
+            lines.includes(
+                `spawn advocate: factory-0-spawn-ab12 since ${since} on claude claude-opus-5-5`
+            )
+        );
+    });
+    test("a session saved before harnesses were recorded prints without them", () => {
+        const state = opened();
+        const since = "2026-10-23T10:30:00.000Z";
+        state.issues[124] = {
+            stage: "stage:review",
+            tries: 0,
+            session: {container: "c124", started: since, stage: "review"}
+        };
+        state.run.sessions.push({container: "cs", started: since, persona: "advocate"});
+        const lines = statusText(state).split("\n");
+        assert.ok(lines.includes(`#124 review: c124 since ${since}`));
+        assert.ok(lines.includes(`spawn advocate: cs since ${since}`));
+    });
 });

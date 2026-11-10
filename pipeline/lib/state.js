@@ -30,6 +30,18 @@ const PROMPTS = {
 const DEFAULT_MAX_TRIES = 3;
 
 /**
+ * @typedef {object} Session
+ * @property {string} container - The container id.
+ * @property {string} started - When it started.
+ * @property {string} stage - The prompt stage name.
+ * @property {string} outbox - The outbox directory.
+ * @property {string} [persona] - The persona; absent on sessions saved before personas.
+ * @property {string} [harness] - The harness it runs on; absent on sessions saved before harnesses.
+ * @property {string} [model] - The model it runs on; absent with the harness.
+ * @property {boolean} [planned] - Whether the plan's Harness line chose the harness, not the stage setting.
+ */
+
+/**
  * @typedef {object} IssueRecord
  * @property {string} title - The issue title.
  * @property {string[]} labels - All labels on the issue.
@@ -38,7 +50,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string | null} [parkedAt] - When the loop parked the issue; null when a person did.
  * @property {boolean} closed - Whether the issue is closed on GitHub.
  * @property {number} tries - Sessions started at the current stage without success.
- * @property {object | null} session - The running session, if any.
+ * @property {object | null} session - The running session, if any: a Session.
  * @property {number[]} blockers - Issue numbers this issue waits for.
  * @property {number | null} epic - The epic this issue belongs to, if any.
  * @property {object | null} board - The board card, if any.
