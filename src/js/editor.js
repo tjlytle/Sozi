@@ -37,7 +37,14 @@ window.addEventListener(
 
         const preferences = new Preferences();
         // Casts in this function: index.html holds every element it looks up.
-        const controller = new Controller(preferences, presentation, selection, viewport, player);
+        const controller = new Controller(
+            preferences,
+            presentation,
+            selection,
+            viewport,
+            player,
+            navigator.languages.length ? [...navigator.languages] : [navigator.language]
+        );
         new Preview(
             /** @type {HTMLElement} */ (document.getElementById("sozi-editor-view-preview")),
             presentation,

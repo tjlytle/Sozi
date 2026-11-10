@@ -71,3 +71,17 @@ Feature: Presenter previews and navigation
     @issue-25
     Scenario: Before the display reports, previews take the deck's shape
       Then every preview has the shape 16:9
+
+  Rule: When the browser blocks the audience window
+
+    @issue-242
+    Scenario: A blocked audience window is reported on the presenter page, not in a dialog
+      Given the presenter page is open with pop-ups blocked
+      Then the presenter page shows the notice "Could not open the presentation window"
+      And no dialog was shown
+      And a screenshot "presenter-popup-blocked" is saved
+
+    @issue-242
+    Scenario: No notice when the audience window opens
+      Given the presenter page is open
+      Then the presenter page shows no notice

@@ -12,6 +12,7 @@ import path from "node:path";
 import {
     changedPackages,
     isExactPin,
+    licenceAllowed,
     lockedVersion,
     mentions,
     runtimeUrlLoads,
@@ -38,6 +39,46 @@ describe("dependency check", () => {
         assert.ok(!isExactPin("~1.2.3"));
         assert.ok(!isExactPin(">=1.0.0"));
         assert.ok(!isExactPin("github:owner/repo#tag"));
+    });
+    test("reads the licence as an SPDX expression", () => {
+        for (const expression of [
+            "MIT",
+            "(MPL-2.0 OR Apache-2.0)",
+            "MPL-2.0 OR Apache-2.0",
+            "(GPL-3.0 OR MIT)",
+            "(MIT AND ISC)",
+            "(MIT AND (BSD-3-Clause OR GPL-2.0))",
+            "MIT or Apache-2.0",
+            "GPL-3.0 AND MIT OR ISC",
+            "MIT OR GPL-2.0+",
+            "MIT OR LicenseRef-custom",
+            "MIT OR DocumentRef-spdx:LicenseRef-custom"
+        ]) {
+            assert.ok(licenceAllowed(expression), expression);
+        }
+        for (const expression of [
+            "(GPL-3.0 AND MIT)",
+            "(GPL-3.0 OR LGPL-3.0)",
+            "GPL-3.0",
+            "GPL-2.0 WITH Classpath-exception-2.0",
+            "(MIT OR Apache-2.0",
+            "MIT OR",
+            "",
+            "[object Object]",
+            "GPL-3.0 AND (MIT OR ISC)",
+            "MIT OR GPL-2.0 WITH (MIT)",
+            "MIT OR GPL-2.0 WITH x WITH y",
+            "MIT OR GPL-2.0 WITH",
+            "MIT OR GPL-2.0 WITH OR ISC",
+            "MIT OR ?",
+            "MIT OR +",
+            "MIT OR GPL_2.0",
+            "MIT OR GPL-2.0 WITH +",
+            "MIT OR GPL-2.0 WITH Classpath-exception-2.0+",
+            "MIT OR GPL-2.0 WITH DocumentRef-spdx:x"
+        ]) {
+            assert.ok(!licenceAllowed(expression), expression);
+        }
     });
     test("reads the locked version", () => {
         const lock = {packages: {"node_modules/preact": {version: "10.0.0"}}};

@@ -130,3 +130,228 @@ Then("the presentation HTML file on disk contains {string}", async function (tex
         .poll(() => fs.existsSync(file) && fs.readFileSync(file, "utf8").includes(text))
         .toBe(true);
 });
+
+// The properties panel, the toolbar and the language. The toolbar is
+// #sozi-editor-view-toolbar (src/index-electron.html); its buttons are found by their titles,
+// which are translated, so a scenario names them in the language it expects. A field is
+// #field-<property> (src/js/view/Properties.js); it commits on change. Each layer of the
+// preview is wrapped by src/js/player/Camera.js in a group that carries its opacity.
+
+/** The ids of the layers of the basic deck. */
+const BASIC_LAYERS = ["layer1", "layer2"];
+
+Given(
+    "the editor is open on a copy of the basic deck with the system language {string}",
+    async function (lang) {
+        this.editor = await launchEditor("basic", {lang});
+        this.window = this.editor.window;
+    }
+);
+
+When("the field {string} is changed to {string}", async function (property, value) {
+    await this.window.locator(`#field-${property}`).evaluate((field, v) => {
+        const input = /** @type {HTMLInputElement} */ (field);
+        input.value = v;
+        input.dispatchEvent(new Event("input", {bubbles: true}));
+        input.dispatchEvent(new Event("change", {bubbles: true}));
+    }, value);
+});
+
+When("the toolbar button {string} is pressed", async function (title) {
+    await this.window.locator(`#sozi-editor-view-toolbar button[title="${title}"]`).click();
+});
+
+When("the language {string} is chosen", async function (lang) {
+    await this.window.locator("#field-language").selectOption(lang);
+});
+
+Then("the toolbar has a button titled {string}", async function (title) {
+    await expect(
+        this.window.locator(`#sozi-editor-view-toolbar button[title="${title}"]`)
+    ).toHaveCount(1);
+});
+
+Then("the field {string} reads {string}", async function (property, value) {
+    await expect(this.window.locator(`#field-${property}`)).toHaveValue(value);
+});
+
+Then("every layer in the preview has opacity {string}", async function (opacity) {
+    await expect
+        .poll(() =>
+            this.window.evaluate(
+                ids =>
+                    ids.map(id =>
+                        /** @type {?Element} */ (
+                            document.querySelector(`#sozi-editor-view-preview #${id}`)?.parentNode
+                        )?.getAttribute("opacity")
+                    ),
+                BASIC_LAYERS
+            )
+        )
+        .toEqual(BASIC_LAYERS.map(() => opacity));
+});
+
+Then(
+    "the presentation file on disk has frame {int} with {string} {int}",
+    async function (index, property, value) {
+        const file = this.editor.deck.json;
+        await expect
+            .poll(() => readPresentation(file)?.frames?.[index - 1]?.[property], {timeout: 5000})
+            .toBe(value);
+    }
+);
+
+Then(
+    "the presentation file on disk has frame {int} with opacity {float} on every layer",
+    async function (index, opacity) {
+        const file = this.editor.deck.json;
+        await expect
+            .poll(
+                () => {
+                    const states = readPresentation(file)?.frames?.[index - 1]?.cameraStates;
+                    return BASIC_LAYERS.map(id => states?.[id]?.opacity);
+                },
+                {timeout: 5000}
+            )
+            .toEqual(BASIC_LAYERS.map(() => opacity));
+    }
+);
+
+// Layers in the preview (#240). A layer's row in the timeline holds its eye
+// (i.sozi-timeline__visibility, fa-eye while visible, fa-eye-slash while hidden) and its label
+// (th.sozi-timeline__layer-label); only the deck's editable layers have a row. The preview
+// shows the deck's own layer groups, found by their inkscape:label; whether one is displayed
+// is read from its computed style, so an author's inline style="display:inline" counts.
+
+/** The eye of a layer's row in the timeline, in the state it shows.
+ *
+ * @param {import("playwright").Page} window - The editor window.
+ * @param {string} label - The layer's label.
+ * @param {string} icon - "fa-eye" for a visible layer, "fa-eye-slash" for a hidden one.
+ * @returns {import("playwright").Locator} - The eye.
+ */
+function layerEye(window, label, icon) {
+    const name = window.locator("th.sozi-timeline__layer-label").getByText(label, {exact: true});
+    return window.locator("tr", {has: name}).locator(`i.sozi-timeline__visibility.${icon}`);
+}
+
+/** The computed display of a layer group in the preview.
+ *
+ * @param {import("playwright").Page} window - The editor window.
+ * @param {string} label - The layer's inkscape:label.
+ * @returns {Promise<?string>} - Its display, or null when the preview has no such layer.
+ */
+function layerDisplay(window, label) {
+    return window.evaluate(l => {
+        const group = [...document.querySelectorAll("#sozi-editor-view-preview g")].find(
+            g => g.getAttribute("inkscape:label") === l
+        );
+        return group ? getComputedStyle(group).display : null;
+    }, label);
+}
+
+Given("the editor is open on a copy of the {string} deck", async function (fixture) {
+    this.editor = await launchEditor(fixture);
+    this.window = this.editor.window;
+});
+
+// The notes field and the notification panel. The notes field is #field-notes, a
+// content-editable section that commits on blur, and its help is the icon titled
+// "Edit presenter notes. ..." (src/js/view/Properties.js). The panel is #message, with a
+// title and a body (src/index-electron.html, src/js/Controller.js).
+
+When("the help of the notes field is clicked", async function () {
+    await this.window.locator('.sozi-properties__help[title^="Edit presenter notes."]').click();
+});
+
+When("the notes field is changed to {string}", async function (html) {
+    const field = this.window.locator("#field-notes");
+    await field.focus();
+    await field.evaluate((element, value) => {
+        element.innerHTML = value;
+    }, html);
+    // The field commits on blur.
+    await field.blur();
+});
+
+When("the presentation is saved", async function () {
+    await this.window.keyboard.press("Control+S");
+});
+
+Then("the notes field shows {string} in bold", async function (text) {
+    await expect(this.window.locator("#field-notes :is(b, strong)")).toHaveText(text);
+});
+
+Then("the notification title reads {string}", async function (text) {
+    await expect(this.window.locator("#message .sozi-editor__message-title")).toHaveText(text);
+});
+
+Then("the notification shows the line {string}", async function (line) {
+    const body = this.window.locator("#message .sozi-editor__message-body");
+    await expect(body).toBeVisible();
+    // The entry must be a line of the body's text as well as a line on screen: an entry
+    // set apart by markup (<br>) is a line on screen but not a line of text.
+    await expect
+        .poll(() =>
+            body.evaluate(element => ({
+                shown: /** @type {HTMLElement} */ (element).innerText
+                    .split("\n")
+                    .map(s => s.trim()),
+                text: (element.textContent ?? "").split("\n").map(s => s.trim())
+            }))
+        )
+        .toEqual({shown: expect.arrayContaining([line]), text: expect.arrayContaining([line])});
+});
+
+Then("the presentation JSON file on disk contains {string}", async function (text) {
+    const file = this.editor.deck.json;
+    await expect
+        .poll(() => fs.existsSync(file) && fs.readFileSync(file, "utf8").includes(text), {
+            timeout: 5000
+        })
+        .toBe(true);
+});
+
+// Custom files (#27): a row of table.sozi-properties__custom-css-js in src/js/view/Properties.js
+// holds a file's name and the select of its target. The file on disk has either the plain
+// string of a display file or an object with its path and target.
+
+When("the target of custom file {string} is set to {string}", async function (file, target) {
+    await this.window
+        .locator("table.sozi-properties__custom-css-js tr", {hasText: file})
+        .locator("select")
+        .selectOption(target, {timeout: 5000});
+});
+
+Then(
+    "the presentation file on disk lists {string} with target {string}",
+    async function (file, target) {
+        const json = this.editor.deck.json;
+        await expect
+            .poll(() => readPresentation(json)?.customFiles?.find(f => f.path === file)?.target, {
+                timeout: 5000
+            })
+            .toBe(target);
+    }
+);
+
+When("the layer {string} is hidden in the timeline", async function (label) {
+    await layerEye(this.window, label, "fa-eye").click();
+});
+
+When("the layer {string} is shown in the timeline", async function (label) {
+    await layerEye(this.window, label, "fa-eye-slash").click();
+});
+
+Then("the layer {string} is not displayed in the preview", async function (label) {
+    await expect.poll(() => layerDisplay(this.window, label)).toBe("none");
+});
+
+Then("the layer {string} is displayed in the preview", async function (label) {
+    await expect
+        .poll(async () => {
+            const display = await layerDisplay(this.window, label);
+            return display !== null && display !== "none";
+        })
+        .toBe(true);
+});

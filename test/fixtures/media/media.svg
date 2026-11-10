@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sozi="http://sozi.baierouge.fr"
+   width="800"
+   height="600"
+   viewBox="0 0 800 600"
+   version="1.1"
+   id="svg1">
+  <title>Media</title>
+  <g inkscape:groupmode="layer" inkscape:label="Layer 1" id="layer1">
+    <rect id="r1" x="50" y="50" width="320" height="180" style="fill:#3366cc" />
+    <rect id="video" x="430" y="50" width="320" height="180" style="fill:#999999">
+      <sozi:video sozi:type="video/webm" sozi:src="clip.webm" sozi:start-frame="frame2" sozi:stop-frame="frame3" sozi:controls="true" sozi:loop="true" />
+    </rect>
+    <rect id="r3" x="50" y="370" width="320" height="180" style="fill:#cc6633" />
+    <rect id="audio" x="430" y="370" width="320" height="180" style="fill:#999999">
+      <sozi:audio sozi:type="audio/wav" sozi:src="tone.wav" sozi:start-frame="frame2" sozi:stop-frame="frame3" sozi:loop="true" />
+    </rect>
+  </g>
+</svg>

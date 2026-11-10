@@ -77,7 +77,9 @@ if (!settings.get("enableHardwareAcceleration")) {
 // app.exit() because Electron ignores process.exitCode.
 const cliArgs = parseArgs(process.argv, COMMAND_FLAGS);
 
-const CLI_USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg>";
+const CLI_USAGE =
+    "sozi --cli <inspect|build|set|render|export> [options] <file.svg>; " +
+    "sozi --cli notes <export|import> <file.sozi.json> [file.md]";
 
 let cliExiting = false;
 
@@ -110,8 +112,7 @@ function cliMain() {
     console.log = console.info = console.debug = console.error;
 
     // The command line never shows a window: render at device scale 1 on any
-    // display, so that capturePage returns images of the requested size in
-    // pixels instead of falling back to the slower Chrome DevTools Protocol.
+    // display, so that the export window has the requested size in pixels.
     // This overrides a --force-device-scale-factor given on the command line.
     app.commandLine.appendSwitch("force-device-scale-factor", "1");
 

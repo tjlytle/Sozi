@@ -54,7 +54,7 @@ export class InkscapeHandler extends DefaultSVGHandler {
         const [, red, green, blue] = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(pageColor);
 
         const style = document.createElement("style");
-        style.innerHTML = `svg {
+        style.textContent = `svg {
             background: rgba(${parseInt(red, 16)}, ${parseInt(green, 16)}, ${parseInt(blue, 16)}, ${pageOpacity});
         }`;
         svgRoot.insertBefore(style, svgRoot.firstChild);

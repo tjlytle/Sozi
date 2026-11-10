@@ -7,6 +7,8 @@
 import {render} from "inferno";
 import {h} from "inferno-hyperscript";
 import {EventEmitter} from "events";
+import {setSanitizedHTML} from "../html/sanitize";
+import {ControllerEvents} from "../controllerEvents";
 
 /** @typedef {import("inferno").VNode} VNode - A virtual DOM node. */
 
@@ -42,7 +44,7 @@ export class VirtualDOMView extends EventEmitter {
         this.state = {};
 
         const repaintHandler = () => this.repaint();
-        controller.on("repaint", repaintHandler);
+        controller.on(ControllerEvents.repaint, repaintHandler);
         window.addEventListener("resize", repaintHandler);
 
         while (container.firstChild) {
@@ -63,7 +65,11 @@ export class VirtualDOMView extends EventEmitter {
                 const elt = document.getElementById("field-" + prop);
                 if (elt) {
                     for (const attr in this.state[prop]) {
-                        elt[attr] = this.state[prop][attr];
+                        if (attr === "html") {
+                            setSanitizedHTML(elt, this.state[prop][attr]);
+                        } else {
+                            elt[attr] = this.state[prop][attr];
+                        }
                     }
                 }
             }

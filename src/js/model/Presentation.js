@@ -6,9 +6,36 @@
 
 import {EventEmitter} from "events";
 import {CameraState} from "./CameraState";
+import {customFilesFor, readCustomFile, storableCustomFile} from "./customFiles";
 import {hasReliableBoundaries} from "../player/Camera";
+import * as authorStyle from "../svg/authorStyle";
+import {readPresets} from "../protocol/layoutPresets";
 
 /** @typedef {import("../svg/SVGDocumentWrapper.js").SVGDocumentWrapper} SVGDocumentWrapper */
+/** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
+
+/** The stored form of a deck's layout presets, nothing at all when it has none.
+ *
+ * Other decks stay byte for byte the same.
+ *
+ * @param {Record<string, LayoutPreset>} layouts - The presets.
+ * @returns {object} - The keys to add to the stored presentation.
+ */
+function presenterStorable(layouts) {
+    return Object.keys(layouts).length ? {presenter: {layouts}} : {};
+}
+
+/** The deck's layout presets as they are read back.
+ *
+ * @param {object} storable - The stored presentation.
+ * @param {any} storable.presenter - Its presenter key, if it has one.
+ * @returns {{presenterLayouts: Record<string, LayoutPreset>, ignoredPresets: string[]}} - The
+ *  valid presets, and the names of the ones ignored because they are invalid.
+ */
+function presenterFromStorable({presenter}) {
+    const {presets, ignored} = readPresets((presenter || {}).layouts);
+    return {presenterLayouts: presets, ignoredPresets: ignored};
+}
 
 /** Copy a property from an object to another.
  *
@@ -29,6 +56,14 @@ function copyIfSet(dest, src, prop) {
  *
  * @event module:model/Presentation.svgChange
  */
+
+/** The events a `Presentation` emits (standard 2.4).
+ *
+ * @readonly
+ */
+export const PresentationEvents = Object.freeze({
+    svgChange: "svgChange"
+});
 
 /** Layer properties for a frame in a Sozi presentation.
  *
@@ -219,7 +254,7 @@ export class LayerProperties {
             this.frame.presentation.elementsToHide.splice(index, 1);
         }
         if (this.outlineElement) {
-            this.outlineElement.style.visibility = hide ? "hidden" : "visible";
+            authorStyle.setVisible(this.outlineElement, !hide);
         }
     }
 
@@ -240,7 +275,7 @@ export class LayerProperties {
             this.frame.presentation.elementsToHide.splice(index, 1);
         }
         if (this.transitionPath) {
-            this.transitionPath.style.visibility = hide ? "hidden" : "visible";
+            authorStyle.setVisible(this.transitionPath, !hide);
         }
     }
 }
@@ -613,7 +648,7 @@ export class Layer {
 
     set isVisible(visible) {
         for (const node of this.svgNodes) {
-            node.style.display = visible ? "initial" : "none";
+            authorStyle.setDisplayed(node, visible);
         }
     }
 
@@ -711,10 +746,10 @@ export class Presentation extends EventEmitter {
          */
         this.elementsToHide = [];
 
-        /** The custom CSS and JavaScript files to add to the generated HTML presentation.
+        /** The custom CSS and JavaScript files to add to the generated HTML pages.
          *
          * @default
-         * @type {string[]}
+         * @type {import("./customFiles").CustomFile[]}
          */
         this.customFiles = [];
 
@@ -787,6 +822,13 @@ export class Presentation extends EventEmitter {
          * @type {boolean}
          */
         this.updateURLOnFrameChange = true;
+
+        /** The named layouts this deck carries for the presenter, in the file's order.
+         *
+         * @default
+         * @type {Record<string, LayoutPreset>}
+         */
+        this.presenterLayouts = {};
 
         /** The last export document type.
          *
@@ -923,7 +965,7 @@ export class Presentation extends EventEmitter {
             /** @type {Node} */ (svgTitle.parentNode).removeChild(svgTitle);
         }
 
-        this.emit("svgChange");
+        this.emit(PresentationEvents.svgChange);
     }
 
     /** The title of this presentation.
@@ -988,7 +1030,8 @@ export class Presentation extends EventEmitter {
             exportToVideoBitRate: this.exportToVideoBitRate,
             frames: this.frames.map(frame => frame.toStorable()),
             elementsToHide: this.elementsToHide.slice(),
-            customFiles: this.customFiles.slice()
+            customFiles: this.customFiles.map(storableCustomFile),
+            ...presenterStorable(this.presenterLayouts)
         };
     }
 
@@ -1011,7 +1054,8 @@ export class Presentation extends EventEmitter {
             enableMouseNavigation: this.enableMouseNavigation,
             updateURLOnFrameChange: this.updateURLOnFrameChange,
             frames: this.frames.map(frame => frame.toMinimalStorable()),
-            elementsToHide: this.elementsToHide.slice()
+            elementsToHide: this.elementsToHide.slice(),
+            ...presenterStorable(this.presenterLayouts)
         };
     }
 
@@ -1074,8 +1118,10 @@ export class Presentation extends EventEmitter {
         }
 
         if (storable.customFiles) {
-            this.customFiles = storable.customFiles.slice();
+            this.customFiles = storable.customFiles.map(readCustomFile);
         }
+
+        Object.assign(this, presenterFromStorable(storable));
     }
 
     /** Create a new unique identifier for a frame in this presentation.
@@ -1159,9 +1205,10 @@ export class Presentation extends EventEmitter {
     /** Get the custom files with the given extension.
      *
      * @param {string} ext - The file extension.
-     * @returns {string[]} - The custom files that have that extension.
+     * @param {"display" | "presenter"} [page] - The page they are for.
+     * @returns {string[]} - The paths of the custom files for that page with that extension.
      */
-    getCustomFiles(ext) {
-        return this.customFiles.filter(path => path.endsWith(ext));
+    getCustomFiles(ext, page = "display") {
+        return customFilesFor(this.customFiles, page, ext);
     }
 }

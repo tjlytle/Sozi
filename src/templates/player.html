@@ -22,8 +22,20 @@
                 white-space: normal;
             }
 
-            body > svg {
+            .sozi-player > svg {
                 display: none;
+            }
+
+            .sozi-player--ready > svg {
+                display: initial;
+            }
+
+            .sozi-player--ready .spinner {
+                display: none;
+            }
+
+            .sozi-links-off a {
+                cursor: default;
             }
 
             .sozi-frame-list {
@@ -86,6 +98,10 @@
                 background-color: rgba(34, 34, 34, 0.9);
             }
 
+            .sozi-frame-number--hidden {
+                visibility: hidden;
+            }
+
             .sozi-blank-screen {
                 background: black;
                 position: absolute;
@@ -99,8 +115,24 @@
                 transition: opacity 0.5s, visibility 0.5s;
             }
 
+            /* While it fades out, the pointer already reaches the slide. */
+            .sozi-blank-screen--off {
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+            }
+
             svg a {
                 cursor: pointer;
+            }
+
+            .sozi-camera__layer--hidden {
+                display: none;
+            }
+
+            /* The current-frame preview pans and zooms the display itself (PreviewGestures). */
+            .sozi-preview-gestures {
+                touch-action: none;
             }
 
             @keyframes spinner {
@@ -123,10 +155,28 @@
                 animation: spinner .8s linear infinite;
             }
 
+            .sozi-pairing {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #fff;
+                color: #000;
+            }
+
+            .sozi-pairing[hidden] {
+                display: none;
+            }
+
             {{ customCSS }}
         </style>
     </head>
-    <body>
+    <body class="sozi-player">
         {{ svg }}
         <div class="sozi-frame-number" title="Click to show the frame list">1</div>
         <div class="sozi-frame-list">
@@ -141,6 +191,7 @@
         <div class="sozi-blank-screen">
             <span class="spinner"></span>
         </div>
+        <div class="sozi-pairing" hidden></div>
         <script>var soziPresentationData = {{ json }};</script>
 {% endraw %}
         <script>{{'{% raw %}'}}{{ js|safe }}{{'{% endraw %}'}}</script>

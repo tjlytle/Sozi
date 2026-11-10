@@ -12,12 +12,16 @@ import {upgradeFromSVG, upgradeFromStorable} from "./upgrade";
 import path from "path";
 import {
     isPresentationFile,
+    notesFileOf,
     presentationDataError,
     presentationFiles,
     svgKeyOf,
     svgOfPresentation
 } from "./naming";
 import {rewriteRelativeHrefs} from "./hrefs";
+import {ControllerEvents} from "./controllerEvents";
+import {isBlankHTML} from "./html/sanitize";
+import {overlayNotes} from "./notes/notesDocument";
 
 /** File read/write manager. */
 export class Storage {
@@ -149,15 +153,15 @@ export class Storage {
             autoescape: false
         });
 
-        controller.on("presentationChange", () => {
+        controller.on(ControllerEvents.presentationChange, () => {
             this.jsonNeedsSaving = this.htmlNeedsSaving = true;
         });
 
-        controller.on("editorStateChange", () => {
+        controller.on(ControllerEvents.editorStateChange, () => {
             this.jsonNeedsSaving = true;
         });
 
-        controller.on("blur", () => {
+        controller.on(ControllerEvents.blur, () => {
             if (this.backend && controller.getPreference("saveMode") === "onblur") {
                 this.backend.doAutosave();
             }
@@ -370,7 +374,8 @@ export class Storage {
      * other backends ignore the key with a notification.
      * The `svg` key of the presentation is set to the current SVG file; if the
      * loaded key named another file, the JSON file needs saving, and a change
-     * of an existing key is notified.
+     * of an existing key is notified. A notes file beside the JSON file is
+     * notified too, since it is what the presenter shows.
      *
      * @param {string} name - The name of the JSON file to open.
      * @param {any} location - The location of the file (backend-dependent).
@@ -456,6 +461,8 @@ export class Storage {
         if (!this.writeOnOpen) {
             return;
         }
+
+        this.notifyNotesFile();
 
         // The HTML files are named after the presentation file.
         let outputDir = this.presentation.outputDir;
@@ -569,7 +576,7 @@ export class Storage {
             this.htmlNeedsSaving = false;
         }
 
-        this.controller.emit("repaint"); // TODO move this to controller
+        this.controller.emit(ControllerEvents.repaint); // TODO move this to controller
         this.controller.info(Jed.sprintf(_("Saved %s."), this.backend.getName(fileDescriptor)));
     }
 
@@ -594,7 +601,10 @@ export class Storage {
      * It contains a copy of the following items:
      * - the SVG document,
      * - the presentation data needed by the player,
-     * - a copy of the custom style sheets and scripts.
+     * - a copy of the custom style sheets and scripts for the presentation page.
+     *
+     * A notes file beside the presentation file replaces the notes in the copy of the
+     * presentation data, whole; the presentation itself keeps its own.
      *
      * When the HTML file is written in another directory than the SVG file,
      * the relative image and media hrefs of the SVG document are rewritten
@@ -611,24 +621,94 @@ export class Storage {
             typeof location === "string" && typeof svgLocation === "string"
                 ? rewriteRelativeHrefs(this.document.asText, svgLocation, location)
                 : this.document.asText;
+        const storable = this.presentation.toMinimalStorable();
+        const notesFile = this.readNotesFile();
+        if (notesFile !== null) {
+            storable.frames = overlayNotes(storable.frames, notesFile).frames;
+        }
         return nunjucks.render("player.html", {
             svg,
             pres: this.presentation,
             // Inline script: "<" could close the script element ("</script>") or
             // keep it open ("<!--<script>"), and U+2028/U+2029 are line terminators
             // in older JavaScript engines.
-            json: JSON.stringify(this.presentation.toMinimalStorable())
+            json: JSON.stringify(storable)
                 .replace(/</g, "\\u003c")
                 .replace(/\u2028/g, "\\u2028")
                 .replace(/\u2029/g, "\\u2029"),
-            customCSS: this.readCustomFiles(".css"),
-            customJS: this.readCustomFiles(".js")
+            customCSS: this.readCustomFiles(".css", "display"),
+            customJS: this.readCustomFiles(".js", "display")
         });
+    }
+
+    /** The name and location of the presentation file.
+     *
+     * @returns {{name: string, location: any}} - The file named when it was opened, or by default
+     *  the JSON file in the same folder, named after the SVG file.
+     */
+    presentationFileOrDefault() {
+        return (
+            this.presentationFile || {
+                name: presentationFiles(this.backend.getName(this.svgFileDescriptor)).presentation,
+                location: this.backend.getLocation(this.svgFileDescriptor)
+            }
+        );
+    }
+
+    /** Read the notes file beside the presentation file.
+     *
+     * @returns {?string} - Its content; `null` if it is absent, or if the location of the
+     *  presentation file is not a directory path (only Electron has one).
+     */
+    readNotesFile() {
+        const {name, location} = this.presentationFileOrDefault();
+        return typeof location === "string"
+            ? this.backend.loadOptionalSync(path.join(location, notesFileOf(name)))
+            : null;
+    }
+
+    /** Tell the editor's user that a notes file beside the presentation file is in force. */
+    notifyNotesFile() {
+        if (this.readNotesFile() !== null) {
+            const _ = this.controller.gettext;
+            this.controller.info(
+                Jed.sprintf(
+                    _("The presenter shows the notes in %s, not the notes of the frames."),
+                    notesFileOf(this.presentationFileOrDefault().name)
+                )
+            );
+        }
+    }
+
+    /** Say what did not pair between the notes file and the frames.
+     *
+     * A frame that has no notes in the presentation file loses nothing, so it is not named.
+     *
+     * @returns {string[]} - One line per heading and frame; none without a notes file.
+     */
+    notesFileWarnings() {
+        const notesFile = this.readNotesFile();
+        if (notesFile === null) {
+            return [];
+        }
+        const {frames} = this.presentation.toMinimalStorable();
+        const {unmatchedHeadings, unmatchedFrames} = overlayNotes(frames, notesFile);
+        const file = notesFileOf(this.presentationFileOrDefault().name);
+        return [
+            ...unmatchedHeadings.map(heading => `${file}: no frame for the heading "${heading}"`),
+            ...unmatchedFrames
+                .filter(({notes}) => !isBlankHTML(notes, document))
+                .map(
+                    ({title}) =>
+                        `${file}: no section for the frame "${title}"; its notes do not show`
+                )
+        ];
     }
 
     /** Generate the content of the presenter console HTML file.
      *
      * The result is derived from the `presenter.html` template.
+     * It contains a copy of the custom style sheets and scripts for the presenter page.
      *
      * @param {string} htmlFileName - The name of the presentation HTML file to play.
      * @returns {string} - An HTML document content, as text.
@@ -636,7 +716,9 @@ export class Storage {
     exportPresenterHTML(htmlFileName) {
         return nunjucks.render("presenter.html", {
             pres: this.presentation,
-            soziHtml: htmlFileName
+            soziHtml: htmlFileName,
+            customCSS: this.readCustomFiles(".css", "presenter"),
+            customJS: this.readCustomFiles(".js", "presenter")
         });
     }
 
@@ -650,14 +732,15 @@ export class Storage {
         return path.relative(svgLoc, filePath);
     }
 
-    /** Read custom files to include in the presentation HTML.
+    /** Read custom files to include in a generated HTML page.
      *
      * @param {string} ext - The extension of the files to read.
+     * @param {"display" | "presenter"} page - The page they are for.
      * @returns {string} - The concatenated content of all the files read.
      */
-    readCustomFiles(ext) {
+    readCustomFiles(ext, page) {
         const svgLoc = this.backend.getLocation(this.svgFileDescriptor);
-        const paths = this.presentation.customFiles.filter(path => path.endsWith(ext));
+        const paths = this.presentation.getCustomFiles(ext, page);
         const contents = paths.map(relPath => {
             const absPath = path.join(svgLoc, relPath);
             return this.backend.loadSync(absPath);

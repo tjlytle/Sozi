@@ -43,6 +43,9 @@ export const FLAGS = {
  * `--title` sets the explicit title before writing, like the `set` command;
  * a change of title marks the JSON file as needing to be saved.
  *
+ * A notes file beside the presentation file is what the deck carries (see
+ * `Storage#exportHTML`); what did not pair with the frames is reported as warnings.
+ *
  * @param {object} context - The command context.
  * @param {module:Controller.Controller} context.controller - The controller.
  * @param {module:Storage.Storage} context.storage - The storage, with the presentation loaded.
@@ -72,6 +75,7 @@ export function build(context) {
     }
 
     applyOptions(controller, flags, context, BUILD_OPTIONS);
+    warnings.push(...storage.notesFileWarnings());
 
     // The JSON file is written first: the HTML files are then never older than it,
     // so that `render` and `export` do not take them for stale. It is reported last.

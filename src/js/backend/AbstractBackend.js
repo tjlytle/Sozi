@@ -25,7 +25,7 @@ export class AbstractBackend {
      * @param {module:Controller.Controller} controller - A controller instance.
      * @param {HTMLElement} container - The element that will contain the menu for choosing a backend.
      * @param {string} buttonId - The ID of the button to generate in the menu.
-     * @param {string} buttonLabel - The text of the button to generate in the menu (already translated).
+     * @param {string|Array<string|Node>} buttonLabel - The content of the button to generate in the menu: translated text, or text and icon elements.
      */
     constructor(controller, container, buttonId, buttonLabel) {
         /** The controller for this backend.
@@ -43,7 +43,10 @@ export class AbstractBackend {
          */
         this.autosavedFiles = [];
 
-        container.innerHTML = `<button id="${buttonId}">${buttonLabel}</button>`;
+        const button = document.createElement("button");
+        button.id = buttonId;
+        button.append(...[buttonLabel].flat());
+        container.replaceChildren(button);
     }
 
     /** Open a file chooser.
@@ -113,6 +116,19 @@ export class AbstractBackend {
     loadSync(_fileDescriptor) {
         // Not implemented
         return "";
+    }
+
+    /** Load a file synchronously, if it is there.
+     *
+     * Unlike {@link module:backend/AbstractBackend.AbstractBackend#loadSync|loadSync},
+     * a missing file is not an error.
+     *
+     * @param {any} _fileDescriptor - A file to load (backend-dependent).
+     * @returns {?string} - The content of the file, or `null` if it is absent.
+     */
+    loadOptionalSync(_fileDescriptor) {
+        // Not implemented
+        return null;
     }
 
     /** Create a new file.

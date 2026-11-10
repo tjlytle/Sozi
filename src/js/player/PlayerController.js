@@ -27,7 +27,7 @@ const DRAG_BUTTON = 0;
  * @default
  * @type {number}
  */
-const DRAG_THRESHOLD_PX = 5;
+export const DRAG_THRESHOLD_PX = 5;
 
 /** The zoom step factor for user zoom action (keyboard and mouse wheel).
  *
@@ -35,7 +35,7 @@ const DRAG_THRESHOLD_PX = 5;
  * @default
  * @type {number}
  */
-const SCALE_FACTOR = 1.05;
+export const SCALE_FACTOR = 1.05;
 
 /** The rotation step angle for user rotate action (keyboard and mouse wheel), in degrees.
  *
@@ -157,6 +157,27 @@ const WHEEL_TIMEOUT_MS = 200;
  *
  * @event module:player/PlayerController.localViewportChange
  */
+
+/** The events a `PlayerController` emits (standard 2.4).
+ *
+ * @readonly
+ */
+export const PlayerControllerEvents = Object.freeze({
+    mouseDown: "mouseDown",
+    dragStart: "dragStart",
+    dragEnd: "dragEnd",
+    localViewportChange: "localViewportChange",
+    click: "click",
+    zoom: "zoom",
+    rotate: "rotate",
+    translate: "translate",
+    moveToFrame: "moveToFrame",
+    previewFrame: "previewFrame",
+    viewAll: "viewAll",
+    jumpToFrame: "jumpToFrame",
+    pause: "pause",
+    toggleBlankScreen: "toggleBlankScreen"
+});
 
 /** The player's event handling controller
  *
@@ -318,7 +339,7 @@ export class PlayerController extends EventEmitter {
             this.viewport.updateClipMode(evt.clientX, evt.clientY);
         }
 
-        this.emit("mouseDown", evt.button);
+        this.emit(PlayerControllerEvents.mouseDown, evt.button);
     }
 
     /** Process a mouse drag event.
@@ -358,7 +379,7 @@ export class PlayerController extends EventEmitter {
                 this.player.pause();
             }
 
-            this.emit("dragStart");
+            this.emit(PlayerControllerEvents.dragStart);
         }
 
         if (this.mouseDragged) {
@@ -463,9 +484,9 @@ export class PlayerController extends EventEmitter {
 
         if (evt.button === DRAG_BUTTON) {
             if (this.mouseDragged) {
-                this.emit("dragEnd");
+                this.emit(PlayerControllerEvents.dragEnd);
                 if (this.mouseDragChangedState) {
-                    this.emit("localViewportChange");
+                    this.emit(PlayerControllerEvents.localViewportChange);
                 }
             } else {
                 this.onClick(evt);
@@ -498,7 +519,7 @@ export class PlayerController extends EventEmitter {
                     break;
             }
         }
-        this.emit("click", evt);
+        this.emit(PlayerControllerEvents.click, evt);
     }
 
     /** Process a mouse wheel event in this viewport.
@@ -556,7 +577,7 @@ export class PlayerController extends EventEmitter {
         if (changed) {
             this.wheelTimeout = window.setTimeout(() => {
                 this.wheelTimeout = null;
-                this.emit("localViewportChange");
+                this.emit(PlayerControllerEvents.localViewportChange);
             }, WHEEL_TIMEOUT_MS);
         }
     }
@@ -572,7 +593,7 @@ export class PlayerController extends EventEmitter {
     zoom(factor, x, y) {
         this.player.pause();
         this.viewport.zoom(factor, x, y);
-        this.emit("zoom", {factor, x, y});
+        this.emit(PlayerControllerEvents.zoom, {factor, x, y});
     }
 
     /** Helper for rotation.
@@ -584,7 +605,7 @@ export class PlayerController extends EventEmitter {
     rotate(angle) {
         this.player.pause();
         this.viewport.rotate(angle);
-        this.emit("rotate", angle);
+        this.emit(PlayerControllerEvents.rotate, angle);
     }
 
     /** helper for translation by x and y offset.
@@ -596,7 +617,7 @@ export class PlayerController extends EventEmitter {
      */
     translate(deltaX, deltaY) {
         this.viewport.translate(deltaX, deltaY);
-        this.emit("translate", {deltaX, deltaY});
+        this.emit(PlayerControllerEvents.translate, {deltaX, deltaY});
     }
 
     /** Process a right-click in the associated viewport.
@@ -830,7 +851,7 @@ export class PlayerController extends EventEmitter {
      * @fires module:player/Player.stateChange
      */
     moveToNext() {
-        this.emit("moveToFrame", this.player.nextFrame);
+        this.emit(PlayerControllerEvents.moveToFrame, this.player.nextFrame);
         this.player.moveToNext();
     }
 
@@ -866,7 +887,7 @@ export class PlayerController extends EventEmitter {
      */
     previewFrame(frame) {
         const f = this.player.findFrame(frame);
-        this.emit("previewFrame", f);
+        this.emit(PlayerControllerEvents.previewFrame, f);
         this.player.previewFrame(f);
     }
 
@@ -874,7 +895,7 @@ export class PlayerController extends EventEmitter {
      *
      */
     viewAll() {
-        this.emit("viewAll");
+        this.emit(PlayerControllerEvents.viewAll);
         this.player.viewAll();
     }
 
@@ -888,7 +909,7 @@ export class PlayerController extends EventEmitter {
      */
     jumpToFrame(frame) {
         const f = this.player.findFrame(frame);
-        this.emit("jumpToFrame", f);
+        this.emit(PlayerControllerEvents.jumpToFrame, f);
         this.player.jumpToFrame(f);
     }
 
@@ -902,7 +923,7 @@ export class PlayerController extends EventEmitter {
      */
     moveToFrame(frame) {
         const f = this.player.findFrame(frame);
-        this.emit("moveToFrame", f);
+        this.emit(PlayerControllerEvents.moveToFrame, f);
         this.player.moveToFrame(f);
     }
 
@@ -914,7 +935,7 @@ export class PlayerController extends EventEmitter {
      */
     togglePause() {
         if (this.player.playing) {
-            this.emit("pause");
+            this.emit(PlayerControllerEvents.pause);
             this.player.pause();
         } else {
             this.moveToFrame(this.player.currentFrame);
@@ -931,6 +952,6 @@ export class PlayerController extends EventEmitter {
         } else {
             this.player.enableBlankScreen();
         }
-        this.emit("toggleBlankScreen", this.player.blankScreenIsVisible);
+        this.emit(PlayerControllerEvents.toggleBlankScreen, this.player.blankScreenIsVisible);
     }
 }

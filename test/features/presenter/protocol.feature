@@ -8,6 +8,11 @@ Feature: The presenter and the display talk one protocol
   A message that comes from anywhere else, even from the presenter page itself, changes
   nothing.
 
+  However the speaker comes back to the presenter page in the same tab, the audience window
+  stays on its frame and the room sees nothing happen; the presenter page catches up with
+  the talk. If the speaker closed the audience window, coming back opens a new one at the
+  first frame.
+
   Background:
     Given the "basic" deck is built
     And the presenter page is open
@@ -34,3 +39,36 @@ Feature: The presenter and the display talk one protocol
     When the presenter page posts itself a frame change to index 1
     Then the frame counter reads "1 / 2"
     And the notes title is "One"
+
+  @issue-269
+  Scenario: Going to the presenter page's address again leaves the talk where it is
+    When the next button is pressed
+    And the audience window is on frame "Two"
+    And the presenter page is opened again at its address
+    Then the audience window is on frame "Two"
+    And the frame counter reads "2 / 2"
+
+  @issue-269
+  Scenario: Going back to the presenter page leaves the talk where it is
+    When the next button is pressed
+    And the audience window is on frame "Two"
+    And the speaker leaves the presenter page and goes back to it
+    Then the audience window is on frame "Two"
+    And the frame counter reads "2 / 2"
+
+  @issue-269
+  Scenario: Reloading the presenter page leaves the talk where it is
+    When the next button is pressed
+    And the audience window is on frame "Two"
+    And the presenter page is reloaded
+    Then the audience window is on frame "Two"
+    And the frame counter reads "2 / 2"
+
+  @issue-269
+  Scenario: Returning after the audience window was closed opens it at the first frame
+    When the next button is pressed
+    And the audience window is on frame "Two"
+    And the audience window is closed
+    And the presenter page is reloaded and opens a new audience window
+    Then the audience window is on frame "One"
+    And the frame counter reads "1 / 2"

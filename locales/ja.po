@@ -14,12 +14,8 @@ msgstr ""
 "X-Generator: Poedit 3.0.1\n"
 
 #: src/js/Controller.js:234
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
-msgstr "<i class=\"fa fa-exclamation-triangle\"></i>エラー"
-
-#: src/js/Controller.js:235
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
-msgstr "<i class=\"fa fa-info-circle\"></i> 情報"
+msgid "Error"
+msgstr "エラー"
 
 #: src/js/Controller.js:359
 msgid "Document was changed. Reloading."

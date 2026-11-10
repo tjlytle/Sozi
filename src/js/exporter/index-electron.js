@@ -19,7 +19,7 @@
  * @module
  */
 
-import {BrowserWindow, nativeImage} from "electron";
+import {BrowserWindow} from "electron";
 
 /** @typedef {import("electron").NativeImage} NativeImage */
 /** @typedef {import("electron").Debugger} Debugger */
@@ -221,7 +221,7 @@ export function exportSettings(presentation) {
  *
  * @param {object[]} frames - The frames, with `timeoutMs`, `timeoutEnable` and `transitionDurationMs`.
  * @param {number} frameRate - The number of images per second.
- * @returns {object[]} - A list of `{type: "hold", frame, count}` and `{type: "transition", to, progress: number[]}`.
+ * @returns {object[]} - A list of `{type: "hold", frame, count}` and `{type: "transition", from, to, progress: number[]}`.
  */
 export function videoTimeline(frames, frameRate) {
     const timeStepMs = 1000 / frameRate;
@@ -246,7 +246,7 @@ export function videoTimeline(frames, frameRate) {
         for (let k = 0; k * timeStepMs < durationMs; k++) {
             progress.push((k * timeStepMs) / durationMs);
         }
-        steps.push({type: "transition", to: next, progress});
+        steps.push({type: "transition", from: index, to: next, progress});
 
         if (next === 0) {
             break;
@@ -521,40 +521,6 @@ function pngSize(png) {
     return {width: png.readUInt32BE(16), height: png.readUInt32BE(20)};
 }
 
-/** Check whether all the pixels of an image have the same colour.
- *
- * @param {NativeImage} img - An image.
- * @returns {boolean} - `true` if the image is uniform.
- */
-function isUniform(img) {
-    const bitmap = img.toBitmap();
-    if (bitmap.length < 4) {
-        return true;
-    }
-    const first = bitmap.readUInt32LE(0);
-    for (let i = 4; i + 4 <= bitmap.length; i += 4) {
-        if (bitmap.readUInt32LE(i) !== first) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/** Are two images uniform, of the same colour?
- *
- * @param {NativeImage} a - An image.
- * @param {NativeImage} b - Another image.
- * @returns {boolean} - `true` if both images are uniform with the same pixel value.
- */
-function sameUniformColour(a, b) {
-    return (
-        !b.isEmpty() &&
-        isUniform(a) &&
-        isUniform(b) &&
-        a.toBitmap().readUInt32LE(0) === b.toBitmap().readUInt32LE(0)
-    );
-}
-
 /** The default time limit of each step of an export, in milliseconds.
  *
  * @readonly
@@ -580,6 +546,8 @@ function withTimeout(promise, ms, message) {
 
 /** A window that shows a presentation HTML file for capture.
  *
+ * Each capture shows the state the exporter set: the window checks the frame the page
+ * shows before a capture, and waits for a picture drawn after it.
  * Create instances with {@linkcode module:exporter.openExportWindow|openExportWindow}.
  * Main process only.
  */
@@ -608,23 +576,7 @@ export class ExportWindow {
          */
         this.transparent = !!opts.transparent;
 
-        /** Capture with the Chrome DevTools Protocol instead of `capturePage`.
-         *
-         * Set after `capturePage` returned an empty image once, and for transparent captures.
-         *
-         * @type {boolean}
-         */
-        this.useCDP = this.transparent;
-
-        /** Has the Chrome DevTools Protocol confirmed a uniform `capturePage` image?
-         *
-         * Then later uniform images are believed without checking again.
-         *
-         * @type {boolean}
-         */
-        this.capturePageVerified = false;
-
-        /** The capture method of each capture: `capturePage` or `cdp`.
+        /** The capture method of each capture: `cdp`.
          *
          * @type {Set<string>}
          */
@@ -635,12 +587,6 @@ export class ExportWindow {
          * @type {string[]}
          */
         this.warnings = [];
-
-        /** Does the SVG document have visible content? Computed on demand.
-         *
-         * @type {?boolean}
-         */
-        this.hasContent = null;
 
         /** The time limit of each step (page load, script, capture), in milliseconds.
          *
@@ -687,12 +633,34 @@ export class ExportWindow {
 
     /** Show a frame without transition.
      *
-     * @param {number|string} frame - A frame index or identifier.
-     * @returns {Promise} - Resolved after the frame has been painted.
+     * @param {number} index - The index of the frame.
+     * @returns {Promise} - Resolved after the frame has been painted, rejected if the page
+     *  does not show it.
      */
-    async jumpToFrame(frame) {
-        await this.run(`sozi.player.jumpToFrame(${JSON.stringify(frame)})`);
+    async jumpToFrame(index) {
+        await this.run(`sozi.player.jumpToFrame(${JSON.stringify(index)})`);
         await this.settle();
+        await this.expectFrame(index);
+    }
+
+    /** Check that the page shows a frame, at rest, before a capture.
+     *
+     * Only the exporter may move the cameras: if a frame timeout or a `hashchange` moved
+     * them, the capture would show another frame. This fails the export instead.
+     *
+     * @param {number} index - The index of the frame the page must show.
+     * @returns {Promise} - Resolved if it does and no animation runs, rejected otherwise.
+     */
+    async expectFrame(index) {
+        const {index: shown, animating} = await this.run("sozi.exportDriver.state()");
+        if (animating) {
+            throw new Error(
+                `the export window is animating (frame ${shown}), expected frame ${index} at rest`
+            );
+        }
+        if (shown !== index) {
+            throw new Error(`the export window shows frame ${shown}, expected ${index}`);
+        }
     }
 
     /** Attach the Chrome DevTools Protocol debugger if not done yet.
@@ -729,111 +697,29 @@ export class ExportWindow {
         // If the kick fails, the screenshot is not awaited: never leave its rejection unhandled.
         shot.catch(() => {});
         try {
-            await this.run("__soziExport.kick(true)");
+            await this.run("sozi.exportDriver.kick(true)");
             const img = await this.bounded(shot, "screenshot");
             return Buffer.from(img.data, "base64");
         } finally {
             try {
-                await this.run("__soziExport.kick(false)");
+                await this.run("sozi.exportDriver.kick(false)");
             } catch {
                 // The page does not respond: the window will be destroyed anyway.
             }
         }
     }
 
-    /** Does the SVG document have visible content? Computed once.
-     *
-     * @returns {Promise<boolean>} - `true` if the bounding box of the SVG root is not empty.
-     */
-    async svgHasContent() {
-        if (this.hasContent === null) {
-            this.hasContent = await this.run(`(() => {
-                const svg = document.querySelector("svg");
-                const box = svg && svg.getBBox();
-                return !!box && box.width > 0 && box.height > 0;
-            })()`);
-        }
-        // Cast: set just above when it was null.
-        return /** @type {boolean} */ (this.hasContent);
-    }
-
     /** Capture the current state of the window as a PNG image.
      *
-     * Uses `capturePage`. On a high-density display, where `capturePage` returns
-     * device pixels, an image that is exactly an integer multiple of the requested
-     * size is scaled down. It falls back to the Chrome DevTools Protocol (at device
-     * scale 1) if the image is empty, has another size, or is uniform while the SVG
-     * has visible content, even after waiting for a paint.
+     * Always with the Chrome DevTools Protocol, at device scale 1: its screenshot waits for
+     * a picture drawn after the request. `capturePage` copies the last picture the window
+     * presented, which on a loaded machine can be one from before the last jump (#250).
      *
      * @returns {Promise<Buffer>} - A PNG image of exactly the requested size.
      */
     async capture() {
-        let png;
-        if (!this.useCDP) {
-            let img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
-            if (!img.isEmpty() && isUniform(img) && (await this.svgHasContent())) {
-                // The first capture of a hidden window can come before its first
-                // paint (a uniform image, usually black): wait for a paint and capture again once.
-                await this.settle();
-                img = await this.bounded(this.window.webContents.capturePage(), "capturePage");
-            }
-            let size = img.getSize();
-            const scale = size.width / this.size.width;
-            if (
-                !img.isEmpty() &&
-                Number.isInteger(scale) &&
-                scale > 1 &&
-                size.height === scale * this.size.height
-            ) {
-                // On a high-density display, capturePage returns device pixels: scale them down.
-                img = img.resize({
-                    width: this.size.width,
-                    height: this.size.height,
-                    quality: "best"
-                });
-                size = img.getSize();
-            }
-            if (img.isEmpty()) {
-                this.useCDP = true;
-                this.warnings.push(
-                    "capturePage returned an empty image; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead"
-                );
-            } else if (size.width !== this.size.width || size.height !== this.size.height) {
-                // Device pixels at a fractional scale factor, or a window clamped to the screen.
-                this.useCDP = true;
-                this.warnings.push(
-                    `capturePage returned a ${size.width}x${size.height} image (display scale factor?); captured with the Chrome DevTools Protocol at device scale 1 instead`
-                );
-            } else if (
-                isUniform(img) &&
-                !this.capturePageVerified &&
-                (await this.svgHasContent())
-            ) {
-                // A frame can be all one colour (e.g. inside a filled shape): believe
-                // capturePage if the Chrome DevTools Protocol shows the same colour.
-                // A blank capturePage is a failure of the window, so one confirmation is enough.
-                const cdpPng = await this.captureCDP();
-                if (sameUniformColour(img, nativeImage.createFromBuffer(cdpPng))) {
-                    this.capturePageVerified = true;
-                    png = img.toPNG();
-                    this.captureMethods.add("capturePage");
-                } else {
-                    png = cdpPng;
-                    this.captureMethods.add("cdp");
-                    this.useCDP = true;
-                    this.warnings.push(
-                        "capturePage returned a uniform image of a non-empty SVG; captured with the Chrome DevTools Protocol (Page.captureScreenshot) instead"
-                    );
-                }
-            } else {
-                png = img.toPNG();
-                this.captureMethods.add("capturePage");
-            }
-        }
-        if (!png) {
-            png = await this.captureCDP();
-            this.captureMethods.add("cdp");
-        }
+        const png = await this.captureCDP();
+        this.captureMethods.add("cdp");
         const {width, height} = pngSize(png);
         if (width !== this.size.width || height !== this.size.height) {
             throw new Error(
@@ -885,7 +771,6 @@ export async function openExportWindow(htmlPath, opts) {
         paintWhenInitiallyHidden: true,
         backgroundColor: transparent ? "#00000000" : "#ffffff",
         webPreferences: {
-            preload: path.join(__dirname, "exporter-preload.js"),
             contextIsolation: false,
             nodeIntegration: false,
             backgroundThrottling: false,
@@ -902,7 +787,7 @@ export async function openExportWindow(htmlPath, opts) {
         await withTimeout(
             w.webContents.executeJavaScript(`new Promise(resolve => {
             (function check() {
-                if (window.sozi && window.sozi.player && window.__soziExport) {
+                if (window.sozi && window.sozi.exportDriver) {
                     resolve(true);
                 }
                 else {
@@ -1346,13 +1231,14 @@ async function videoExport(presentation, htmlPath, opts) {
                         write(null, first);
                     }
                 } else {
-                    await ew.run(`__soziExport.setup(${step.to})`);
+                    await ew.run(`sozi.exportDriver.setup(${step.to})`);
                     for (const p of step.progress) {
-                        await ew.run(`__soziExport.step(${p})`);
+                        await ew.run(`sozi.exportDriver.step(${p})`);
                         await ew.settle();
+                        await ew.expectFrame(step.from);
                         write(await ew.capture());
                     }
-                    await ew.run("__soziExport.finish()");
+                    await ew.run("sozi.exportDriver.finish()");
                 }
             }
         });

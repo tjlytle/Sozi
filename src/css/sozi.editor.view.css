@@ -245,6 +245,11 @@ button.sozi-editor__button--active:active {
     font-weight: bold;
 }
 
+/* Notifications are text: a newline in the text starts a new line. */
+.sozi-editor__message-body > div {
+    white-space: pre-line;
+}
+
 /* ------------------------------------------------------------------------- *
  * Fixes
  * ------------------------------------------------------------------------- */

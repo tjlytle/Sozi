@@ -10,6 +10,7 @@
  */
 
 import * as FrameList from "./FrameList";
+import {PlayerEvents} from "./playerEvents";
 
 /** Initialize the frame number management.
  *
@@ -23,9 +24,12 @@ export function init(player) {
     // Cast: the player page always has a frame number element.
     const frameNumber = /** @type {HTMLElement} */ (document.querySelector(".sozi-frame-number"));
 
-    player.on("frameChange", () => {
-        frameNumber.innerHTML = player.currentFrame.index + 1;
-        frameNumber.style.visibility = player.currentFrame.showFrameNumber ? "visible" : "hidden";
+    player.on(PlayerEvents.frameChange, () => {
+        frameNumber.textContent = String(player.currentFrame.index + 1);
+        frameNumber.classList.toggle(
+            "sozi-frame-number--hidden",
+            !player.currentFrame.showFrameNumber
+        );
     });
 
     frameNumber.addEventListener("click", FrameList.open);

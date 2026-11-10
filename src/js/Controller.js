@@ -7,9 +7,12 @@
 import {Storage} from "./Storage";
 import {Frame, LayerProperties} from "./model/Presentation";
 import {CameraState} from "./model/CameraState";
+import {CustomFileTargets} from "./model/customFiles";
 import {EventEmitter} from "events";
 import * as i18n from "./i18n";
 import * as exporter from "./exporter";
+import {ControllerEvents} from "./controllerEvents";
+import {PlayerEvents} from "./player/playerEvents";
 
 /** The maximum size of the undo stack.
  *
@@ -53,31 +56,6 @@ function exportErrorMessage(err) {
     return String((err && err.message) || err);
 }
 
-/** Signals that the presentation data has changed.
- *
- * @event module:Controller.presentationChange
- */
-
-/** Signals that the editor state data has changed.
- *
- * @event module:Controller.editorStateChange
- */
-
-/** Signals that the editor UI needs to be repainted.
- *
- * @event module:Controller.repaint
- */
-
-/** Signals that the current editor window has received the focus.
- *
- * @event module:Controller.focus
- */
-
-/** Signals that the current editor window has lost the focus.
- *
- * @event module:Controller.blur
- */
-
 /** Sozi editor UI controller.
  *
  * A Controller instance manages the user interface of the editor and updates
@@ -93,8 +71,9 @@ export class Controller extends EventEmitter {
      * @param {module:model/Selection.Selection} selection - The object that represents the selection in the timeline.
      * @param {module:player/Viewport.Viewport} viewport - The object that displays a preview of the presentation.
      * @param {module:player/Player.Player} player - The object that animates the presentation.
+     * @param {string[]} systemLanguages - The languages of the system, preferred first.
      */
-    constructor(preferences, presentation, selection, viewport, player) {
+    constructor(preferences, presentation, selection, viewport, player, systemLanguages) {
         super();
 
         /** The function that returns translated text in the current language.
@@ -133,6 +112,12 @@ export class Controller extends EventEmitter {
          * @type {module:player/Player.Player}
          */
         this.player = player;
+
+        /** The languages of the system, preferred first: what the `"auto"` language follows.
+         *
+         * @type {string[]}
+         */
+        this.systemLanguages = systemLanguages;
 
         /** The object that manages the file I/O.
          *
@@ -185,16 +170,16 @@ export class Controller extends EventEmitter {
 
         window.addEventListener("focus", () => {
             this.hasFocus = true;
-            this.emit("focus");
+            this.emit(ControllerEvents.focus);
         });
 
         window.addEventListener("blur", () => {
             this.hasFocus = false;
-            this.emit("blur");
+            this.emit(ControllerEvents.blur);
         });
 
-        this.on("repaint", () => this.onRepaint());
-        player.on("frameChange", () => this.onFrameChange());
+        this.on(ControllerEvents.repaint, () => this.onRepaint());
+        player.on(PlayerEvents.frameChange, () => this.onFrameChange());
     }
 
     /** Finalize the initialization of the application.
@@ -251,25 +236,29 @@ export class Controller extends EventEmitter {
      * Consecutive notifications are concatenated if they happen in a short period of time.
      *
      * @param {string} severity - The severity of the event to signal (`"error"` or `"info"`).
-     * @param {string} body - An HTML string to show in the notification area.
+     * @param {string} body - The text to show in the notification area; a newline starts a new line.
      */
     showNotification(severity, body) {
         const _ = this.gettext;
         // Casts: index.html holds the message panel with its title and body.
         const msg = /** @type {HTMLElement} */ (document.getElementById("message"));
+        const msgBody = /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body"));
         if (this.notificationTimeout === null) {
-            /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body")).innerHTML = "";
+            msgBody.replaceChildren();
         } else {
             clearTimeout(this.notificationTimeout);
         }
 
-        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-title")).innerHTML =
-            severity === "error"
-                ? _('<i class="fa fa-exclamation-triangle"></i> Error')
-                : _('<i class="fa fa-info-circle"></i> Information');
+        const icon = document.createElement("i");
+        icon.className = severity === "error" ? "fa fa-exclamation-triangle" : "fa fa-info-circle";
+        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-title")).replaceChildren(
+            icon,
+            " " + (severity === "error" ? _("Error") : _("Information"))
+        );
 
-        /** @type {Element} */ (msg.querySelector(".sozi-editor__message-body")).innerHTML +=
-            `<div>${body}</div>`;
+        const entry = document.createElement("div");
+        entry.textContent = body;
+        msgBody.append(entry);
         msg.classList.add("sozi-editor__message--visible", `sozi-editor__message--${severity}`);
         this.notificationTimeout = setTimeout(() => this.hideNotification(), 5000);
     }
@@ -347,7 +336,7 @@ export class Controller extends EventEmitter {
             }
         }
         if (changed) {
-            this.emit("repaint");
+            this.emit(ControllerEvents.repaint);
         }
     }
 
@@ -386,7 +375,7 @@ export class Controller extends EventEmitter {
             }
         }
 
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Process an SVG document change event.
@@ -412,7 +401,7 @@ export class Controller extends EventEmitter {
                     if (this.hasFocus) {
                         doReload();
                     } else {
-                        this.once("focus", doReload);
+                        this.once(ControllerEvents.focus, doReload);
                     }
                     break;
                 default:
@@ -432,7 +421,7 @@ export class Controller extends EventEmitter {
      */
     async save() {
         await this.storage.save();
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Reload the presentation.
@@ -443,7 +432,7 @@ export class Controller extends EventEmitter {
         this.storage.reload();
     }
 
-    /** Add a custom stylesheet or script to the current presentation.
+    /** Add a custom stylesheet or script to the current presentation, for the presentation page.
      *
      * This action supports undo and redo.
      *
@@ -455,13 +444,16 @@ export class Controller extends EventEmitter {
     addCustomFile(path) {
         this.perform(
             function onDo() {
-                this.presentation.customFiles.push(this.storage.toRelativePath(path));
+                this.presentation.customFiles.push({
+                    path: this.storage.toRelativePath(path),
+                    target: CustomFileTargets.display
+                });
             },
             function onUndo() {
                 this.presentation.customFiles.pop();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -484,13 +476,37 @@ export class Controller extends EventEmitter {
                 this.presentation.customFiles.splice(index, 0, fileName);
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
+        );
+    }
+
+    /** Choose the page a custom stylesheet or script is for.
+     *
+     * This action supports undo and redo.
+     *
+     * @param {number} index - The index of the entry in the custom file list.
+     * @param {string} target - One of `CustomFileTargets`.
+     *
+     * @fires module:Controller.presentationChange
+     * @fires module:Controller.repaint
+     */
+    setCustomFileTarget(index, target) {
+        const file = this.presentation.customFiles[index];
+        this.perform(
+            function onDo() {
+                this.presentation.customFiles[index] = {...file, target};
+            },
+            function onUndo() {
+                this.presentation.customFiles[index] = file;
+            },
+            false,
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
     /** Get the list of custom stylesheets and scripts added to the current presentation.
      *
-     * @returns {string[]} - An array of file paths.
+     * @returns {import("./model/customFiles").CustomFile[]} - Each file's path and target.
      */
     getCustomFiles() {
         return this.presentation.customFiles;
@@ -542,7 +558,11 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             true,
-            ["presentationChange", "editorStateChange", "repaint"]
+            [
+                ControllerEvents.presentationChange,
+                ControllerEvents.editorStateChange,
+                ControllerEvents.repaint
+            ]
         );
     }
 
@@ -579,7 +599,11 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             true,
-            ["presentationChange", "editorStateChange", "repaint"]
+            [
+                ControllerEvents.presentationChange,
+                ControllerEvents.editorStateChange,
+                ControllerEvents.repaint
+            ]
         );
     }
 
@@ -648,7 +672,11 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "editorStateChange", "repaint"]
+            [
+                ControllerEvents.presentationChange,
+                ControllerEvents.editorStateChange,
+                ControllerEvents.repaint
+            ]
         );
     }
 
@@ -691,8 +719,8 @@ export class Controller extends EventEmitter {
 
         // Force a repaint even if the controller
         // did not modify the selection
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Add all layers to the timeline.
@@ -722,8 +750,8 @@ export class Controller extends EventEmitter {
 
         // Force a repaint even if the controller
         // did not modify the selection
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Remove a layer from the timeline.
@@ -757,8 +785,8 @@ export class Controller extends EventEmitter {
 
         // Force a repaint even if the controller
         // did not modify the selection
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Get the layers at the given index.
@@ -807,8 +835,8 @@ export class Controller extends EventEmitter {
     selectLayers(layers) {
         this.selection.selectedLayers = layers.slice();
         this.updateCameraSelection();
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Add a layer to the selection.
@@ -825,8 +853,8 @@ export class Controller extends EventEmitter {
         if (!this.selection.hasLayers([layer])) {
             this.selection.addLayer(layer);
             this.updateCameraSelection();
-            this.emit("editorStateChange");
-            this.emit("repaint");
+            this.emit(ControllerEvents.editorStateChange);
+            this.emit(ControllerEvents.repaint);
         }
     }
 
@@ -843,8 +871,8 @@ export class Controller extends EventEmitter {
         if (this.selection.hasLayers([layer])) {
             this.selection.removeLayer(layer);
             this.updateCameraSelection();
-            this.emit("editorStateChange");
-            this.emit("repaint");
+            this.emit(ControllerEvents.editorStateChange);
+            this.emit(ControllerEvents.repaint);
         }
     }
 
@@ -873,8 +901,8 @@ export class Controller extends EventEmitter {
     selectAllFrames() {
         this.selection.selectedFrames = this.presentation.frames.slice();
         this.updateCameraSelection();
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Select a specific frame at a relative location from the {@link module:model/Selection.Selection#currentFrame|current frame}.
@@ -938,8 +966,8 @@ export class Controller extends EventEmitter {
             this.updateCameraSelection();
         }
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Update the selection with the given layer.
@@ -971,8 +999,8 @@ export class Controller extends EventEmitter {
 
         this.updateCameraSelection();
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Update the selection with the given layers and a given frame.
@@ -1027,8 +1055,8 @@ export class Controller extends EventEmitter {
 
         this.updateCameraSelection();
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Toggle the visibility of the given layers.
@@ -1051,8 +1079,8 @@ export class Controller extends EventEmitter {
             }
         }
 
-        this.emit("editorStateChange");
-        this.emit("repaint");
+        this.emit(ControllerEvents.editorStateChange);
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Reset the selected layers to their initial state.
@@ -1106,7 +1134,7 @@ export class Controller extends EventEmitter {
                 });
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1184,7 +1212,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1285,7 +1313,7 @@ export class Controller extends EventEmitter {
                 pres[property] = savedValue;
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1338,7 +1366,7 @@ export class Controller extends EventEmitter {
                 }
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1425,7 +1453,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1500,7 +1528,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1554,7 +1582,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1635,7 +1663,7 @@ export class Controller extends EventEmitter {
                 this.presentation.updateLinkedLayers();
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1658,7 +1686,7 @@ export class Controller extends EventEmitter {
                 this.presentation.aspectWidth = widthPrev;
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1681,7 +1709,7 @@ export class Controller extends EventEmitter {
                 this.presentation.aspectHeight = heightPrev;
             },
             false,
-            ["presentationChange", "repaint"]
+            [ControllerEvents.presentationChange, ControllerEvents.repaint]
         );
     }
 
@@ -1695,7 +1723,7 @@ export class Controller extends EventEmitter {
      */
     setDragMode(dragMode) {
         this.viewport.dragMode = dragMode;
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Get a property of the preferences object.
@@ -1753,7 +1781,7 @@ export class Controller extends EventEmitter {
      */
     setAppSetting(key, newValue) {
         this.storage.backend.setAppSetting(key, newValue);
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Get the keyboard shortcut for a given action.
@@ -1817,21 +1845,22 @@ export class Controller extends EventEmitter {
      */
     applyPreferences(changed = "all") {
         if ((changed === "all" || changed.fontSize) && this.preferences.fontSize > 0) {
-            document.body.style.fontSize = this.preferences.fontSize + "pt";
+            // The size is the user's preference, so it sets the token the stylesheet reads.
+            document.body.style.setProperty("--sozi-font-size", this.preferences.fontSize + "pt");
         }
 
         if (changed === "all" || changed.language) {
-            const locale = i18n.init(this.preferences.language);
+            const locale = i18n.init(this.preferences.language, this.systemLanguages);
             this.gettext = s => locale.gettext(s);
         }
 
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Toggle the "exporting" state */
     toggleExportState() {
         this.exporting = !this.exporting;
-        this.emit("repaint");
+        this.emit(ControllerEvents.repaint);
     }
 
     /** Export the current presentation to PDF. */
