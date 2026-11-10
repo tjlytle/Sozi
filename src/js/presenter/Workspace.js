@@ -82,6 +82,34 @@ function dockPanel(dock, spec, stacked) {
     dock.addPanel({...panelOptions(spec), position: placeable ? position : undefined, inactive});
 }
 
+/**
+ * Dock a group's panels as one group, in tab order, showing the tab it showed.
+ *
+ * @param {any} dock - The dockview dock they go in.
+ * @param {WindowEntry[]} entries - The panels.
+ * @param {object | undefined} position - Where the group goes, as dockview takes it.
+ * @param {PanelSpec[]} specs - Every panel's spec.
+ */
+function dockGroup(dock, entries, position, specs) {
+    let place = position;
+    for (const {id, active} of entries) {
+        const spec = /** @type {PanelSpec} */ (specs.find(s => s.id === id));
+        dock.addPanel({...panelOptions(spec), position: place, inactive: !active});
+        place = {referenceGroup: dock.getPanel(id).group.id};
+    }
+}
+
+/**
+ * Is a panel in a window of its own?
+ *
+ * @param {Map<string, {entries: WindowEntry[]}>} windows - The groups in windows.
+ * @param {string} id - The panel's id.
+ * @returns {boolean} True if it is.
+ */
+function inWindow(windows, id) {
+    return [...windows.values()].some(w => w.entries.some(e => e.id === id));
+}
+
 /** The presenter's workspace: panels docked in dockview, a bar of menus, a narrow stack, and
  * groups popped out into windows of their own.
  *
@@ -312,15 +340,6 @@ export class Workspace {
         );
     }
 
-    /** Is a panel in a window of its own?
-     *
-     * @param {string} id - The panel's id.
-     * @returns {boolean} True if it is.
-     */
-    inWindow(id) {
-        return [...this.windows.values()].some(w => w.entries.some(e => e.id === id));
-    }
-
     /** Every panel's spec, in the order added.
      *
      * @returns {PanelSpec[]} The specs.
@@ -334,7 +353,9 @@ export class Workspace {
      * @returns {string[]} Their ids.
      */
     shownIds() {
-        return [...this.panels.keys()].filter(id => this.dock.getPanel(id) || this.inWindow(id));
+        return [...this.panels.keys()].filter(
+            id => this.dock.getPanel(id) || inWindow(this.windows, id)
+        );
     }
 
     /** What a panel's ⋯ menu offers now.
@@ -344,7 +365,7 @@ export class Workspace {
      */
     menuState(id) {
         const canClose = this.dock.totalPanels > 1;
-        const docked = this.specs().filter(spec => !this.inWindow(spec.id));
+        const docked = this.specs().filter(spec => !inWindow(this.windows, spec.id));
         const panel = this.dock.getPanel(id);
         // A group pops out whole, and the dock keeps a panel.
         const leaves = panel ? panel.group.panels.length : 0;
@@ -382,7 +403,7 @@ export class Workspace {
      */
     showPanel(id, {referenceId, direction = "right"} = {}) {
         const entry = this.panels.get(id);
-        if (!entry || this.dock.getPanel(id) || this.inWindow(id)) {
+        if (!entry || this.dock.getPanel(id) || inWindow(this.windows, id)) {
             return;
         }
         if (this.dock.hasMaximizedGroup()) {
@@ -508,7 +529,7 @@ export class Workspace {
                     this.dock.removePanel(tab);
                 }
                 const dock = this.createDock(root, this.dockOptions(root.ownerDocument));
-                this.dockEntries(dock, entries, undefined);
+                dockGroup(dock, entries, undefined, this.specs());
                 return dock;
             },
             onClose: () => this.dockBack(group.id)
@@ -523,21 +544,6 @@ export class Workspace {
         this.save();
     }
 
-    /** Dock a group's panels as one group, in tab order, showing the tab it showed.
-     *
-     * @param {any} dock - The dock they go in.
-     * @param {WindowEntry[]} entries - The panels.
-     * @param {object | undefined} position - Where the group goes, as dockview takes it.
-     */
-    dockEntries(dock, entries, position) {
-        let place = position;
-        for (const {id, active} of entries) {
-            const {spec} = /** @type {{spec: PanelSpec}} */ (this.panels.get(id));
-            dock.addPanel({...panelOptions(spec), position: place, inactive: !active});
-            place = {referenceGroup: dock.getPanel(id).group.id};
-        }
-    }
-
     /** Dock a group whose window closed, in the group it left or right of the dock.
      *
      * @param {string} key - The id of the dock group it left.
@@ -550,7 +556,7 @@ export class Workspace {
         this.windows.delete(key);
         const group = this.dock.getGroup(key);
         const position = group ? {referenceGroup: group.id} : this.placeOf(undefined, "right");
-        this.dockEntries(this.dock, popped.entries, position);
+        dockGroup(this.dock, popped.entries, position, this.specs());
         this.save();
     }
 
