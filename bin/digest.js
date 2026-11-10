@@ -220,6 +220,116 @@ function options(args) {
     );
 }
 
+/** A required setting, or an error naming it when it is missing or empty.
+ *
+ * @param {string|undefined} value - The value as given.
+ * @param {string} name - The setting it came from, for the error.
+ * @returns {string} - The value.
+ */
+export function need(value, name) {
+    if (!value) {
+        throw new Error(`${name} is not set`);
+    }
+    return value;
+}
+
+/** An --issue value, or an error when it is not a whole number.
+ *
+ * @param {string} value - The value as given.
+ * @returns {string} - The value.
+ */
+export function numeric(value) {
+    if (!/^\d+$/.test(value)) {
+        throw new Error(`--issue must be a number: ${JSON.stringify(value)}`);
+    }
+    return value;
+}
+
+/**
+ * @typedef {object} NotionCall
+ * @property {string} token - The integration token.
+ * @property {(url: string, init: object) => Promise<NotionResponse>} fetch - The HTTP client.
+ */
+
+/** Create the run page.
+ *
+ * @param {Record<string, string|undefined>} opt - The parsed options.
+ * @param {Record<string, string|undefined>} env - The environment.
+ * @param {NotionCall} call - How to call Notion.
+ * @returns {Promise<string>} - The id of the new page.
+ */
+async function start(opt, env, call) {
+    const title = need(opt.title, "--title");
+    const parentName = "--parent or PIPELINE_NOTION_PARENT";
+    const parent = pageId(need(opt.parent ?? env.PIPELINE_NOTION_PARENT, parentName), parentName);
+    const page = await notion("POST", "/pages", pageRequest({title, parent}), call);
+    if (!page?.id) {
+        throw new Error("Notion returned no page id");
+    }
+    return page.id;
+}
+
+/** Append blocks to the run page. The page is resolved before the blocks are built, so a
+ * missing page is reported before a missing entry option.
+ *
+ * @param {Record<string, string|undefined>} opt - The parsed options.
+ * @param {Record<string, string|undefined>} env - The environment.
+ * @param {() => any[]} build - Builds the blocks.
+ * @param {NotionCall} call - How to call Notion.
+ * @returns {Promise<void>}
+ */
+async function append(opt, env, build, call) {
+    const pageName = "--page or PIPELINE_NOTION_PAGE";
+    const page = pageId(need(opt.page ?? env.PIPELINE_NOTION_PAGE, pageName), pageName);
+    const children = build();
+    await notion("PATCH", `/blocks/${page}/children`, {children}, call);
+}
+
+/** Add the to-do for one merged issue to the run page.
+ *
+ * @param {Record<string, string|undefined>} opt - The parsed options.
+ * @param {Record<string, string|undefined>} env - The environment.
+ * @param {NotionCall} call - How to call Notion.
+ * @returns {Promise<void>}
+ */
+async function add(opt, env, call) {
+    await append(
+        opt,
+        env,
+        () =>
+            entryBlocks({
+                issue: numeric(need(opt.issue, "--issue")),
+                text: need(opt.text, "--text"),
+                url: need(opt.url, "--url"),
+                image: opt.image
+            }),
+        call
+    );
+}
+
+/** Add the summary and the build links to the run page.
+ *
+ * @param {Record<string, string|undefined>} opt - The parsed options.
+ * @param {Record<string, string|undefined>} env - The environment.
+ * @param {NotionCall} call - How to call Notion.
+ * @returns {Promise<void>}
+ */
+async function finish(opt, env, call) {
+    await append(
+        opt,
+        env,
+        () =>
+            finishBlocks({
+                summary: need(opt.summary, "--summary"),
+                build: opt.build,
+                presenter: opt.presenter
+            }),
+        call
+    );
+}
+
+const COMMANDS = {start, add, finish};
+
 /** Run the command line.
  *
  * @param {string[]} argv - The arguments after the script name.
@@ -234,56 +344,18 @@ export async function main(argv, {env = process.env, fetch: doFetch = fetch, out
     const write = out ?? (text => void process.stdout.write(text));
     const writeErr = err ?? (text => void process.stderr.write(text));
     const [command, ...rest] = argv;
-    if (!["start", "add", "finish"].includes(command ?? "")) {
+    if (!Object.hasOwn(COMMANDS, command ?? "")) {
         writeErr(`${USAGE.join("\n")}\n`);
         return 2;
     }
     try {
         const opt = options(rest);
-        const need = (/** @type {string|undefined} */ value, /** @type {string} */ name) => {
-            if (!value) {
-                throw new Error(`${name} is not set`);
-            }
-            return value;
-        };
-        const numeric = (/** @type {string} */ value) => {
-            if (!/^\d+$/.test(value)) {
-                throw new Error(`--issue must be a number: ${JSON.stringify(value)}`);
-            }
-            return value;
-        };
         const token = need(env.NOTION_TOKEN, "NOTION_TOKEN");
-        const call = {token, fetch: doFetch};
-        if (command === "start") {
-            const title = need(opt.title, "--title");
-            const parentName = "--parent or PIPELINE_NOTION_PARENT";
-            const parent = pageId(
-                need(opt.parent ?? env.PIPELINE_NOTION_PARENT, parentName),
-                parentName
-            );
-            const page = await notion("POST", "/pages", pageRequest({title, parent}), call);
-            if (!page?.id) {
-                throw new Error("Notion returned no page id");
-            }
-            write(`${page.id}\n`);
-            return 0;
+        const run = COMMANDS[/** @type {keyof typeof COMMANDS} */ (command)];
+        const id = await run(opt, env, {token, fetch: doFetch});
+        if (id) {
+            write(`${id}\n`);
         }
-        const pageName = "--page or PIPELINE_NOTION_PAGE";
-        const page = pageId(need(opt.page ?? env.PIPELINE_NOTION_PAGE, pageName), pageName);
-        const children =
-            command === "add"
-                ? entryBlocks({
-                      issue: numeric(need(opt.issue, "--issue")),
-                      text: need(opt.text, "--text"),
-                      url: need(opt.url, "--url"),
-                      image: opt.image
-                  })
-                : finishBlocks({
-                      summary: need(opt.summary, "--summary"),
-                      build: opt.build,
-                      presenter: opt.presenter
-                  });
-        await notion("PATCH", `/blocks/${page}/children`, {children}, call);
         return 0;
     } catch (error) {
         writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
