@@ -186,6 +186,15 @@ function world(issueBranch = false) {
  */
 const result = outbox => JSON.parse(fs.readFileSync(path.join(outbox, "result.json"), "utf8"));
 
+const stage = path.join(root, "pipeline/stage.sh");
+/**
+ * Run the stage runner to completion.
+ * @param {Record<string, string>} env - The environment.
+ * @returns {Buffer} - Standard output.
+ */
+const runStage = env =>
+    execFileSync("bash", [stage, "25", "build"], {cwd: root, env, stdio: "pipe"});
+
 after(() => {
     for (const dir of dirs) {
         fs.rmSync(dir, {recursive: true, force: true});
@@ -276,14 +285,6 @@ describe("the in-container stage runner", () => {
         assert.equal(fs.readFileSync(path.join(w.outbox, "report-0.txt"), "utf8"), "fix it\n");
         assert.match(fs.readFileSync(path.join(w.outbox, "log"), "utf8"), /== resume/);
     });
-    const stage = path.join(root, "pipeline/stage.sh");
-    /**
-     * Run the stage runner to completion.
-     * @param {Record<string, string>} env - The environment.
-     * @returns {Buffer} - Standard output.
-     */
-    const runStage = env =>
-        execFileSync("bash", [stage, "25", "build"], {cwd: root, env, stdio: "pipe"});
     /**
      * Name the branch the work checkout ended up on.
      * @param {Record<string, string>} env - The environment.
@@ -538,20 +539,12 @@ merge_side() { git fetch -q "$MIRROR" side; git -c user.name=t -c user.email=t@t
 });
 
 describe("a session stopped at a usage limit carries its work", () => {
-    const stage = path.join(root, "pipeline/stage.sh");
     const LIMITED_WORK = [
         "echo carried >carried.txt",
         "git add carried.txt",
         "git -c user.name=t -c user.email=t@t commit -q -m 'Add carried.txt'",
         "echo loose >loose.txt"
     ].join(" && ");
-    /**
-     * Run the stage runner to completion.
-     * @param {Record<string, string>} env - The environment.
-     * @returns {Buffer} - Standard output.
-     */
-    const runStage = env =>
-        execFileSync("bash", [stage, "25", "build"], {cwd: root, env, stdio: "pipe"});
     /**
      * Run a session that commits a file, leaves another untracked, and stops at its limit.
      * @returns {string} - The outbox holding its carry files.

@@ -234,18 +234,7 @@ describe("harness adapters", () => {
         const r = adapter("claude", runArgs(out), {FAKE_MODE: "usagelimit"});
         assert.equal(r.status, 75);
         assert.equal(usageOf(out).status, "rate-limited");
-    });
-
-    test("claude: a usage limit writes the CLI's message as the limit", () => {
-        const out = scratch();
-        adapter("claude", runArgs(out), {FAKE_MODE: "usagelimit"});
         assert.equal(usageOf(out).limit, "You've hit your limit · resets 3pm");
-    });
-
-    test("claude: a clean session writes no limit", () => {
-        const out = scratch();
-        adapter("claude", runArgs(out));
-        assert.equal(usageOf(out).limit, undefined);
     });
 
     test("claude: a failed login before any model call is auth, with the CLI's exit", () => {

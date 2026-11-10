@@ -119,8 +119,7 @@ export function parseUntil(text, now) {
 }
 
 /** Load the state, starting a new run when the last one stopped. The new run keeps what
- * is still alive: spawned sessions, queued spawns, the mint key the sessions hold, and the
- * harnesses paused at their usage limits.
+ * is still alive: spawned sessions, queued spawns, the sessions' mint key and harness pauses.
  *
  * @param {string} file - The state file.
  * @param {Date} now - The current time.

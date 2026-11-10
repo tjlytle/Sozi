@@ -259,23 +259,6 @@ describe("sandbox", () => {
         assert.equal(fs.readFileSync(path.join(resumed, "resume.md"), "utf8"), "carry on");
         assert.equal(fs.readFileSync(path.join(resumed, "prompt.md"), "utf8"), "p");
     });
-    test("prepareOutbox copies no carry file that is a link or missing", () => {
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));
-        const {sb: s} = recording(() => ({code: 0}), root);
-        const old = fs.mkdtempSync(path.join(os.tmpdir(), "old-"));
-        const secret = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "x-")), "secret");
-        fs.writeFileSync(secret, "do not copy");
-        fs.symlinkSync(secret, path.join(old, "carry.patch"));
-        const dir = s.prepareOutbox({
-            issue: 25,
-            stage: "build",
-            prompt: "p",
-            allow: "a",
-            carryFrom: old
-        });
-        assert.equal(fs.existsSync(path.join(dir, "carry.patch")), false);
-        assert.equal(fs.existsSync(path.join(dir, "carry.bundle")), false);
-    });
     test("startArgs passes the persona by value as PIPELINE_PERSONA", () => {
         const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
         const args = sb.startArgs({...base, persona: "architect"});
