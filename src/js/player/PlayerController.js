@@ -27,7 +27,7 @@ const DRAG_BUTTON = 0;
  * @default
  * @type {number}
  */
-const DRAG_THRESHOLD_PX = 5;
+export const DRAG_THRESHOLD_PX = 5;
 
 /** The zoom step factor for user zoom action (keyboard and mouse wheel).
  *
@@ -35,7 +35,7 @@ const DRAG_THRESHOLD_PX = 5;
  * @default
  * @type {number}
  */
-const SCALE_FACTOR = 1.05;
+export const SCALE_FACTOR = 1.05;
 
 /** The rotation step angle for user rotate action (keyboard and mouse wheel), in degrees.
  *
