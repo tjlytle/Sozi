@@ -4,8 +4,10 @@
 
 /** The presenter workspace's saved layout: where it is stored, how it is written and read.
  *
- * A saved layout is the dock as dockview's `toJSON` gives it and the panels on the rail.
- * The default layout is not stored: the workspace builds it from each panel's position.
+ * A saved layout is the dock as dockview's `toJSON` gives it and the closed panels, which the
+ * + menu lists. They are stored as `rail`, the name they had when a rail held them, so that
+ * saved layouts and deck presets stay readable. The default layout is not stored: the
+ * workspace builds it from each panel's position.
  *
  * @module
  */
@@ -35,9 +37,9 @@ const LAYOUT_VERSION = 1;
 const KEY_PREFIX = "sozi-presenter-layout:";
 
 /**
- * A panel on the rail, and the dock group it was minimised from.
+ * A closed panel, and the dock group it was closed from.
  *
- * @typedef {object} RailEntry
+ * @typedef {object} ClosedEntry
  * @property {string} id - The panel's id.
  * @property {?string} group - The id of its group in the dock, null when it has none.
  */
@@ -47,7 +49,16 @@ const KEY_PREFIX = "sozi-presenter-layout:";
  *
  * @typedef {object} SavedLayout
  * @property {any} dock - The dock, as dockview's `toJSON` gives it.
- * @property {RailEntry[]} rail - The panels on the rail, in order.
+ * @property {ClosedEntry[]} rail - The closed panels, in the order they were closed.
+ */
+
+/**
+ * A panel in a window of its own, which a saved layout docks again.
+ *
+ * @typedef {object} WindowEntry
+ * @property {string} id - The panel's id.
+ * @property {string} group - The id of the dock group it left.
+ * @property {any} state - The panel as dockview's `toJSON` gave it in the dock.
  */
 
 /**
@@ -98,8 +109,8 @@ export function layoutSource({narrow, saved, preset}) {
  * A layout in its stored form.
  *
  * @param {any} dock - The dock, as dockview's `toJSON` gives it.
- * @param {RailEntry[]} rail - The panels on the rail.
- * @returns {{version: number, dock: any, rail: RailEntry[]}} The layout.
+ * @param {ClosedEntry[]} rail - The closed panels.
+ * @returns {{version: number, dock: any, rail: ClosedEntry[]}} The layout.
  */
 export function layoutOf(dock, rail) {
     return {version: LAYOUT_VERSION, dock, rail};
@@ -109,11 +120,57 @@ export function layoutOf(dock, rail) {
  * The text that saves a layout.
  *
  * @param {any} dock - The dock, as dockview's `toJSON` gives it.
- * @param {RailEntry[]} rail - The panels on the rail.
+ * @param {ClosedEntry[]} rail - The closed panels.
  * @returns {string} The text to store.
  */
 export function savedLayoutText(dock, rail) {
     return JSON.stringify(layoutOf(dock, rail));
+}
+
+/**
+ * Find a group in a grid, as dockview's `toJSON` writes it.
+ *
+ * @param {any} node - A branch or a leaf of the grid.
+ * @param {string} id - The group's id.
+ * @returns {any} The leaf's data, or undefined when the group is not there.
+ */
+function findGroup(node, id) {
+    if (node.type === "leaf") {
+        return node.data.id === id ? node.data : undefined;
+    }
+    return node.data.map(child => findGroup(child, id)).find(Boolean);
+}
+
+/**
+ * A dock with the panels that are in windows of their own docked again.
+ *
+ * A panel goes back as the last tab of the group it left, or in a group of its own at the end
+ * of the dock's outer row (or column) when that group is gone. So a saved layout never needs
+ * a window to show it.
+ *
+ * @param {any} dock - The dock, as dockview's `toJSON` gives it; it is not changed.
+ * @param {WindowEntry[]} windows - The panels in windows of their own.
+ * @returns {any} The dock to save.
+ */
+export function dockedLayout(dock, windows) {
+    if (!windows.length) {
+        return dock;
+    }
+    const docked = structuredClone(dock);
+    const {root} = docked.grid;
+    for (const {id, group, state} of windows) {
+        const leaf = findGroup(root, group);
+        if (leaf) {
+            leaf.views.push(id);
+        } else {
+            const sizes = root.data.map(child => child.size || 0);
+            const size = sizes.reduce((sum, s) => sum + s, 0) / Math.max(sizes.length, 1);
+            const data = {views: [id], activeView: id, id: `window-${id}`};
+            root.data.push({type: "leaf", data, size});
+        }
+        docked.panels[id] = state;
+    }
+    return docked;
 }
 
 /**
@@ -127,10 +184,10 @@ function isObject(v) {
 }
 
 /**
- * Read a rail entry.
+ * Read a closed panel's entry.
  *
  * @param {any} entry - The entry as stored.
- * @returns {?RailEntry} The entry, or null if a field is malformed.
+ * @returns {?ClosedEntry} The entry, or null if a field is malformed.
  */
 function readRailEntry(entry) {
     if (!isObject(entry) || typeof entry.id !== "string") {
