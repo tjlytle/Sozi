@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# gh-as — run gh (or git) as a persona. One call = resolve identity + exec;
+# identity is an explicit argument, never ambient session env (PLAN.md §4).
+#
+# Usage:
+#   gh-as <who> <gh args…>                  # gh as <who>
+#   gh-as <who> --push <branch> [git args]  # git push to origin's repo
+#   gh-as <who> --git <git args…>           # git (commits) as <who>
+#
+# <who> is a persona (advocate architect builder qa reviewer ops), a bot name
+# (e.g. claude-dev), or '-' for the user's own auth (approvals, human acts).
+#
+# A persona resolves per repo from `## GitHub Workflow` (`gh-personas mode`):
+#   bot     `Bots:` binds it to an App → that App's token (local bot-token, or
+#           the cloud mint when GH_MINT_URL/GH_MINT_KEY are set)
+#   marker  no binding, or the App can't mint for this repo → the user's auth,
+#           with the marker (default `🤖 **[persona]**`) prefixed to body text
+#           and a `Persona:` trailer on commits
+#   off     `Personas: off` → the user's auth, unchanged
+# Tokens are never printed. GH_AS_DRY_RUN=1 prints the resolved command instead
+# of running it (tokens redacted).
+set -euo pipefail
+
+bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/config.sh
+. "${bin_dir}/../lib/config.sh"
+
+usage() {
+  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' >&2
+  exit 1
+}
+
+[ $# -ge 2 ] || usage
+who="$1"; shift
+
+run() {
+  if [ -n "${GH_AS_DRY_RUN:-}" ]; then
+    local out=() a
+    for a in "$@"; do out+=("$(printf '%s' "$a" | sed -E 's#x-access-token:[^@]+@#x-access-token:***@#')"); done
+    printf 'gh-as[%s]:' "$mode_desc" >&2; printf ' %q' "${out[@]}" >&2; printf '\n' >&2
+    exit 0
+  fi
+  exec "$@"
+}
+
+mint_token() {
+  local bot="$1" repo="$2"
+  [ -n "$repo" ] || return 1
+  if [ -n "${GH_MINT_URL:-}" ] && [ -n "${GH_MINT_KEY:-}" ]; then
+    curl -fsS -X POST "$GH_MINT_URL" \
+      -H "Authorization: Bearer $GH_MINT_KEY" \
+      -H 'Content-Type: application/json' \
+      -d "{\"repo\": \"${repo}\", \"bot\": \"${bot}\"}" 2>/dev/null | jq -er .token
+  else
+    "${bin_dir}/bot-token" "$bot" "$repo" 2>/dev/null
+  fi
+}
+
+git_identity() {
+  local env_file="${GH_BOT_CONFIG_DIR:-${HOME}/.config/gh-bot}/${1}/bot-env"
+  BOT_GIT_NAME="" BOT_GIT_EMAIL=""
+  if [ -f "$env_file" ]; then
+    # shellcheck source=/dev/null
+    . "$env_file"
+  fi
+  BOT_GIT_NAME="${BOT_GIT_NAME:-${1}[bot]}"
+  BOT_GIT_EMAIL="${BOT_GIT_EMAIL:-${1}[bot]@users.noreply.github.com}"
+}
+
+# Prefix the marker to a body string, once; separate it with a blank line when
+# the body starts with block markdown (heading, list, table, fence, quote).
+mark() {
+  local body="$1" m
+  m=$(ghp_marker "$persona")
+  case "$body" in "$m"*) printf '%s' "$body"; return ;; esac
+  case "$body" in '#'*|'-'*|'*'*|'|'*|'```'*|'>'*) printf '%s\n\n%s' "$m" "$body" ;; *) printf '%s %s' "$m" "$body" ;; esac
+}
+
+mark_file() {
+  local src="$1" tmp
+  tmp=$(mktemp "${TMPDIR:-/tmp}/gh-as-body.XXXXXX")
+  if [ "$src" = "-" ]; then mark "$(cat)" > "$tmp"; else mark "$(cat "$src")" > "$tmp"; fi
+  printf '%s' "$tmp"
+}
+
+# Rewrite gh args so every body carries the marker (NUL-separated output).
+marked_gh_args() {
+  local out=() a v
+  if [ "${1:-}" = api ]; then
+    while [ $# -gt 0 ]; do
+      a="$1"; shift
+      case "$a" in
+        -f|-F|--field|--raw-field)
+          v="${1:-}"; shift || true
+          case "$v" in body=@*) v="body=@$(mark_file "${v#body=@}")" ;; body=*) v="body=$(mark "${v#body=}")" ;; esac
+          out+=("$a" "$v") ;;
+        *) out+=("$a") ;;
+      esac
+    done
+  else
+    while [ $# -gt 0 ]; do
+      a="$1"; shift
+      case "$a" in
+        -b|--body)      out+=("$a" "$(mark "${1:-}")"); shift || true ;;
+        --body=*)       out+=("--body=$(mark "${a#--body=}")") ;;
+        -F|--body-file) out+=("$a" "$(mark_file "${1:--}")"); shift || true ;;
+        --body-file=*)  out+=("--body-file=$(mark_file "${a#--body-file=}")") ;;
+        *)              out+=("$a") ;;
+      esac
+    done
+  fi
+  printf '%s\0' "${out[@]}"
+}
+
+resolved=$(ghp_resolve "$who")
+mode="${resolved%% *}"
+persona="$who"
+repo=$(ghp_repo_from_origin || true)
+token=""
+bot=""
+
+if [ "$mode" = bot ]; then
+  bot="${resolved#bot }"
+  if [ -n "${GH_AS_DRY_RUN:-}" ] && [ -n "${GH_AS_DRY_RUN_NO_MINT:-}" ]; then
+    token="dry-run"
+  elif ! token=$(mint_token "$bot" "$repo") || [ -z "$token" ]; then
+    echo "gh-as: bot '$bot' can't mint for ${repo:-this repo} (not installed, no config, or offline); using your auth with the marker" >&2
+    mode=marker; token=""
+  fi
+fi
+case "$mode" in
+  bot)    mode_desc="bot:$bot" ;;
+  marker) mode_desc="marker:$persona" ;;
+  *)      mode_desc="$mode" ;;
+esac
+
+case "${1:-}" in
+  --push)
+    shift
+    branch="${1:?usage: gh-as <who> --push <branch> [git push args]}"; shift
+    if [ "$mode" = bot ]; then
+      run git push "https://x-access-token:${token}@github.com/${repo}.git" "$branch" "$@"
+    else
+      run git push origin "$branch" "$@"
+    fi
+    ;;
+  --git)
+    shift
+    [ $# -ge 1 ] || usage
+    case "$mode" in
+      bot)
+        git_identity "$bot"
+        run git -c user.name="$BOT_GIT_NAME" -c user.email="$BOT_GIT_EMAIL" "$@" ;;
+      marker)
+        if [ "$1" = commit ]; then
+          shift
+          run git commit --trailer "Persona: $persona" "$@"
+        fi
+        run git "$@" ;;
+      *) run git "$@" ;;
+    esac
+    ;;
+  *)
+    case "$mode" in
+      bot)
+        export GH_TOKEN="$token"
+        run gh "$@" ;;
+      marker)
+        args=()
+        while IFS= read -r -d '' a; do args+=("$a"); done < <(marked_gh_args "$@")
+        run gh "${args[@]}" ;;
+      *) run gh "$@" ;;
+    esac
+    ;;
+esac
