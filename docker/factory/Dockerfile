@@ -1,5 +1,5 @@
 # The factory stage image. Build from the repo root:
-#   docker build -t sozi-factory -f docker/factory/Dockerfile --build-context ghp=<gh-personas dir> .
+#   docker build -t sozi-factory -f docker/factory/Dockerfile .
 FROM node:24-bookworm
 
 # Tools the stage runner and the agents use, plus Electron's shared libraries.
@@ -67,10 +67,10 @@ ENV PATH="/home/factory/.local/bin:${PATH}"
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/ms-playwright
 RUN cd /cache && npx playwright install chromium
 
-# The gh-personas plugin (build context "ghp"): hooks and skill, bin on PATH.
+# gh-as from packages/gh-as, the same for every harness; no plugin in the container.
 USER root
-COPY --from=ghp / /opt/gh-personas
-ENV PATH="/opt/gh-personas/bin:${PATH}"
+COPY --chmod=755 packages/gh-as /opt/gh-as
+ENV PATH="/opt/gh-as/bin:${PATH}"
 
 # The runner and the harness adapters, executable; last, as it changes most.
 COPY --chown=factory:factory --chmod=755 pipeline /pipeline

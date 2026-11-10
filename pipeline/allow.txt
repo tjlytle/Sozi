@@ -12,7 +12,6 @@ Agent
 Skill
 TodoWrite
 Bash(gh-as *)
-Bash(gh-personas *)
 Bash(gh *)
 Bash(git *)
 Bash(npm *)

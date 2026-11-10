@@ -49,8 +49,8 @@ Working. Runs `claude -p` with `--permission-mode acceptEdits`, the allow list
 as `--allowedTools`, `--output-format stream-json --verbose`, saves the raw
 stream to `DIR/stream.jsonl` and prints a readable log (`▶` for a tool call,
 `■` for the result). `--max-budget-usd` is added only when
-`PIPELINE_SESSION_BUDGET_USD` is set and not `0`; `--plugin-dir` only when
-`PLUGIN_DIR` (default `/opt/gh-personas`) exists. `CLAUDE_BIN` overrides the
+`PIPELINE_SESSION_BUDGET_USD` is set and not `0`. No `--plugin-dir`: the container
+has no plugin, and `gh-as` is `/opt/gh-as` from `packages/gh-as/` for every harness. `CLAUDE_BIN` overrides the
 binary; it is one word, a path, not a command with arguments (the tests use `test/fixtures/pipeline/fake-claude`). Usage comes from
 the last `result` event of the call: its tokens and turns are per call and
 added up, its `total_cost_usd` is already the session's, and the cost kept is the
