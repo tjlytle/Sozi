@@ -6,6 +6,7 @@ deb
 cache
 /js/backend/GoogleDrive.config.js
 npm-debug.log
+__pycache__/
 *.mo
 .agents/tmp/*
 !.agents/tmp/.gitkeep
