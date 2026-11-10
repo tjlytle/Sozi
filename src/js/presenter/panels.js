@@ -15,8 +15,10 @@
  * @typedef {object} PanelDefinition
  * @property {string} id - Its id, which the saved layout names.
  * @property {string} title - The title of its tab.
- * @property {string} [icon] - The text of its button on the rail; by default, the title's
- *   first letter.
+ * @property {string} [icon] - The glyph before its title in the menus; by default, the
+ *   title's first letter.
+ * @property {string} [description] - One line that says what it is, under its title in the +
+ *   menu; empty by default.
  * @property {(element: HTMLElement) => (void | (() => void))} [render] - Draws the panel;
  *   may return the function that cleans it up.
  * @property {string} [url] - The page to embed instead: exactly one of `render` or `url`.
@@ -105,7 +107,7 @@ export function urlPanelRender(url, title) {
  * @throws {TypeError} Naming the field that is missing or not valid.
  */
 export function readPanel(def) {
-    const {id, title, icon, render, url, defaults = DEFAULT_PLACE} = def || {};
+    const {id, title, icon, description, render, url, defaults = DEFAULT_PLACE} = def || {};
     if (typeof id !== "string" || !id) {
         throw new TypeError("A panel needs an id");
     }
@@ -114,6 +116,12 @@ export function readPanel(def) {
     }
     if (icon !== undefined && typeof icon !== "string") {
         throw new TypeError(`Panel "${id}": icon must be a string`);
+    }
+    if (
+        description !== undefined &&
+        (typeof description !== "string" || /[\r\n]/.test(description))
+    ) {
+        throw new TypeError(`Panel "${id}": description must be a string of one line`);
     }
     if ((render === undefined) === (url === undefined)) {
         throw new TypeError(`Panel "${id}" needs exactly one of render or url`);
@@ -129,6 +137,7 @@ export function readPanel(def) {
         id,
         title,
         icon: icon === undefined ? title.charAt(0) : icon,
+        description: description === undefined ? "" : description,
         // Cast: with no render, the check above has found a url.
         render: safeRender(render || urlPanelRender(/** @type {string} */ (url), title), title)
     };
