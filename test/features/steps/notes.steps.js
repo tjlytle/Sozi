@@ -89,7 +89,10 @@ async function clickNotesLink(world, text, modifiers) {
     const click = {address: page.url(), pages: /** @type {import("playwright").Page[]} */ ([])};
     world.notesClick = click;
     context.on("page", opened => click.pages.push(opened));
-    await notesLink(page, text).click({modifiers, ...NOTES_WAIT});
+    const link = notesLink(page, text);
+    await expect(link).toBeVisible(NOTES_WAIT);
+    // Forced: Playwright reads a broken link's aria-disabled as not enabled; a mouse still clicks.
+    await link.click({modifiers, force: true});
 }
 
 /** The section headings of the notes document.
