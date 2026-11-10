@@ -136,6 +136,15 @@ describe("bin/pipeline.js run", () => {
         assert.equal(run.stopped, false);
         assert.equal(run.notionPage, "page-1");
     });
+    test("a digest without NOTION_TOKEN leaves the run open", async () => {
+        const h = host({statuses: []});
+        const file = writeState(h.root, runningState());
+        h.deps.digest = async () => 0;
+        await main(["--digest"], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.stopped, false);
+        assert.equal(run.notionPage, "page-1");
+    });
     test("a second digest on a finished run posts nothing", async () => {
         const h = host({statuses: []});
         const state = runningState();

@@ -35,6 +35,7 @@ import {createPass} from "../pipeline/lib/pass.js";
 import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
 import {SettingsWatch} from "../pipeline/lib/settings-watch.js";
 import {PERSONAS} from "../pipeline/lib/profile.js";
+import {HARNESSES} from "../pipeline/lib/routing.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
 import {emptyState, loadState, saveState} from "../pipeline/lib/state.js";
 import {profilesText, statusText} from "../pipeline/lib/status.js";
@@ -180,8 +181,8 @@ function parseCommand(argv) {
     }
     if (values.login !== undefined) {
         checkPersona(values.login);
-        if (!["claude", "codex", "agy", "opencode"].includes(values.harness ?? "claude")) {
-            throw new Error("harness must be one of claude|codex|agy|opencode");
+        if (!HARNESSES.includes(values.harness ?? "claude")) {
+            throw new Error(`harness must be one of ${HARNESSES.join("|")}`);
         }
     }
     const target = positionals[0] ?? "watch";
