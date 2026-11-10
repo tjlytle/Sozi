@@ -17,6 +17,7 @@
 #           with the marker (default `🤖 **[persona]**`) prefixed to body text
 #           and a `Persona:` trailer on commits
 #   off     `Personas: off` → the user's auth, unchanged
+# With GH_AS_SIGNATURE set, bodies and commits are signed (lib/signature.sh).
 # Tokens are never printed. GH_AS_DRY_RUN=1 prints the resolved command instead
 # of running it (tokens redacted).
 set -euo pipefail
@@ -24,9 +25,11 @@ set -euo pipefail
 bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/config.sh
 . "${bin_dir}/../lib/config.sh"
+# shellcheck source=../lib/signature.sh
+. "${bin_dir}/../lib/signature.sh"
 
 usage() {
-  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
 
@@ -133,6 +136,18 @@ case "$mode" in
   marker) mode_desc="marker:$persona" ;;
   *)      mode_desc="$mode" ;;
 esac
+
+# The stage signature (lib/signature.sh): trailers on a commit, the line on a gh body.
+if [ "${1:-}" = --git ] && [ "${2:-}" = commit ]; then
+  shift 2
+  trailers=()
+  while IFS= read -r -d '' a; do trailers+=("$a"); done < <(sig_trailers)
+  set -- --git commit ${trailers[@]+"${trailers[@]}"} "$@"
+elif [ "${1:-}" != --push ] && [ "${1:-}" != --git ] && sig_applies "$@"; then
+  signed=()
+  while IFS= read -r -d '' a; do signed+=("$a"); done < <(signed_gh_args "$@")
+  set -- "${signed[@]}"
+fi
 
 case "${1:-}" in
   --push)
