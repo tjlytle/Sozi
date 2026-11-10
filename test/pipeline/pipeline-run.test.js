@@ -189,6 +189,18 @@ describe("bin/pipeline.js run", () => {
         assert.ok(asked.includes("s1"), "the spawn session is still watched");
         assert.ok(started.includes("advocate"), "the queued spawn still starts");
     });
+    test("a finished run hands its harness pauses to the next", async () => {
+        const h = host({statuses: []});
+        const state = runningState();
+        state.run.stopped = true;
+        const pause = {until: "2999-01-01T00:00:00.000Z", streak: 2, reported: false};
+        state.run.limits = {claude: pause};
+        writeState(h.root, state);
+        await main(["--once"], {root: h.root, env: {}, out: () => {}, deps: h.deps});
+        const file = path.join(h.root, "var", "pipeline", "state.json");
+        const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+        assert.deepEqual(saved.run.limits, {claude: pause});
+    });
     test("one interrupt keeps the mint up until the last session is judged", async () => {
         const h = host({
             statuses: ["running", "running", "exited"],
