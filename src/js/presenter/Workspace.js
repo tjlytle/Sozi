@@ -538,7 +538,8 @@ export class Workspace {
 
     /** Show every panel as one stack of tabs.
      *
-     * The first panel added leads the stack; minimised panels are tabs of it too.
+     * The first panel added leads the stack and is the tab shown; minimised panels are tabs of
+     * it too.
      */
     showStack() {
         if (this.dock.hasMaximizedGroup()) {
@@ -559,6 +560,8 @@ export class Workspace {
                 panel.api.moveTo({group: target});
             }
         }
+        // Each move shows the panel moved; the stack opens on its lead.
+        /** @type {any} */ (lead).api.setActive();
     }
 
     /** Remove the dock, the rail and every panel, and stop listening. */

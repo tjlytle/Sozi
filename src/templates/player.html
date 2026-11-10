@@ -115,9 +115,11 @@
                 transition: opacity 0.5s, visibility 0.5s;
             }
 
+            /* While it fades out, the pointer already reaches the slide. */
             .sozi-blank-screen--off {
                 opacity: 0;
                 visibility: hidden;
+                pointer-events: none;
             }
 
             svg a {
@@ -126,6 +128,11 @@
 
             .sozi-camera__layer--hidden {
                 display: none;
+            }
+
+            /* The current-frame preview pans and zooms the display itself (PreviewGestures). */
+            .sozi-preview-gestures {
+                touch-action: none;
             }
 
             @keyframes spinner {
