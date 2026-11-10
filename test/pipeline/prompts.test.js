@@ -132,7 +132,7 @@ describe("every prompt", () => {
         assert.match(spawn, /\.agents\/tmp\//);
         assert.doesNotMatch(spawn, /code-standard\.md/);
     });
-    test("plan: the seven headings in order", () => {
+    test("plan: the eight headings in order", () => {
         const plan = fs.readFileSync("pipeline/plan.md", "utf8");
         const headings = [
             "Behaviour",
@@ -141,6 +141,7 @@ describe("every prompt", () => {
             "Tests",
             "Dependencies",
             "Decisions taken",
+            "Harness",
             "Blocked by"
         ];
         let at = -1;
@@ -149,6 +150,19 @@ describe("every prompt", () => {
             assert.ok(found > at, `${heading} missing or out of order`);
             at = found;
         }
+    });
+    test("plan: the architect loads harness-routing for the Harness heading", () => {
+        const plan = fs.readFileSync("pipeline/plan.md", "utf8");
+        assert.match(plan, /harness-routing/);
+    });
+});
+
+describe("the harness-routing skill", () => {
+    test("exists and states the two starting rules", () => {
+        const skill = fs.readFileSync(".claude/skills/harness-routing/SKILL.md", "utf8");
+        assert.match(skill, /^---\nname: harness-routing\n/);
+        assert.match(skill, /Reviews run on Codex/);
+        assert.match(skill, /Presenter UI changes run on Codex/);
     });
 });
 
