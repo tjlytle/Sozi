@@ -86,9 +86,9 @@ async function clickNotesLink(world, text, modifiers) {
         url => url.hostname === EXTERNAL_HOST,
         route => route.fulfill({contentType: "text/html", body: "<title>Out</title>"})
     );
-    world.presenterAddress = page.url();
-    world.openedPages = [];
-    context.on("page", opened => world.openedPages.push(opened));
+    const click = {address: page.url(), pages: /** @type {import("playwright").Page[]} */ ([])};
+    world.notesClick = click;
+    context.on("page", opened => click.pages.push(opened));
     await notesLink(page, text).click({modifiers, ...NOTES_WAIT});
 }
 
@@ -178,12 +178,12 @@ Then("the notes link {string} is marked broken", async function (text) {
 Then("the presenter page's address is unchanged", async function () {
     // A navigation the click started has had time to change the address.
     await this.presenter.waitForTimeout(SETTLE_MS);
-    assert.equal(this.presenter.url(), this.presenterAddress);
+    assert.equal(this.presenter.url(), this.notesClick.address);
 });
 
 Then("a new page opens at {string}", async function (address) {
     // The browser adds a slash to an address with no path.
-    const opened = () => this.openedPages.map(page => page.url().replace(/\/$/, ""));
+    const opened = () => this.notesClick.pages.map(page => page.url().replace(/\/$/, ""));
     await expect.poll(opened, NOTES_WAIT).toContain(address.replace(/\/$/, ""));
 });
 
