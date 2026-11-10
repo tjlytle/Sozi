@@ -39,6 +39,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string} [harness] - The harness it runs on; absent on sessions saved before harnesses.
  * @property {string} [model] - The model it runs on; absent with the harness.
  * @property {boolean} [planned] - Whether the plan's Harness line chose the harness, not the stage setting.
+ * @property {boolean} [profile] - Whether the persona's profile was mounted; absent on sessions saved before resumes.
  */
 
 /**
@@ -57,6 +58,17 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {number | null} [linked] - The epic the loop last linked the issue to as a sub-issue; absent until the loop has read its parent.
  * @property {string | null} seen - The issue's updatedAt when last read.
  * @property {boolean} [waiting] - A session ended asking a person to act; cleared by a stage change.
+ * @property {Interrupted | null} [interrupted] - The session a usage limit stopped, whose work the next session of its stage carries on; cleared when that one starts.
+ */
+
+/**
+ * @typedef {object} Interrupted
+ * @property {string} harness - The harness it ran on.
+ * @property {string} model - The model it ran on.
+ * @property {string | null} session - The harness session to resume; null when it ran without a profile, which keeps no transcript.
+ * @property {string} outbox - Its outbox, which holds carry.bundle and carry.patch.
+ * @property {string} persona - The persona it ran as.
+ * @property {string} stage - The prompt stage it ran.
  */
 
 /**
@@ -70,7 +82,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @typedef {object} State
  * @property {Record<string, any>} run - Totals and flags of the current run.
  * @property {Record<number, IssueRecord>} issues - Known issues by number.
- * @property {{last: string | null, backoffUntil: string | null, backoffStreak?: number}} sync - GitHub sync bookkeeping; the streak counts model rate limits in a row.
+ * @property {{last: string | null, backoffUntil: string | null}} sync - GitHub sync bookkeeping.
  * @property {(LabelOp | {comment: {persona: string, issue: number, body: string}})[]} queued - Label changes and comments not yet written to GitHub.
  * @property {{op: object, error: string}[]} [deadLetters] - Queued writes GitHub refused for good.
  * @property {any} [boardMeta] - The board details bin/board.js caches.
@@ -90,22 +102,28 @@ export function emptyState() {
             costUsd: 0,
             stopped: false,
             notionPage: null,
-            mintKey: null
+            mintKey: null,
+            limits: {}
         },
         issues: {},
-        sync: {last: null, backoffUntil: null, backoffStreak: 0},
+        sync: {last: null, backoffUntil: null},
         queued: []
     };
 }
 
-/** Reads the state file, or returns an empty state when it does not exist.
+/** Reads the state file, or returns an empty state when it does not exist. A state saved
+ * before limits were kept per harness drops the run-wide pause and streak it had.
  *
  * @param {string} file - The path.
  * @returns {State} - The state.
  */
 export function loadState(file) {
     try {
-        return JSON.parse(fs.readFileSync(file, "utf8"));
+        const state = JSON.parse(fs.readFileSync(file, "utf8"));
+        delete state.run.startsPausedUntil;
+        delete state.sync.backoffStreak;
+        state.run.limits ??= {};
+        return state;
     } catch (error) {
         if (/** @type {{code?: string}} */ (error).code === "ENOENT") {
             return emptyState();
@@ -149,7 +167,7 @@ export function promptFor(stage) {
 
 /** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
  * waiting while its stage holds and it stays open; a parked one keeps its park time; the
- * board card and the sub-issue link carry over.
+ * board card, the sub-issue link and an interrupted session carry over.
  *
  * @param {State} state - The state.
  * @param {object} issue - The issue.
@@ -178,6 +196,7 @@ export function applyIssue(state, issue) {
         epic: epic ? Number(epic[1]) : null,
         board: existing?.board ?? null,
         ...(existing?.linked !== undefined && {linked: existing.linked}),
+        ...(existing?.interrupted && {interrupted: existing.interrupted}),
         seen: issue.updatedAt ?? null,
         waiting:
             issue.state !== "CLOSED" && existing?.stage === stageOf(issue.labels)

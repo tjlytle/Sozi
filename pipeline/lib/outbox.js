@@ -4,15 +4,19 @@
 
 // Reading what a session left in its outbox without trusting it: the session could
 // write any file there, so only regular files are read (never a symlink or a named
-// pipe), and only up to a size cap. The result file and the log tail live here; the
-// request files are checked in requests.js.
+// pipe), and only up to a size cap. The result file, the log tail and the carry files
+// live here; the request files are checked in requests.js.
 
 import fs from "node:fs";
 import path from "node:path";
 
+/** The work a session a usage limit stopped leaves for the next one (stage.sh writes them). */
+const CARRY_FILES = ["carry.bundle", "carry.patch"];
+
 const MAX_RESULT_BYTES = 256 * 1024;
 const LOG_TAIL_BYTES = 64 * 1024;
 const LOG_TAIL_LINES = 20;
+const MAX_LIMIT_CHARS = 300;
 const USAGE_STATUSES = ["ok", "error", "rate-limited", "auth", "budget", "unsupported"];
 const HOOKS = ["ok", "error", "skipped"];
 const NO_FOLLOW = fs.constants.O_NOFOLLOW ?? 0;
@@ -25,6 +29,7 @@ const NON_BLOCK = fs.constants.O_NONBLOCK ?? 0;
  * @property {number} costUsd - Cost in US dollars.
  * @property {number} turns - Conversation turns.
  * @property {string} status - How the usage report ended.
+ * @property {string} [limit] - The CLI's usage-limit message, when it stopped at one.
  */
 
 /**
@@ -123,6 +128,24 @@ export function logTail(outbox) {
 }
 
 /**
+ * Copy the carry files of a session a usage limit stopped into the next session's outbox.
+ * Only regular files are copied, never a link or a named pipe; they are not read here, only
+ * applied by git inside the next container.
+ *
+ * @param {string} from - The stopped session's outbox.
+ * @param {string} to - The new outbox.
+ * @returns {void}
+ */
+export function copyCarry(from, to) {
+    for (const name of CARRY_FILES) {
+        const file = path.join(from, name);
+        if (fs.lstatSync(file, {throwIfNoEntry: false})?.isFile()) {
+            fs.copyFileSync(file, path.join(to, name));
+        }
+    }
+}
+
+/**
  * @param {unknown} value - A value from the file.
  * @returns {value is Record<string, unknown>} Whether it is a plain object.
  */
@@ -132,7 +155,8 @@ function isObject(value) {
 
 /**
  * Read the result.json the stage runner wrote, filling in defaults; `hooks` is "ok"
- * unless the runner wrote "error" or "skipped".
+ * unless the runner wrote "error" or "skipped", and a usage `limit` message is kept only
+ * as a string, cut to 300 characters.
  *
  * @param {string} dir - The outbox directory.
  * @param {{log?: (line: string) => void}} [options] - Where to say why a file was not read.
@@ -178,7 +202,8 @@ export function readResult(dir, {log = () => {}} = {}) {
             status:
                 typeof u.status === "string" && USAGE_STATUSES.includes(u.status)
                     ? u.status
-                    : "error"
+                    : "error",
+            ...(typeof u.limit === "string" ? {limit: u.limit.slice(0, MAX_LIMIT_CHARS)} : {})
         },
         changed: strings(raw.changed),
         commits: strings(raw.commits),
