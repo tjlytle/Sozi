@@ -75,6 +75,34 @@ function advise(files, diffFile) {
     return result.stdout.split("\n").filter(Boolean);
 }
 
+/** Write a scratch file and a diff of it, and return the hook's notes on that diff.
+ *
+ * @param {string} content - The file content.
+ * @param {string} diffText - A unified diff of the file.
+ * @returns {string[]} - One note per line.
+ */
+function adviseOnDiff(content, diffText) {
+    const file = path.join(root, "src", "js", "zz-body-end.js");
+    const diff = path.join(root, "src", "js", "zz-body-end.diff");
+    fs.writeFileSync(file, content);
+    fs.writeFileSync(diff, diffText);
+    try {
+        return advise(file, diff);
+    } finally {
+        fs.unlinkSync(file);
+        fs.unlinkSync(diff);
+    }
+}
+
+/** A `-U0` diff that changes one line of a file.
+ *
+ * @param {number} line - The 1-based line that changed.
+ * @returns {string} - The diff.
+ */
+function oneLineDiff(line) {
+    return `--- a\n+++ b\n@@ -${line},1 +${line},1 @@\n-x\n+y\n`;
+}
+
 /** Assert the hook refused its arguments: exit 2, the usage line on stderr, nothing on stdout.
  *
  * @param {string[]} args - The arguments after `--advise`.
@@ -144,6 +172,38 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
             fs.unlinkSync(file);
             fs.unlinkSync(diff);
         }
+    });
+    const helperThenDescribe =
+        "/** Doubles a number.\n *\n * @param {number} n - A number.\n * @returns {number} - Twice n.\n */\n" +
+        "function twice(n) {\n    return n * 2;\n}\n\n" +
+        'describe("x", () => {\n    test("doubles", () => {\n        assert.equal(twice(2), 4);\n    });\n});\n';
+    test("a change inside a describe after a documented helper does not blame the helper", () => {
+        const notes = adviseOnDiff(helperThenDescribe, oneLineDiff(12));
+        assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
+    });
+    test("a change inside the helper's body before a describe still gets a note", () => {
+        const notes = adviseOnDiff(helperThenDescribe, oneLineDiff(7));
+        assert.ok(
+            notes.some(n => /code of `twice` changed but the summary comment/.test(n)),
+            notes.join("\n")
+        );
+    });
+    test("a change after a wrapped parameter list gets a note", () => {
+        const notes = adviseOnDiff(
+            "/** Adds two numbers. */\nfunction f(\n    a,\n    b\n) {\n    return a + b;\n}\n",
+            oneLineDiff(6)
+        );
+        assert.ok(
+            notes.some(n => /code of `f` changed but the summary comment/.test(n)),
+            notes.join("\n")
+        );
+    });
+    test("a change to a call after a documented one-line const does not blame the const", () => {
+        const notes = adviseOnDiff(
+            "/** The most retries. */\nconst LIMIT = 3;\n\nconsole.log(LIMIT);\n",
+            oneLineDiff(4)
+        );
+        assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
     });
 });
 
