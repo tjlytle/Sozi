@@ -261,8 +261,11 @@ Then("the second surface's current-frame preview shows {string}", async function
 
 Then("the current-frame preview shows no {string}", async function (name) {
     assert.equal(name, "Back to frame");
-    // The button is in the preview but hidden, so a preview without one does not pass.
-    const button = backToFrame(this.presenter);
+    // The button is in the preview but hidden, so a preview without one does not pass. A role
+    // query leaves hidden elements out unless asked for them.
+    const button = this.presenter
+        .locator(CURRENT_BOX)
+        .getByRole("button", {name: "Back to frame", includeHidden: true});
     await expect(button).toHaveCount(1, WAIT);
     await expect(button).toBeHidden(WAIT);
 });
