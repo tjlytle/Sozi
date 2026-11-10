@@ -214,8 +214,10 @@
                 padding-left: var(--sozi-space);
             }
 
-            /* A link to a frame the deck does not have. */
-            .sozi-notes__link--broken {
+            /* A link to a frame the deck does not have. Scoped to the notes body, so that it
+               outranks the Markdown stylesheet's link and hover rules. */
+            .sozi-notes-body .sozi-notes__link--broken,
+            .sozi-notes-body .sozi-notes__link--broken:hover {
                 color: var(--sozi-button-border);
                 text-decoration: line-through;
                 cursor: not-allowed;

@@ -178,6 +178,8 @@ Then("the notes link {string} is marked broken", async function (text) {
     // The tooltip names the frame the link asks for.
     const target = /** @type {string} */ (await link.getAttribute("href")).slice(1);
     await expect(link).toHaveAttribute("title", new RegExp(target));
+    // Drawn struck through, not as Markdown's plain link.
+    await expect(link).toHaveCSS("text-decoration-line", "line-through");
 });
 
 Then("the presenter page's address is unchanged", async function () {
