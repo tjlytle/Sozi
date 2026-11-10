@@ -59,7 +59,8 @@ launch() {
 
 # Write OUT/usage.json for the whole session: on resume, this call's tokens and turns
 # (from the last result line of its stream) are added to the previous usage.json; the
-# cost is taken as the result reports it (already cumulative), or kept when there is none.
+# cost (already cumulative) is the larger of the previous one and this call's, since a
+# call stopped by a usage limit reports 0 and a call with no result line reports none.
 # A call that made no model call (0 tokens) and says it failed to authenticate is "auth";
 # with no result line, the call's lines that are not JSON (the CLI's own errors) say it.
 write_usage() {
@@ -79,7 +80,7 @@ write_usage() {
          ($said | test("Failed to authenticate|authentication_error|\\b401\\b"))) as $auth |
         {tokensIn: (($prev.tokensIn // 0) + ($x.usage.input_tokens // 0)),
          tokensOut: (($prev.tokensOut // 0) + ($x.usage.output_tokens // 0)),
-         costUsd: ($x.total_cost_usd // $prev.costUsd // 0),
+         costUsd: ([$prev.costUsd // 0, $x.total_cost_usd // 0] | max),
          turns: (($prev.turns // 0) + ($x.num_turns // 0)),
          status: (if $auth then "auth"
                   elif $r == null then "error"

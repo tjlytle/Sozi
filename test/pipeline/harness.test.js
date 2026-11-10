@@ -175,6 +175,20 @@ describe("harness adapters", () => {
         });
     });
 
+    test("claude: a usage-limited resume keeps the session's cost and exits 75", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out));
+        const r = adapter("claude", resumeArgs(out), {FAKE_MODE: "usagelimit"});
+        assert.equal(r.status, 75);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 101,
+            tokensOut: 20,
+            costUsd: 0.12,
+            turns: 4,
+            status: "rate-limited"
+        });
+    });
+
     test("claude: resume over a usage.json that is not JSON counts from zero", () => {
         const out = scratch();
         adapter("claude", runArgs(out));
