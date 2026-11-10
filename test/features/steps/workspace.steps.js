@@ -2,24 +2,38 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Steps for the presenter workspace (#26): finding a panel by its tab title, docking,
-// resizing, the rail, maximise and the narrow stack.
+// Steps for the presenter workspace (#26, #318): finding a panel by its tab title, docking,
+// resizing, the + menu, each panel's menu, maximise, pop out and the narrow stack.
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
 
-// What dockview-core draws. These three selectors are the only ones here that name the
+// What dockview-core draws. These four selectors are the only ones here that name the
 // library, so a change of version or of engine changes them and nothing else.
 const TAB = ".dv-tab";
 const GROUP = ".dv-groupview";
 const SASH = ".dv-sash";
+// The tinted area of a drop target: drawn in the group, or in an anchor over the dock when
+// the theme mounts the overlays absolutely.
+const DROP_TARGET = ".dv-drop-target-selection, .dv-drop-target-anchor";
 
 // What the workspace draws around dockview.
 const WORKSPACE = ".sozi-workspace";
-export const RAIL = ".sozi-rail";
-const RAIL_PANELS = ".sozi-rail__panels";
 const CONNECTION = ".sozi-connection";
+
+// The button that opens a menu, the bar's or a group header's (#318).
+const MENU_BUTTON = '[aria-haspopup="menu"]';
+
+// The accessible names of the bar's menu buttons (#318).
+const ADD_PANEL = /Add panel/;
+const LAYOUTS = /^Layouts/;
+
+// Below this width the panels are one stack of tabs, and the stack saves nothing.
+const NARROW = 600;
+
+// The smallest side of a drop target a person can hit, in pixels.
+const DROP_TARGET_SIDE = 48;
 
 // The page the url panel of test/fixtures/addons points at.
 const URL_PANEL_PAGE = "page.html";
@@ -176,16 +190,92 @@ async function splitterBeside(page, box) {
     return right !== undefined ? {x: right, onRight: true} : {x: left, onRight: false};
 }
 
-/** The button of a panel's group header, with that panel's tab active.
+/** The menu that is open: the last one, as a submenu opens after the menu it comes from.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @returns {Promise<import("playwright").Locator>} - The menu.
+ */
+async function openMenu(page) {
+    const menu = page.getByRole("menu").last();
+    await expect(menu).toBeVisible(WAIT);
+    return menu;
+}
+
+/** Open a menu of the bar on the workspace's left edge.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {RegExp} name - The accessible name of the bar's button.
+ * @returns {Promise<import("playwright").Locator>} - The menu it opened.
+ */
+async function openBarMenu(page, name) {
+    await page.getByRole("button", {name}).click(WAIT);
+    return openMenu(page);
+}
+
+/** Open the ⋯ menu of a panel's group header, with that panel's tab active.
  *
  * @param {import("playwright").Page} page - The presenter page.
  * @param {string} title - The panel's title.
- * @param {RegExp} name - The button's accessible name.
- * @returns {Promise<import("playwright").Locator>} - The button.
+ * @returns {Promise<import("playwright").Locator>} - The menu.
  */
-async function headerButton(page, title, name) {
+async function openPanelMenu(page, title) {
     await tabOf(page, title).click(WAIT);
-    return groupOf(page, title).getByRole("button", {name});
+    await groupOf(page, title).locator(MENU_BUTTON).first().click(WAIT);
+    return openMenu(page);
+}
+
+/** Choose an item of a panel's menu, then a panel from the submenu it opens.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The title of the panel whose menu it is.
+ * @param {RegExp} item - The item's accessible name: Replace with… or Split right….
+ * @param {string} other - The title of the panel to choose in the submenu.
+ */
+async function choosePanelFor(page, title, item, other) {
+    const menu = await openPanelMenu(page, title);
+    await menu.getByRole("menuitem", {name: item}).click(WAIT);
+    // The panel menu's own items are actions, so a panel's title names one item only.
+    await page.getByRole("menuitem", {name: other, exact: true}).click(WAIT);
+}
+
+/** Do something that changes the arrangement, and wait until it is saved if it is saved.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {() => Promise<void>} action - What changes the arrangement.
+ */
+async function arranged(page, action) {
+    const narrow = (page.viewportSize()?.width ?? NARROW) < NARROW;
+    await (narrow ? action() : savedAfter(page, action));
+}
+
+/** Close a panel from its menu.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ */
+async function closePanel(page, title) {
+    await arranged(page, async () => {
+        const menu = await openPanelMenu(page, title);
+        await menu.getByRole("menuitem", {name: "Close", exact: true}).click(WAIT);
+        await expect(tabOf(page, title)).toHaveCount(0);
+    });
+}
+
+/** Check the items of the + menu, then close it.
+ *
+ * Each item's accessible name is its panel's title: the leading glyph is decoration and the
+ * description is the item's accessible description.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string[]} titles - The titles the menu lists, and nothing else.
+ */
+async function expectAddMenu(page, titles) {
+    const menu = await openBarMenu(page, ADD_PANEL);
+    await expect(menu.getByRole("menuitem")).toHaveCount(titles.length);
+    for (const title of titles) {
+        await expect(menu.getByRole("menuitem", {name: title, exact: true})).toBeVisible();
+    }
+    await page.keyboard.press("Escape");
 }
 
 /** The window of a preview's iframe.
@@ -240,24 +330,79 @@ When("the {string} panel is resized to {int} pixels wide", async function (title
     );
 });
 
-When("the {string} panel is minimised", async function (title) {
-    const button = await headerButton(this.presenter, title, /^Minimise$/);
-    await savedAfter(this.presenter, () => button.click(WAIT));
+When("the {string} panel is closed from its menu", async function (title) {
+    await closePanel(this.presenter, title);
 });
 
-When("the {string} icon on the rail is clicked", async function (title) {
-    const button = this.presenter.locator(RAIL).getByRole("button", {name: title, exact: true});
-    await savedAfter(this.presenter, () => button.click(WAIT));
+When("every panel but {string} is closed from its menu", async function (kept) {
+    const titles = await visibleTabTitles(this.presenter);
+    for (const title of titles.filter(title => title !== kept)) {
+        await closePanel(this.presenter, title);
+    }
+});
+
+When("{string} is added from the + menu", async function (title) {
+    await arranged(this.presenter, async () => {
+        const menu = await openBarMenu(this.presenter, ADD_PANEL);
+        await menu.getByRole("menuitem", {name: title, exact: true}).click(WAIT);
+        await expect(tabOf(this.presenter, title)).toHaveCount(1);
+    });
+});
+
+When("{string} is split right of {string} from the panel menu", async function (title, target) {
+    await arranged(this.presenter, () =>
+        choosePanelFor(this.presenter, target, /^Split right/, title)
+    );
+});
+
+When("{string} replaces {string} from the panel menu", async function (title, target) {
+    await arranged(this.presenter, async () => {
+        await choosePanelFor(this.presenter, target, /^Replace with/, title);
+        await expect(tabOf(this.presenter, target)).toHaveCount(0);
+    });
+});
+
+When("the layout {string} is chosen from the Layouts menu", async function (name) {
+    await savedAfter(this.presenter, async () => {
+        const menu = await openBarMenu(this.presenter, LAYOUTS);
+        await menu.getByRole("menuitem", {name, exact: true}).click(WAIT);
+    });
 });
 
 When("the {string} panel is maximised", async function (title) {
-    // Pressed again it restores, and it may then say so.
-    const button = await headerButton(this.presenter, title, /^(Maximise|Restore)$/);
-    await button.click(WAIT);
+    // Chosen again it restores, and the menu then says so.
+    const menu = await openPanelMenu(this.presenter, title);
+    await menu.getByRole("menuitem", {name: /^(Maximise|Restore)$/}).click(WAIT);
+});
+
+When("the {string} panel is popped out from its menu", async function (title) {
+    const menu = await openPanelMenu(this.presenter, title);
+    const popup = this.presenter.waitForEvent("popup", WAIT);
+    await menu.getByRole("menuitem", {name: "Pop out", exact: true}).click(WAIT);
+    this.popout = await popup;
+});
+
+When("the popped-out window is closed", async function () {
+    // Closed from inside, as a person closes it, so the page hears it go.
+    const closed = this.popout.waitForEvent("close", WAIT);
+    await this.popout.evaluate(() => setTimeout(() => window.close()));
+    await closed;
+});
+
+When("a drag of the {string} tab starts over {string}", async function (title, target) {
+    const tab = await tabOf(this.presenter, title).boundingBox(WAIT);
+    assert.ok(tab, `the tab of "${title}" is visible`);
+    const from = middleOf(tab);
+    const to = middleOf(await groupBox(this.presenter, target));
+    await this.presenter.mouse.move(from.x, from.y);
+    await this.presenter.mouse.down();
+    // The button stays down: the drop targets show only while the drag goes on.
+    await this.presenter.mouse.move(from.x + 5, from.y + 5);
+    await this.presenter.mouse.move(to.x, to.y, {steps: 5});
 });
 
 When("the layout is reset", async function () {
-    const button = this.presenter.locator(RAIL).getByRole("button", {name: "Reset layout"});
+    const button = this.presenter.getByRole("button", {name: "Reset layout"});
     await savedAfter(this.presenter, () => button.click(WAIT));
 });
 
@@ -342,25 +487,57 @@ Then("the {string} panel is {int} pixels wide", async function (title, width) {
 Then("the {string} panel fills the workspace", async function (title) {
     const box = await groupBox(this.presenter, title);
     const workspace = await this.presenter.locator(WORKSPACE).boundingBox(WAIT);
-    const rail = await this.presenter.locator(RAIL).boundingBox(WAIT);
-    assert.ok(workspace && rail, "the workspace and its rail are visible");
-    assert.ok(box.width >= workspace.width - rail.width - TOLERANCE, `width ${box.width}`);
+    assert.ok(workspace, "the workspace is visible");
+    // The bar on the left edge is not the dock's: the group fills the rest, to the right edge.
+    const right = workspace.x + workspace.width;
+    assert.ok(box.x + box.width >= right - TOLERANCE, `right edge ${box.x + box.width}`);
     assert.ok(box.height >= workspace.height - TOLERANCE, `height ${box.height}`);
     await expect.poll(() => visibleTabTitles(this.presenter)).toEqual([title]);
 });
 
-Then("the rail shows {string}", async function (list) {
-    const rail = this.presenter.locator(RAIL);
-    for (const title of titlesIn(list)) {
-        await expect(rail.getByRole("button", {name: title, exact: true})).toBeVisible();
-    }
+Then("the + menu lists {string}", async function (list) {
+    await expectAddMenu(this.presenter, titlesIn(list));
 });
 
-Then("the rail is empty", async function () {
-    // Reset layout stays, and it is not a panel; neither are the rail's other tools.
-    const rail = this.presenter.locator(RAIL);
-    await expect(rail.getByRole("button", {name: "Reset layout"})).toBeVisible();
-    await expect(rail.locator(RAIL_PANELS).getByRole("button")).toHaveCount(0);
+Then("the + menu lists nothing", async function () {
+    await expectAddMenu(this.presenter, []);
+});
+
+Then("the + menu lists {string} described as {string}", async function (title, description) {
+    const menu = await openBarMenu(this.presenter, ADD_PANEL);
+    const item = menu.getByRole("menuitem", {name: title, exact: true});
+    await expect(item).toHaveAccessibleDescription(description);
+    await this.presenter.keyboard.press("Escape");
+});
+
+Then("{string} is disabled in the {string} panel's menu", async function (name, title) {
+    const menu = await openPanelMenu(this.presenter, title);
+    await expect(menu.getByRole("menuitem", {name, exact: true})).toBeDisabled();
+    await this.presenter.keyboard.press("Escape");
+});
+
+Then("the {string} panel is in a window of its own", async function (title) {
+    await expect(tabOf(this.popout, title)).toBeVisible(WAIT);
+    await expect(tabOf(this.presenter, title)).toBeHidden();
+});
+
+Then("the drop targets are visible", async function () {
+    const target = this.presenter.locator(DROP_TARGET).locator("visible=true").first();
+    await expect(target).toBeVisible(WAIT);
+    const look = await target.evaluate(element => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+            outlined:
+                (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) ||
+                (style.borderTopStyle !== "none" && parseFloat(style.borderTopWidth) > 0),
+            tinted: !/^(transparent|rgba\(.*, 0\))$/.test(style.backgroundColor),
+            side: Math.min(rect.width, rect.height)
+        };
+    });
+    assert.ok(look.outlined, "the drop target has an outline");
+    assert.ok(look.tinted, "the drop target is tinted");
+    assert.ok(look.side >= DROP_TARGET_SIDE, `the drop target is ${look.side} pixels across`);
 });
 
 Then("the panels are tabs {string}", async function (list) {

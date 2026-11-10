@@ -334,16 +334,26 @@ export class SoziWorld extends World {
     /** Wait until the presenter page has heard from the display.
      *
      * The frame counter fills in when the display says hello. It is in the Controls panel, so
-     * a layout that has that panel on the rail has no counter to look at, and its button is
-     * the sign instead.
+     * a layout that has closed that panel has no counter to look at: the workspace drawn
+     * without a Controls tab is the sign instead.
      */
     async presenterIsReady() {
         // Cast: the scenario opened the presenter page.
         const page = /** @type {import("playwright").Page} */ (this.presenter);
-        const sign = page.locator(
-            '.sozi-current-index:not(:empty), .sozi-rail__panels [aria-label="Controls"]'
-        );
-        await expect(sign.first()).toBeAttached();
+        const counter = page.locator(".sozi-current-index:not(:empty)");
+        const bar = page.getByRole("button", {name: /Add panel/});
+        const tabs = page.locator(".dv-tab");
+        const controls = tabs.filter({hasText: /^\s*Controls\s*$/});
+        await expect
+            .poll(
+                async () => {
+                    const drawn = (await bar.count()) > 0 && (await tabs.count()) > 0;
+                    const closed = drawn && (await controls.count()) === 0;
+                    return (await counter.count()) > 0 || closed;
+                },
+                {message: "the frame counter is filled, or + Add panel shows with Controls closed"}
+            )
+            .toBe(true);
     }
 }
 

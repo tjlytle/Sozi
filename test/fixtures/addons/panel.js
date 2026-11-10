@@ -11,6 +11,7 @@
     presenter.registerPanel({
         id: "addon",
         title: "Add-on",
+        description: "A panel from the test add-on",
         render(element) {
             const doc = element.ownerDocument;
             const root = doc.createElement("div");
