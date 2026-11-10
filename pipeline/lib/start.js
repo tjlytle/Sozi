@@ -181,7 +181,7 @@ function render(ctx, template, issue, stage) {
 }
 
 /**
- * Start a spawn request as a session of its own.
+ * Start a spawn request as a session of its own, recording its harness and model.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {Spawn} spawn - The request.
@@ -223,7 +223,8 @@ async function startSpawn(ctx, spawn, profile) {
 }
 
 /**
- * Start the stage session of an issue, labelled working while it runs.
+ * Start the stage session of an issue, labelled working while it runs. The session
+ * records its harness, model and try now, since the settings may change before it ends.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -262,7 +263,7 @@ async function startIssue(ctx, n, {persona, profile, route}) {
         throw error;
     }
     const started = new Date(ctx.clock.now()).toISOString();
-    record.session = {container, started, stage, outbox, persona, ...route};
+    record.session = {container, started, stage, outbox, persona, ...route, try: record.tries + 1};
     ctx.summary.started.push(n);
     ctx.log(`#${n}: ${stage} started: ${container}`);
 }

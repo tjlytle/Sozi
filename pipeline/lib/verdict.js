@@ -72,7 +72,8 @@ export function stubHarness(result) {
 }
 
 /**
- * Read a session's result and add its usage to the run. A rate-limited session backs the
+ * Read a session's result and add its usage to the run: input, cache reads, cache writes
+ * and output all count toward the tokens the ceilings measure. A rate-limited session backs the
  * loop off; each one in a row doubles the back-off, up to two hours.
  *
  * @param {PassContext} ctx - The pass context.
@@ -86,10 +87,8 @@ export function takeResult(ctx, outbox, who) {
         ctx.log(`${who}: no result.json`);
         return null;
     }
-    addUsage(ctx.state, {
-        tokens: result.usage.tokensIn + result.usage.tokensOut,
-        costUsd: result.usage.costUsd
-    });
+    const {tokensIn, cacheRead, cacheWrite, tokensOut, costUsd} = result.usage;
+    addUsage(ctx.state, {tokens: tokensIn + cacheRead + cacheWrite + tokensOut, costUsd});
     const sync = ctx.state.sync;
     if (result.usage.status !== "rate-limited") {
         sync.backoffStreak = 0;
