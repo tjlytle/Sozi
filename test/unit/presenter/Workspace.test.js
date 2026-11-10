@@ -191,7 +191,7 @@ class FakeDock {
     /**
      * The dock as data.
      *
-     * @returns {object} Each panel's group, by id.
+     * @returns {object} An empty grid, and each panel's group, by id.
      */
     toJSON() {
         const panels = {};

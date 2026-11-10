@@ -82,7 +82,8 @@ function dockPanel(dock, spec, stacked) {
     dock.addPanel({...panelOptions(spec), position: placeable ? position : undefined, inactive});
 }
 
-/** The presenter's workspace: panels docked in dockview, a bar of menus, and a narrow stack.
+/** The presenter's workspace: panels docked in dockview, a bar of menus, a narrow stack, and
+ * groups popped out into windows of their own.
  *
  * Every panel is drawn once into an element of its own, and dockview renders it with
  * `renderer: "always"`, so a preview's iframe is never moved and never reloads when its
@@ -297,7 +298,8 @@ export class Workspace {
         }
     }
 
-    /** The current layout, in its stored form; a panel in a window of its own is docked.
+    /** The current layout, in its stored form; a group in a window of its own is docked as
+     * one group.
      *
      * @readonly
      * @type {import("../protocol/layoutPresets.js").PresetLayout}
