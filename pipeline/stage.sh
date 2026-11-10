@@ -15,6 +15,7 @@
 #
 # Env read: PIPELINE_REPO, PIPELINE_HARNESS, PIPELINE_MODEL (required);
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
+# PIPELINE_PERSONA (when set, exported to gh-as as GH_AS_SIGNATURE, GH_AS_HARNESS, GH_AS_MODEL);
 # MIRROR (/mirror), OUTBOX (/outbox), WORK (/work), CACHE (/cache),
 # HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh),
 # CHANGED_FILES (/pipeline/changed-files.sh);
@@ -169,6 +170,14 @@ link_agy() {
     return 0
 }
 
+# What gh-as signs with (packages/gh-as/README.md): the persona, harness and model of this
+# stage. Only when the loop names the persona; without it gh-as signs nothing.
+export_signature() {
+    [ -n "${PIPELINE_PERSONA:-}" ] || return 0
+    export GH_AS_SIGNATURE="$PIPELINE_PERSONA · $PIPELINE_HARNESS · $PIPELINE_MODEL"
+    export GH_AS_HARNESS="$PIPELINE_HARNESS" GH_AS_MODEL="$PIPELINE_MODEL"
+}
+
 main() {
     mkdir -p "$OUTBOX"
     trap 'write_result; stop_display' EXIT
@@ -179,6 +188,7 @@ main() {
     step tmp; mkdir -p "$WORK/.agents/tmp"
     start_display
     link_agy
+    export_signature
     step start; start=$(git -C "$WORK" rev-parse HEAD)
     step harness; harness run --prompt "$OUTBOX/prompt.md"
     resume_loop

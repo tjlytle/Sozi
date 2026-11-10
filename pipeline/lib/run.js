@@ -115,12 +115,17 @@ async function buildLinks(settings, root, run) {
  * @param {(line: string) => void} options.log - The log.
  * @param {RunDeps} options.deps - The outside world.
  * @returns {Promise<boolean>} - Whether the run is finished: the summary was posted, or
- *     there was no page to post to.
+ *     there was no page to post to. A page without a NOTION_TOKEN is not finished, so a
+ *     later digest with the token can still post to it.
  */
 export async function finishDigest({state, reason, settings, root, env, log, deps}) {
-    if (!state.run.notionPage || !env.NOTION_TOKEN) {
+    if (!state.run.notionPage) {
         log("digest: no page for this run");
         return true;
+    }
+    if (!env.NOTION_TOKEN) {
+        log("digest: no NOTION_TOKEN to post to the run's page");
+        return false;
     }
     const cost = Number(state.run.costUsd).toFixed(2);
     const summary = `Stopped: ${reason}. ${state.run.tokens} tokens, $${cost}.`;

@@ -193,8 +193,8 @@ issues filed for the alternatives), Blocked by.
 The loop never touches a checkout a person uses, and stages never contend for ports or
 build directories. Each stage runs in a Docker container from an image the repo defines
 (`docker/factory/Dockerfile`): Node 24, the Electron and Chromium system libraries,
-Xvfb, Playwright's Chromium, `gh`, `git`, `python3`, `jq`, the Claude Code CLI, and the
-gh-personas plugin's `bin`. Inside, a fresh checkout of the branch (cloned from a bare
+Xvfb, Playwright's Chromium, `gh`, `git`, `python3`, `jq`, the Claude Code CLI, and
+`gh-as` at `/opt/gh-as` from `packages/gh-as/` (no plugin in the container, #166). Inside, a fresh checkout of the branch (cloned from a bare
 mirror volume the loop keeps current, so a clone costs seconds), `npm ci`, and the stage
 prompt run as `claude -p`. The container's only shared state with the host is the mirror
 volume (read) and the log directory (write).
@@ -322,6 +322,14 @@ and the checkout path; out, an exit status, one usage line (tokens, cost when kn
 the log stream. The harness is chosen per stage and per run (`PIPELINE_HARNESS`,
 `PIPELINE_HARNESS_PLAN` and so on), so Tim can switch mid-backlog or run one stage on a
 different agent to compare. The container image carries every supported harness.
+
+The plan can override the setting for one issue (#124). The architect fills a **Harness**
+heading in the Implementation Plan from the `harness-routing` skill, one
+`- <stage>: <harness> <model>` line per stage that leaves its setting. When the loop starts
+`tests`, `build`, `review` or `qa`, it reads the newest plan and runs the stage on the line
+for it, or on the setting when there is none. A line that does not parse, or a harness the
+persona has no login for, is refused and the issue waits: it is never moved to another
+harness. `--status` names the harness and model of each running session.
 
 Constraint that follows: nothing that matters may depend on a Claude Code hook, because
 the other harnesses have none. The repo lock and the edit hook stay as the fast path when
@@ -516,9 +524,9 @@ secrets; the board sync running from the same routine.
   second prompt) and install the marketplaces named in `.claude/settings.json`; (2) is the
   Mobbin MCP reachable inside the container without a display; (3) does `claude -p` in a
   fresh clone show a trust prompt, and if so what fixed it (a `.claude/settings.local.json`
-  written by `stage.sh`, or `--permission-mode`). The image loads the plugin with
-  `--plugin-dir /opt/gh-personas`, which sidesteps the marketplace question for the
-  container; the cloud path still needs the answer.
+  written by `stage.sh`, or `--permission-mode`). The image loads no plugin since #166: every
+  harness runs `gh-as` from `/opt/gh-as` (`packages/gh-as/`), which sidesteps the marketplace
+  question for the container; the cloud path still needs the answer.
 - The Mobbin-in-container check (2) now means "Mobbin authorised in the architect and
   advocate profiles" (`--status` lists each profile's servers; the allowlists are in
   `pipeline/config`).
