@@ -9,7 +9,9 @@ import {
     notion,
     main,
     runs,
-    pageId
+    pageId,
+    need,
+    numeric
 } from "../../bin/digest.js";
 
 const script = path.resolve("bin/digest.js");
@@ -319,6 +321,20 @@ describe("digest", () => {
         assert.equal(r.code, 1);
         assert.match(r.err, /--parent or PIPELINE_NOTION_PARENT has no Notion page id: "Sozi"/);
         assert.equal(r.calls.length, 0);
+    });
+    test("need returns a set value and throws naming an unset one", () => {
+        assert.equal(need("x", "--title"), "x");
+        for (const value of [undefined, ""]) {
+            assert.throws(() => need(value, "--title"), {message: "--title is not set"});
+        }
+    });
+    test("numeric returns digits and throws naming --issue otherwise", () => {
+        assert.equal(numeric("25"), "25");
+        for (const value of ["2a", "", "-1"]) {
+            assert.throws(() => numeric(value), {
+                message: `--issue must be a number: ${JSON.stringify(value)}`
+            });
+        }
     });
     test("the script exits 2 on an unknown subcommand", () => {
         const r = spawnSync(process.execPath, [script, "bogus"], {
