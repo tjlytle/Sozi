@@ -292,15 +292,12 @@ describe("harness adapters", () => {
         assert.doesNotMatch(fs.readFileSync(args2, "utf8"), /--max-budget-usd/);
     });
 
-    test("claude: --plugin-dir only when the directory exists", () => {
+    test("claude never passes --plugin-dir", () => {
         const out = scratch();
-        const args = path.join(out, "args");
-        adapter("claude", runArgs(out), {FAKE_ARGS: args, PLUGIN_DIR: path.join(out, "nope")});
-        assert.doesNotMatch(fs.readFileSync(args, "utf8"), /--plugin-dir/);
         fs.mkdirSync(path.join(out, "plugin"));
-        const args2 = path.join(out, "args2");
-        adapter("claude", runArgs(out), {FAKE_ARGS: args2, PLUGIN_DIR: path.join(out, "plugin")});
-        assert.match(fs.readFileSync(args2, "utf8"), /--plugin-dir .*plugin/);
+        const args = path.join(out, "args");
+        adapter("claude", runArgs(out), {FAKE_ARGS: args, PLUGIN_DIR: path.join(out, "plugin")});
+        assert.doesNotMatch(fs.readFileSync(args, "utf8"), /--plugin-dir/);
     });
 
     test("claude: a success that mentions 429 and rate limit stays ok", () => {
