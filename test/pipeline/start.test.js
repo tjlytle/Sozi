@@ -15,6 +15,33 @@ describe("persona profiles at start", () => {
         assert.equal(w.starts[0].profile, true);
         assert.equal(w.state.issues[25].session.persona, "builder");
     });
+    test("an issue's session records its harness, model and try", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {PIPELINE_HARNESS_BUILD: "codex", PIPELINE_MODEL_BUILD: "gpt-6.1-sol"}
+        });
+        w.profiles.builder.codex = {present: true, loggedIn: true};
+        w.state.issues[25].tries = 1;
+        await w.p.pass();
+        const {harness, model, try: attempt} = w.state.issues[25].session;
+        assert.deepEqual(
+            {harness, model, attempt},
+            {harness: "codex", model: "gpt-6.1-sol", attempt: 2}
+        );
+    });
+    test("a spawned session records its harness and model", async () => {
+        const w = world({env: {PIPELINE_MODEL_QA: "qa-model"}});
+        w.state.run.spawns.push({
+            persona: "advocate",
+            prompt: "File Y",
+            issue: null,
+            harness: "codex"
+        });
+        w.profiles.advocate.codex = {present: true, loggedIn: true};
+        await w.p.pass();
+        const {harness, model} = w.state.run.sessions[0];
+        assert.deepEqual({harness, model}, {harness: "codex", model: "qa-model"});
+    });
     test("no profile and no token: the start is refused and logged, no working label", async () => {
         const w = world({issues: [issue(25, ["stage:in-progress"])]});
         w.profiles.builder = null;

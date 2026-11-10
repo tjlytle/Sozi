@@ -83,10 +83,11 @@ describe("a model usage limit", () => {
         assert.equal(w.state.issues[25].stage, "stage:parked");
         assert.equal(w.state.issues[25].tries, 0);
         const comments = w.calls.filter(c => c[0] === "comment" && c[2] === 25);
-        assert.equal(comments.length, 1);
+        assert.equal(comments.length, 2, "the park comment, then the usage comment");
         assert.equal(comments[0][1], "ops");
         assert.match(comments[0][3], /`opencode` harness is a stub/);
         assert.match(comments[0][3], /PIPELINE_HARNESS_PLAN/);
+        assert.match(comments[1][3], /^<details>\n<summary>⏱ plan · opencode /);
         const starts = w.calls.filter(c => c[0] === "start").length;
         await w.p.pass();
         assert.equal(w.calls.filter(c => c[0] === "start").length, starts);
