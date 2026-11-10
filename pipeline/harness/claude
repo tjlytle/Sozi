@@ -79,6 +79,8 @@ write_usage() {
         ((($x.usage.input_tokens // 0) + ($x.usage.output_tokens // 0)) == 0 and
          ($said | test("Failed to authenticate|authentication_error|\\b401\\b"))) as $auth |
         {tokensIn: (($prev.tokensIn // 0) + ($x.usage.input_tokens // 0)),
+         cacheRead: (($prev.cacheRead // 0) + ($x.usage.cache_read_input_tokens // 0)),
+         cacheWrite: (($prev.cacheWrite // 0) + ($x.usage.cache_creation_input_tokens // 0)),
          tokensOut: (($prev.tokensOut // 0) + ($x.usage.output_tokens // 0)),
          costUsd: ([$prev.costUsd // 0, $x.total_cost_usd // 0] | max),
          turns: (($prev.turns // 0) + ($x.num_turns // 0)),

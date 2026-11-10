@@ -268,7 +268,9 @@ and keeps a running total per run: past a soft limit it drops to one container, 
 hard limit it starts nothing more and stops as if the stop condition were met, and a rate-limit result backs the
 loop off for fifteen minutes. The limits are per-run settings (`PIPELINE_SOFT_TOKENS`,
 `PIPELINE_HARD_TOKENS`, or USD on an API key); a subscription's own usage window cannot
-be queried, so the totals are the loop's own count. Self-started issues are not capped
+be queried, so the totals are the loop's own count. The token total counts cached input
+too (cache reads and writes beside input and output), so a ceiling is reached sooner than
+input and output alone would suggest; both ceilings default to 0, off. Self-started issues are not capped
 separately: the container count and the limits bound them.
 
 A dead login is not a rate limit: it stops one persona, not the model. When a session

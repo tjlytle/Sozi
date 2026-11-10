@@ -253,7 +253,7 @@ describe("the in-container stage runner", () => {
         const r = result(w.outbox);
         assert.equal(r.exit, 1);
         assert.equal(r.session, null);
-        assert.equal(r.usage.status, "error");
+        assert.equal(r.usage, null, "no usage.json is written as null");
         assert.deepEqual(r.changed, []);
         assert.equal(r.hooks, "skipped");
     });
@@ -491,7 +491,7 @@ merge_side() { git fetch -q "$MIRROR" side; git -c user.name=t -c user.email=t@t
         runStage({...w.env, PIPELINE_HARNESS: "../fake"});
         const r = result(w.outbox);
         assert.equal(r.exit, 1);
-        assert.equal(r.usage.status, "error");
+        assert.equal(r.usage, null);
     });
     test("SIGTERM still leaves a result.json", async () => {
         const w = world();
