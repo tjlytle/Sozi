@@ -122,6 +122,16 @@ function start() {
  * @event module:player/Animator.done
  */
 
+/** The events an `Animator` emits (standard 2.4).
+ *
+ * @readonly
+ */
+export const AnimatorEvents = Object.freeze({
+    step: "step",
+    stop: "stop",
+    done: "done"
+});
+
 /** An animator provides the logic for animating other objects.
  *
  * The main purpose of an animator is to schedule the update
@@ -173,7 +183,7 @@ export class Animator extends EventEmitter {
     start(durationMs) {
         this.durationMs = durationMs;
         this.initialTime = perf.now();
-        this.emit("step", 0);
+        this.emit(AnimatorEvents.step, 0);
         if (!this.running) {
             this.running = true;
             runningAnimators++;
@@ -191,7 +201,7 @@ export class Animator extends EventEmitter {
         if (this.running) {
             this.running = false;
             runningAnimators--;
-            this.emit("stop");
+            this.emit(AnimatorEvents.stop);
         }
     }
 
@@ -210,12 +220,12 @@ export class Animator extends EventEmitter {
     step() {
         const elapsedTime = perf.now() - this.initialTime;
         if (elapsedTime >= this.durationMs) {
-            this.emit("step", 1);
+            this.emit(AnimatorEvents.step, 1);
             this.running = false;
             runningAnimators--;
-            this.emit("done");
+            this.emit(AnimatorEvents.done);
         } else {
-            this.emit("step", elapsedTime / this.durationMs);
+            this.emit(AnimatorEvents.step, elapsedTime / this.durationMs);
         }
     }
 }

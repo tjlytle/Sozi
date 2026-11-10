@@ -32,22 +32,64 @@ const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("e
  * @typedef {{code: number|null, stdout: string, stderr: string, json: object|null}} SoziRun
  */
 
+/** A time limit for a spawned browser, stretched by `SOZI_TEST_TIMEOUT_SCALE`.
+ *
+ * On a loaded CI runner Electron or Chrome can take over a minute to start (#232), so
+ * `test/cli/run.sh` sets the scale there; a developer machine runs with the plain limit.
+ *
+ * @param {number} ms - The limit on an unloaded machine, in milliseconds.
+ * @param {Record<string, string|undefined>} [env] - The environment (default: process.env).
+ * @returns {number} - The limit times the scale, or the limit when the scale is not a
+ *  positive number.
+ */
+function limit(ms, env = process.env) {
+    const scale = Number(env.SOZI_TEST_TIMEOUT_SCALE);
+    return scale > 0 ? Math.round(ms * scale) : ms;
+}
+
+/** The commands that drive an export window, whose steps report their own time-outs.
+ *
+ * @type {string[]}
+ */
+const captureCommands = ["render", "export"];
+
+/** The CLI arguments with a `--timeout` that ends the command before the test kills it.
+ *
+ * The command's default limit (120 s) outlives the test's, so a hung step would end as
+ * `ETIMEDOUT` without the exporter's message, which names the step.
+ *
+ * @param {string[]} args - The CLI arguments after `--cli`.
+ * @param {number} timeoutMs - The test's time limit for the run, in milliseconds.
+ * @returns {string[]} - The arguments, with `--timeout` 10 s below the test's limit for a
+ *  capture command that has none.
+ */
+function withCommandTimeout(args, timeoutMs) {
+    if (!captureCommands.includes(args[0]) || args.includes("--timeout")) {
+        return args;
+    }
+    const seconds = Math.max(Math.floor(timeoutMs / 1000) - 10, 1);
+    return [args[0], "--timeout", String(seconds), ...args.slice(1)];
+}
+
 /** Run `electron build/electron --cli ...args`.
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
  * @param {object} [opts] - Options for the run.
  * @param {string} [opts.cwd] - The working directory (default: the repository).
  * @param {object} [opts.env] - The environment variables (default: process.env).
- * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000).
+ * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000), stretched
+ *  by `limit`; `render` and `export` get a `--timeout` below it, unless they have one.
  * @param {string[]} [opts.switches] - Chromium switches placed before `--cli` (default: none).
  * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
  */
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
-    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...args], {
+    const ms = limit(timeout);
+    const cliArgs = withCommandTimeout(args, ms);
+    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
         cwd,
         env,
         encoding: "utf8",
-        timeout,
+        timeout: ms,
         // Electron ignores SIGTERM while a window is open.
         killSignal: "SIGKILL"
     });
@@ -64,7 +106,8 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
  * @param {object} [opts] - Options for the run.
  * @param {string} [opts.cwd] - The working directory (default: the repository).
  * @param {object} [opts.env] - The environment variables (default: process.env).
- * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000).
+ * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000), stretched
+ *  by `limit`.
  * @returns {{child: import("node:child_process").ChildProcess, done: Promise<SoziRun>}} - The
  *  running process, and its result once it exits.
  */
@@ -72,7 +115,7 @@ function runSoziAsync(args, {cwd = repoDir, env = process.env, timeout = 60000} 
     const child = spawn(electronBinary, [appDir, "--cli", ...args], {
         cwd,
         env,
-        timeout,
+        timeout: limit(timeout),
         killSignal: "SIGKILL"
     });
     let stdout = "";
@@ -394,6 +437,8 @@ function zipEntries(buf) {
 }
 
 module.exports = {
+    limit,
+    withCommandTimeout,
     runSozi,
     runSoziAsync,
     withTempDeck,

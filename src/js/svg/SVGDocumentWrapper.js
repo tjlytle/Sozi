@@ -279,17 +279,18 @@ export class SVGDocumentWrapper {
 
     /** Disable the hyperlinks inside the document.
      *
-     * Hyperlinks are disabled in the editor only.
+     * Hyperlinks are disabled in the editor and in the presenter's previews.
      * This operation does not affect the saved presentation.
      *
-     * @param {boolean} styled - If `true`, disable the hand-shaped mouse cursor over links.
+     * @param {boolean} styled - If `true`, disable the hand-shaped mouse cursor over links
+     *   (the `sozi-links-off` class on the root, styled by the player page).
      */
     disableHyperlinks(styled = false) {
         for (const link of this.root.getElementsByTagName("a")) {
             link.addEventListener("click", evt => evt.preventDefault(), false);
-            if (styled) {
-                link.style.cursor = "default";
-            }
+        }
+        if (styled) {
+            this.root.classList.add("sozi-links-off");
         }
     }
 }

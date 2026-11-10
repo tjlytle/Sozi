@@ -9,7 +9,9 @@
  * @module
  */
 
-import {Animator} from "./Animator";
+import {Animator, AnimatorEvents} from "./Animator";
+import {PlayerControllerEvents} from "./PlayerController";
+import {PlayerEvents} from "./playerEvents";
 import * as Timing from "./Timing";
 
 /** The duration of the open/close animation of the frame list.
@@ -101,13 +103,13 @@ export function init(p, controller) {
     }
 
     animator = new Animator();
-    animator.on("step", onAnimatorStep);
+    animator.on(AnimatorEvents.step, onAnimatorStep);
     window.addEventListener("keypress", onKeyPress, false);
     window.addEventListener("resize", () => setCurrentOffset(currentOffset));
-    controller.on("mouseDown", onMouseDown);
+    controller.on(PlayerControllerEvents.mouseDown, onMouseDown);
     player.viewport.svgRoot.addEventListener("touchstart", () => onTouchStart);
     frameList.addEventListener("mouseout", onMouseOut, false);
-    p.on("frameChange", onFrameChange);
+    p.on(PlayerEvents.frameChange, onFrameChange);
     setCurrentOffset(startOffset);
 }
 

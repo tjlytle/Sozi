@@ -21,11 +21,7 @@ msgstr ""
 "X-Launchpad-Export-Date: 2018-04-09 19:20+0000\n"
 
 #: src/js/Controller.js:234
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
-msgstr ""
-
-#: src/js/Controller.js:235
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
+msgid "Error"
 msgstr ""
 
 #: src/js/Controller.js:359

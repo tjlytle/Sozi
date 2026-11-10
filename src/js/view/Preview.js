@@ -4,6 +4,10 @@
 
 /** @module */
 
+import {ControllerEvents} from "../controllerEvents";
+import {PresentationEvents} from "../model/Presentation";
+import {PlayerControllerEvents} from "../player/PlayerController";
+
 const PREVIEW_MARGIN = 15;
 
 /** The preview area in the presentation editor. */
@@ -56,14 +60,16 @@ export class Preview {
          */
         this.playerController = playerController;
 
-        presentation.on("svgChange", () => this.onLoad());
+        presentation.on(PresentationEvents.svgChange, () => this.onLoad());
         window.addEventListener("resize", () => this.repaint());
-        playerController.on("mouseDown", () =>
+        playerController.on(PlayerControllerEvents.mouseDown, () =>
             /** @type {HTMLElement} */ (document.activeElement).blur()
         );
-        playerController.on("click", evt => this.onClick(evt));
-        playerController.on("localViewportChange", () => controller.updateCameraStates());
-        controller.on("repaint", () => this.repaint());
+        playerController.on(PlayerControllerEvents.click, evt => this.onClick(evt));
+        playerController.on(PlayerControllerEvents.localViewportChange, () =>
+            controller.updateCameraStates()
+        );
+        controller.on(ControllerEvents.repaint, () => this.repaint());
     }
 
     /** Reset the preview area when a presentation is loaded or reloaded.

@@ -9,6 +9,8 @@
  * @module
  */
 
+import {PlayerEvents} from "./playerEvents";
+
 /** The current Sozi player.
  *
  * @type {module:player/Player.Player}
@@ -29,7 +31,7 @@ export function init(p) {
     window.addEventListener("hashchange", onHashChange, false);
 
     if (player.presentation.updateURLOnFrameChange) {
-        player.on("frameChange", onFrameChange);
+        player.on(PlayerEvents.frameChange, onFrameChange);
     }
 }
 

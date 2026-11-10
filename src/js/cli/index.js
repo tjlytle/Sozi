@@ -23,7 +23,8 @@ import {
 import {inspect, FLAGS as inspectFlags} from "./commands/inspect";
 import {render, FLAGS as renderFlags, checkFlags as checkRenderFlags} from "./commands/render";
 import {set, FLAGS as setFlags, checkFlags as checkSetFlags} from "./commands/set";
-import {validateArgs} from "./args";
+import {notes, FLAGS as notesFlags, checkFlags as checkNotesFlags} from "./commands/notes";
+import {fileArgument, validateArgs} from "./args";
 import {
     isPresentationFile,
     presentationDataError,
@@ -33,17 +34,19 @@ import {
 
 const CLI_PREFIX = "--sozi-cli=";
 
-const USAGE = "sozi --cli <inspect|build|set|render|export> [options] <file.svg|file.sozi.json>";
+const USAGE =
+    "sozi --cli <inspect|build|set|render|export> [options] <file.svg|file.sozi.json>; " +
+    "sozi --cli notes <export|import> <file.sozi.json> [file.md]";
 
 /** The available commands.
  *
- * A command receives a context `{controller, storage, svg, presentation, svgSource, cwd, flags, warnings}`
+ * A command receives a context `{controller, storage, svg, presentation, svgSource, cwd, flags, positionals, document, warnings}`
  * once the presentation is loaded, and returns a result object with an `ok` property.
  * A failed result may have an `exitCode` (default 1), which is not printed.
  *
  * @type {{[name: string]: Function}}
  */
-const COMMANDS = {build, inspect, set, render, export: exportPresentation};
+const COMMANDS = {build, inspect, set, render, export: exportPresentation, notes};
 
 /** The flag table of each command, used to parse and validate the command line.
  *
@@ -54,16 +57,23 @@ export const COMMAND_FLAGS = {
     inspect: inspectFlags,
     set: setFlags,
     render: renderFlags,
-    export: exportFlags
+    export: exportFlags,
+    notes: notesFlags
 };
 
 /** Command-specific checks of the flags, run before the presentation is loaded.
  *
- * A check returns an error message for a usage error, or `null`.
+ * A check receives the flags and the positionals, and returns an error message for a
+ * usage error, or `null`.
  *
  * @type {{[name: string]: Function}}
  */
-const FLAG_CHECKS = {set: checkSetFlags, render: checkRenderFlags, export: checkExportFlags};
+const FLAG_CHECKS = {
+    set: checkSetFlags,
+    render: checkRenderFlags,
+    export: checkExportFlags,
+    notes: checkNotesFlags
+};
 
 /** Has a result been sent to the main process?
  *
@@ -297,14 +307,14 @@ export async function runCli(options, {controller, storage, preferences}) {
         const usageError =
             validateArgs(options, COMMAND_FLAGS) ||
             (Object.hasOwn(FLAG_CHECKS, options.command)
-                ? FLAG_CHECKS[options.command](options.flags)
+                ? FLAG_CHECKS[options.command](options.flags, options.positionals)
                 : null);
         if (usageError) {
             reply(2, Object.assign(result, {ok: false, error: usageError, usage: USAGE}));
             return;
         }
 
-        const file = options.positionals[0];
+        const file = fileArgument(options);
         if (!file) {
             reply(2, Object.assign(result, {ok: false, error: "missing file argument"}));
             return;
@@ -342,6 +352,9 @@ export async function runCli(options, {controller, storage, preferences}) {
         for (const key of controller.presentation.ignoredStorableKeys || []) {
             warnings.push(`ignored non-string ${key} in ${result.presentation}`);
         }
+        for (const name of controller.presentation.ignoredPresets || []) {
+            warnings.push(`ignored invalid layout preset ${name}`);
+        }
 
         const commandResult = await command({
             controller,
@@ -351,6 +364,8 @@ export async function runCli(options, {controller, storage, preferences}) {
             svgSource: files.svgSource,
             cwd: options.cwd,
             flags: options.flags,
+            positionals: options.positionals,
+            document,
             warnings
         });
         const exitCode = commandResult.exitCode || 1;

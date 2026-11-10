@@ -1,4 +1,4 @@
-# covers: src/js/editor.js, src/js/Controller.js, src/js/Storage.js, src/js/backend/Electron.js, src/js/view/, src/js/model/
+# covers: src/js/editor.js, src/js/Controller.js, src/js/Storage.js, src/js/backend/Electron.js, src/js/view/, src/js/model/, src/js/svg/
 Feature: Opening a deck in the editor
 
   The editor is the Electron app in build/electron, launched by Playwright on a fresh

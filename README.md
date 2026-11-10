@@ -102,11 +102,13 @@ messages are always in English.
 ```
 sozi --cli inspect [--frame N] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli build [--write-json] [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
-sozi --cli set [--title TITLE] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli set [--title TITLE] [--out-dir DIR] [--layout NAME=FILE] [--presentation P.sozi.json] deck.svg
 sozi --cli render (--frame N | --all) --out PATH [--size WxH] [--frame-number] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
 sozi --cli export [--export-type pdf|pptx|video] [--format mp4|webm|ogv|png] [--fps N] [--width W] [--height H]
                   [--bitrate B] [--include LIST] [--exclude LIST] [--ffmpeg PATH] [--out PATH] [--transparent]
                   [--frame-number] [--rebuild] [--out-dir DIR] [--presentation P.sozi.json] deck.svg
+sozi --cli notes export deck.sozi.json [file.md]
+sozi --cli notes import deck.sozi.json file.md
 ```
 
 The file argument may also be a presentation file, e.g.
@@ -144,10 +146,27 @@ When running from the source tree, replace `sozi` with
   files written. It writes `deck.sozi.json` only when the file does not exist
   or when loading or an option changed the presentation, so setting a
   property to its current value usually writes nothing. At least one option is required.
+* `--cli notes export` writes the deck's notes as one Markdown document, a `#` heading
+  per frame with notes, to `file.md`, or returns it as `markdown` in the result when no
+  file is named. `--cli notes import` writes the sections of `file.md` back to
+  `deck.sozi.json`, pairing by a `<!-- frame: id -->` line under the heading first, then by
+  title (duplicates in deck order). It reports the frames it changed in `changed`, and in
+  `unmatched` the `headings` and `frames` that did not pair, which are also warnings.
+  Sections that were not edited leave their frames untouched, and unmatched frames keep
+  their notes.
+* A `deck.notes.md` beside `deck.sozi.json` is what a build puts in front of the presenter,
+  with no import: it wins whole, and the build's warnings name what did not pair. Remove it
+  and the next build uses the notes in the JSON again. A presenter served over http also
+  fetches `deck.notes.md` beside the deck when it loads, so a published file needs no rebuild.
 * `--title TITLE` (for `build` and `set`) sets the explicit title of the
   presentation in `deck.sozi.json`; `build` then writes the JSON file and the
   HTML files with the new title. `--title ""` (or `--title=`) removes the
   explicit title. Use `--title=TITLE` for a title that starts with `--`.
+* `--layout NAME=FILE` (for `set`) adds a layout preset for the presenter to the deck, or
+  replaces the preset of that name, keeping its place in the order. A new preset goes last. The
+  first preset that matches a page's width wins. `FILE` is what the presenter's Save as preset
+  downloads. `--layout NAME=` removes the preset. Build the deck again for a device to see the
+  change. `inspect` lists each preset as `layouts`: its `name`, `match`, `panels` and `rail`.
 * `--out-dir DIR` (for `build`, `set`, `inspect`, `render` and `export`) is the directory of the
   HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)
@@ -309,11 +328,11 @@ What they have in common:
   (`.talk.partial.webm` for `talk.webm`); they replace the previous output
   only when the export succeeds. `render --frame` writes the file only after
   the capture succeeded.
-* `capture` is `"capturePage"`, or `"cdp"` when the images were captured
-  through the Chrome DevTools Protocol (slower: a fallback that comes with a
-  warning, or always with `--transparent`), or `"printToPDF"` for a PDF export.
-  The command line renders at device scale 1 on any display, so the images
-  have the requested size in pixels without the fallback.
+* `capture` is `"cdp"`: the images are captured through the Chrome DevTools
+  Protocol at device scale 1, so they have the requested size in pixels on any
+  display. It is `"printToPDF"` for a PDF export. Before each capture the
+  command checks that the window shows the requested frame, and fails with
+  `the export window shows frame X, expected Y` when it does not.
 * The whole command is bounded by `--timeout` (default 120 s); raise it for
   large decks, sizes or videos. Each step of the capture (page load, frame
   change, capture) also fails on its own after 30 s.

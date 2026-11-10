@@ -19,14 +19,13 @@ export class FileReaderBackend extends AbstractBackend {
     constructor(controller, container) {
         const _ = controller.gettext;
 
-        super(
-            controller,
-            container,
-            "sozi-editor-backend-FileReader-input",
-            _(
-                'Open an SVG file from your computer (<i class="fa fa-exclamation-triangle"></i> read-only)'
-            )
-        );
+        const icon = document.createElement("i");
+        icon.className = "fa fa-exclamation-triangle";
+        super(controller, container, "sozi-editor-backend-FileReader-input", [
+            _("Open an SVG file from your computer") + " ",
+            icon,
+            " " + _("(read-only)")
+        ]);
 
         // Cast: AbstractBackend created this button in the constructor above.
         /** @type {HTMLElement} */ (
@@ -38,7 +37,7 @@ export class FileReaderBackend extends AbstractBackend {
          * @type {HTMLInputElement}
          */
         this.fileInput = document.createElement("input");
-        this.fileInput.style.display = "none";
+        this.fileInput.hidden = true;
         this.fileInput.setAttribute("type", "file");
         this.fileInput.setAttribute("accept", "image/svg+xml");
         container.appendChild(this.fileInput);

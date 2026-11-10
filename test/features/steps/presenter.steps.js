@@ -6,10 +6,9 @@
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
-import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
-import {SCREENSHOTS, builtDeck} from "../support/world.js";
+import {audienceWindow, builtDeck} from "../support/world.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.
 const WITHIN_A_FRAME = 250;
@@ -26,7 +25,8 @@ const WITHIN_A_FRAME = 250;
 function previewShapeProblems(page, ratio) {
     return page.evaluate(expected => {
         const problems = [];
-        for (const iframe of document.querySelectorAll("iframe")) {
+        const previews = ".sozi-current-frame, .sozi-previous-frame, .sozi-next-frame";
+        for (const iframe of document.querySelectorAll(previews)) {
             const own = iframe.getBoundingClientRect();
             const box = /** @type {Element} */ (iframe.parentElement).getBoundingClientRect();
             const actual = own.width / own.height;
@@ -68,6 +68,17 @@ Given("the presenter page is open without its audience window", async function (
     await this.presenter.goto(pathToFileURL(builtDeck(this.fixture).presenter).href);
 });
 
+Given("the presenter page is open with pop-ups blocked", async function () {
+    // Cast: the Before hook opens a context for every scenario.
+    const context = /** @type {import("playwright").BrowserContext} */ (this.context);
+    // A blocked pop-up: the browser's window.open returns null.
+    await context.addInitScript(() => {
+        window.open = () => null;
+    });
+    this.presenter = await context.newPage();
+    await this.presenter.goto(pathToFileURL(builtDeck(this.fixture).presenter).href);
+});
+
 When("the audience window is resized to {int} by {int}", async function (width, height) {
     await this.audience.setViewportSize({width, height});
 });
@@ -78,7 +89,25 @@ When("the presenter page is resized to {int} by {int}", async function (width, h
 
 When("the presenter page is reloaded", async function () {
     await this.presenter.reload();
-    await expect(this.presenter.locator(".sozi-current-index")).not.toBeEmpty();
+    await this.presenterIsReady();
+});
+
+When("the presenter page is opened again at its address", async function () {
+    await this.presenter.goto(this.presenter.url());
+    await this.presenterIsReady();
+});
+
+When("the speaker leaves the presenter page and goes back to it", async function () {
+    await this.presenter.goto("about:blank");
+    await this.presenter.goBack();
+    await this.presenterIsReady();
+});
+
+When("the presenter page is reloaded and opens a new audience window", async function () {
+    const popup = this.presenter.waitForEvent("popup");
+    await this.presenter.reload();
+    this.audience = await audienceWindow(popup);
+    await this.presenterIsReady();
 });
 
 When("the next button is pressed", async function () {
@@ -116,10 +145,6 @@ Then("the frame counter reads {string}", async function (text) {
     await expect(this.presenter.locator(".sozi-presentation-length")).toHaveText(length);
 });
 
-Then("the notes title is {string}", async function (title) {
-    await expect(this.presenter.locator(".sozi-notes-title")).toHaveText(title);
-});
-
 Then("the audience window is on frame {string}", async function (title) {
     await expect
         .poll(() => this.audience.evaluate(() => window.sozi.player.currentFrame.title))
@@ -154,6 +179,28 @@ Then("every preview has the shape {int}:{int}", async function (width, height) {
         .toEqual([]);
 });
 
-Then("a screenshot {string} is saved", async function (name) {
-    await this.presenter.screenshot({path: path.join(SCREENSHOTS, `${name}.png`)});
+Then("the presenter page shows the notice {string}", async function (text) {
+    const notice = this.presenter.locator(".sozi-notice");
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(text);
+});
+
+Then("the presenter page shows no notice", async function () {
+    // The notice is in the page but hidden, so a page without one does not pass.
+    const notice = this.presenter.locator(".sozi-notice");
+    await expect(notice).toHaveCount(1);
+    await expect(notice).toBeHidden();
+});
+
+Then("no dialog was shown", function () {
+    assert.deepEqual(this.dialogs, []);
+});
+
+Given("the {string} deck is served over http", async function (fixture) {
+    await this.serveDeck(fixture);
+});
+
+When("the presenter page is opened from the server", async function () {
+    await this.openPresenterAt(this.served.presenter);
+    await expect(this.presenter.locator(".sozi-current-index")).not.toBeEmpty();
 });

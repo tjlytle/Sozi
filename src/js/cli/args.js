@@ -54,6 +54,14 @@ export const DEFAULT_TIMEOUT_S = 120;
  */
 export const DEFAULT_SIZE = "1280x720";
 
+/** The one command whose first positional is not the file: `notes <action> <file> [<md>]`.
+ *
+ * @readonly
+ * @default
+ * @type {string}
+ */
+const NOTES_COMMAND = "notes";
+
 /** Parse a size given as `WxH`.
  *
  * @param {any} text - The value of the `--size` flag.
@@ -181,8 +189,18 @@ export function validateArgs(parsed, commandFlags) {
             return `option --${name} does not take a value`;
         }
     }
-    if (parsed.positionals.length > 1) {
-        return `unexpected argument: ${parsed.positionals[1]}`;
+    const most = parsed.command === NOTES_COMMAND ? 3 : 1;
+    if (parsed.positionals.length > most) {
+        return `unexpected argument: ${parsed.positionals[most]}`;
     }
     return null;
+}
+
+/** The file a command works on: the first positional, or the second for `notes <action>`.
+ *
+ * @param {{command: ?string, positionals: string[]}} parsed - The result of {@link parseArgs}.
+ * @returns {string|undefined} - The file argument, if there is one.
+ */
+export function fileArgument({command, positionals}) {
+    return positionals[command === NOTES_COMMAND ? 1 : 0];
 }

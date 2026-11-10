@@ -22,18 +22,8 @@ msgstr ""
 "X-Launchpad-Export-Date: 2018-04-09 19:20+0000\n"
 
 #: src/js/Controller.js:234
-#, fuzzy
-msgid "<i class=\"fa fa-exclamation-triangle\"></i> Error"
+msgid "Error"
 msgstr ""
-"Helyi SVG fájl megnyitása (<i class=\"fa fa-exclamation-triangle\">1</i>2 "
-"read-only)"
-
-#: src/js/Controller.js:235
-#, fuzzy
-msgid "<i class=\"fa fa-info-circle\"></i> Information"
-msgstr ""
-"Helyi SVG fájl megnyitása (<i class=\"fa fa-exclamation-triangle\">1</i>2 "
-"read-only)"
 
 #: src/js/Controller.js:359
 msgid "Document was changed. Reloading."

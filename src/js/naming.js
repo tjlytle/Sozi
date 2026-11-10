@@ -71,6 +71,15 @@ function presentationBase(presentation) {
         : replaceFileExtWith(presentation, "");
 }
 
+/** The notes file of a presentation: Markdown beside the presentation file.
+ *
+ * @param {string} presentation - The name or path of the presentation file.
+ * @returns {string} - The name or path of the notes file, in the same form.
+ */
+export function notesFileOf(presentation) {
+    return presentationBase(presentation) + ".notes.md";
+}
+
 /** The file set of a presentation.
  *
  * By default, the presentation file is the SVG file name with the extension

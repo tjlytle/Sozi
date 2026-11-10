@@ -189,8 +189,8 @@ export class Camera extends CameraState {
      */
     revealClipping() {
         this.maskValue = 64;
-        this.svgClipOutlineRect1.style.display = "initial";
-        this.svgClipOutlineRect2.style.display = "initial";
+        this.svgClipOutlineRect1.classList.remove("sozi-camera__clip--hidden");
+        this.svgClipOutlineRect2.classList.remove("sozi-camera__clip--hidden");
     }
 
     /** Hide the clipping rectangle and its surroundings.
@@ -204,8 +204,8 @@ export class Camera extends CameraState {
      */
     concealClipping() {
         this.maskValue = 0;
-        this.svgClipOutlineRect1.style.display = "none";
-        this.svgClipOutlineRect2.style.display = "none";
+        this.svgClipOutlineRect1.classList.add("sozi-camera__clip--hidden");
+        this.svgClipOutlineRect2.classList.add("sozi-camera__clip--hidden");
     }
 
     /** The scaling factor applied to this camera to fit the viewport.
@@ -457,7 +457,7 @@ export class Camera extends CameraState {
             // This does not apply in edit mode, where getCandidateReferenceElement
             // needs the layer to be rendered even if invisible.
             if (!this.viewport.editMode) {
-                svgGroup.style.display = this.opacity === 0 ? "none" : "initial";
+                svgGroup.classList.toggle("sozi-camera__layer--hidden", this.opacity === 0);
             }
         }
     }

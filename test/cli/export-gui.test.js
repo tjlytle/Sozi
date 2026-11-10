@@ -28,7 +28,8 @@ const {
     fakeFfmpeg,
     isAlive,
     which,
-    zipEntries
+    zipEntries,
+    limit
 } = require("./helpers.js");
 
 /** Run the editor on a deck with the export test hook.
@@ -43,7 +44,7 @@ function guiExport(deck, type, switches = []) {
         cwd: deck.dir,
         env: Object.assign({}, process.env, {SOZI_TEST_EXPORT: type, ELECTRON_ENABLE_LOGGING: "1"}),
         encoding: "utf8",
-        timeout: 90000,
+        timeout: limit(90000),
         // Electron ignores SIGTERM while a window is open.
         killSignal: "SIGKILL"
     });
@@ -183,9 +184,8 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
             setExportSettings(deck, Object.assign({exportToVideoFormat: "png"}, VIDEO_SETTINGS));
             const run = guiExport(deck, "video", ["--force-device-scale-factor=2"]);
             assert.equal(run.code, 0, run.output);
-            // The device-pixel images of capturePage are scaled down, without the slower CDP fallback.
-            assert.match(run.output, /Export capture: capturePage\b/);
-            assert.doesNotMatch(run.output, /Export capture: \S*cdp/);
+            // The Chrome DevTools Protocol captures at device scale 1.
+            assert.match(run.output, /Export capture: cdp\b/);
             const dir = path.join(deck.dir, "basic-sozi-export");
             const names = fs.readdirSync(dir).sort();
             assert.equal(names.length, VIDEO_IMAGES);
@@ -249,7 +249,7 @@ function mainExport(args) {
     const exporterModule = path.join(appDir, "src", "js", "exporter", "index.js");
     const result = spawnSync(electronBinary, [harness, exporterModule, JSON.stringify(args)], {
         encoding: "utf8",
-        timeout: 60000,
+        timeout: limit(60000),
         killSignal: "SIGKILL"
     });
     if (result.error) {

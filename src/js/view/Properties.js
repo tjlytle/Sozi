@@ -5,6 +5,9 @@
 /** @module */
 
 import {h} from "inferno-hyperscript";
+import Jed from "jed";
+import {serializeHTML} from "../html/sanitize";
+import {CustomFileTargets} from "../model/customFiles";
 import {VirtualDOMView} from "./VirtualDOMView";
 import {getLanguages} from "./languages";
 
@@ -22,10 +25,43 @@ function asArray(v) {
     return v instanceof Array ? v : [v];
 }
 
+/** The select of the page a custom file is for.
+ *
+ * @param {any} controller - The controller.
+ * @param {(s: string) => string} _ - The function that translates a string.
+ * @param {string} target - The file's target.
+ * @param {number} index - The file's index in the custom file list.
+ * @returns {VNode} - The select.
+ */
+function customFileTargetSelect(controller, _, target, index) {
+    return h(
+        "select",
+        {
+            title: _("The page this file is for"),
+            onChange(evt) {
+                controller.setCustomFileTarget(index, evt.target.value);
+            }
+        },
+        [
+            [CustomFileTargets.display, _("Presentation")],
+            [CustomFileTargets.presenter, _("Presenter")],
+            [CustomFileTargets.both, _("Both")]
+        ].map(([value, label]) => h("option", {value, selected: target === value}, label))
+    );
+}
+
 /** Signals that the mode of the properties view has changed.
  *
  * @event module:view/Properties.modeChange
  */
+
+/** The events a `Properties` view emits (standard 2.4).
+ *
+ * @readonly
+ */
+export const PropertiesEvents = Object.freeze({
+    modeChange: "modeChange"
+});
 
 /** Properties pane of the presentation editor.
  *
@@ -65,7 +101,7 @@ export class Properties extends VirtualDOMView {
      */
     toggleMode(mode) {
         this.mode = this.mode === mode ? "default" : mode;
-        this.emit("modeChange");
+        this.emit(PropertiesEvents.modeChange);
         this.repaint();
     }
 
@@ -247,7 +283,7 @@ export class Properties extends VirtualDOMView {
             _("Ctrl+N: Numbered list"),
             _("Ctrl+>: Indent list entry"),
             _("Ctrl+<: Outdent list entry")
-        ].join("<br>");
+        ].join("\n");
 
         const timeoutMsDisabled = controller
             .getFrameProperty("timeoutEnable")
@@ -545,9 +581,10 @@ export class Properties extends VirtualDOMView {
                         )
                     ])
                 ]),
-                controller.getCustomFiles().map((name, index) =>
+                controller.getCustomFiles().map(({path, target}, index) =>
                     h("tr", [
-                        h("td", name),
+                        h("td", path),
+                        h("td", [customFileTargetSelect(controller, _, target, index)]),
                         h("td", [
                             h(
                                 "button",
@@ -658,11 +695,41 @@ export class Properties extends VirtualDOMView {
                         controller.setPresentationProperty
                     )
                 ])
-            ])
+            ]),
+
+            ...this.renderLayoutPresets()
         ]);
     }
 
-    /** The HTML of the help message for include/exclude lists in export.
+    /** Render the read-only list of the deck's layout presets, nothing without any.
+     *
+     * @returns {VNode[]} - The virtual DOM nodes.
+     */
+    renderLayoutPresets() {
+        const _ = this.controller.gettext;
+        const presets = Object.entries(this.controller.presentation.presenterLayouts);
+        if (!presets.length) {
+            return [];
+        }
+        const matchLabels = {phone: _("Phone"), laptop: _("Laptop")};
+        return [
+            h("h1", _("Presenter layouts")),
+            h(
+                "ul.sozi-layout-presets",
+                presets.map(([name, {match}]) =>
+                    h("li", [
+                        h("span.sozi-layout-presets__name", name),
+                        ": ",
+                        typeof match === "string"
+                            ? matchLabels[match]
+                            : Jed.sprintf(_("At least %d pixels wide"), match.minWidth)
+                    ])
+                )
+            )
+        ];
+    }
+
+    /** The text of the help message for include/exclude lists in export, one entry per line.
      *
      * @readonly
      * @type {string}
@@ -676,7 +743,7 @@ export class Properties extends VirtualDOMView {
             _('Select frames 5 to 8: "5:8"'),
             _('Select frames 5, 8, 11, 14, and 17: "5:8:17"'),
             _('Select frames 2, 5, and 10 to 15: "2, 5, 10:15"')
-        ].join("<br>");
+        ].join("\n");
     }
 
     /** Render the properties view with the export tool.
@@ -1023,7 +1090,7 @@ export class Properties extends VirtualDOMView {
 
         const values = asArray(getter.call(controller, property));
         const className = values.length > 1 ? "sozi-editor__field--multiple" : undefined;
-        this.state[property] = {innerHTML: values.length >= 1 ? values[values.length - 1] : ""};
+        this.state[property] = {html: values.length >= 1 ? values[values.length - 1] : ""};
 
         return h("section", {
             id: "field-" + property,
@@ -1031,7 +1098,7 @@ export class Properties extends VirtualDOMView {
             className,
             disabled,
             onblur() {
-                const value = this.innerHTML;
+                const value = serializeHTML(this);
                 if (acceptsEmpty || value.length) {
                     setter.call(controller, property, value);
                 }

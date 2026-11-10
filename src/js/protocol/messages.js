@@ -5,15 +5,37 @@
 /** The messages a display and its surfaces exchange: names, builders and one reader.
  *
  * docs/presenter-protocol.md describes each one. The `viewport` message lives in
- * `viewport.js`; `readMessage` reads it too.
+ * `viewport.js`, the thumbnail messages in `thumbnails.js`, the timer's in `timer.js` and the
+ * camera's in `camera.js`; `readMessage` reads them too.
  *
  * @module
  */
 
+import {ON_FRAME, readCamera, readCameraMove, readCameraReset, readCameraView} from "./camera.js";
+import {readPresets} from "./layoutPresets.js";
+import {readThumbnail, readThumbnailRequest} from "./thumbnails.js";
+import {
+    STOPPED_TIMER,
+    readTimer,
+    readTimerAction,
+    readTimerState,
+    readTimerTarget
+} from "./timer.js";
 import {readViewport} from "./viewport.js";
 
+/** @typedef {import("./layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("./viewport.js").Viewport} Viewport */
 /** @typedef {import("./viewport.js").ViewportMessage} ViewportMessage */
+/** @typedef {import("./thumbnails.js").ThumbnailRequestMessage} ThumbnailRequestMessage */
+/** @typedef {import("./thumbnails.js").ThumbnailMessage} ThumbnailMessage */
+/** @typedef {import("./timer.js").TimerState} TimerState */
+/** @typedef {import("./timer.js").TimerMessage} TimerMessage */
+/** @typedef {import("./timer.js").TimerActionMessage} TimerActionMessage */
+/** @typedef {import("./timer.js").TimerTargetMessage} TimerTargetMessage */
+/** @typedef {import("./camera.js").CameraView} CameraView */
+/** @typedef {import("./camera.js").CameraMessage} CameraMessage */
+/** @typedef {import("./camera.js").CameraMoveMessage} CameraMoveMessage */
+/** @typedef {import("./camera.js").CameraResetMessage} CameraResetMessage */
 
 /** The name of every message, the value of its `name` field.
  *
@@ -29,7 +51,16 @@ export const MessageNames = Object.freeze({
     previous: "previous",
     custom: "custom",
     preview: "preview",
-    followLink: "followLink"
+    followLink: "followLink",
+    key: "key",
+    thumbnailRequest: "thumbnailRequest",
+    thumbnail: "thumbnail",
+    timer: "timer",
+    timerAction: "timerAction",
+    timerTarget: "timerTarget",
+    cameraMove: "cameraMove",
+    cameraReset: "cameraReset",
+    camera: "camera"
 });
 
 /** Who says `hello`: the deck that plays the presentation, or a surface that watches it.
@@ -53,10 +84,15 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  *
  * @typedef {object} DisplayState
  * @property {string} deckId - The deck's file name without `.sozi.html`.
+ * @property {string} [version] - The date of the deck's page, as `document.lastModified` gives it.
  * @property {number} frameCount - How many frames the deck has.
  * @property {Viewport | null} viewport - The display's size, null while it has none.
  * @property {FrameInfo} frame - The current frame.
+ * @property {FrameInfo[]} frames - Every frame, in deck order.
  * @property {boolean} blank - Is the blank screen shown?
+ * @property {Record<string, LayoutPreset>} [layouts] - The deck's layout presets, in order.
+ * @property {TimerState} [timer] - The talk timer as it is now.
+ * @property {CameraView} [camera] - Where the camera looks, relative to the current frame.
  */
 
 /** @typedef {{name: "hello", role: "surface"}} SurfaceHelloMessage */
@@ -72,11 +108,25 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
 /** @typedef {{name: "followLink", id: string}} FollowLinkMessage */
 
 /**
+ * The modifier keys held down with a key.
+ *
+ * @typedef {object} KeyModifiers
+ * @property {boolean} shift - Shift.
+ * @property {boolean} alt - Alt (Option).
+ * @property {boolean} ctrl - Control.
+ * @property {boolean} meta - Meta (Command, Windows).
+ */
+
+/** @typedef {{name: "key", key: string, modifiers: KeyModifiers}} KeyMessage */
+
+/**
  * Any message of the protocol.
  *
  * @typedef {HelloMessage | FrameChangeMessage | ViewportMessage | BlankMessage
  *   | JumpToFrameMessage | NextMessage | PreviousMessage | CustomMessage | PreviewMessage
- *   | FollowLinkMessage} Message
+ *   | FollowLinkMessage | KeyMessage | ThumbnailRequestMessage | ThumbnailMessage
+ *   | TimerMessage | TimerActionMessage | TimerTargetMessage | CameraMoveMessage
+ *   | CameraResetMessage | CameraMessage} Message
  */
 
 /**
@@ -88,8 +138,32 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  */
 export function helloMessage(role, state) {
     if (role === Roles.display) {
-        const {deckId, frameCount, viewport, frame, blank} = /** @type {DisplayState} */ (state);
-        return {name: "hello", role, deckId, frameCount, viewport, frame, blank};
+        const {
+            deckId,
+            version = "",
+            frameCount,
+            viewport,
+            frame,
+            frames,
+            blank,
+            layouts = {},
+            timer = STOPPED_TIMER,
+            camera = ON_FRAME
+        } = /** @type {DisplayState} */ (state);
+        return {
+            name: "hello",
+            role,
+            deckId,
+            version,
+            frameCount,
+            viewport,
+            frame,
+            frames,
+            blank,
+            layouts,
+            timer,
+            camera
+        };
     }
     return {name: "hello", role: "surface"};
 }
@@ -177,6 +251,32 @@ export function followLinkMessage(id) {
 }
 
 /**
+ * Build a `key`: a key was pressed in a preview, for the presenter to act on.
+ *
+ * @param {string} key - The key, as `KeyboardEvent.key` names it.
+ * @param {KeyModifiers} modifiers - The modifier keys held down with it.
+ * @returns {KeyMessage} The message.
+ */
+export function keyMessage(key, {shift, alt, ctrl, meta}) {
+    return {name: "key", key, modifiers: {shift, alt, ctrl, meta}};
+}
+
+/**
+ * Read the modifiers of a received `key`.
+ *
+ * @param {any} m - The `modifiers` field as received.
+ * @returns {KeyModifiers | null} The modifiers, or null if one is missing or not a boolean.
+ */
+function readModifiers(m) {
+    if (m === null || typeof m !== "object") {
+        return null;
+    }
+    const {shift, alt, ctrl, meta} = m;
+    const valid = [shift, alt, ctrl, meta].every(v => typeof v === "boolean");
+    return valid ? {shift, alt, ctrl, meta} : null;
+}
+
+/**
  * Is it an integer from 0 up?
  *
  * @param {any} v - The value.
@@ -212,6 +312,25 @@ function readFrame(f) {
 }
 
 /**
+ * Read the `frames` field of a display's `hello`.
+ *
+ * A display from the release before this field sends none, which reads as an empty list.
+ *
+ * @param {any} frames - The field as received.
+ * @returns {FrameInfo[] | null} The frames, or null if the list or an entry is malformed.
+ */
+function readFrames(frames) {
+    if (frames === undefined) {
+        return [];
+    }
+    if (!Array.isArray(frames)) {
+        return null;
+    }
+    const read = frames.map(readFrame);
+    return read.every(frame => frame !== null) ? /** @type {FrameInfo[]} */ (read) : null;
+}
+
+/**
  * Read the `transition` field, which defaults to true.
  *
  * @param {any} transition - The field as received.
@@ -227,6 +346,10 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
+ * A missing `version`, `frames` or `layouts` reads as none, a missing `timer` as a stopped one and
+ * a missing `camera` as on its frame, so a newer surface can join an older deck. A bad preset is
+ * dropped, never the whole message; a malformed `frames`, `timer` or `camera` refuses it.
+ *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
  */
@@ -237,17 +360,38 @@ function readHello(data) {
     if (data.role !== Roles.display) {
         return null;
     }
-    const {deckId, frameCount, blank} = data;
+    const {deckId, frameCount, blank, version = ""} = data;
     const viewport =
         data.viewport === null ? null : readViewport({...data.viewport, name: "viewport"});
     const frame = readFrame(data.frame);
+    const frames = readFrames(data.frames);
+    const timer = data.timer === undefined ? STOPPED_TIMER : readTimerState(data.timer);
+    const camera = data.camera === undefined ? ON_FRAME : readCameraView(data.camera);
     const valid =
         typeof deckId === "string" &&
+        typeof version === "string" &&
         isIndex(frameCount) &&
         (viewport !== null || data.viewport === null) &&
         frame !== null &&
-        typeof blank === "boolean";
-    return valid ? helloMessage(Roles.display, {deckId, frameCount, viewport, frame, blank}) : null;
+        frames !== null &&
+        typeof blank === "boolean" &&
+        timer !== null &&
+        camera !== null;
+    const layouts = readPresets(data.layouts).presets;
+    return valid
+        ? helloMessage(Roles.display, {
+              deckId,
+              version,
+              frameCount,
+              viewport,
+              frame,
+              frames,
+              blank,
+              layouts,
+              timer,
+              camera
+          })
+        : null;
 }
 
 /**
@@ -298,7 +442,19 @@ const READERS = Object.freeze({
     [MessageNames.custom]: data => (isName(data.type) ? customMessage(data.type, data.data) : null),
     [MessageNames.preview]: data =>
         typeof data.current === "boolean" ? previewMessage(data.current) : null,
-    [MessageNames.followLink]: data => (isName(data.id) ? followLinkMessage(data.id) : null)
+    [MessageNames.followLink]: data => (isName(data.id) ? followLinkMessage(data.id) : null),
+    [MessageNames.key]: data => {
+        const modifiers = readModifiers(data.modifiers);
+        return isName(data.key) && modifiers ? keyMessage(data.key, modifiers) : null;
+    },
+    [MessageNames.thumbnailRequest]: readThumbnailRequest,
+    [MessageNames.thumbnail]: readThumbnail,
+    [MessageNames.timer]: readTimer,
+    [MessageNames.timerAction]: readTimerAction,
+    [MessageNames.timerTarget]: readTimerTarget,
+    [MessageNames.cameraMove]: readCameraMove,
+    [MessageNames.cameraReset]: readCameraReset,
+    [MessageNames.camera]: readCamera
 });
 
 /**

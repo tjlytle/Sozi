@@ -12,14 +12,48 @@ import {
     customMessage,
     previewMessage,
     followLinkMessage,
+    keyMessage,
     readMessage,
     deckIdOf
 } from "../../../src/js/protocol/messages.js";
 import {viewportMessage} from "../../../src/js/protocol/viewport.js";
+import {
+    STOPPED_TIMER,
+    TimerActions,
+    timerActionMessage,
+    timerMessage,
+    timerTargetMessage
+} from "../../../src/js/protocol/timer.js";
+import {
+    ON_FRAME,
+    cameraMessage,
+    cameraMoveMessage,
+    cameraResetMessage
+} from "../../../src/js/protocol/camera.js";
 
+const timer = {elapsedMs: 1500, running: true, targetMs: 60000};
+const camera = {offFrame: true, zoom: 2, x: -0.5, y: 0.25};
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
-const displayState = {deckId: "basic", frameCount: 2, viewport, frame, blank: false};
+const frames = [{index: 0, id: "frame1", title: "One", notes: ""}, frame];
+const dock = {grid: {}, panels: {current: {id: "current"}}};
+// Cast: the field's own literal types are lost on a constant.
+const layouts = /** @type {any} */ ({
+    phone: {match: "phone", layout: {version: 1, dock, rail: []}}
+});
+const displayState = {
+    deckId: "basic",
+    version: "11/06/2026 18:26:48",
+    frameCount: 2,
+    viewport,
+    frame,
+    frames,
+    blank: false,
+    layouts,
+    timer,
+    camera
+};
+const noModifiers = {shift: false, alt: false, ctrl: false, meta: false};
 
 /** One built message of each kind, as the protocol sends it.
  *
@@ -42,7 +76,13 @@ function everyMessage() {
         customMessage("poll", {question: "Ready?"}),
         previewMessage(true),
         followLinkMessage("link1"),
-        viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2})
+        keyMessage(" ", noModifiers),
+        keyMessage("End", {shift: true, alt: true, ctrl: true, meta: true}),
+        viewportMessage({innerWidth: 1200, innerHeight: 400, devicePixelRatio: 2}),
+        timerMessage(timer),
+        timerActionMessage(TimerActions.reset),
+        timerTargetMessage(60000),
+        timerTargetMessage(null)
     ];
 }
 
@@ -62,6 +102,11 @@ describe("protocol messages", () => {
         assert.deepEqual(customMessage("t", 1), {name: "custom", type: "t", data: 1});
         assert.deepEqual(previewMessage(false), {name: "preview", current: false});
         assert.deepEqual(followLinkMessage("a"), {name: "followLink", id: "a"});
+        assert.deepEqual(keyMessage("Home", {...noModifiers, shift: true}), {
+            name: "key",
+            key: "Home",
+            modifiers: {shift: true, alt: false, ctrl: false, meta: false}
+        });
     });
 
     test("every built message reads back unchanged", () => {
@@ -78,12 +123,122 @@ describe("protocol messages", () => {
 
     test("fields that are not part of the message are dropped", () => {
         assert.deepEqual(readMessage({name: "blank", on: true, extra: 1}), blankMessage(true));
+        assert.deepEqual(
+            readMessage({name: "key", key: "a", modifiers: {...noModifiers, fn: true}}),
+            keyMessage("a", noModifiers)
+        );
+    });
+
+    test("a display's hello keeps its frames and drops their other fields", () => {
+        const message = helloMessage(Roles.display, displayState);
+        const read = readMessage({...message, frames: [{...frames[0], extra: 1}, frame]});
+        assert.deepEqual(/** @type {any} */ (read).frames, frames);
+    });
+
+    test("a display's hello from before the frames list reads as an empty list", () => {
+        const older = {...helloMessage(Roles.display, displayState), frames: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).frames, []);
+    });
+
+    test("a display's hello from before the version field reads as an empty version", () => {
+        const older = {...helloMessage(Roles.display, displayState), version: undefined};
+        assert.equal(/** @type {any} */ (readMessage(older)).version, "");
+    });
+
+    test("a display's hello with a version that is not a string is refused", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        assert.equal(readMessage({...hello, version: 3}), null);
     });
 
     test("is refused when it is not an object or has an unknown name", () => {
         for (const data of [null, undefined, "next", 3, [], {}, {name: "moveToNext"}]) {
             assert.equal(readMessage(data), null, JSON.stringify(data));
         }
+    });
+
+    test("a display's hello keeps the deck's layout presets", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        assert.deepEqual(/** @type {any} */ (readMessage(hello)).layouts, layouts);
+    });
+
+    test("a hello from a deck that has no presets field reads as none", () => {
+        const older = {...helloMessage(Roles.display, displayState), layouts: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).layouts, {});
+        const state = {...displayState, layouts: undefined};
+        assert.deepEqual(/** @type {any} */ (helloMessage(Roles.display, state)).layouts, {});
+    });
+
+    test("a bad preset is dropped, never the whole hello", () => {
+        const hello = {
+            ...helloMessage(Roles.display, displayState),
+            layouts: {...layouts, bad: {match: "tablet"}, "a.b": layouts.phone}
+        };
+        const read = /** @type {any} */ (readMessage(hello));
+        assert.equal(read.deckId, "basic");
+        assert.deepEqual(read.layouts, layouts);
+        const worse = {...hello, layouts: "none"};
+        assert.deepEqual(/** @type {any} */ (readMessage(worse)).layouts, {});
+    });
+
+    test("a display's hello keeps the timer and drops its other fields", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        const read = readMessage({...hello, timer: {...timer, extra: 1}});
+        assert.deepEqual(/** @type {any} */ (read).timer, timer);
+    });
+
+    test("a hello from a deck from before the timer reads as a stopped timer", () => {
+        const older = {...helloMessage(Roles.display, displayState), timer: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).timer, STOPPED_TIMER);
+    });
+
+    test("a display's hello keeps the camera and drops its other fields", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        const read = readMessage({...hello, camera: {...camera, extra: 1}});
+        assert.deepEqual(/** @type {any} */ (read).camera, camera);
+    });
+
+    test("a hello from a deck from before the camera reads as a camera on its frame", () => {
+        const older = {...helloMessage(Roles.display, displayState), camera: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).camera, ON_FRAME);
+    });
+
+    test("a hello with a malformed camera is refused", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        for (const bad of [null, {...camera, zoom: 0}, {...camera, offFrame: "yes"}]) {
+            assert.equal(readMessage({...hello, camera: bad}), null, JSON.stringify(bad));
+        }
+    });
+
+    test("the camera's messages are read through readMessage", () => {
+        const move = {x: 0.1, y: 0, zoom: 1, atX: 0, atY: 0};
+        assert.deepEqual(readMessage(cameraMoveMessage(move)), cameraMoveMessage(move));
+        assert.deepEqual(readMessage(cameraResetMessage()), cameraResetMessage());
+        assert.deepEqual(readMessage(cameraMessage(camera)), cameraMessage(camera));
+        assert.equal(readMessage({...cameraMoveMessage(move), zoom: 0}), null);
+    });
+
+    test("a hello with a malformed timer is refused", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        for (const bad of [null, "running", {...timer, elapsedMs: -1}, {...timer, targetMs: 0}]) {
+            assert.equal(readMessage({...hello, timer: bad}), null, JSON.stringify(bad));
+        }
+    });
+
+    test("the timer's messages are refused when a field is malformed", () => {
+        for (const bad of [
+            {name: "timer", ...timer, running: "yes"},
+            {name: "timerAction", action: "stop"},
+            {name: "timerTarget", targetMs: 0}
+        ]) {
+            assert.equal(readMessage(bad), null, bad.name);
+        }
+    });
+
+    test("a surface's hello carries no presets", () => {
+        assert.deepEqual(readMessage(helloMessage(Roles.surface)), {
+            name: "hello",
+            role: "surface"
+        });
     });
 
     test("is refused with a malformed field", () => {
@@ -96,6 +251,10 @@ describe("protocol messages", () => {
             {...helloMessage(Roles.display, displayState), viewport: {width: 0}},
             {...helloMessage(Roles.display, displayState), frame: null},
             {...helloMessage(Roles.display, displayState), blank: "no"},
+            {...helloMessage(Roles.display, displayState), frames: "all"},
+            {...helloMessage(Roles.display, displayState), frames: null},
+            {...helloMessage(Roles.display, displayState), frames: [frame, {index: 2}]},
+            {...helloMessage(Roles.display, displayState), frames: [frame, null]},
             {...frameChangeMessage(frame), index: -1},
             {...frameChangeMessage(frame), index: "1"},
             {...frameChangeMessage(frame), id: 2},
@@ -114,6 +273,12 @@ describe("protocol messages", () => {
             {name: "preview", current: "true"},
             {name: "followLink"},
             {name: "followLink", id: ""},
+            {name: "key", modifiers: noModifiers},
+            {name: "key", key: "", modifiers: noModifiers},
+            {name: "key", key: " "},
+            {name: "key", key: " ", modifiers: null},
+            {name: "key", key: " ", modifiers: {shift: false, alt: false, ctrl: false}},
+            {name: "key", key: " ", modifiers: {...noModifiers, shift: "no"}},
             {name: "viewport", width: 0, height: 1, pixelRatio: 1}
         ];
         for (const data of bad) {

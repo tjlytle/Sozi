@@ -1,0 +1,307 @@
+{
+  "aspectWidth": 16,
+  "aspectHeight": 9,
+  "enableKeyboardZoom": true,
+  "enableKeyboardRotation": true,
+  "enableKeyboardNavigation": true,
+  "enableMouseTranslation": true,
+  "enableMouseZoom": true,
+  "enableMouseRotation": true,
+  "enableMouseNavigation": true,
+  "updateURLOnFrameChange": true,
+  "exportType": "pdf",
+  "exportToPDFPageSize": "A4",
+  "exportToPDFPageOrientation": "landscape",
+  "exportToPDFInclude": "",
+  "exportToPDFExclude": "",
+  "exportToPPTXSlideSize": "screen4x3",
+  "exportToPPTXInclude": "",
+  "exportToPPTXExclude": "",
+  "exportToVideoFormat": "webm",
+  "exportToVideoWidth": 1280,
+  "exportToVideoHeight": 720,
+  "exportToVideoFrameRate": 50,
+  "exportToVideoBitRate": 2000000,
+  "elementsToHide": [],
+  "customFiles": [],
+  "frames": [
+    {
+      "frameId": "frame1",
+      "title": "One",
+      "titleLevel": 0,
+      "notes": "<p>Opening notes, line 1: the speaker reads ahead through all of these.</p><p>Opening notes, line 2: the speaker reads ahead through all of these.</p><p>Opening notes, line 3: the speaker reads ahead through all of these.</p><p>Opening notes, line 4: the speaker reads ahead through all of these.</p><p>Opening notes, line 5: the speaker reads ahead through all of these.</p><p>Opening notes, line 6: the speaker reads ahead through all of these.</p><p>Opening notes, line 7: the speaker reads ahead through all of these.</p><p>Opening notes, line 8: the speaker reads ahead through all of these.</p><p>Opening notes, line 9: the speaker reads ahead through all of these.</p><p>Opening notes, line 10: the speaker reads ahead through all of these.</p><p>Opening notes, line 11: the speaker reads ahead through all of these.</p><p>Opening notes, line 12: the speaker reads ahead through all of these.</p><p>Opening notes, line 13: the speaker reads ahead through all of these.</p><p>Opening notes, line 14: the speaker reads ahead through all of these.</p><p>Opening notes, line 15: the speaker reads ahead through all of these.</p><p>Opening notes, line 16: the speaker reads ahead through all of these.</p><p>Opening notes, line 17: the speaker reads ahead through all of these.</p><p>Opening notes, line 18: the speaker reads ahead through all of these.</p><p>Opening notes, line 19: the speaker reads ahead through all of these.</p><p>Opening notes, line 20: the speaker reads ahead through all of these.</p><p>Opening notes, line 21: the speaker reads ahead through all of these.</p><p>Opening notes, line 22: the speaker reads ahead through all of these.</p><p>Opening notes, line 23: the speaker reads ahead through all of these.</p><p>Opening notes, line 24: the speaker reads ahead through all of these.</p><p>Opening notes, line 25: the speaker reads ahead through all of these.</p><p>Opening notes, line 26: the speaker reads ahead through all of these.</p><p>Opening notes, line 27: the speaker reads ahead through all of these.</p><p>Opening notes, line 28: the speaker reads ahead through all of these.</p><p>Opening notes, line 29: the speaker reads ahead through all of these.</p><p>Opening notes, line 30: the speaker reads ahead through all of these.</p><p>Opening notes, line 31: the speaker reads ahead through all of these.</p><p>Opening notes, line 32: the speaker reads ahead through all of these.</p><p>Opening notes, line 33: the speaker reads ahead through all of these.</p><p>Opening notes, line 34: the speaker reads ahead through all of these.</p><p>Opening notes, line 35: the speaker reads ahead through all of these.</p><p>Opening notes, line 36: the speaker reads ahead through all of these.</p><p>Opening notes, line 37: the speaker reads ahead through all of these.</p><p>Opening notes, line 38: the speaker reads ahead through all of these.</p><p>Opening notes, line 39: the speaker reads ahead through all of these.</p><p>Opening notes, line 40: the speaker reads ahead through all of these.</p>",
+      "timeoutMs": 0,
+      "timeoutEnable": false,
+      "transitionDurationMs": 100,
+      "showInFrameList": true,
+      "showFrameNumber": true,
+      "cameraOffsets": {
+        "layer1": {
+          "deltaX": 0,
+          "deltaY": 0,
+          "widthFactor": 1,
+          "heightFactor": 1,
+          "deltaAngle": 0
+        }
+      },
+      "layerProperties": {
+        "layer1": {
+          "link": false,
+          "referenceElementId": "r1",
+          "outlineElementId": "",
+          "transitionTimingFunction": "linear",
+          "transitionRelativeZoom": 0,
+          "transitionPathId": ""
+        }
+      },
+      "cameraStates": {
+        "layer1": {
+          "cx": 210,
+          "cy": 140,
+          "width": 320,
+          "height": 180,
+          "opacity": 1,
+          "angle": 0,
+          "clipped": false,
+          "clipXOffset": 0,
+          "clipYOffset": 0,
+          "clipWidthFactor": 1,
+          "clipHeightFactor": 1
+        }
+      }
+    },
+    {
+      "frameId": "frame2",
+      "title": "Two",
+      "titleLevel": 0,
+      "notes": "<p><br></p>",
+      "timeoutMs": 0,
+      "timeoutEnable": false,
+      "transitionDurationMs": 100,
+      "showInFrameList": true,
+      "showFrameNumber": true,
+      "cameraOffsets": {
+        "layer1": {
+          "deltaX": 0,
+          "deltaY": 0,
+          "widthFactor": 1,
+          "heightFactor": 1,
+          "deltaAngle": 0
+        }
+      },
+      "layerProperties": {
+        "layer1": {
+          "link": false,
+          "referenceElementId": "r2",
+          "outlineElementId": "",
+          "transitionTimingFunction": "linear",
+          "transitionRelativeZoom": 0,
+          "transitionPathId": ""
+        }
+      },
+      "cameraStates": {
+        "layer1": {
+          "cx": 610,
+          "cy": 140,
+          "width": 320,
+          "height": 180,
+          "opacity": 1,
+          "angle": 0,
+          "clipped": false,
+          "clipXOffset": 0,
+          "clipYOffset": 0,
+          "clipWidthFactor": 1,
+          "clipHeightFactor": 1
+        }
+      }
+    },
+    {
+      "frameId": "frame3",
+      "title": "Three",
+      "titleLevel": 0,
+      "notes": "",
+      "timeoutMs": 0,
+      "timeoutEnable": false,
+      "transitionDurationMs": 100,
+      "showInFrameList": true,
+      "showFrameNumber": true,
+      "cameraOffsets": {
+        "layer1": {
+          "deltaX": 0,
+          "deltaY": 0,
+          "widthFactor": 1,
+          "heightFactor": 1,
+          "deltaAngle": 0
+        }
+      },
+      "layerProperties": {
+        "layer1": {
+          "link": false,
+          "referenceElementId": "r3",
+          "outlineElementId": "",
+          "transitionTimingFunction": "linear",
+          "transitionRelativeZoom": 0,
+          "transitionPathId": ""
+        }
+      },
+      "cameraStates": {
+        "layer1": {
+          "cx": 1010,
+          "cy": 140,
+          "width": 320,
+          "height": 180,
+          "opacity": 1,
+          "angle": 0,
+          "clipped": false,
+          "clipXOffset": 0,
+          "clipYOffset": 0,
+          "clipWidthFactor": 1,
+          "clipHeightFactor": 1
+        }
+      }
+    },
+    {
+      "frameId": "frame4",
+      "title": "Four",
+      "titleLevel": 0,
+      "notes": "<p>A table, a task list, code, a <a href=\"https://example.org\">link</a> and an image.</p><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>answer</td><td>42</td></tr></tbody></table><ul><li><input type=\"checkbox\" checked disabled> Done</li><li><input type=\"checkbox\" disabled> Still to do</li></ul><pre><code class=\"language-javascript\">const answer = 42;\nfunction ask() {\n    return answer;\n}</code></pre><p><img src=\"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7\" alt=\"A dot\"></p>",
+      "timeoutMs": 0,
+      "timeoutEnable": false,
+      "transitionDurationMs": 100,
+      "showInFrameList": true,
+      "showFrameNumber": true,
+      "cameraOffsets": {
+        "layer1": {
+          "deltaX": 0,
+          "deltaY": 0,
+          "widthFactor": 1,
+          "heightFactor": 1,
+          "deltaAngle": 0
+        }
+      },
+      "layerProperties": {
+        "layer1": {
+          "link": false,
+          "referenceElementId": "r4",
+          "outlineElementId": "",
+          "transitionTimingFunction": "linear",
+          "transitionRelativeZoom": 0,
+          "transitionPathId": ""
+        }
+      },
+      "cameraStates": {
+        "layer1": {
+          "cx": 210,
+          "cy": 440,
+          "width": 320,
+          "height": 180,
+          "opacity": 1,
+          "angle": 0,
+          "clipped": false,
+          "clipXOffset": 0,
+          "clipYOffset": 0,
+          "clipWidthFactor": 1,
+          "clipHeightFactor": 1
+        }
+      }
+    },
+    {
+      "frameId": "frame5",
+      "title": "Five",
+      "titleLevel": 0,
+      "notes": "",
+      "timeoutMs": 0,
+      "timeoutEnable": false,
+      "transitionDurationMs": 100,
+      "showInFrameList": true,
+      "showFrameNumber": true,
+      "cameraOffsets": {
+        "layer1": {
+          "deltaX": 0,
+          "deltaY": 0,
+          "widthFactor": 1,
+          "heightFactor": 1,
+          "deltaAngle": 0
+        }
+      },
+      "layerProperties": {
+        "layer1": {
+          "link": false,
+          "referenceElementId": "r5",
+          "outlineElementId": "",
+          "transitionTimingFunction": "linear",
+          "transitionRelativeZoom": 0,
+          "transitionPathId": ""
+        }
+      },
+      "cameraStates": {
+        "layer1": {
+          "cx": 610,
+          "cy": 440,
+          "width": 320,
+          "height": 180,
+          "opacity": 1,
+          "angle": 0,
+          "clipped": false,
+          "clipXOffset": 0,
+          "clipYOffset": 0,
+          "clipWidthFactor": 1,
+          "clipHeightFactor": 1
+        }
+      }
+    },
+    {
+      "frameId": "frame6",
+      "title": "Six",
+      "titleLevel": 0,
+      "notes": "<p>First short line.</p><p>Second short line.</p>",
+      "timeoutMs": 0,
+      "timeoutEnable": false,
+      "transitionDurationMs": 100,
+      "showInFrameList": true,
+      "showFrameNumber": true,
+      "cameraOffsets": {
+        "layer1": {
+          "deltaX": 0,
+          "deltaY": 0,
+          "widthFactor": 1,
+          "heightFactor": 1,
+          "deltaAngle": 0
+        }
+      },
+      "layerProperties": {
+        "layer1": {
+          "link": false,
+          "referenceElementId": "r6",
+          "outlineElementId": "",
+          "transitionTimingFunction": "linear",
+          "transitionRelativeZoom": 0,
+          "transitionPathId": ""
+        }
+      },
+      "cameraStates": {
+        "layer1": {
+          "cx": 1010,
+          "cy": 440,
+          "width": 320,
+          "height": 180,
+          "opacity": 1,
+          "angle": 0,
+          "clipped": false,
+          "clipXOffset": 0,
+          "clipYOffset": 0,
+          "clipWidthFactor": 1,
+          "clipHeightFactor": 1
+        }
+      }
+    }
+  ],
+  "selectedFrames": [
+    "frame1"
+  ],
+  "selectedLayers": [
+    "layer1",
+    "layer2"
+  ],
+  "editableLayers": []
+}
