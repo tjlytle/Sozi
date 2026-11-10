@@ -11,10 +11,18 @@
 # outside checks ran, error when they crashed, skipped when they never ran (an early
 # failure, a failing harness, no session file).
 #
+# A session stopped at a usage limit (harness exit 75) leaves its work in the outbox:
+# carry.bundle (its unpushed commits) and carry.patch (its uncommitted and untracked
+# files). When the loop copies them into the next session's outbox, they are applied
+# on top of the issue's branch before the harness runs. With PIPELINE_RESUME_SESSION
+# that harness session is resumed with resume.md instead of a fresh run; a resume
+# that fails before any model call (0 tokens) falls back to the run.
+#
 # Usage: pipeline/stage.sh <issue> <stage>   (the container's main process)
 #
 # Env read: PIPELINE_REPO, PIPELINE_HARNESS, PIPELINE_MODEL (required);
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
+# PIPELINE_RESUME_SESSION (the session to resume);
 # PIPELINE_PERSONA (when set, exported to gh-as as GH_AS_SIGNATURE, GH_AS_HARNESS, GH_AS_MODEL);
 # MIRROR (/mirror), OUTBOX (/outbox), WORK (/work), CACHE (/cache),
 # HARNESS_DIR (/pipeline/harness), HOOKS_OUTSIDE (/pipeline/hooks-outside.sh),
@@ -50,10 +58,50 @@ to_array() {
     else node -e 'const l=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);console.log(JSON.stringify(l))'; fi
 }
 
+# After a usage limit (exit 75), leave the session's work for the next one: the commits
+# on no remote branch as carry.bundle, the uncommitted and untracked files as carry.patch.
+# Neither file is written when there is nothing to carry.
+write_carry() {
+    local ref patch="$OUTBOX/carry.patch"
+    [ "$harness_exit" -eq 75 ] && [ -n "$start" ] || return 0
+    ref=$(git -C "$WORK" symbolic-ref -q HEAD) || ref=HEAD
+    if [ -n "$(git -C "$WORK" rev-list "$ref" --not --remotes -- 2>/dev/null | head -1)" ]; then
+        git -C "$WORK" bundle create "$OUTBOX/carry.bundle" "$ref" --not --remotes 2>/dev/null
+    fi
+    git -C "$WORK" add -A && git -C "$WORK" diff --cached --binary HEAD >"$patch.tmp"
+    git -C "$WORK" reset -q
+    if [ -s "$patch.tmp" ]; then mv "$patch.tmp" "$patch"; else rm -f "$patch.tmp"; fi
+}
+
+# Put back the work of a session a usage limit stopped: its commits, on the branch they
+# were made on, then its uncommitted and untracked files. A carry that does not apply is
+# logged, and the session starts from the branch as it is.
+apply_carry() {
+    local bundle="$OUTBOX/carry.bundle" patch="$OUTBOX/carry.patch" head
+    if [ -s "$bundle" ]; then
+        step carry
+        head=$(git -C "$WORK" bundle list-heads "$bundle" | head -1 | cut -d' ' -f2)
+        if git -C "$WORK" fetch -q "$bundle" "$head"; then
+            case "$head" in
+                refs/heads/*) git -C "$WORK" checkout -q -B "${head#refs/heads/}" FETCH_HEAD ;;
+                *) git -C "$WORK" checkout -q --detach FETCH_HEAD ;;
+            esac || step "carry: checkout failed"
+        else
+            step "carry: bundle failed"
+        fi
+    fi
+    if [ -s "$patch" ]; then
+        step carry-files
+        git -C "$WORK" apply --binary "$patch" || step "carry: patch failed"
+    fi
+    return 0
+}
+
 # Write result.json from whatever state exists; runs on every exit. Its commits are the
 # session's own: first parents only, no merge commits, so a merge of master adds none.
 write_result() {
     local sfile=/dev/null usage changed commits out="$OUTBOX/result.json"
+    write_carry
     [ -s "$OUTBOX/session" ] && sfile="$OUTBOX/session"
     usage='{"tokensIn":0,"tokensOut":0,"costUsd":0,"turns":0,"status":"error"}'
     [ -s "$OUTBOX/usage.json" ] && usage=$(cat "$OUTBOX/usage.json")
@@ -132,6 +180,26 @@ harness() {
     harness_exit=$?
 }
 
+# The tokens the last call reported, 0 when it reported none.
+tokens_used() {
+    jq -r '(.tokensIn // 0) + (.tokensOut // 0)' "$OUTBOX/usage.json" 2>/dev/null || echo 0
+}
+
+# The session's first call: resume the session a usage limit stopped with resume.md when
+# PIPELINE_RESUME_SESSION names it, else run the prompt. A resume that fails with no
+# tokens used never reached the model (the transcript is gone): run the prompt instead.
+first_call() {
+    if [ -n "${PIPELINE_RESUME_SESSION:-}" ]; then
+        echo "$PIPELINE_RESUME_SESSION" >"$OUTBOX/session"
+        harness resume --session "$PIPELINE_RESUME_SESSION" --message "$OUTBOX/resume.md"
+        case "$harness_exit" in 0 | 75) return ;; esac
+        [ "$(tokens_used)" = 0 ] || return
+        step "resume failed, running the prompt"
+        rm -f "$OUTBOX/session" "$OUTBOX/usage.json"
+    fi
+    harness run --prompt "$OUTBOX/prompt.md"
+}
+
 # Run the outside hooks; resume the session while they find something new.
 resume_loop() {
     local last="" report rc
@@ -189,7 +257,8 @@ main() {
     link_agy
     export_signature
     step start; start=$(git -C "$WORK" rev-parse HEAD)
-    step harness; harness run --prompt "$OUTBOX/prompt.md"
+    apply_carry
+    step harness; first_call
     resume_loop
     step result
     exit 0
