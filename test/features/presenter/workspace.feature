@@ -101,6 +101,7 @@ Feature: The presenter arranges a workspace of panels
 
   @issue-318
   Scenario: A speaker arranges the workspace without dragging
+    Given the "Clock" panel is closed from its menu
     When "Clock" is added from the + menu
     And "Notes" is split right of "Current" from the panel menu
     And the "Next" panel is closed from its menu
