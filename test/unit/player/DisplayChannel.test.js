@@ -463,6 +463,25 @@ describe("DisplayChannel", () => {
         assert.equal(transport.sent.length, 1);
     });
 
+    test("a surface that says hello again, by either name, adds no listener", () => {
+        const {transport, player, host, timer} = startedDisplay();
+        // Started already, so that no timer message comes between the two below.
+        timer.start();
+        transport.deliver(helloMessage(Roles.surface));
+        transport.deliver(helloMessage(Roles.surface));
+        transport.deliver({name: "notifyOnFrameChange"});
+        transport.deliver({name: "notifyOnFrameChange"});
+        transport.sent.length = 0;
+        assert.equal(host.listeners.size, 1);
+        assert.equal(player.listenerCount(PlayerEvents.frameChange), 1);
+        player.showFrame(1);
+        host.resize(800, 600);
+        assert.deepEqual(transport.sent, [
+            frameChangeMessage({index: 1, id: "f2", title: "Two", notes: "second"}),
+            viewportMessage({innerWidth: 800, innerHeight: 600, devicePixelRatio: 2})
+        ]);
+    });
+
     test("hands each command to the controller", () => {
         const {transport, controller} = startedDisplay();
         transport.deliver(nextMessage(true));
