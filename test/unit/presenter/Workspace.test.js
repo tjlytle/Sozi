@@ -48,7 +48,7 @@ class FakeDock {
     }
 
     /**
-     * Put a panel in a group.
+     * Put a panel in a group, as the active panel.
      *
      * @param {string} id - The panel's id.
      * @param {string} groupId - The group's id.
@@ -58,13 +58,19 @@ class FakeDock {
             id,
             group: {id: groupId},
             api: {
+                // As in dockview, the panel moved or added is the active one.
                 moveTo: ({group}) => {
                     panel.group = group;
+                    this.active = id;
                     this.changed();
+                },
+                setActive: () => {
+                    this.active = id;
                 }
             }
         };
         this.panels.set(id, panel);
+        this.active = id;
     }
 
     /**
@@ -379,6 +385,11 @@ describe("Workspace", () => {
         const added = addedPositions(dock);
         workspace.addPanel(latePanel());
         assert.deepEqual(added, [POSITION]);
+    });
+
+    test("the stack opens on the panel that leads it", async () => {
+        const {dock} = await openWorkspace();
+        assert.equal(dock.active, IDS[0]);
     });
 
     test("a panel added on the stack joins it", async () => {
