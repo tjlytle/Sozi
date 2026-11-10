@@ -173,23 +173,25 @@ async function countTry(ctx, n, outbox) {
 }
 
 /**
- * Park an issue whose session ran on a stub harness, naming the harness and the stage.
+ * Park an issue whose session ran on a stub harness, naming the harness and the stage, and
+ * the plan's Harness line or the stage setting that chose it.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
  * @returns {Promise<void>}
  */
 async function parkStub(ctx, n) {
-    const stage = ctx.state.issues[n].session.stage;
-    const harness = ctx.settings.harnessFor(stage);
+    const {stage, planned, harness = ctx.settings.harnessFor(stage)} = ctx.state.issues[n].session;
+    const fix = planned
+        ? `change the plan's **Harness** line for \`${stage}\``
+        : `set \`PIPELINE_HARNESS_${stage.toUpperCase()}\``;
     ctx.log(`#${n}: the ${harness} harness is a stub; parking`);
     await parkIssue(
         ctx,
         n,
         `Pipeline: the \`${harness}\` harness is a stub (\`status: unsupported\`), so the ` +
-            `\`${stage}\` stage cannot run; parking. @${ctx.settings.human}, set ` +
-            `\`PIPELINE_HARNESS_${stage.toUpperCase()}\` to a working harness and comment ` +
-            "to wake it."
+            `\`${stage}\` stage cannot run; parking. @${ctx.settings.human}, ${fix} to a ` +
+            "working harness and comment to wake it."
     );
 }
 

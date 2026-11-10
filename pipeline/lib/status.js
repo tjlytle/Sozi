@@ -6,6 +6,15 @@
 
 import {loggedOutLines} from "./logins.js";
 
+/** Name the harness and model a session runs on; nothing for one saved before they were.
+ *
+ * @param {{harness?: string, model?: string}} session - The session.
+ * @returns {string} - The suffix, with its leading space.
+ */
+function onHarness(session) {
+    return session.harness ? ` on ${session.harness} ${session.model}` : "";
+}
+
 /** Describe the state for --status: the run, sessions, tries, waits, queues, dead
  * letters and logged-out personas.
  *
@@ -22,14 +31,15 @@ export function statusText(state) {
     for (const [n, r] of Object.entries(state.issues)) {
         /** @type {any} */
         const record = r;
-        if (record.session) {
+        const session = record.session;
+        if (session) {
             lines.push(
-                `#${n} ${record.session.stage}: ${record.session.container} since ${record.session.started}`
+                `#${n} ${session.stage}: ${session.container} since ${session.started}${onHarness(session)}`
             );
         }
     }
     for (const s of run.sessions ?? []) {
-        lines.push(`spawn ${s.persona}: ${s.container} since ${s.started}`);
+        lines.push(`spawn ${s.persona}: ${s.container} since ${s.started}${onHarness(s)}`);
     }
     for (const [n, r] of Object.entries(state.issues)) {
         /** @type {any} */

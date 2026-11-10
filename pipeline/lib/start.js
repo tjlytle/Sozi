@@ -9,16 +9,19 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import {RateLimited} from "./github.js";
 import {stillLoggedOut} from "./logins.js";
 import {checkAllowlist, personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
+import {planRoutes} from "./routing.js";
 import {ceiling, dueIssues, promptFor, scope} from "./state.js";
-import {moveStage, writeLabel} from "./sync.js";
+import {backOff, inBackoff, moveStage, writeLabel} from "./sync.js";
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
  * @typedef {{persona: string, prompt: string, issue: number | null, harness: string | null}} Spawn
  * @typedef {{profile: boolean, updated: string | null} | {refused: string}} ProfileVerdict
+ * @typedef {{harness: string, model: string, planned: boolean}} StageRoute
  */
 
 /**
@@ -188,6 +191,8 @@ function render(ctx, template, issue, stage) {
 async function startSpawn(ctx, spawn, profile) {
     const {settings, state, sandbox} = ctx;
     const issue = spawn.issue ?? 0;
+    const harness = spawn.harness ?? settings.harnessFor("qa");
+    const model = settings.modelFor("qa");
     const template = read(ctx, "spawn.md")
         .replaceAll("{PERSONA}", spawn.persona)
         .replaceAll("{PROMPT}", spawn.prompt);
@@ -203,15 +208,16 @@ async function startSpawn(ctx, spawn, profile) {
         outbox,
         mintUrl: state.run.mintUrl,
         mintKey: state.run.mintKey,
-        harness: spawn.harness ?? settings.harnessFor("qa"),
-        model: settings.modelFor("qa"),
+        harness,
+        model,
         tag: crypto.randomBytes(2).toString("hex"),
         env: sessionEnv(ctx, issue),
         persona: spawn.persona,
         profile
     });
     const started = new Date(ctx.clock.now()).toISOString();
-    state.run.sessions.push({container, started, outbox, persona: spawn.persona, issue});
+    const persona = spawn.persona;
+    state.run.sessions.push({container, started, outbox, persona, issue, harness, model});
     ctx.summary.spawns++;
     ctx.log(`spawn ${spawn.persona} started: ${container}`);
 }
@@ -221,10 +227,10 @@ async function startSpawn(ctx, spawn, profile) {
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
- * @param {{persona: string, profile: boolean}} who - The persona and whether to mount its profile.
+ * @param {{persona: string, profile: boolean, route: StageRoute}} who - The persona, whether to mount its profile, and the harness and model to run on.
  * @returns {Promise<void>}
  */
-async function startIssue(ctx, n, {persona, profile}) {
+async function startIssue(ctx, n, {persona, profile, route}) {
     const {state, sandbox} = ctx;
     const record = state.issues[n];
     const stage = stageOfIssue(record);
@@ -246,7 +252,9 @@ async function startIssue(ctx, n, {persona, profile}) {
             mintKey,
             env: sessionEnv(ctx, n),
             persona,
-            profile
+            profile,
+            harness: route.harness,
+            model: route.model
         });
     } catch (error) {
         record.labels = record.labels.filter(l => l !== "working");
@@ -254,7 +262,7 @@ async function startIssue(ctx, n, {persona, profile}) {
         throw error;
     }
     const started = new Date(ctx.clock.now()).toISOString();
-    record.session = {container, started, stage, outbox, persona};
+    record.session = {container, started, stage, outbox, persona, ...route};
     ctx.summary.started.push(n);
     ctx.log(`#${n}: ${stage} started: ${container}`);
 }
@@ -322,8 +330,46 @@ async function trySpawn(ctx, index) {
 }
 
 /**
+ * The harness and model a stage of an issue runs on: the line the newest plan has for the
+ * stage, else the stage's setting. The plan stage reads no plan. Refused while GitHub is
+ * backed off or rate limits the read, and when the plan's Harness section holds a line
+ * that does not parse; any other failed read is thrown.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {string} stage - The prompt stage name.
+ * @returns {Promise<StageRoute | {refused: string}>} The route, or why the issue waits.
+ */
+async function routeFor(ctx, n, stage) {
+    const {settings} = ctx;
+    const setting = {harness: settings.harnessFor(stage), model: settings.modelFor(stage)};
+    if (stage === "plan") {
+        return {...setting, planned: false};
+    }
+    if (inBackoff(ctx)) {
+        return {refused: `#${n}: waits, GitHub backed off, its plan is not read`};
+    }
+    let text;
+    try {
+        text = (await ctx.github.planComment(n)) ?? "";
+    } catch (error) {
+        if (!(error instanceof RateLimited)) {
+            throw error;
+        }
+        backOff(ctx, error);
+        return {refused: `#${n}: waits, GitHub rate limited the read of its plan`};
+    }
+    const {routes, bad} = planRoutes(text);
+    if (bad.length > 0) {
+        return {refused: `#${n}: plan Harness line "${bad[0]}" is not <stage>: <harness> <model>`};
+    }
+    const route = routes[stage];
+    return route ? {...route, planned: true} : {...setting, planned: false};
+}
+
+/**
  * Try a due issue: it waits for the next pass while its persona is at its limit, its
- * profile is refused or it is logged out.
+ * route or profile is refused or it is logged out.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -337,7 +383,13 @@ async function tryIssue(ctx, n) {
         ctx.tried.add(n);
         return;
     }
-    const verdict = await profileFor(ctx, persona, ctx.settings.harnessFor(stage));
+    const route = await routeFor(ctx, n, stage);
+    if ("refused" in route) {
+        ctx.log(route.refused);
+        ctx.tried.add(n);
+        return;
+    }
+    const verdict = await profileFor(ctx, persona, route.harness);
     if ("refused" in verdict) {
         ctx.log(verdict.refused);
         ctx.tried.add(n);
@@ -347,7 +399,7 @@ async function tryIssue(ctx, n) {
         ctx.tried.add(n);
         return;
     }
-    await startIssue(ctx, n, {persona, profile: verdict.profile});
+    await startIssue(ctx, n, {persona, profile: verdict.profile, route});
 }
 
 /**
