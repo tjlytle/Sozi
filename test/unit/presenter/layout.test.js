@@ -192,6 +192,30 @@ describe("presenter layout", () => {
         assert.deepEqual(readLayout(layoutOf(saved, []), ["current", "notes"])?.dock, saved);
     });
 
+    test("a group in a window is saved as one group, with the tab it showed", () => {
+        const grid = {
+            root: {
+                type: "branch",
+                data: [
+                    {
+                        type: "leaf",
+                        data: {views: ["current"], activeView: "current", id: "1"},
+                        size: 800
+                    }
+                ]
+            }
+        };
+        const docked = {grid, panels: {current: {id: "current"}}};
+        const saved = dockedLayout(docked, [
+            {id: "notes", group: "9", state: {id: "notes"}},
+            {id: "next", group: "9", state: {id: "next"}, active: true}
+        ]);
+        assert.equal(saved.grid.root.data.length, 2);
+        const [, added] = saved.grid.root.data;
+        assert.deepEqual(added.data.views, ["notes", "next"]);
+        assert.equal(added.data.activeView, "next");
+    });
+
     test("with no panel in a window, the dock is saved as it is", () => {
         assert.deepEqual(dockedLayout(dock, []), dock);
     });

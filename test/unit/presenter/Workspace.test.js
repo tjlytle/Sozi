@@ -32,13 +32,14 @@ function fakeElement(doc) {
     };
 }
 
-/** What the workspace uses of dockview: panels in groups that can move, the active panel,
- * and a dock it can refuse.
+/** What the workspace uses of dockview: panels in groups that can move, the active panel of
+ * the dock and of each group, and a dock it can refuse. A window's dock is one too.
  */
 class FakeDock {
     /** Create an empty dock. */
     constructor() {
         this.panels = new Map();
+        this.groups = new Map();
         this.nextGroup = 0;
         this.loads = [];
         this.moves = [];
@@ -61,7 +62,32 @@ class FakeDock {
      * @param {string} id - The panel's id.
      */
     activate(id) {
-        this.activeListener({panel: this.panels.get(id)});
+        const panel = this.panels.get(id);
+        panel.group.activePanel = panel;
+        this.activeListener({panel});
+    }
+
+    /**
+     * A group, the same object for every panel in it.
+     *
+     * @param {string} id - The group's id.
+     * @returns {object} The group: its id, its element, its panels in order and its active one.
+     */
+    group(id) {
+        if (!this.groups.has(id)) {
+            const panels = this.panels;
+            this.groups.set(id, {
+                id,
+                activePanel: null,
+                element: {
+                    getBoundingClientRect: () => ({left: 0, top: 0, width: 300, height: 200})
+                },
+                get panels() {
+                    return [...panels.values()].filter(p => p.group.id === id);
+                }
+            });
+        }
+        return this.groups.get(id);
     }
 
     /**
@@ -88,12 +114,13 @@ class FakeDock {
     place(id, groupId) {
         const panel = {
             id,
-            group: {id: groupId},
+            group: this.group(groupId),
+            toJSON: () => ({id}),
             api: {
                 moveTo: ({group, position}) => {
                     this.moves.push({id, group: group.id, position});
                     const beside = position && position !== "center";
-                    panel.group = beside ? {id: this.newGroup()} : group;
+                    panel.group = this.group(beside ? this.newGroup() : group.id);
                     this.changed();
                 }
             }
@@ -109,12 +136,17 @@ class FakeDock {
      * @param {string} options.id - Its id.
      * @param {{referenceGroup?: string, referencePanel?: string, direction?: string}} [options.position] -
      *   Where it goes.
+     * @param {boolean} [options.inactive] - Does it go behind the group's active panel?
      */
-    addPanel({id, position}) {
+    addPanel({id, position, inactive}) {
         const within =
             position?.direction === "within" && this.panels.get(position.referencePanel ?? "");
         const groupId = position?.referenceGroup ?? (within ? within.group.id : this.newGroup());
         this.place(id, groupId);
+        const panel = this.panels.get(id);
+        if (!inactive || !panel.group.activePanel) {
+            panel.group.activePanel = panel;
+        }
         this.changed();
     }
 
@@ -148,6 +180,14 @@ class FakeDock {
         return [...this.panels.values()].map(p => p.group).find(g => g.id === id);
     }
 
+    /** Fit the dock to its element, which a fake does not have. */
+    layout() {}
+
+    /** Remove the dock. */
+    dispose() {
+        this.disposed = true;
+    }
+
     /**
      * The dock as data.
      *
@@ -158,7 +198,7 @@ class FakeDock {
         for (const [id, {group}] of this.panels) {
             panels[id] = {group: group.id};
         }
-        return {grid: {}, panels};
+        return {grid: {root: {type: "branch", data: []}}, panels};
     }
 
     /**
@@ -239,10 +279,25 @@ const REFUSED = {refused: true};
  * @param {number} [options.width] - Its width.
  * @param {Record<string, string>} [options.stored] - What the storage holds.
  * @param {(workspace: Workspace) => void} [options.beforeOpen] - What happens before it opens.
- * @returns {Promise<object>} The workspace, its dock and what it said and saved.
+ * @returns {Promise<object>} The workspace, its dock, the docks and windows of its panels'
+ *   windows, and what it said and saved.
  */
 async function openWorkspace({width = 390, stored = {}, beforeOpen = () => {}} = {}) {
-    const doc = {defaultView: {innerWidth: width}, createElement: () => fakeElement(doc)};
+    const windows = [];
+    const view = {
+        innerWidth: width,
+        screenX: 0,
+        screenY: 0,
+        addEventListener() {},
+        removeEventListener() {},
+        open: () => {
+            const opened = fakeWindow();
+            windows.push(opened);
+            return opened;
+        }
+    };
+    const doc = {defaultView: view, styleSheets: [], createElement: () => fakeElement(doc)};
+    Object.assign(view, {document: doc});
     const element = fakeElement(doc);
     const items = new Map(Object.entries(stored));
     const storage = /** @type {any} */ ({
@@ -257,13 +312,18 @@ async function openWorkspace({width = 390, stored = {}, beforeOpen = () => {}} =
     });
     const notices = [];
     const dock = new FakeDock();
+    // The first dock is the workspace's; the others are its windows'.
+    const docks = [];
     const workspace = new Workspace(element, {
         storage,
         keys: KEYS,
         media,
         onNotice: text => notices.push(text),
         onSavePreset() {},
-        createDock: () => /** @type {any} */ (dock)
+        createDock: () => {
+            docks.push(docks.length ? new FakeDock() : dock);
+            return /** @type {any} */ (docks.at(-1));
+        }
     });
     for (const id of IDS) {
         workspace.addPanel({id, title: id, icon: id, render: () => () => {}});
@@ -272,7 +332,31 @@ async function openWorkspace({width = 390, stored = {}, beforeOpen = () => {}} =
     workspace.open();
     // A hello is a later message, never in the same turn as the opening.
     await settled();
-    return {workspace, element, dock, notices, items};
+    return {workspace, element, dock, docks, windows, notices, items};
+}
+
+/**
+ * A window opened on `about:blank`, with what a panel's window uses of it.
+ *
+ * @returns {object} The window; `hide` closes it as the speaker does.
+ */
+function fakeWindow() {
+    const listeners = new Map();
+    const doc = {
+        title: "",
+        head: {append() {}},
+        body: {replaceChildren() {}},
+        createElement: () => fakeElement(doc)
+    };
+    return {
+        innerWidth: 300,
+        innerHeight: 200,
+        document: doc,
+        addEventListener: (name, listener) => listeners.set(name, listener),
+        removeEventListener: name => listeners.delete(name),
+        close() {},
+        hide: () => listeners.get("pagehide")()
+    };
 }
 
 /**
@@ -540,5 +624,42 @@ describe("Workspace", () => {
         assert.equal(workspace.stacked, false);
         assert.deepEqual(groupsOf(dock), ["left", "right"]);
         assert.equal(dock.loads.length, 1);
+    });
+
+    test("Pop out moves the whole group, and its window closing docks it again", async () => {
+        const {workspace, dock, docks, windows} = await openWorkspace({
+            width: 1280,
+            beforeOpen: early =>
+                early.addPanel({
+                    ...latePanel(),
+                    position: {referencePanel: "notes", direction: "within"}
+                })
+        });
+        dock.activate("notes");
+        workspace.popOut("notes");
+        await settled();
+        const [, inWindow] = docks;
+        assert.deepEqual(
+            inWindow.group(inWindow.getPanel("notes").group.id).panels.map(p => p.id),
+            ["notes", "late"]
+        );
+        assert.equal(inWindow.getPanel("notes").group.activePanel.id, "notes");
+        assert.deepEqual([...dock.panels.keys()], ["current"]);
+        assert.deepEqual(workspace.shownIds(), ["current", "notes", "late"]);
+        windows[0].hide();
+        await settled();
+        const {group} = dock.getPanel("notes");
+        assert.deepEqual(
+            group.panels.map(p => p.id),
+            ["notes", "late"]
+        );
+        assert.equal(group.activePanel.id, "notes");
+    });
+
+    test("a group that holds every docked panel cannot pop out", async () => {
+        const {workspace, dock} = await openWorkspace({width: 1280});
+        assert.equal(workspace.menuState("notes").canPopOut, true);
+        dock.getPanel("notes").api.moveTo({group: dock.getPanel("current").group});
+        assert.equal(workspace.menuState("notes").canPopOut, false);
     });
 });
