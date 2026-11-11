@@ -6,10 +6,10 @@
 
 import {highlightCode} from "../../html/highlight.js";
 import {isBlankHTML, setSanitizedHTML} from "../../html/sanitize";
-import {overlayNotes} from "../../notes/notesDocument.js";
 import {DisplayMirrorEvents} from "../DisplayMirror.js";
-import {linkTarget} from "../noteLinks.js";
-import {coveringSection, nextFontSize, notesUrl, readFontSize} from "../notesPosition.js";
+import {NoteLinkClicks} from "../NoteLinkClicks.js";
+import {PublishedNotes} from "../PublishedNotes.js";
+import {coveringSection, nextFontSize, readFontSize} from "../notesPosition.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
 /** @typedef {import("../../protocol/messages.js").FrameInfo} FrameInfo */
@@ -64,6 +64,23 @@ const TOP_GAP = 8;
  */
 const UNTITLED = "(untitled)";
 
+/** A button of the toolbar.
+ *
+ * @param {Document} doc - The page owning the button.
+ * @param {string} label - Its text, which is its accessible name.
+ * @param {string} title - What it does, shown on hover.
+ * @param {() => void} action - What a press does.
+ * @returns {HTMLButtonElement} The button.
+ */
+function toolbarButton(doc, label, title, action) {
+    const button = doc.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.title = title;
+    button.addEventListener("click", action, false);
+    return button;
+}
+
 /** The Notes panel: the whole deck's notes as one document that follows the talk. */
 export class NotesPanel {
     /** Draw the panel and follow the display.
@@ -76,8 +93,6 @@ export class NotesPanel {
         this.element = element;
         this.mirror = mirror;
         this.storage = storage;
-        this.deckHref = deckHref;
-        this.jumpToFrame = jumpToFrame;
         this.doc = element.ownerDocument;
 
         /** Does the document scroll with the talk?
@@ -110,31 +125,16 @@ export class NotesPanel {
          */
         this.shownIndex = -1;
 
-        /** The notes file published beside the deck, null without one.
-         *
-         * @type {?string}
-         */
-        this.published = null;
-
-        /** Has the fetch of the published file started?
-         *
-         * @type {boolean}
-         */
-        this.fetchStarted = false;
-
-        /** Is the panel gone, so that a late fetch must not draw?
-         *
-         * @type {boolean}
-         */
-        this.disposed = false;
-
         this.fontSize = readFontSize(storage.getItem(FONT_SIZE_KEY));
         this.scrollerHeight = 0;
 
         this.title = this.doc.createElement("div");
         this.title.className = "sozi-notes-title sozi-notes-title--hidden";
-        this.followButton = this.button("Follow", "Scroll the notes with the talk", () =>
-            this.setFollowing(!this.following)
+        this.followButton = toolbarButton(
+            this.doc,
+            "Follow",
+            "Scroll the notes with the talk",
+            () => this.setFollowing(!this.following)
         );
         this.followButton.setAttribute("aria-pressed", "true");
         this.body = this.doc.createElement("div");
@@ -156,26 +156,17 @@ export class NotesPanel {
         this.onScroll = () => this.showTitleLine();
         this.body.addEventListener("scroll", this.onScroll, false);
 
-        /** Move the display for a link to a frame; a `#` link never changes the page's address.
-         *
-         * @param {MouseEvent} evt - The click.
-         */
-        this.onClick = evt => {
-            const link = /** @type {Element} */ (evt.target).closest("a[href]");
-            const href = link ? link.getAttribute("href") || "" : "";
-            if (!href.startsWith("#")) {
-                return;
-            }
-            evt.preventDefault();
-            const target = linkTarget(href, this.drawnFrames);
-            if (target.kind === "frame") {
-                this.jumpToFrame(target.index, !evt.shiftKey);
-            }
-        };
-        this.body.addEventListener("click", this.onClick, false);
-
+        this.links = new NoteLinkClicks(this.body, {
+            frames: () => this.drawnFrames,
+            jumpToFrame
+        });
         // Cast: an element in a page always has a window.
         const host = /** @type {Window & typeof globalThis} */ (this.doc.defaultView);
+        this.published = new PublishedNotes({
+            fetch: url => host.fetch(url),
+            deckHref,
+            onLoad: () => this.update()
+        });
         this.resizeObserver = new host.ResizeObserver(() => this.onResize());
         this.resizeObserver.observe(this.body);
 
@@ -189,8 +180,10 @@ export class NotesPanel {
         toolbar.append(
             this.title,
             this.followButton,
-            this.button("A−", "Smaller notes", () => this.changeFontSize(-FONT_SIZE_STEP)),
-            this.button("A+", "Larger notes", () => this.changeFontSize(FONT_SIZE_STEP))
+            toolbarButton(this.doc, "A−", "Smaller notes", () =>
+                this.changeFontSize(-FONT_SIZE_STEP)
+            ),
+            toolbarButton(this.doc, "A+", "Larger notes", () => this.changeFontSize(FONT_SIZE_STEP))
         );
 
         const notes = this.doc.createElement("div");
@@ -199,28 +192,12 @@ export class NotesPanel {
         this.element.append(notes);
     }
 
-    /** A button of the toolbar.
-     *
-     * @param {string} label - Its text, which is its accessible name.
-     * @param {string} title - What it does, shown on hover.
-     * @param {() => void} action - What a press does.
-     * @returns {HTMLButtonElement} The button.
-     */
-    button(label, title, action) {
-        const button = this.doc.createElement("button");
-        button.type = "button";
-        button.textContent = label;
-        button.title = title;
-        button.addEventListener("click", action, false);
-        return button;
-    }
-
     /** Take what the mirror holds now: new notes if they changed, then the current frame. */
     update() {
         if (!this.mirror.frame) {
             return;
         }
-        this.fetchPublished();
+        void this.published.load();
         const redrawn = this.drawSections();
         const {index} = this.mirror.frame;
         const moved = index !== this.shownIndex;
@@ -258,11 +235,7 @@ export class NotesPanel {
     documentFrames() {
         const {frames, frame} = this.mirror;
         const reported = frames.length ? frames : [/** @type {FrameInfo} */ (frame)];
-        if (this.published === null) {
-            return reported;
-        }
-        const withFileIds = reported.map(info => ({...info, frameId: info.id}));
-        return overlayNotes(withFileIds, this.published).frames;
+        return this.published.overlay(reported);
     }
 
     /** Draw the sections, unless the same frames are already drawn: a renamed id draws again.
@@ -300,27 +273,9 @@ export class NotesPanel {
         const content = this.doc.createElement("div");
         content.className = "sozi-notes__section-notes";
         setSanitizedHTML(content, notes);
-        this.markLinks(content);
+        this.links.mark(content);
         element.append(heading, content);
         return {index, element, heading};
-    }
-
-    /** Mark a link to a missing frame as broken, and open any link off the deck in a new tab.
-     *
-     * @param {HTMLElement} content - The notes of a section, sanitized.
-     */
-    markLinks(content) {
-        for (const link of content.querySelectorAll("a[href]")) {
-            const target = linkTarget(link.getAttribute("href") || "", this.drawnFrames);
-            if (target.kind === "broken") {
-                link.classList.add("sozi-notes__link--broken");
-                link.setAttribute("aria-disabled", "true");
-                link.setAttribute("title", `No frame "${target.fragment}" in this deck`);
-            } else if (target.kind === "external") {
-                link.setAttribute("target", "_blank");
-                link.setAttribute("rel", "noopener noreferrer");
-            }
-        }
     }
 
     /** Bring a section to the top of the document.
@@ -391,36 +346,12 @@ export class NotesPanel {
         this.showTitleLine();
     }
 
-    /** Fetch the notes file published beside a deck on http, once. No file changes nothing. */
-    fetchPublished() {
-        if (this.fetchStarted) {
-            return;
-        }
-        this.fetchStarted = true;
-        const url = notesUrl(this.deckHref());
-        if (url === null) {
-            return;
-        }
-        // Cast: an element in a page always has a window.
-        const host = /** @type {Window} */ (this.doc.defaultView);
-        host.fetch(url)
-            .then(response => (response.ok ? response.text() : null))
-            // A cross-origin deck without CORS can refuse: the deck's own notes stay.
-            .catch(() => null)
-            .then(text => {
-                if (text !== null && !this.disposed) {
-                    this.published = text;
-                    this.update();
-                }
-            });
-    }
-
     /** Stop following the display, remove the listeners and empty the element. */
     dispose() {
-        this.disposed = true;
+        this.published.dispose();
+        this.links.dispose();
         this.mirror.off(DisplayMirrorEvents.change, this.onChange);
         this.body.removeEventListener("scroll", this.onScroll, false);
-        this.body.removeEventListener("click", this.onClick, false);
         this.resizeObserver.disconnect();
         this.element.replaceChildren();
     }
