@@ -58,6 +58,23 @@ describe("persona profiles at start", () => {
         assert.ok(!w.state.issues[25].labels.includes("working"));
         assert.ok(!w.calls.some(c => c[0] === "label" && c[1].add.includes("working")));
     });
+    test("a container that fails to start takes the working label off and the pass logs it", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.sandbox.start = async () => {
+            throw new Error("docker refused");
+        };
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.ok(
+            w.logs.some(l => /start failed, no more starts this pass: .*docker refused/.test(l))
+        );
+        const labels = w.calls.filter(c => c[0] === "label").map(c => c[1]);
+        const added = labels.findIndex(op => op.add.includes("working"));
+        const removed = labels.findIndex(op => op.remove.includes("working"));
+        assert.ok(added >= 0 && removed > added);
+        assert.ok(!w.state.issues[25].labels.includes("working"));
+        assert.equal(w.state.issues[25].session, null);
+    });
     test("no profile but a token: starts without a profile", async () => {
         const w = world({
             issues: [issue(25, ["stage:in-progress"])],
