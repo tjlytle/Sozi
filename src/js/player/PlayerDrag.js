@@ -219,7 +219,8 @@ export class PlayerDrag {
         this.controller.emit(PlayerControllerEvents.dragStart);
     }
 
-    /** Zoom about the viewport's centre by the change in the pointer's distance from it.
+    /** Zoom about the viewport's centre by the change in the pointer's distance from it since
+     * the last zoom step.
      *
      * @private
      * @param {DragPoint} point - Where the pointer is.
@@ -241,7 +242,8 @@ export class PlayerDrag {
         this.dragPoints.prev.distance = point.distance;
     }
 
-    /** Rotate by the angle the pointer swept about the viewport's centre.
+    /** Rotate by the angle the pointer swept about the viewport's centre since the last rotate
+     * step.
      *
      * @private
      * @param {DragPoint} point - Where the pointer is.
