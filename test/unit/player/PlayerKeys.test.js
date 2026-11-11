@@ -2,6 +2,7 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {PlayerKeys} from "../../../src/js/player/PlayerKeys.js";
 import {SCALE_FACTOR, ROTATE_STEP} from "../../../src/js/player/controlSteps.js";
+import {fakeTarget} from "./fakeInput.js";
 
 /** The key codes `onKeyDown` handles, with the direction each one moves.
  *
@@ -47,34 +48,6 @@ function fakeController(settings = {}) {
         fake[action] = (...args) => calls.push([action, ...args]);
     }
     return fake;
-}
-
-/** Stand-in for the window: it keeps its listeners.
- *
- * @returns {any} - The fake target; `listeners` maps an event type to its listeners.
- */
-function fakeTarget() {
-    const listeners = new Map();
-    return {
-        listeners,
-        addEventListener(type, listener) {
-            listeners.set(type, [...(listeners.get(type) ?? []), listener]);
-        },
-        removeEventListener(type, listener) {
-            listeners.set(
-                type,
-                (listeners.get(type) ?? []).filter(l => l !== listener)
-            );
-        },
-        count() {
-            return [...listeners.values()].reduce((sum, list) => sum + list.length, 0);
-        },
-        fire(type, evt) {
-            for (const listener of listeners.get(type) ?? []) {
-                listener(evt);
-            }
-        }
-    };
 }
 
 /** A key event that records whether it was stopped.

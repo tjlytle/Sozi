@@ -1,28 +1,7 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {PlayerController} from "../../../src/js/player/PlayerController.js";
-
-/** Stand-in for an element or the window: it keeps its listeners.
- *
- * @returns {any} - The fake; `count()` is the number of listeners on it.
- */
-function fakeTarget() {
-    const listeners = new Map();
-    return {
-        addEventListener(type, listener) {
-            listeners.set(type, [...(listeners.get(type) ?? []), listener]);
-        },
-        removeEventListener(type, listener) {
-            listeners.set(
-                type,
-                (listeners.get(type) ?? []).filter(l => l !== listener)
-            );
-        },
-        count() {
-            return [...listeners.values()].reduce((sum, list) => sum + list.length, 0);
-        }
-    };
-}
+import {fakeTarget, fakeRoot} from "./fakeInput.js";
 
 /** Stand-in for a player whose viewport shows a deck on a fake SVG root.
  *
@@ -30,11 +9,7 @@ function fakeTarget() {
  * @returns {any} - The fake player; `root` is its SVG root.
  */
 function fakePlayer(editMode) {
-    const root = fakeTarget();
-    root.ownerDocument = {
-        documentElement: fakeTarget(),
-        createElement: () => ({onwheel: null})
-    };
+    const root = fakeRoot();
     return {root, viewport: {editMode, svgRoot: root}};
 }
 
