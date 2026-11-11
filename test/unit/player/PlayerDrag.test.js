@@ -180,6 +180,22 @@ describe("PlayerDrag", () => {
         near(turns[1][1], -80);
     });
 
+    test("each mode keeps its own last step when the modifier keys change in a drag", () => {
+        const {controller, page} = dragFrom([310, 120]);
+        page.fire("mousemove", mouseEvent({clientX: 320, clientY: 120}));
+        page.fire("mousemove", mouseEvent({clientX: 370, clientY: 120}));
+        page.fire("mousemove", mouseEvent({clientX: 430, clientY: 120, altKey: true}));
+        page.fire("mousemove", mouseEvent({clientX: 440, clientY: 120}));
+        // The zoom counts from its own last step at (320, 120), 110 pixels from the centre,
+        // and the pan after it from its own last step at (370, 120).
+        assert.deepEqual(callsOf(controller, "zoom"), [["zoom", 220 / 110, 200, 100]]);
+        assert.deepEqual(callsOf(controller, "translate"), [
+            ["translate", 0, 0],
+            ["translate", 50, 0],
+            ["translate", 70, 0]
+        ]);
+    });
+
     test("in clip mode, a drag clips from where it started", () => {
         const {controller, page} = dragFrom([100, 100], {dragMode: "clip"});
         moveAndRelease(page, [
