@@ -26,6 +26,13 @@ Feature: Moving through a deck in the player
     Then the player is on frame "Two"
     And the URL hash names frame "frame2"
 
+  @issue-395
+  Scenario: Back in the deck's own window returns to the frame before
+    When the key " " is pressed
+    And the URL hash names frame "frame2"
+    And Back is pressed on the deck page
+    Then the player is on frame "One"
+
   @issue-36
   Scenario: End goes to the last frame and Home goes back to the first
     When the key "End" is pressed
