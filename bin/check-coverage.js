@@ -247,10 +247,13 @@ export function assess({idx, sources, changed, waived}) {
     return report;
 }
 
-/** Run the check and print a report.
+/** Run both checks and print a report, as text or with --json as JSON: the changed
+ * source files against their tests, and every feature file's covers entries against
+ * the tree, whatever the diff.
  *
  * @param {string[]} argv - The command-line arguments after the script name.
- * @returns {number} - The exit status.
+ * @returns {number} - The exit status: 1 when a changed source file is uncovered and
+ *     not waived, or a covers entry names nothing in the tree; 0 otherwise.
  */
 export function main(argv) {
     const base = root();
