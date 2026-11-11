@@ -40,6 +40,9 @@ the message.
 | `timer`       | display → surface | `elapsedMs`, `running`, `targetMs`                        |
 | `timerAction` | surface → display | `action`                                                  |
 | `timerTarget` | surface → display | `targetMs`                                                |
+| `cameraMove`  | surface → display | `x`, `y`, `zoom`, `atX`, `atY`                            |
+| `cameraReset` | surface → display | none                                                      |
+| `camera`      | display → surface | `offFrame`, `zoom`, `x`, `y`                              |
 | `custom`      | both ways         | `type`, `data`                                            |
 
 ### `hello`
@@ -56,6 +59,7 @@ the message.
 | `blank`      | boolean                         | Is the blank screen shown?                        |
 | `layouts`    | object of presets, by name      | The deck's layout presets, in the deck's order.   |
 | `timer`      | `{elapsedMs, running, targetMs}` | The talk timer as it is now (see [`timer`](#timer)). |
+| `camera`     | `{offFrame, zoom, x, y}`        | Where the camera looks (see [`camera`](#cameramove-camerareset-camera)). |
 
 `readMessage` refuses a `hello` whose `frames` is not a list or holds a malformed entry. A
 display from the release before this field sends none, which reads as an empty list; a
@@ -77,6 +81,9 @@ the whole `hello`.
 `timer` is new. A `hello` without it reads as a stopped timer at zero, so a newer surface can
 join an older deck. A malformed one refuses the `hello`.
 
+`camera` is new. A `hello` without it reads as the camera on its frame,
+`{offFrame: false, zoom: 1, x: 0, y: 0}`. A malformed one refuses the `hello`.
+
 A preset's name starts with a letter and holds only letters, digits, `-` and `_`: a numeric
 key would jump to the front of a JSON object, and the order decides which preset wins. A
 preset is:
@@ -87,7 +94,8 @@ preset is:
 
 `match` is `"phone"` (a page up to 600 CSS pixels wide), `"laptop"` (wider than that) or
 `{"minWidth": n}` (at least n pixels). `dock` is the dock as dockview's `toJSON` writes it,
-and `rail` the panels waiting on the rail. A surface takes the first preset that matches and
+and `rail` the closed panels, which the + menu lists (the key keeps the name it had when a rail
+held them). A surface takes the first preset that matches and
 that it can use, unless the device has saved a layout of its own for that width.
 
 ### `frameChange`
@@ -119,8 +127,9 @@ sends `false` when Shift is held). The presenter's Home and End send `jumpToFram
 
 Sent by the presenter to each of its preview frames. The deck stops its media and its
 keyboard and mouse navigation, hides frame numbers, and from then on takes `next`,
-`previous`, `jumpToFrame` and `blank` directly on its player. With `current: true` its
-link clicks are reported as `followLink`; otherwise its links are disabled. Every key
+`previous`, `jumpToFrame`, `blank` and `camera` directly on its player. With `current: true`
+its link clicks are reported as `followLink` and its pans and zooms as `cameraMove`; otherwise
+its links are disabled. Every key
 pressed in it is reported as `key`. A preview reports nothing else about itself but its
 `hello`.
 
@@ -166,6 +175,27 @@ frame change starts it. `reset` keeps the target.
 
 `timerTarget` sets the target length in milliseconds, which must be positive and finite, or
 clears it with null.
+
+### `cameraMove`, `cameraReset`, `camera`
+
+The speaker pans and zooms the audience window from the current-frame preview. Everything is
+in viewport units: a share of the viewport's width along x and of its height along y, from its
+top-left corner, so a move made on a phone moves a laptop's window by the same share.
+
+`cameraMove` asks the display to zoom by `zoom` about the point (`atX`, `atY`), then pan by
+(`x`, `y`). The five fields are finite numbers and `zoom` is above zero; anything else refuses
+the message. The current preview sends one for each drag step, wheel step or pinch step, and
+the presenter sends it on to the display. A click that is not a drag still follows a link.
+
+`cameraReset` asks the display to move back to its current frame, with a transition.
+
+`camera` says where the display's camera looks, relative to its current frame. A point `p` of
+the frame, as the frame shows it, shows at `zoom·p + (x, y)`. `offFrame` says the camera has
+left its frame; while it has, the current preview shows a Back to frame button. The display
+sends `camera` after each pan, zoom or rotation, its own mouse's included, and when a frame
+change puts the camera back on a frame. A rotation sets `offFrame` and leaves the rest, as
+previews do not draw one. The presenter sends the same message to its current preview deck,
+which goes back to its frame and shows the view. A preview sends no `camera`.
 
 ### `custom`
 
@@ -216,10 +246,10 @@ waits for it, in the order it came.
 
 | Member                                            | What it does                                     |
 | ------------------------------------------------- | ------------------------------------------------ |
-| `registerPanel({id, title, icon, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
-| `registerPanel({id, title, icon, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
+| `registerPanel({id, title, icon, description, render, defaults})` | Adds a panel. `render(element)` draws it, once, and may return its cleanup. |
+| `registerPanel({id, title, icon, description, url, defaults})` | Adds a panel that embeds a page: `http:`, `https:` or relative. |
 | `on(name, handler)` / `off(name, handler)`        | `frameChange` (the frame), `viewport` (the size), `status`, `timer` (the timer as reported), and `message` (every valid message). |
-| `state`                                           | `{frame, frames, frameCount, deckId, version, viewport, blank, status, timer}`, for a panel that registers late. `timer.elapsedMs` is the time counted by now. |
+| `state`                                           | `{frame, frames, frameCount, deckId, version, viewport, blank, status, timer, camera}`, for a panel that registers late. `timer.elapsedMs` is the time counted by now; `camera` is the view as the display last reported it. |
 | `display.jumpToFrame(index, transition = true)`, `next()`, `previous()`, `blank(on)` | Commands, to the primary transport. |
 | `display.timerAction(action)`, `setTimerTarget(ms)` | The talk timer's commands, to the primary transport: `start`, `pause` or `reset`, and a length in milliseconds or null. |
 | `display.send(name, payload)`                     | A `custom` message, to the primary transport.    |
@@ -228,8 +258,9 @@ waits for it, in the order it came.
 
 A bad panel throws a `TypeError` naming the field; so does an id already taken. The built-in
 panels go through `registerPanel` too, first, so their ids (`current`, `notes`, `frames`, `connection`,
-`clock`, `controls`, `previous`, `next`) can be named in a panel's place. `icon` is the text of its
-button on the rail, by default the title's first letter. `defaults` is its place in the
+`clock`, `controls`, `previous`, `next`) can be named in a panel's place. `icon` is the glyph before
+its title in the menus, by default the title's first letter. `description` is one line under
+its title in the + menu, empty by default. `defaults` is its place in the
 default layout, `{position, inactive, initialHeight}`, with `position` as dockview's
 `addPanel` takes it. Without `defaults` the panel is a tab behind Notes.
 

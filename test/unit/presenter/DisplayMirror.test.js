@@ -10,6 +10,7 @@ import {
 } from "../../../src/js/protocol/messages.js";
 import {TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 import {STOPPED_TIMER, timerMessage} from "../../../src/js/protocol/timer.js";
+import {ON_FRAME, cameraMessage} from "../../../src/js/protocol/camera.js";
 
 const one = {index: 0, id: "f1", title: "One", notes: "<p>First</p>"};
 const two = {index: 1, id: "f2", title: "Two", notes: ""};
@@ -32,6 +33,7 @@ const state = {
     timer: STOPPED_TIMER
 };
 const running = {elapsedMs: 1000, running: true, targetMs: null};
+const panned = {offFrame: true, zoom: 1, x: -0.1, y: 0};
 
 /** A mirror on a clock the test moves.
  *
@@ -87,9 +89,24 @@ describe("DisplayMirror", () => {
                 layouts,
                 deckId: "basic",
                 version: "v1",
-                timer: STOPPED_TIMER
+                timer: STOPPED_TIMER,
+                camera: ON_FRAME
             }
         ]);
+    });
+
+    test("holds a camera on its frame until the display reports one", () => {
+        assert.deepEqual(new DisplayMirror().camera, ON_FRAME);
+    });
+
+    test("a hello carries the camera, and a camera message replaces it, and only that", () => {
+        const {mirror, changes} = watchedMirror();
+        mirror.apply(helloMessage(Roles.display, {...state, camera: panned}));
+        assert.deepEqual(mirror.camera, panned);
+        changes.length = 0;
+        mirror.apply(cameraMessage(ON_FRAME));
+        assert.deepEqual(mirror.camera, ON_FRAME);
+        assert.deepEqual(changes, [{camera: ON_FRAME}]);
     });
 
     test("holds a stopped timer until the display reports one", () => {

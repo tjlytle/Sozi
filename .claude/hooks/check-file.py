@@ -63,8 +63,9 @@ def declarations(lines):
     """Each declaration in the file as (name, doc_range, body_range).
 
     Ranges are 1-based and inclusive. doc_range is the `/** ... */` block right
-    above the declaration, or None. A body runs to the line before the next
-    declaration at the same or lower indentation (or its doc comment).
+    above the declaration, or None. A body ends where body_end() says, and never
+    past the line before the next declaration at the same or lower indentation
+    (or its doc comment).
     """
     found = []
     i = 0
@@ -88,13 +89,38 @@ def declarations(lines):
         i += 1
     out = []
     for k, (name, doc, indent, line) in enumerate(found):
-        end = len(lines)
+        end = body_end(lines, line, indent)
         for later_name, later_doc, later_indent, later_line in found[k + 1:]:
             if later_indent <= indent:
-                end = (later_doc[0] if later_doc else later_line) - 1
+                end = min(end, (later_doc[0] if later_doc else later_line) - 1)
                 break
         out.append((name, doc, (line, end)))
     return out
+
+
+def body_end(lines, start, indent):
+    """The last line (1-based) of the declaration on line `start` at `indent`.
+
+    Walks forward to the first non-blank line at the same or lower indentation.
+    A closing line (`}`, `)` or `]` first) ends the body and belongs to it, unless
+    it also opens one (`) {`, `} else {`), which the walk passes. Any other line
+    ends the body at the last non-blank line before it.
+    """
+    last = start
+    for n in range(start, len(lines)):
+        text = lines[n]
+        stripped = text.strip()
+        if not stripped:
+            continue
+        if len(text) - len(text.lstrip()) > indent:
+            last = n + 1
+            continue
+        if stripped[0] in "})]":
+            last = n + 1
+            if stripped.endswith("{"):
+                continue
+        return last
+    return last
 
 
 def changed_lines(diff_text):

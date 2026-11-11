@@ -6,7 +6,7 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 ## Rules for this session
 
 - Every `gh` command goes through `gh-as architect` and passes `-R tjlytle/Sozi`, reads
-  included: `gh-as architect issue view {N} -R tjlytle/Sozi --comments`.
+  included: `gh-as architect issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`.
 - `.agents/tmp/` is the only place for temporary files. Write every comment and issue body
   there first and pass it with `--body-file`.
 - Questions do not stop the line. Where the issue leaves a real fork, pick the better route,
@@ -26,7 +26,7 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 
 ## Steps
 
-1. **Read the trail.** `gh-as architect issue view {N} -R tjlytle/Sozi --comments`. If it has
+1. **Read the trail.** `gh-as architect issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`. If it has
    a `Part of #<epic>` line, read the epic the same way. List the open issues
    (`gh-as architect issue list -R tjlytle/Sozi --state open --limit 100`) to see what this
    one depends on and what already covers part of it. Then read the code the ask touches,
@@ -61,6 +61,11 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
      our own would not do. Only the plan may add a package.
    - **Decisions taken**: each choice the issue did not settle, one line each with the
      reason, the route not taken, and its `idea` issue when you filed one.
+   - **Harness**: load the `harness-routing` skill and write one line per stage it moves
+     off its default, `- <stage>: <harness> <model>` (for example `- review: codex
+     gpt-5.5`), for the stages `tests`, `build`, `review` and `qa`; "none" when no rule
+     applies. The loop starts each stage on the line for it, and refuses a line it cannot
+     read.
    - **Blocked by**: `Blocked by #n, #m` on its own line for open issues that must merge
      first, or "none".
 4. **File the alternatives worth an issue.** For each route not taken that passes the test

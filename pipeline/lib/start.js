@@ -9,16 +9,22 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import {carryOf, fallbackNote} from "./carry.js";
+import {RateLimited} from "./github.js";
+import {chooseHarness, pausedUntil} from "./limits.js";
 import {stillLoggedOut} from "./logins.js";
 import {checkAllowlist, personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
+import {planRoutes} from "./routing.js";
 import {ceiling, dueIssues, promptFor, scope} from "./state.js";
-import {moveStage, writeLabel} from "./sync.js";
+import {backOff, inBackoff, moveStage, writeComment, writeLabel} from "./sync.js";
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
  * @typedef {{persona: string, prompt: string, issue: number | null, harness: string | null}} Spawn
  * @typedef {{profile: boolean, updated: string | null} | {refused: string}} ProfileVerdict
+ * @typedef {{harness: string, model: string, planned: boolean}} StageRoute
+ * @typedef {{route: StageRoute, verdict: ProfileVerdict, fallbackFrom?: string}} Pick
  */
 
 /**
@@ -89,7 +95,8 @@ async function judgeProfile(ctx, persona, harness) {
     }
     /** @type {import("./profile.js").ProfileInfo | null} */
     const info = await sandbox.inspectProfile(persona);
-    const login = `npm run pipeline -- --login ${persona}${harness === "claude" ? "" : ` --harness ${harness}`}`;
+    const harnessFlag = harness === "claude" ? "" : ` --harness ${harness}`;
+    const login = `npm run pipeline -- --login ${persona}${harnessFlag}`;
     if (info === null) {
         // Only Claude has a token that stands in for a profile.
         if (harness === "claude" && (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY)) {
@@ -178,16 +185,17 @@ function render(ctx, template, issue, stage) {
 }
 
 /**
- * Start a spawn request as a session of its own.
+ * Start a spawn request as a session of its own, recording its harness and model.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {Spawn} spawn - The request.
- * @param {boolean} profile - Whether to mount the persona's profile.
+ * @param {{profile: boolean, route: StageRoute}} how - Whether to mount the persona's profile, and the harness and model to run on.
  * @returns {Promise<void>}
  */
-async function startSpawn(ctx, spawn, profile) {
-    const {settings, state, sandbox} = ctx;
+async function startSpawn(ctx, spawn, {profile, route}) {
+    const {state, sandbox} = ctx;
     const issue = spawn.issue ?? 0;
+    const {harness, model} = route;
     const template = read(ctx, "spawn.md")
         .replaceAll("{PERSONA}", spawn.persona)
         .replaceAll("{PROMPT}", spawn.prompt);
@@ -203,36 +211,60 @@ async function startSpawn(ctx, spawn, profile) {
         outbox,
         mintUrl: state.run.mintUrl,
         mintKey: state.run.mintKey,
-        harness: spawn.harness ?? settings.harnessFor("qa"),
-        model: settings.modelFor("qa"),
+        harness,
+        model,
         tag: crypto.randomBytes(2).toString("hex"),
         env: sessionEnv(ctx, issue),
         persona: spawn.persona,
         profile
     });
     const started = new Date(ctx.clock.now()).toISOString();
-    state.run.sessions.push({container, started, outbox, persona: spawn.persona, issue});
+    const persona = spawn.persona;
+    state.run.sessions.push({container, started, outbox, persona, issue, harness, model});
     ctx.summary.spawns++;
     ctx.log(`spawn ${spawn.persona} started: ${container}`);
 }
 
 /**
- * Start the stage session of an issue, labelled working while it runs.
+ * Write the outbox of an issue's stage session: the prompt, the allow list, and what it
+ * carries over from a session a usage limit stopped, with the resume message when it resumes.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
- * @param {{persona: string, profile: boolean}} who - The persona and whether to mount its profile.
+ * @param {string} stage - The prompt stage name.
+ * @param {{carryFrom?: string, resume?: object}} carry - What carryOf found.
+ * @returns {string} The outbox.
+ */
+function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
+    const prompt = render(ctx, read(ctx, `${stage}.md`), n, stage);
+    const allow = read(ctx, "allow.txt");
+    const message = resume && read(ctx, "resume.md");
+    return ctx.sandbox.prepareOutbox({issue: n, stage, prompt, allow, carryFrom, resume: message});
+}
+
+/**
+ * Start the stage session of an issue, labelled working while it runs. It carries on the work of
+ * a session of the same stage a usage limit stopped, resuming that session when it can, and keeps
+ * that interruption in its session record so that a carry that does not apply is not lost.
+ * The session records its harness, model and try now, since the settings may change before
+ * it ends.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {{persona: string, profile: boolean, route: StageRoute, fallbackFrom?: string}} who - The persona, whether to mount its profile, the harness and model to run on, and the harness at its limit when it is a fallback.
  * @returns {Promise<void>}
  */
-async function startIssue(ctx, n, {persona, profile}) {
+async function startIssue(ctx, n, who) {
     const {state, sandbox} = ctx;
+    const {persona, profile, route} = who;
     const record = state.issues[n];
     const stage = stageOfIssue(record);
     if (record.stage === "stage:blocked") {
         await moveStage(ctx, n, "stage:tests");
     }
-    const prompt = render(ctx, read(ctx, `${stage}.md`), n, stage);
-    const outbox = sandbox.prepareOutbox({issue: n, stage, prompt, allow: read(ctx, "allow.txt")});
+    const carry = carryOf(record.interrupted, stage, who);
+    const {resume} = carry;
+    const outbox = issueOutbox(ctx, n, stage, carry);
     await writeLabel(ctx, {issue: n, add: ["working"], remove: []});
     record.labels = [...record.labels.filter(l => l !== "working"), "working"];
     let container;
@@ -246,7 +278,10 @@ async function startIssue(ctx, n, {persona, profile}) {
             mintKey,
             env: sessionEnv(ctx, n),
             persona,
-            profile
+            profile,
+            harness: route.harness,
+            model: route.model,
+            resume
         });
     } catch (error) {
         record.labels = record.labels.filter(l => l !== "working");
@@ -254,9 +289,21 @@ async function startIssue(ctx, n, {persona, profile}) {
         throw error;
     }
     const started = new Date(ctx.clock.now()).toISOString();
-    record.session = {container, started, stage, outbox, persona};
+    const carried = carry.carryFrom ? {carried: record.interrupted} : {};
+    const attempt = record.tries + 1;
+    record.session = {
+        ...{container, started, stage, outbox, persona, profile, ...route, try: attempt},
+        ...carried
+    };
+    record.interrupted = null;
     ctx.summary.started.push(n);
-    ctx.log(`#${n}: ${stage} started: ${container}`);
+    ctx.log(`#${n}: ${stage} ${resume ? "resumed" : "started"}: ${container}`);
+    const from = who.fallbackFrom;
+    if (from) {
+        const now = ctx.clock.now();
+        const until = pausedUntil(state.run.limits, from, now) ?? started;
+        await writeComment(ctx, n, fallbackNote({stage, route, from, until, now}));
+    }
 }
 
 /**
@@ -290,40 +337,129 @@ function nextIssue(ctx) {
 }
 
 /**
+ * The route a session starts on now, with the verdict on the persona's profile for it. While the
+ * route's harness is at its usage limit it waits, or under PIPELINE_ON_LIMIT=fallback it takes
+ * the first fallback that is not paused and that the persona's profile is logged in to.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {string} persona - The persona.
+ * @param {StageRoute} route - The harness and model it would run on.
+ * @returns {Promise<Pick | {wait: string}>} - The route and verdict, or why it waits.
+ */
+async function pickRoute(ctx, persona, route) {
+    const {settings, state} = ctx;
+    let fallbacks = settings.fallbackFor(route.harness);
+    for (;;) {
+        const choice = chooseHarness({
+            route,
+            fallbacks,
+            policy: settings.onLimit,
+            limits: state.run.limits,
+            now: ctx.clock.now()
+        });
+        if ("wait" in choice) {
+            return {wait: `${route.harness} is at its usage limit until ${choice.wait}`};
+        }
+        const verdict = await profileFor(ctx, persona, choice.harness);
+        if (!("fallbackFrom" in choice)) {
+            return {route, verdict};
+        }
+        // A profile left unmounted (PIPELINE_PROFILES=off, or a token) proves no login.
+        if ("profile" in verdict && verdict.profile) {
+            const {harness, model, fallbackFrom} = choice;
+            return {route: {harness, model, planned: false}, verdict, fallbackFrom};
+        }
+        const why = "refused" in verdict ? verdict.refused : `no logged-in profile for ${persona}`;
+        ctx.log(`fallback ${choice.harness} skipped: ${why}`);
+        fallbacks = fallbacks.filter(f => f.harness !== choice.harness);
+    }
+}
+
+/**
  * Try the queued spawn at an index: it stays queued while its persona is at its limit or
- * logged out, and is dropped when its profile is refused or it cannot start.
+ * logged out or its harness is at its usage limit, and is dropped when its profile is refused or
+ * it cannot start.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} index - The index of the spawn in the queue.
  * @returns {Promise<number>} The index of the next spawn to try.
  */
 async function trySpawn(ctx, index) {
-    const spawns = ctx.state.run.spawns;
+    const {settings, state} = ctx;
+    const spawns = state.run.spawns;
     /** @type {Spawn} */
     const spawn = spawns[index];
     const persona = personaFor("spawn", spawn.persona);
     if (atPersonaLimit(ctx, persona)) {
         return index + 1;
     }
+    const harness = spawn.harness ?? settings.harnessFor("qa");
+    const pick = await pickRoute(ctx, persona, {
+        harness,
+        model: settings.modelFor("qa"),
+        planned: false
+    });
+    if ("wait" in pick) {
+        return index + 1;
+    }
     // Taken off the queue first: a spawn that cannot start is dropped, not retried.
     spawns.splice(index, 1);
-    const verdict = await profileFor(ctx, persona, spawn.harness ?? ctx.settings.harnessFor("qa"));
+    const {verdict, route} = pick;
     if ("refused" in verdict) {
         ctx.log(verdict.refused);
         ctx.log(`spawn ${persona} dropped`);
         return index;
     }
-    if (stillLoggedOut(ctx.state, persona, verdict.updated)) {
+    if (stillLoggedOut(state, persona, verdict.updated)) {
         spawns.splice(index, 0, spawn);
         return index + 1;
     }
-    await startSpawn(ctx, spawn, verdict.profile);
+    await startSpawn(ctx, spawn, {profile: verdict.profile, route});
     return index;
 }
 
 /**
+ * The harness and model a stage of an issue runs on: the line the newest plan has for the
+ * stage, else the stage's setting. The plan stage reads no plan. Refused while GitHub is
+ * backed off or rate limits the read, and when the plan's Harness section holds a line
+ * that does not parse; any other failed read is thrown.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {string} stage - The prompt stage name.
+ * @returns {Promise<StageRoute | {refused: string}>} The route, or why the issue waits.
+ */
+async function routeFor(ctx, n, stage) {
+    const {settings} = ctx;
+    const setting = {harness: settings.harnessFor(stage), model: settings.modelFor(stage)};
+    if (stage === "plan") {
+        return {...setting, planned: false};
+    }
+    if (inBackoff(ctx)) {
+        return {refused: `#${n}: waits, GitHub backed off, its plan is not read`};
+    }
+    let text;
+    try {
+        text = (await ctx.github.planComment(n)) ?? "";
+    } catch (error) {
+        if (!(error instanceof RateLimited)) {
+            throw error;
+        }
+        backOff(ctx, error);
+        return {refused: `#${n}: waits, GitHub rate limited the read of its plan`};
+    }
+    const {routes, bad} = planRoutes(text);
+    if (bad.length > 0) {
+        return {refused: `#${n}: plan Harness line "${bad[0]}" is not <stage>: <harness> <model>`};
+    }
+    const route = routes[stage];
+    return route ? {...route, planned: true} : {...setting, planned: false};
+}
+
+/**
  * Try a due issue: it waits for the next pass while its persona is at its limit, its
- * profile is refused or it is logged out.
+ * route or profile is refused, it is logged out, or its harness is at its usage limit with no
+ * fallback to take.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -337,7 +473,19 @@ async function tryIssue(ctx, n) {
         ctx.tried.add(n);
         return;
     }
-    const verdict = await profileFor(ctx, persona, ctx.settings.harnessFor(stage));
+    const route = await routeFor(ctx, n, stage);
+    if ("refused" in route) {
+        ctx.log(route.refused);
+        ctx.tried.add(n);
+        return;
+    }
+    const pick = await pickRoute(ctx, persona, route);
+    if ("wait" in pick) {
+        ctx.log(`#${n}: waits, ${pick.wait}`);
+        ctx.tried.add(n);
+        return;
+    }
+    const {verdict} = pick;
     if ("refused" in verdict) {
         ctx.log(verdict.refused);
         ctx.tried.add(n);
@@ -347,23 +495,20 @@ async function tryIssue(ctx, n) {
         ctx.tried.add(n);
         return;
     }
-    await startIssue(ctx, n, {persona, profile: verdict.profile});
+    const {route: picked, fallbackFrom} = pick;
+    await startIssue(ctx, n, {persona, profile: verdict.profile, route: picked, fallbackFrom});
 }
 
 /**
  * Start sessions while slots are free: queued spawns first, then due issues, the least-busy persona
- * first. One slot past the soft ceiling; none while a model rate limit pauses starts. A spawn or
- * issue whose persona is at its limit or logged out waits for the next pass.
+ * first. One slot past the soft ceiling. A spawn or issue whose persona is at its limit or logged
+ * out, or whose harness is at its usage limit, waits for the next pass.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
  */
 export async function start(ctx) {
     const {state} = ctx;
-    const paused = state.run.startsPausedUntil;
-    if (paused && ctx.clock.now() < Date.parse(paused)) {
-        return;
-    }
     const limit = ceiling(state, ctx.settings) === "soft" ? 1 : ctx.settings.parallel;
     let index = 0;
     while (running(ctx) < limit) {

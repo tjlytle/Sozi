@@ -2,6 +2,7 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {
     NARROW_MAX_WIDTH,
+    dockedLayout,
     isNarrow,
     layoutKey,
     layoutOf,
@@ -136,5 +137,86 @@ describe("presenter layout", () => {
         assert.equal(isNarrow(600), true);
         assert.equal(isNarrow(601), false);
         assert.equal(isNarrow(1280), false);
+    });
+
+    test("a panel in a window of its own is saved back in its group", () => {
+        const grid = {
+            root: {
+                type: "branch",
+                data: [
+                    {
+                        type: "leaf",
+                        data: {views: ["current"], activeView: "current", id: "1"},
+                        size: 500
+                    },
+                    {
+                        type: "leaf",
+                        data: {views: ["notes"], activeView: "notes", id: "2"},
+                        size: 300
+                    }
+                ]
+            }
+        };
+        const docked = {grid, panels: {current: {id: "current"}, notes: {id: "notes"}}};
+        const window = {id: "next", group: "2", state: {id: "next", title: "Next"}};
+        const saved = dockedLayout(docked, [window]);
+        assert.deepEqual(saved.grid.root.data[1].data.views, ["notes", "next"]);
+        assert.equal(saved.grid.root.data[1].data.activeView, "notes");
+        assert.deepEqual(saved.panels.next, {id: "next", title: "Next"});
+        // The dock it was given is left as it was.
+        assert.deepEqual(docked.grid.root.data[1].data.views, ["notes"]);
+        assert.equal(docked.panels.next, undefined);
+    });
+
+    test("a panel whose group is gone is saved in a group of its own on the right", () => {
+        const grid = {
+            root: {
+                type: "branch",
+                data: [
+                    {
+                        type: "leaf",
+                        data: {views: ["current"], activeView: "current", id: "1"},
+                        size: 800
+                    }
+                ]
+            }
+        };
+        const docked = {grid, panels: {current: {id: "current"}}};
+        const saved = dockedLayout(docked, [{id: "notes", group: "9", state: {id: "notes"}}]);
+        const [, added] = saved.grid.root.data;
+        assert.equal(added.type, "leaf");
+        assert.deepEqual(added.data.views, ["notes"]);
+        assert.equal(added.data.activeView, "notes");
+        assert.notEqual(added.data.id, "1");
+        assert.equal(added.size, 800);
+        assert.deepEqual(readLayout(layoutOf(saved, []), ["current", "notes"])?.dock, saved);
+    });
+
+    test("a group in a window is saved as one group, with the tab it showed", () => {
+        const grid = {
+            root: {
+                type: "branch",
+                data: [
+                    {
+                        type: "leaf",
+                        data: {views: ["current"], activeView: "current", id: "1"},
+                        size: 800
+                    }
+                ]
+            }
+        };
+        const docked = {grid, panels: {current: {id: "current"}}};
+        const saved = dockedLayout(docked, [
+            {id: "notes", group: "9", state: {id: "notes"}},
+            {id: "next", group: "9", state: {id: "next"}, active: true}
+        ]);
+        assert.equal(saved.grid.root.data.length, 2);
+        const [, added] = saved.grid.root.data;
+        assert.deepEqual(added.data.views, ["notes", "next"]);
+        assert.equal(added.data.activeView, "next");
+    });
+
+    test("with no panel in a window, the dock is saved as it is", () => {
+        assert.deepEqual(dockedLayout(dock, []), dock);
     });
 });

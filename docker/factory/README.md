@@ -7,9 +7,8 @@ starts one container per stage and runs `/pipeline/stage.sh <issue> <stage>` in 
 
     node bin/pipeline.js --build-image
 
-This runs `docker build -t sozi-factory -f docker/factory/Dockerfile --build-context
-ghp=<gh-personas plugin dir> .` from the repo root, so the Dockerfile can `COPY pipeline`
-and the lockfile. `.dockerignore` keeps `node_modules`, `build`, `dist`, `var`, `.git`,
+This runs `docker build -t sozi-factory -f docker/factory/Dockerfile .` from the repo root,
+so the Dockerfile can `COPY pipeline`, `packages/gh-as` and the lockfile. `.dockerignore` keeps `node_modules`, `build`, `dist`, `var`, `.git`,
 `.agents/tmp` and `.superpowers` out of the context.
 
 Measured on the dev machine (cold cache): about 6 minutes, image size 6.48 GB (Chromium,
@@ -23,7 +22,8 @@ and filled as `factory`, so no layer re-owns it.
 - Global npm: `@anthropic-ai/claude-code`, `@openai/codex`, `opencode-ai`; and the
   Antigravity CLI (`agy`) in `/home/factory/.local/bin`, from its own installer. These are
   **not pinned**: a rebuild picks up the newest release of each.
-- `/opt/gh-personas`: the gh-personas plugin (hooks, skill, `bin/` on `PATH`).
+- `/opt/gh-as`: `gh-as` from `packages/gh-as/`, `bin/` on `PATH`, the same for every
+  harness. No plugin in the container: no gh-personas hooks or skill, no `--plugin-dir`.
 - `/cache`: `node_modules` from `npm ci` for the lockfile, `lock-sha` (its hash, which
   `stage.sh` compares with the checkout's lockfile), and Playwright's Chromium in
   `/cache/ms-playwright`.
@@ -57,7 +57,7 @@ that and the runner's session display, the scenarios run in a container (24 scen
 - `package-lock.json` changed: the cached `node_modules` and Chromium are stale (a stage
   still works, it just installs on the fly).
 - Anything under `pipeline/` changed: the runner is baked into the image.
-- The gh-personas plugin was updated.
+- Anything under `packages/gh-as/` changed.
 - You want newer harness CLIs.
 - The sandbox helper's setuid bit (`chrome-sandbox`, root 4755) is set in the image. An
   in-checkout `npm ci` (lockfile mismatch) produces an Electron without it, so stage runs

@@ -94,7 +94,7 @@ describe("sandbox", () => {
             const a = answer(cmd);
             return {code: a.code, stdout: a.stdout ?? "", stderr: a.stderr ?? ""};
         };
-        return {sb: createSandbox({settings, root, run, pluginDir: "/plugins/gh-personas"}), calls};
+        return {sb: createSandbox({settings, root, run}), calls};
     }
 
     test("status: running, exited, gone when docker does not know it, unknown when docker fails", async () => {
@@ -168,13 +168,12 @@ describe("sandbox", () => {
         assert.equal(calls[1].opts.env.CLAUDE_CODE_OAUTH_TOKEN, "tok");
         assert.equal(calls[1].opts.env.ANTHROPIC_API_KEY, "key");
     });
-    test("buildImage builds from the repo root with the plugin as a named context", async () => {
+    test("buildImage builds from the repo root alone, no named context", async () => {
         const {sb: s, calls} = recording(() => ({code: 0}));
         await s.buildImage();
         const cmd = calls[0].cmd;
         assert.deepEqual(cmd.slice(0, 3), ["docker", "build", "-t"]);
-        assert.ok(cmd.includes("--build-context"));
-        assert.equal(cmd[cmd.indexOf("--build-context") + 1], "ghp=/plugins/gh-personas");
+        assert.ok(!cmd.includes("--build-context"));
         assert.equal(
             cmd[cmd.indexOf("--build-arg") + 1],
             `FACTORY_UID=${process.getuid?.() ?? 1000}`
@@ -236,6 +235,35 @@ describe("sandbox", () => {
             mintKey: "k"
         });
         assert.ok(!args.some(a => a.includes("/profile")));
+    });
+    test("startArgs passes the session to resume as PIPELINE_RESUME_SESSION", () => {
+        const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
+        const args = sb.startArgs({...base, resume: {session: "abc-123", carryFrom: "/old"}});
+        assert.equal(args[args.indexOf("PIPELINE_RESUME_SESSION=abc-123") - 1], "-e");
+        assert.ok(!sb.startArgs(base).some(a => a.startsWith("PIPELINE_RESUME_SESSION")));
+    });
+    test("prepareOutbox copies the carry, and the resume message when resuming", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));
+        const {sb: s} = recording(() => ({code: 0}), root);
+        const old = fs.mkdtempSync(path.join(os.tmpdir(), "old-"));
+        fs.writeFileSync(path.join(old, "carry.bundle"), "B");
+        fs.writeFileSync(path.join(old, "carry.patch"), "P");
+        fs.writeFileSync(path.join(old, "usage.json"), "{}");
+        const base = {issue: 25, stage: "build", prompt: "p", allow: "a"};
+        const fresh = s.prepareOutbox({...base, carryFrom: old});
+        assert.equal(fs.readFileSync(path.join(fresh, "carry.bundle"), "utf8"), "B");
+        assert.equal(fs.readFileSync(path.join(fresh, "carry.patch"), "utf8"), "P");
+        assert.equal(fs.existsSync(path.join(fresh, "resume.md")), false);
+        assert.equal(fs.existsSync(path.join(fresh, "usage.json")), false);
+        const resumed = s.prepareOutbox({...base, carryFrom: old, resume: "carry on"});
+        assert.equal(fs.readFileSync(path.join(resumed, "resume.md"), "utf8"), "carry on");
+        assert.equal(fs.readFileSync(path.join(resumed, "prompt.md"), "utf8"), "p");
+    });
+    test("startArgs passes the persona by value as PIPELINE_PERSONA", () => {
+        const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
+        const args = sb.startArgs({...base, persona: "architect"});
+        assert.equal(args[args.indexOf("PIPELINE_PERSONA=architect") - 1], "-e");
+        assert.ok(!sb.startArgs(base).some(a => a.startsWith("PIPELINE_PERSONA")));
     });
     test("login runs an interactive container on the host network with the volume", async () => {
         /** @type {string[]} */

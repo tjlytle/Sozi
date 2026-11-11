@@ -108,10 +108,10 @@ function startDisplay(display, player, controller, presentation) {
         timer: new TalkTimer(() => performance.now()),
         transport,
         host: window,
-        enterPreviewMode: (isCurrent, onFollowLink, onKey) => {
+        enterPreviewMode: options => {
             // A preview hands its keys to the presenter: Q is not for it.
             pairing.dispose();
-            enterPreviewMode(player, presentation, isCurrent, onFollowLink, onKey);
+            enterPreviewMode({player, presentation, ...options});
         },
         renderThumbnail: (index, width) => thumbnails.render(index, width)
     });

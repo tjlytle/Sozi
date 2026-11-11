@@ -8,7 +8,9 @@ import {EventEmitter} from "events";
 import {MessageNames, Roles} from "../protocol/messages.js";
 import {TransportStatus} from "../protocol/LocalTransport.js";
 import {STOPPED_TIMER, elapsedAfter} from "../protocol/timer.js";
+import {ON_FRAME} from "../protocol/camera.js";
 
+/** @typedef {import("../protocol/camera.js").CameraView} CameraView */
 /** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").Message} Message */
@@ -107,6 +109,12 @@ export class DisplayMirror extends EventEmitter {
          */
         this.timer = STOPPED_TIMER;
 
+        /** Where the display's camera looks, relative to its current frame.
+         *
+         * @type {Readonly<CameraView>}
+         */
+        this.camera = ON_FRAME;
+
         /** When the timer's last report arrived, by this device's clock.
          *
          * @type {number}
@@ -140,7 +148,8 @@ export class DisplayMirror extends EventEmitter {
                     layouts,
                     deckId,
                     version,
-                    ...this.timerPart(message.timer)
+                    ...this.timerPart(message.timer),
+                    camera: message.camera
                 };
             },
             [MessageNames.frameChange]: ({index, id, title, notes}) => ({
@@ -152,7 +161,8 @@ export class DisplayMirror extends EventEmitter {
             }),
             [MessageNames.blank]: ({on}) => ({blank: on}),
             [MessageNames.timer]: ({elapsedMs, running, targetMs}) =>
-                this.timerPart({elapsedMs, running, targetMs})
+                this.timerPart({elapsedMs, running, targetMs}),
+            [MessageNames.camera]: ({offFrame, zoom, x, y}) => ({camera: {offFrame, zoom, x, y}})
         });
     }
 

@@ -177,7 +177,7 @@ export class PresenterApi {
         mirror.on(DisplayMirrorEvents.change, this.onMirrorChange);
     }
 
-    /** Add a panel: it docks, tabs, minimises and is remembered like a built-in one.
+    /** Add a panel: it docks, tabs, closes and is remembered like a built-in one.
      *
      * @param {PanelDefinition} def - The panel.
      * @throws {TypeError} If it is not valid, or its id is taken.
@@ -232,13 +232,14 @@ export class PresenterApi {
      *
      * @readonly
      * @type {{frame: any, frames: any[], frameCount: number, deckId: string, version: string,
-     *   viewport: any, blank: boolean, status: string, timer: any}}
+     *   viewport: any, blank: boolean, status: string, timer: any, camera: any}}
      */
     get state() {
         const {mirror} = this;
-        const {frame, frames, frameCount, deckId, version, viewport, blank, status} = mirror;
+        const {frame, frames, frameCount, deckId, version, viewport, blank, status, camera} =
+            mirror;
         const timer = {...mirror.timer, elapsedMs: mirror.elapsedAt()};
-        return {frame, frames, frameCount, deckId, version, viewport, blank, status, timer};
+        return {frame, frames, frameCount, deckId, version, viewport, blank, status, timer, camera};
     }
 
     /** The pairing link of the hosted shell, for add-ons; null on the local page.

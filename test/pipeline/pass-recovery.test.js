@@ -83,40 +83,44 @@ describe("a model usage limit", () => {
         assert.equal(w.state.issues[25].stage, "stage:parked");
         assert.equal(w.state.issues[25].tries, 0);
         const comments = w.calls.filter(c => c[0] === "comment" && c[2] === 25);
-        assert.equal(comments.length, 1);
+        assert.equal(comments.length, 2, "the park comment, then the usage comment");
         assert.equal(comments[0][1], "ops");
         assert.match(comments[0][3], /`opencode` harness is a stub/);
         assert.match(comments[0][3], /PIPELINE_HARNESS_PLAN/);
+        assert.match(comments[1][3], /^<details>\n<summary>⏱ plan · opencode /);
         const starts = w.calls.filter(c => c[0] === "start").length;
         await w.p.pass();
         assert.equal(w.calls.filter(c => c[0] === "start").length, starts);
     });
-    test("rate limits in a row double the back-off; a clean result resets it", async () => {
+    test("rate limits in a row double the harness's pause; a clean result clears it", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});
-        const backoff = () => Date.parse(w.state.sync.backoffUntil) - w.clock.now();
+        const pause = () => Date.parse(w.state.run.limits.claude.until) - w.clock.now();
         await w.p.pass();
         end(w, w.state.issues[25].session.outbox, "c25", {exit: 75, status: "rate-limited"});
         await w.p.pass();
-        assert.equal(backoff(), 15 * MIN);
+        assert.equal(pause(), 15 * MIN);
         w.clock.advance(16 * MIN);
         await w.p.pass();
         end(w, w.state.issues[25].session.outbox, "c25", {exit: 75, status: "rate-limited"});
         await w.p.pass();
-        assert.equal(backoff(), 30 * MIN);
-        assert.equal(w.state.sync.backoffStreak, 2);
+        assert.equal(pause(), 30 * MIN);
+        assert.equal(w.state.run.limits.claude.streak, 2);
+        assert.equal(w.state.sync.backoffUntil, null, "GitHub is not backed off");
         w.clock.advance(31 * MIN);
         await w.p.pass();
         end(w, w.state.issues[25].session.outbox, "c25", {exit: 1});
         await w.p.pass();
-        assert.equal(w.state.sync.backoffStreak, 0);
+        assert.equal(w.state.run.limits.claude, undefined);
     });
-    test("the back-off is capped at two hours", async () => {
+    test("the pause is capped at two hours", async () => {
         const w = world({issues: [issue(25, ["stage:todo"])]});
-        w.state.sync.backoffStreak = 10;
+        w.state.run.limits = {
+            claude: {until: new Date(w.clock.now()).toISOString(), streak: 10, reported: false}
+        };
         await w.p.pass();
         end(w, w.state.issues[25].session.outbox, "c25", {exit: 75, status: "rate-limited"});
         await w.p.pass();
-        assert.equal(Date.parse(w.state.sync.backoffUntil) - w.clock.now(), 120 * MIN);
+        assert.equal(Date.parse(w.state.run.limits.claude.until) - w.clock.now(), 120 * MIN);
     });
 });
 

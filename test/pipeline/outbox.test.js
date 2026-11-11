@@ -9,7 +9,7 @@ import {spawnSync} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {logTail, readResult} from "../../pipeline/lib/outbox.js";
+import {copyCarry, logTail, readResult} from "../../pipeline/lib/outbox.js";
 import {readRequests} from "../../pipeline/lib/requests.js";
 
 /**
@@ -98,6 +98,33 @@ describe("result.json", () => {
         fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 1, usage}));
         assert.equal(readResult(dir)?.usage.status, "auth");
     });
+    test("a carry that failed to apply is kept; any other carry value is dropped", () => {
+        const dir = scratch();
+        const file = path.join(dir, "result.json");
+        fs.writeFileSync(file, JSON.stringify({exit: 1, carry: "failed"}));
+        assert.equal(readResult(dir)?.carry, "failed");
+        fs.writeFileSync(file, JSON.stringify({exit: 1, carry: "maybe"}));
+        assert.equal(readResult(dir)?.carry, undefined);
+    });
+    test("the cache counts are read, 0 when absent", () => {
+        const dir = scratch();
+        const usage = {tokensIn: 4, cacheRead: 136247, cacheWrite: 9933, status: "ok"};
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, usage}));
+        const read = readResult(dir);
+        assert.equal(read?.usage.cacheRead, 136247);
+        assert.equal(read?.usage.cacheWrite, 9933);
+        assert.equal(read?.usageKnown, true);
+        fs.writeFileSync(path.join(dir, "result.json"), RESULT);
+        assert.equal(readResult(dir)?.usage.cacheRead, 0);
+        assert.equal(readResult(dir)?.usage.cacheWrite, 0);
+    });
+    test("a null usage is not known, and its status is error", () => {
+        const dir = scratch();
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 1, usage: null}));
+        const read = readResult(dir);
+        assert.equal(read?.usageKnown, false);
+        assert.equal(read?.usage.status, "error");
+    });
 });
 
 describe("the log tail", () => {
@@ -106,6 +133,35 @@ describe("the log tail", () => {
         const lines = Array.from({length: 20000}, (_, i) => `line ${i}`);
         fs.writeFileSync(path.join(dir, "log"), lines.join("\n") + "\n");
         assert.equal(logTail(dir), lines.slice(-20).join("\n"));
+    });
+    test("a limit string is kept, capped at 300 characters; anything else is dropped", () => {
+        const dir = scratch();
+        /**
+         * Read a result whose usage carries a limit value.
+         * @param {unknown} limit - The value.
+         * @returns {unknown} The limit read back.
+         */
+        const read = limit => {
+            const usage = {status: "rate-limited", limit};
+            fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 75, usage}));
+            return readResult(dir)?.usage.limit;
+        };
+        assert.equal(read("resets 3pm"), "resets 3pm");
+        assert.equal(read("x".repeat(400)), "x".repeat(300));
+        assert.equal(read(42), undefined);
+        assert.equal(read(undefined), undefined);
+    });
+    test("the carry files are copied when regular, never through a link", () => {
+        const from = scratch();
+        const to = scratch();
+        fs.writeFileSync(path.join(from, "carry.bundle"), Buffer.from([0, 255, 1]));
+        const secret = path.join(scratch(), "secret");
+        fs.writeFileSync(secret, "do not copy");
+        fs.symlinkSync(secret, path.join(from, "carry.patch"));
+        copyCarry(from, to);
+        assert.deepEqual([...fs.readFileSync(path.join(to, "carry.bundle"))], [0, 255, 1]);
+        assert.equal(fs.existsSync(path.join(to, "carry.patch")), false);
+        copyCarry(scratch(), to);
     });
     test("a missing, linked or piped log gives no log", t => {
         const dir = scratch();

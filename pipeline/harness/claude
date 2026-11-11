@@ -8,8 +8,7 @@
 # prints a readable log on stdout, and leaves OUT/session and OUT/usage.json.
 # Exit: the CLI's exit status; 75 when the session was rate-limited; 64 on a bad call.
 #
-# Env read: CLAUDE_BIN (claude), PIPELINE_SESSION_BUDGET_USD (unset or 0: no cap),
-# PLUGIN_DIR (/opt/gh-personas; passed as --plugin-dir only when it exists).
+# Env read: CLAUDE_BIN (claude), PIPELINE_SESSION_BUDGET_USD (unset or 0: no cap).
 set -u
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -39,7 +38,7 @@ read_allow() {
 
 # Run the CLI in the checkout; returns the CLI's exit status.
 launch() {
-    local text session_flag plugin="${PLUGIN_DIR:-/opt/gh-personas}" cmd ALLOW
+    local text session_flag cmd ALLOW
     read_allow
     if [ "$MODE" = run ]; then
         text=$(cat "$PROMPT"); session_flag=(--session-id "$SESSION")
@@ -49,7 +48,6 @@ launch() {
     cmd=("${CLAUDE_BIN:-claude}" -p "$text" "${session_flag[@]}" --model "$MODEL"
         --permission-mode acceptEdits --output-format stream-json --verbose --add-dir "$OUT")
     case "${PIPELINE_SESSION_BUDGET_USD:-0}" in 0) ;; *) cmd+=(--max-budget-usd "$PIPELINE_SESSION_BUDGET_USD") ;; esac
-    [ -d "$plugin" ] && cmd+=(--plugin-dir "$plugin")
     # Last, so a bare flag can never swallow another.
     [ "${#ALLOW[@]}" -eq 0 ] || cmd+=(--allowedTools "${ALLOW[@]}")
     cd "$CHECKOUT" || return 1
@@ -59,7 +57,8 @@ launch() {
 
 # Write OUT/usage.json for the whole session: on resume, this call's tokens and turns
 # (from the last result line of its stream) are added to the previous usage.json; the
-# cost is taken as the result reports it (already cumulative), or kept when there is none.
+# cost (already cumulative) is the larger of the previous one and this call's, since a
+# call stopped by a usage limit reports 0 and a call with no result line reports none.
 # A call that made no model call (0 tokens) and says it failed to authenticate is "auth";
 # with no result line, the call's lines that are not JSON (the CLI's own errors) say it.
 write_usage() {
@@ -78,14 +77,17 @@ write_usage() {
         ((($x.usage.input_tokens // 0) + ($x.usage.output_tokens // 0)) == 0 and
          ($said | test("Failed to authenticate|authentication_error|\\b401\\b"))) as $auth |
         {tokensIn: (($prev.tokensIn // 0) + ($x.usage.input_tokens // 0)),
+         cacheRead: (($prev.cacheRead // 0) + ($x.usage.cache_read_input_tokens // 0)),
+         cacheWrite: (($prev.cacheWrite // 0) + ($x.usage.cache_creation_input_tokens // 0)),
          tokensOut: (($prev.tokensOut // 0) + ($x.usage.output_tokens // 0)),
-         costUsd: ($x.total_cost_usd // $prev.costUsd // 0),
+         costUsd: ([$prev.costUsd // 0, $x.total_cost_usd // 0] | max),
          turns: (($prev.turns // 0) + ($x.num_turns // 0)),
          status: (if $auth then "auth"
                   elif $r == null then "error"
                   elif ($text | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
                   elif (($x.subtype // "") | test("budget")) then "budget"
-                  elif $x.is_error == true then "error" else "ok" end)}' >"$OUT/usage.json"
+                  elif $x.is_error == true then "error" else "ok" end)} |
+        if .status == "rate-limited" then .limit = ($said | gsub("^\\s+|\\s+$"; "") | .[0:300]) else . end' >"$OUT/usage.json"
 }
 
 main() {

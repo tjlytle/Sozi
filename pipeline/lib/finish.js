@@ -7,11 +7,20 @@
 
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
-import {logTail} from "./outbox.js";
+import {logTail, readResult} from "./outbox.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
 import {park, promptFor, recordTry, stageOf} from "./state.js";
-import {applyLabels, backOff, hasQueued, inBackoff, moveStage, writeLabel} from "./sync.js";
+import {
+    applyLabels,
+    backOff,
+    hasQueued,
+    inBackoff,
+    moveStage,
+    writeComment,
+    writeLabel
+} from "./sync.js";
+import {usageComment} from "./usage-comment.js";
 import {
     allowedMoves,
     costsNoTry,
@@ -103,26 +112,36 @@ async function readBlockers(ctx, n) {
 }
 
 /**
- * Comment as ops now, or queue the comment while backed off or when it fails.
+ * Post an ended session's usage comment on its issue as ops, or queue it. The harness and
+ * model are the ones the session recorded at its start; a session saved before it did
+ * takes them from the settings. A failure is logged and never undoes the verdict.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
- * @param {string} body - The comment.
+ * @param {{started: string, outbox: string, persona?: string, harness?: string, model?: string}} session - The session.
+ * @param {{stage: string, try: number | null, outcome: Outcome}} how - Its stage, try and end.
  * @returns {Promise<void>}
  */
-async function writeComment(ctx, n, body) {
-    if (!inBackoff(ctx)) {
-        try {
-            await ctx.github.comment("ops", n, body);
-            return;
-        } catch (error) {
-            if (error instanceof RateLimited) {
-                backOff(ctx, error);
-            }
-            ctx.log(`#${n}: comment failed, queued: ${String(error)}`);
-        }
+async function postUsage(ctx, n, session, {stage, try: attempt, outcome}) {
+    const {settings} = ctx;
+    const settingsStage = stage === "spawn" ? "qa" : stage;
+    try {
+        const body = usageComment({
+            stage,
+            try: attempt,
+            persona: session.persona ?? personaFor(stage),
+            harness: session.harness ?? settings.harnessFor(settingsStage),
+            model: session.model ?? settings.modelFor(settingsStage),
+            result: readResult(session.outbox),
+            startedAt: session.started,
+            endedAt: new Date(ctx.clock.now()).toISOString(),
+            outcome,
+            outbox: session.outbox
+        });
+        await writeComment(ctx, n, body);
+    } catch (error) {
+        ctx.log(`#${n}: usage comment failed: ${String(error)}`);
     }
-    ctx.state.queued.push({comment: {persona: "ops", issue: n, body}});
 }
 
 /**
@@ -173,23 +192,25 @@ async function countTry(ctx, n, outbox) {
 }
 
 /**
- * Park an issue whose session ran on a stub harness, naming the harness and the stage.
+ * Park an issue whose session ran on a stub harness, naming the harness and the stage, and
+ * the plan's Harness line or the stage setting that chose it.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
  * @returns {Promise<void>}
  */
 async function parkStub(ctx, n) {
-    const stage = ctx.state.issues[n].session.stage;
-    const harness = ctx.settings.harnessFor(stage);
+    const {stage, planned, harness = ctx.settings.harnessFor(stage)} = ctx.state.issues[n].session;
+    const fix = planned
+        ? `change the plan's **Harness** line for \`${stage}\``
+        : `set \`PIPELINE_HARNESS_${stage.toUpperCase()}\``;
     ctx.log(`#${n}: the ${harness} harness is a stub; parking`);
     await parkIssue(
         ctx,
         n,
         `Pipeline: the \`${harness}\` harness is a stub (\`status: unsupported\`), so the ` +
-            `\`${stage}\` stage cannot run; parking. @${ctx.settings.human}, set ` +
-            `\`PIPELINE_HARNESS_${stage.toUpperCase()}\` to a working harness and comment ` +
-            "to wake it."
+            `\`${stage}\` stage cannot run; parking. @${ctx.settings.human}, ${fix} to a ` +
+            "working harness and comment to wake it."
     );
 }
 
@@ -277,10 +298,34 @@ async function applyRequests(ctx, n, accepted, unverified) {
 }
 
 /**
+ * What the next session of a stage needs from one its usage limit stopped: the outbox with its
+ * carried work, and the harness session to resume. Only a session that ran with a profile can be
+ * resumed; a token-only one keeps no transcript, so the next one starts fresh with the carry.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {any} session - The issue's session record.
+ * @param {import("./requests.js").Result | null} result - Its result.
+ * @returns {import("./state.js").Interrupted} - The interruption.
+ */
+function interruption(ctx, session, result) {
+    const {stage, outbox, harness = ctx.settings.harnessFor(stage)} = session;
+    return {
+        harness,
+        model: session.model ?? ctx.settings.modelFor(stage),
+        session: session.profile ? (result?.session ?? null) : null,
+        outbox,
+        persona: session.persona ?? personaFor(stage),
+        stage
+    };
+}
+
+/**
  * Judge an issue's ended session: usage, requests, and a try when it moved nothing,
- * unless it asked to wait for a person or the model's usage limit stopped it. A session
- * whose login died marks its persona logged out. A session on a stub harness parks the
- * issue at once.
+ * unless it asked to wait for a person or the model's usage limit stopped it. A session the
+ * usage limit stopped is recorded as interrupted, for the next session of its stage to carry
+ * on; one whose carried work did not apply puts back the interruption it carried, and counts a
+ * try. A session whose login died marks its persona logged out. A session on a stub harness
+ * parks the issue at once.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -289,9 +334,13 @@ async function applyRequests(ctx, n, accepted, unverified) {
  */
 async function judgeIssue(ctx, n, outcome) {
     const record = ctx.state.issues[n];
-    const {outbox} = record.session;
+    const {outbox, stage, harness = ctx.settings.harnessFor(stage)} = record.session;
     const who = `#${n}`;
-    const result = takeResult(ctx, outbox, who);
+    const result = takeResult(ctx, outbox, who, harness);
+    if (result?.carry === "failed") {
+        record.interrupted = record.session.carried ?? null;
+        ctx.log(`${who}: the carried work did not apply; it is kept for the next session`);
+    }
     const unverified = unverifiedReason(result, outcome);
     if (unverified) {
         ctx.log(`${who}: unverified session: ${unverified}`);
@@ -306,8 +355,9 @@ async function judgeIssue(ctx, n, outcome) {
         await parkStub(ctx, n);
     } else if (costsNoTry(result)) {
         if (loggedOut(result)) {
-            const {persona, stage} = record.session;
-            markPersona(ctx, persona ?? personaFor(stage));
+            markPersona(ctx, record.session.persona ?? personaFor(stage));
+        } else {
+            record.interrupted = interruption(ctx, record.session, result);
         }
         ctx.log(`${who}: usage ${result?.usage.status}; no try, stays at ${record.stage}`);
     } else if (wait !== null) {
@@ -322,9 +372,9 @@ async function judgeIssue(ctx, n, outcome) {
 }
 
 /**
- * Judge an issue's ended session once and free its slot. The session is marked judged
- * (and saved) first, so a loop that dies half way never applies its requests twice, and
- * the verdict is saved as soon as it is reached.
+ * Judge an issue's ended session once, comment its usage and free its slot. The session
+ * is marked judged (and saved) first, so a loop that dies half way never applies its
+ * requests twice, and the verdict is saved as soon as it is reached.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -339,11 +389,14 @@ export async function finishIssue(ctx, n, outcome = "exited") {
     } else {
         session.judged = true;
         ctx.save();
+        // Read before judging: a session that moved nothing counts a try.
+        const attempt = session.try ?? record.tries + 1;
         try {
             await judgeIssue(ctx, n, outcome);
         } catch (error) {
             ctx.log(`#${n}: finishing failed: ${String(error)}`);
         }
+        await postUsage(ctx, n, session, {stage: session.stage, try: attempt, outcome});
         ctx.save();
     }
     record.labels = record.labels.filter(l => l !== "working");
@@ -357,10 +410,10 @@ export async function finishIssue(ctx, n, outcome = "exited") {
  * Judge a spawned session that ended, once, and free its slot. Its done and wait requests
  * were refused, since a spawned session has no stage, and its spawns are refused: a
  * spawned session may not spawn again. A session whose login died marks its persona
- * logged out.
+ * logged out. One that names an issue comments its usage there.
  *
  * @param {PassContext} ctx - The pass context.
- * @param {{container: string, outbox: string, persona: string, judged?: boolean}} session - The session.
+ * @param {{container: string, started: string, outbox: string, persona: string, issue?: number | null, harness?: string, model?: string, judged?: boolean}} session - The session.
  * @param {Outcome} [outcome] - How the session ended.
  * @returns {Promise<void>}
  */
@@ -370,7 +423,8 @@ export async function finishSpawn(ctx, session, outcome = "exited") {
         session.judged = true;
         ctx.save();
         try {
-            const result = takeResult(ctx, session.outbox, who);
+            const harness = session.harness ?? ctx.settings.harnessFor("qa");
+            const result = takeResult(ctx, session.outbox, who, harness);
             if (loggedOut(result)) {
                 markPersona(ctx, session.persona);
             }
@@ -390,6 +444,9 @@ export async function finishSpawn(ctx, session, outcome = "exited") {
             await notesAndRefusals(ctx, accepted, refused, 0, who);
         } catch (error) {
             ctx.log(`${who}: finishing failed: ${String(error)}`);
+        }
+        if (session.issue) {
+            await postUsage(ctx, session.issue, session, {stage: "spawn", try: null, outcome});
         }
     }
     await ctx.sandbox.remove(session.container).catch(() => {});

@@ -100,4 +100,34 @@ describe("ExportDriver", () => {
         raf.tick(16);
         assert.deepEqual(calls, [["repaint"]]);
     });
+
+    test("kick(false) then kick(true) before the next frame runs only one repaint loop", () => {
+        const {player, presentation, viewport, calls} = fakeDeck();
+        const driver = new ExportDriver(player, presentation, viewport);
+        driver.kick(true);
+        driver.kick(false);
+        driver.kick(true);
+        assert.equal(calls.length, 2);
+        raf.tick(16);
+        assert.equal(calls.length, 3);
+        raf.tick(16);
+        assert.equal(calls.length, 4);
+    });
+
+    test("kick(false) leaves no frame pending", () => {
+        const {player, presentation, viewport} = fakeDeck();
+        const driver = new ExportDriver(player, presentation, viewport);
+        driver.kick(true);
+        assert.equal(raf.pending, 1);
+        driver.kick(false);
+        assert.equal(raf.pending, 0);
+    });
+
+    test("dispose cancels the pending frame", () => {
+        const {player, presentation, viewport} = fakeDeck();
+        const driver = new ExportDriver(player, presentation, viewport);
+        driver.kick(true);
+        driver.dispose();
+        assert.equal(raf.pending, 0);
+    });
 });

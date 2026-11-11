@@ -4,15 +4,65 @@
 
 // The --status report of the factory loop: the run, its sessions, and what waits.
 
+import {pausedUntil} from "./limits.js";
 import {loggedOutLines} from "./logins.js";
 
-/** Describe the state for --status: the run, sessions, tries, waits, queues, dead
- * letters and logged-out personas.
+/** Name the harness and model a session runs on; nothing for one saved before they were.
+ *
+ * @param {{harness?: string, model?: string}} session - The session.
+ * @returns {string} - The suffix, with its leading space.
+ */
+function onHarness(session) {
+    return session.harness ? ` on ${session.harness} ${session.model}` : "";
+}
+
+/** A time without the milliseconds the state keeps.
+ *
+ * @param {string} iso - The time.
+ * @returns {string} - The time to the second.
+ */
+function seconds(iso) {
+    return iso.replace(/\.\d{3}Z$/, "Z");
+}
+
+/** One line per harness paused at its usage limit, and per issue whose session it stopped.
  *
  * @param {any} state - The loop state.
+ * @param {Date} now - The current time.
+ * @returns {string[]} - The lines.
+ */
+function limitLines(state, now) {
+    const limits = state.run.limits ?? {};
+    const lines = [];
+    for (const harness of Object.keys(limits)) {
+        const until = pausedUntil(limits, harness, now.getTime());
+        if (until) {
+            const {reported, streak} = limits[harness];
+            const why = reported ? "reset reported" : `back-off, ${streak} in a row`;
+            lines.push(`harness ${harness}: paused until ${seconds(until)} (${why})`);
+        }
+    }
+    for (const [n, r] of Object.entries(state.issues)) {
+        /** @type {any} */
+        const record = r;
+        const gone = record.interrupted;
+        if (gone) {
+            const until = pausedUntil(limits, gone.harness, now.getTime());
+            const when = until ? seconds(until) : "next pass";
+            lines.push(`#${n} ${record.stage}: interrupted on ${gone.harness}, resumes ${when}`);
+        }
+    }
+    return lines;
+}
+
+/** Describe the state for --status: the run, sessions, paused harnesses, interrupted issues,
+ * tries, waits, queues, dead letters and logged-out personas.
+ *
+ * @param {any} state - The loop state.
+ * @param {Date} [now] - The current time, which tells a pause that ended from one that holds.
  * @returns {string} - The report.
  */
-export function statusText(state) {
+export function statusText(state, now = new Date()) {
     const run = state.run;
     const lines = [
         `run: started ${run.started ?? "never"}${run.stopped ? " (stopped)" : ""}`,
@@ -22,15 +72,17 @@ export function statusText(state) {
     for (const [n, r] of Object.entries(state.issues)) {
         /** @type {any} */
         const record = r;
-        if (record.session) {
+        const session = record.session;
+        if (session) {
             lines.push(
-                `#${n} ${record.session.stage}: ${record.session.container} since ${record.session.started}`
+                `#${n} ${session.stage}: ${session.container} since ${session.started}${onHarness(session)}`
             );
         }
     }
     for (const s of run.sessions ?? []) {
-        lines.push(`spawn ${s.persona}: ${s.container} since ${s.started}`);
+        lines.push(`spawn ${s.persona}: ${s.container} since ${s.started}${onHarness(s)}`);
     }
+    lines.push(...limitLines(state, now));
     for (const [n, r] of Object.entries(state.issues)) {
         /** @type {any} */
         const record = r;

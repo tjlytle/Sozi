@@ -193,8 +193,8 @@ issues filed for the alternatives), Blocked by.
 The loop never touches a checkout a person uses, and stages never contend for ports or
 build directories. Each stage runs in a Docker container from an image the repo defines
 (`docker/factory/Dockerfile`): Node 24, the Electron and Chromium system libraries,
-Xvfb, Playwright's Chromium, `gh`, `git`, `python3`, `jq`, the Claude Code CLI, and the
-gh-personas plugin's `bin`. Inside, a fresh checkout of the branch (cloned from a bare
+Xvfb, Playwright's Chromium, `gh`, `git`, `python3`, `jq`, the Claude Code CLI, and
+`gh-as` at `/opt/gh-as` from `packages/gh-as/` (no plugin in the container, #166). Inside, a fresh checkout of the branch (cloned from a bare
 mirror volume the loop keeps current, so a clone costs seconds), `npm ci`, and the stage
 prompt run as `claude -p`. The container's only shared state with the host is the mirror
 volume (read) and the log directory (write).
@@ -265,11 +265,45 @@ Each session has a wall-clock cap (`PIPELINE_SESSION_MINUTES`, default 45; the c
 is stopped and the run counts as a failed try) and, on an API key, `--max-budget-usd` per
 session. The loop reads every session's result line (tokens and cost from the stream)
 and keeps a running total per run: past a soft limit it drops to one container, past a
-hard limit it starts nothing more and stops as if the stop condition were met, and a rate-limit result backs the
-loop off for fifteen minutes. The limits are per-run settings (`PIPELINE_SOFT_TOKENS`,
+hard limit it starts nothing more and stops as if the stop condition were met. The limits are per-run settings (`PIPELINE_SOFT_TOKENS`,
 `PIPELINE_HARD_TOKENS`, or USD on an API key); a subscription's own usage window cannot
-be queried, so the totals are the loop's own count. Self-started issues are not capped
+be queried, so the totals are the loop's own count. The token total counts cached input
+too (cache reads and writes beside input and output), so a ceiling is reached sooner than
+input and output alone would suggest; both ceilings default to 0, off. Self-started issues are not capped
 separately: the container count and the limits bound them.
+
+**Usage limits** (#125). A session stopped at its model's usage limit pauses only its
+harness (`run.limits` in the state): Claude stages wait while Codex and agy stages keep
+starting, and GitHub writes and syncs carry on. The pause lasts until the reset the CLI
+named in its message (`pipeline/lib/resets.js` reads "resets 3pm (Europe/Paris)", "try
+again in 2 hours 13 minutes", "try again at 3:05 PM" and a `|<epoch>` suffix; a time with
+no zone is the container's, UTC), else for `PIPELINE_RATE_LIMIT_BACKOFF_MINUTES`, doubled
+for each limit in a row on that harness, up to two hours. A session on the harness that
+ends ok clears its pause. The limited session costs no try, and its work comes along: on
+exit 75 the stage runner writes its unpushed commits (`carry.bundle`) and its uncommitted
+and untracked files (`carry.patch`) to the outbox, and the next session of the stage
+applies both on top of the issue's branch. A second limit writes them again from the tree as
+it is then, so work the session discarded or pushed is not carried twice. When the carry
+does not apply (the branch moved under the patch), the harness never runs: the session
+counts a try and the loop keeps the interruption for the next one. `PIPELINE_ON_LIMIT` (or
+`--on-limit` for one run) decides what happens meanwhile:
+
+- `wait` (the default): the stage waits for the reset, then resumes the same harness
+  session (`PIPELINE_RESUME_SESSION`) with `pipeline/resume.md`, which tells it to carry
+  on. Only a session that ran with a persona profile can be resumed; a token-only session
+  keeps no transcript, so its stage starts fresh with the carry. A resume that fails before
+  any model call falls back to a fresh run.
+- `fallback`: the stage starts on the first entry of `PIPELINE_FALLBACK_<HARNESS>`
+  (`codex:gpt-5.5,agy:gemini-3-pro`; model names do not carry across harnesses, so each
+  entry names one) that is not paused and that the persona's profile is logged in to (with
+  `PIPELINE_PROFILES=off` or a token there is no profile to prove a login, so none is). It is
+  a fresh session with the carry applied, since no CLI resumes another's transcript, and
+  ops comments on the issue which harness took the stage and why. With no entry that fits,
+  the stage waits as under `wait`.
+
+Queued spawns follow the same rule. `--status` prints one line per paused harness
+(`harness claude: paused until … (reset reported)` or `(back-off, 2 in a row)`) and one
+per interrupted issue (`#125 stage:in-progress: interrupted on claude, resumes …`).
 
 A dead login is not a rate limit: it stops one persona, not the model. When a session
 fails to authenticate before any model call, the adapter reports `status: "auth"`; the
@@ -320,6 +354,14 @@ and the checkout path; out, an exit status, one usage line (tokens, cost when kn
 the log stream. The harness is chosen per stage and per run (`PIPELINE_HARNESS`,
 `PIPELINE_HARNESS_PLAN` and so on), so Tim can switch mid-backlog or run one stage on a
 different agent to compare. The container image carries every supported harness.
+
+The plan can override the setting for one issue (#124). The architect fills a **Harness**
+heading in the Implementation Plan from the `harness-routing` skill, one
+`- <stage>: <harness> <model>` line per stage that leaves its setting. When the loop starts
+`tests`, `build`, `review` or `qa`, it reads the newest plan and runs the stage on the line
+for it, or on the setting when there is none. A line that does not parse, or a harness the
+persona has no login for, is refused and the issue waits: it is never moved to another
+harness. `--status` names the harness and model of each running session.
 
 Constraint that follows: nothing that matters may depend on a Claude Code hook, because
 the other harnesses have none. The repo lock and the edit hook stay as the fast path when
@@ -514,9 +556,9 @@ secrets; the board sync running from the same routine.
   second prompt) and install the marketplaces named in `.claude/settings.json`; (2) is the
   Mobbin MCP reachable inside the container without a display; (3) does `claude -p` in a
   fresh clone show a trust prompt, and if so what fixed it (a `.claude/settings.local.json`
-  written by `stage.sh`, or `--permission-mode`). The image loads the plugin with
-  `--plugin-dir /opt/gh-personas`, which sidesteps the marketplace question for the
-  container; the cloud path still needs the answer.
+  written by `stage.sh`, or `--permission-mode`). The image loads no plugin since #166: every
+  harness runs `gh-as` from `/opt/gh-as` (`packages/gh-as/`), which sidesteps the marketplace
+  question for the container; the cloud path still needs the answer.
 - The Mobbin-in-container check (2) now means "Mobbin authorised in the architect and
   advocate profiles" (`--status` lists each profile's servers; the allowlists are in
   `pipeline/config`).

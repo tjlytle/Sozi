@@ -8,6 +8,7 @@ import {highlightCode} from "../../html/highlight.js";
 import {isBlankHTML, setSanitizedHTML} from "../../html/sanitize";
 import {overlayNotes} from "../../notes/notesDocument.js";
 import {DisplayMirrorEvents} from "../DisplayMirror.js";
+import {linkTarget} from "../noteLinks.js";
 import {coveringSection, nextFontSize, notesUrl, readFontSize} from "../notesPosition.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
@@ -28,6 +29,7 @@ import {coveringSection, nextFontSize, notesUrl, readFontSize} from "../notesPos
  * @typedef {object} NotesPanelOptions
  * @property {Pick<Storage, "getItem" | "setItem">} storage - Where the font size is kept.
  * @property {() => string} deckHref - The address of the deck's page, read when it is needed.
+ * @property {(index: number, transition: boolean) => void} jumpToFrame - Moves the display.
  */
 
 /** Where the font size is kept: per device, across decks.
@@ -70,11 +72,12 @@ export class NotesPanel {
      * @param {DisplayMirror} mirror - What the display last reported.
      * @param {NotesPanelOptions} options - What it needs from the page.
      */
-    constructor(element, mirror, {storage, deckHref}) {
+    constructor(element, mirror, {storage, deckHref, jumpToFrame}) {
         this.element = element;
         this.mirror = mirror;
         this.storage = storage;
         this.deckHref = deckHref;
+        this.jumpToFrame = jumpToFrame;
         this.doc = element.ownerDocument;
 
         /** Does the document scroll with the talk?
@@ -94,6 +97,12 @@ export class NotesPanel {
          * @type {?string}
          */
         this.drawn = null;
+
+        /** The frames the sections were drawn from, which the links in the notes name.
+         *
+         * @type {FrameInfo[]}
+         */
+        this.drawnFrames = [];
 
         /** The frame last shown, -1 before the first.
          *
@@ -146,6 +155,24 @@ export class NotesPanel {
 
         this.onScroll = () => this.showTitleLine();
         this.body.addEventListener("scroll", this.onScroll, false);
+
+        /** Move the display for a link to a frame; a `#` link never changes the page's address.
+         *
+         * @param {MouseEvent} evt - The click.
+         */
+        this.onClick = evt => {
+            const link = /** @type {Element} */ (evt.target).closest("a[href]");
+            const href = link ? link.getAttribute("href") || "" : "";
+            if (!href.startsWith("#")) {
+                return;
+            }
+            evt.preventDefault();
+            const target = linkTarget(href, this.drawnFrames);
+            if (target.kind === "frame") {
+                this.jumpToFrame(target.index, !evt.shiftKey);
+            }
+        };
+        this.body.addEventListener("click", this.onClick, false);
 
         // Cast: an element in a page always has a window.
         const host = /** @type {Window & typeof globalThis} */ (this.doc.defaultView);
@@ -238,17 +265,20 @@ export class NotesPanel {
         return overlayNotes(withFileIds, this.published).frames;
     }
 
-    /** Draw the sections, unless the notes are the ones already drawn.
+    /** Draw the sections, unless the same frames are already drawn: a renamed id draws again.
      *
      * @returns {boolean} True if the sections were drawn again.
      */
     drawSections() {
         const frames = this.documentFrames();
-        const key = JSON.stringify(frames.map(({index, title, notes}) => [index, title, notes]));
+        const key = JSON.stringify(
+            frames.map(({index, id, title, notes}) => [index, id, title, notes])
+        );
         if (key === this.drawn) {
             return false;
         }
         this.drawn = key;
+        this.drawnFrames = frames;
         this.sections = frames
             .filter(({notes}) => !isBlankHTML(notes, this.doc))
             .map(frame => this.drawSection(frame));
@@ -270,8 +300,27 @@ export class NotesPanel {
         const content = this.doc.createElement("div");
         content.className = "sozi-notes__section-notes";
         setSanitizedHTML(content, notes);
+        this.markLinks(content);
         element.append(heading, content);
         return {index, element, heading};
+    }
+
+    /** Mark a link to a missing frame as broken, and open any link off the deck in a new tab.
+     *
+     * @param {HTMLElement} content - The notes of a section, sanitized.
+     */
+    markLinks(content) {
+        for (const link of content.querySelectorAll("a[href]")) {
+            const target = linkTarget(link.getAttribute("href") || "", this.drawnFrames);
+            if (target.kind === "broken") {
+                link.classList.add("sozi-notes__link--broken");
+                link.setAttribute("aria-disabled", "true");
+                link.setAttribute("title", `No frame "${target.fragment}" in this deck`);
+            } else if (target.kind === "external") {
+                link.setAttribute("target", "_blank");
+                link.setAttribute("rel", "noopener noreferrer");
+            }
+        }
     }
 
     /** Bring a section to the top of the document.
@@ -371,6 +420,7 @@ export class NotesPanel {
         this.disposed = true;
         this.mirror.off(DisplayMirrorEvents.change, this.onChange);
         this.body.removeEventListener("scroll", this.onScroll, false);
+        this.body.removeEventListener("click", this.onClick, false);
         this.resizeObserver.disconnect();
         this.element.replaceChildren();
     }

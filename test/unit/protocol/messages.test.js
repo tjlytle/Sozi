@@ -24,8 +24,15 @@ import {
     timerMessage,
     timerTargetMessage
 } from "../../../src/js/protocol/timer.js";
+import {
+    ON_FRAME,
+    cameraMessage,
+    cameraMoveMessage,
+    cameraResetMessage
+} from "../../../src/js/protocol/camera.js";
 
 const timer = {elapsedMs: 1500, running: true, targetMs: 60000};
+const camera = {offFrame: true, zoom: 2, x: -0.5, y: 0.25};
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
 const frames = [{index: 0, id: "frame1", title: "One", notes: ""}, frame];
@@ -43,7 +50,8 @@ const displayState = {
     frames,
     blank: false,
     layouts,
-    timer
+    timer,
+    camera
 };
 const noModifiers = {shift: false, alt: false, ctrl: false, meta: false};
 
@@ -181,6 +189,32 @@ describe("protocol messages", () => {
     test("a hello from a deck from before the timer reads as a stopped timer", () => {
         const older = {...helloMessage(Roles.display, displayState), timer: undefined};
         assert.deepEqual(/** @type {any} */ (readMessage(older)).timer, STOPPED_TIMER);
+    });
+
+    test("a display's hello keeps the camera and drops its other fields", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        const read = readMessage({...hello, camera: {...camera, extra: 1}});
+        assert.deepEqual(/** @type {any} */ (read).camera, camera);
+    });
+
+    test("a hello from a deck from before the camera reads as a camera on its frame", () => {
+        const older = {...helloMessage(Roles.display, displayState), camera: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).camera, ON_FRAME);
+    });
+
+    test("a hello with a malformed camera is refused", () => {
+        const hello = helloMessage(Roles.display, displayState);
+        for (const bad of [null, {...camera, zoom: 0}, {...camera, offFrame: "yes"}]) {
+            assert.equal(readMessage({...hello, camera: bad}), null, JSON.stringify(bad));
+        }
+    });
+
+    test("the camera's messages are read through readMessage", () => {
+        const move = {x: 0.1, y: 0, zoom: 1, atX: 0, atY: 0};
+        assert.deepEqual(readMessage(cameraMoveMessage(move)), cameraMoveMessage(move));
+        assert.deepEqual(readMessage(cameraResetMessage()), cameraResetMessage());
+        assert.deepEqual(readMessage(cameraMessage(camera)), cameraMessage(camera));
+        assert.equal(readMessage({...cameraMoveMessage(move), zoom: 0}), null);
     });
 
     test("a hello with a malformed timer is refused", () => {

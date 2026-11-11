@@ -294,7 +294,16 @@ describe("readResult", () => {
         assert.deepEqual(readResult(dir), {
             exit: 0,
             session: null,
-            usage: {tokensIn: 0, tokensOut: 0, costUsd: 0, turns: 4, status: "error"},
+            usage: {
+                tokensIn: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                tokensOut: 0,
+                costUsd: 0,
+                turns: 4,
+                status: "error"
+            },
+            usageKnown: true,
             changed: ["a"],
             commits: [],
             resumes: 0,
@@ -366,7 +375,16 @@ describe("hostile input", () => {
         assert.deepEqual(readResult(dir), {
             exit: 1,
             session: null,
-            usage: {tokensIn: 0, tokensOut: 5, costUsd: 0, turns: 2, status: "error"},
+            usage: {
+                tokensIn: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                tokensOut: 5,
+                costUsd: 0,
+                turns: 2,
+                status: "error"
+            },
+            usageKnown: true,
             changed: ["a", "b"],
             commits: [],
             resumes: 0,
@@ -378,6 +396,7 @@ describe("hostile input", () => {
         );
         const result = readResult(dir);
         assert.equal(result?.usage.turns, 0);
+        assert.equal(result?.usageKnown, false);
         assert.equal(result?.exit, 0);
         assert.equal(result?.resumes, 2);
         assert.equal(result?.hooks, "ok");

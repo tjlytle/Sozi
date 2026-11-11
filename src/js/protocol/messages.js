@@ -5,12 +5,13 @@
 /** The messages a display and its surfaces exchange: names, builders and one reader.
  *
  * docs/presenter-protocol.md describes each one. The `viewport` message lives in
- * `viewport.js`, the thumbnail messages in `thumbnails.js` and the timer's in `timer.js`;
- * `readMessage` reads them too.
+ * `viewport.js`, the thumbnail messages in `thumbnails.js`, the timer's in `timer.js` and the
+ * camera's in `camera.js`; `readMessage` reads them too.
  *
  * @module
  */
 
+import {ON_FRAME, readCamera, readCameraMove, readCameraReset, readCameraView} from "./camera.js";
 import {readPresets} from "./layoutPresets.js";
 import {readThumbnail, readThumbnailRequest} from "./thumbnails.js";
 import {
@@ -31,6 +32,10 @@ import {readViewport} from "./viewport.js";
 /** @typedef {import("./timer.js").TimerMessage} TimerMessage */
 /** @typedef {import("./timer.js").TimerActionMessage} TimerActionMessage */
 /** @typedef {import("./timer.js").TimerTargetMessage} TimerTargetMessage */
+/** @typedef {import("./camera.js").CameraView} CameraView */
+/** @typedef {import("./camera.js").CameraMessage} CameraMessage */
+/** @typedef {import("./camera.js").CameraMoveMessage} CameraMoveMessage */
+/** @typedef {import("./camera.js").CameraResetMessage} CameraResetMessage */
 
 /** The name of every message, the value of its `name` field.
  *
@@ -52,7 +57,10 @@ export const MessageNames = Object.freeze({
     thumbnail: "thumbnail",
     timer: "timer",
     timerAction: "timerAction",
-    timerTarget: "timerTarget"
+    timerTarget: "timerTarget",
+    cameraMove: "cameraMove",
+    cameraReset: "cameraReset",
+    camera: "camera"
 });
 
 /** Who says `hello`: the deck that plays the presentation, or a surface that watches it.
@@ -84,6 +92,7 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @property {boolean} blank - Is the blank screen shown?
  * @property {Record<string, LayoutPreset>} [layouts] - The deck's layout presets, in order.
  * @property {TimerState} [timer] - The talk timer as it is now.
+ * @property {CameraView} [camera] - Where the camera looks, relative to the current frame.
  */
 
 /** @typedef {{name: "hello", role: "surface"}} SurfaceHelloMessage */
@@ -116,7 +125,8 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @typedef {HelloMessage | FrameChangeMessage | ViewportMessage | BlankMessage
  *   | JumpToFrameMessage | NextMessage | PreviousMessage | CustomMessage | PreviewMessage
  *   | FollowLinkMessage | KeyMessage | ThumbnailRequestMessage | ThumbnailMessage
- *   | TimerMessage | TimerActionMessage | TimerTargetMessage} Message
+ *   | TimerMessage | TimerActionMessage | TimerTargetMessage | CameraMoveMessage
+ *   | CameraResetMessage | CameraMessage} Message
  */
 
 /**
@@ -137,7 +147,8 @@ export function helloMessage(role, state) {
             frames,
             blank,
             layouts = {},
-            timer = STOPPED_TIMER
+            timer = STOPPED_TIMER,
+            camera = ON_FRAME
         } = /** @type {DisplayState} */ (state);
         return {
             name: "hello",
@@ -150,7 +161,8 @@ export function helloMessage(role, state) {
             frames,
             blank,
             layouts,
-            timer
+            timer,
+            camera
         };
     }
     return {name: "hello", role: "surface"};
@@ -334,9 +346,9 @@ function readTransition(transition) {
 /**
  * Read a received `hello`.
  *
- * A missing `version`, `frames` or `layouts` reads as none, and a missing `timer` as a stopped one,
- * so a newer surface can join an older deck. A bad preset is dropped, never the whole message; a
- * malformed `frames` or `timer` refuses it.
+ * A missing `version`, `frames` or `layouts` reads as none, a missing `timer` as a stopped one and
+ * a missing `camera` as on its frame, so a newer surface can join an older deck. A bad preset is
+ * dropped, never the whole message; a malformed `frames`, `timer` or `camera` refuses it.
  *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
@@ -354,6 +366,7 @@ function readHello(data) {
     const frame = readFrame(data.frame);
     const frames = readFrames(data.frames);
     const timer = data.timer === undefined ? STOPPED_TIMER : readTimerState(data.timer);
+    const camera = data.camera === undefined ? ON_FRAME : readCameraView(data.camera);
     const valid =
         typeof deckId === "string" &&
         typeof version === "string" &&
@@ -362,7 +375,8 @@ function readHello(data) {
         frame !== null &&
         frames !== null &&
         typeof blank === "boolean" &&
-        timer !== null;
+        timer !== null &&
+        camera !== null;
     const layouts = readPresets(data.layouts).presets;
     return valid
         ? helloMessage(Roles.display, {
@@ -374,7 +388,8 @@ function readHello(data) {
               frames,
               blank,
               layouts,
-              timer
+              timer,
+              camera
           })
         : null;
 }
@@ -436,7 +451,10 @@ const READERS = Object.freeze({
     [MessageNames.thumbnail]: readThumbnail,
     [MessageNames.timer]: readTimer,
     [MessageNames.timerAction]: readTimerAction,
-    [MessageNames.timerTarget]: readTimerTarget
+    [MessageNames.timerTarget]: readTimerTarget,
+    [MessageNames.cameraMove]: readCameraMove,
+    [MessageNames.cameraReset]: readCameraReset,
+    [MessageNames.camera]: readCamera
 });
 
 /**

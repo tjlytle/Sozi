@@ -86,7 +86,9 @@ describe("stage prompts", () => {
             text.qa.includes("gh-as builder pr merge <pr> -R tjlytle/Sozi --squash --delete-branch")
         );
         assert.match(text.qa, /--json reviews/);
-        assert.match(text.qa, /reviewer\[bot\]/);
+        assert.match(text.qa, /author is a GitHub App[\s\S]*other than the PR's author/);
+        assert.match(text.qa, /Do not match the\s+author by name/);
+        assert.doesNotMatch(text.qa, /login ends in `reviewer\[bot\]`/);
         assert.doesNotMatch(text.qa, /reviewDecision/);
         assert.match(text.qa, /req-missing-evidence\.json/);
         assert.match(text.qa, /req-missing-digest\.json/);
@@ -123,6 +125,18 @@ describe("every prompt", () => {
             }
         });
     }
+    test("every prompt reads an issue or PR with its body (#273)", () => {
+        for (const [name, text] of all) {
+            assert.doesNotMatch(text, /(issue|pr) view [^\n`]*--comments/, name);
+            for (const [read] of text.matchAll(/issue view [^\n`]*/g)) {
+                assert.ok(read.includes("--json title,labels,body,comments"), `${name}: ${read}`);
+            }
+            for (const [read] of text.matchAll(/pr view [^\n`]*comments[^\n`]*/g)) {
+                assert.match(read, /--json [^\s]*\bbody\b/, `${name}: ${read}`);
+                assert.match(read, /--json [^\s]*\breviews\b/, `${name}: ${read}`);
+            }
+        }
+    });
     test("spawn: persona and request placeholders, a note and no done request", () => {
         assert.ok(spawn.includes("{PERSONA}"));
         assert.ok(spawn.includes("{PROMPT}"));
@@ -132,7 +146,7 @@ describe("every prompt", () => {
         assert.match(spawn, /\.agents\/tmp\//);
         assert.doesNotMatch(spawn, /code-standard\.md/);
     });
-    test("plan: the seven headings in order", () => {
+    test("plan: the eight headings in order", () => {
         const plan = fs.readFileSync("pipeline/plan.md", "utf8");
         const headings = [
             "Behaviour",
@@ -141,6 +155,7 @@ describe("every prompt", () => {
             "Tests",
             "Dependencies",
             "Decisions taken",
+            "Harness",
             "Blocked by"
         ];
         let at = -1;
@@ -149,6 +164,19 @@ describe("every prompt", () => {
             assert.ok(found > at, `${heading} missing or out of order`);
             at = found;
         }
+    });
+    test("plan: the architect loads harness-routing for the Harness heading", () => {
+        const plan = fs.readFileSync("pipeline/plan.md", "utf8");
+        assert.match(plan, /harness-routing/);
+    });
+});
+
+describe("the harness-routing skill", () => {
+    test("exists and states the two starting rules", () => {
+        const skill = fs.readFileSync(".claude/skills/harness-routing/SKILL.md", "utf8");
+        assert.match(skill, /^---\nname: harness-routing\n/);
+        assert.match(skill, /Reviews run on Codex/);
+        assert.match(skill, /Presenter UI changes run on Codex/);
     });
 });
 
