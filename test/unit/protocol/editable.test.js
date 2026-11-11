@@ -1,6 +1,6 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
-import {isEditableTarget} from "../../../src/js/protocol/editable.js";
+import {editableField, isEditableTarget} from "../../../src/js/protocol/editable.js";
 
 describe("editable targets", () => {
     test("fields a person types into are editable", () => {
@@ -21,5 +21,37 @@ describe("editable targets", () => {
 
     test("no target is not editable", () => {
         assert.equal(isEditableTarget(null), false);
+    });
+});
+
+describe("the field a click focuses", () => {
+    test("an input takes the focus itself", () => {
+        const input = {localName: "input", type: "text"};
+        assert.equal(editableField(input), input);
+    });
+
+    test("a child of editable content gives the focus to its host", () => {
+        const host = {localName: "div", isContentEditable: true, parentElement: null};
+        const span = {localName: "span", isContentEditable: true, parentElement: host};
+        assert.equal(editableField(span), host);
+    });
+
+    test("content nested two levels deep gives the focus to the outermost host", () => {
+        const body = {localName: "body", isContentEditable: false, parentElement: null};
+        const host = {localName: "div", isContentEditable: true, parentElement: body};
+        const bold = {localName: "b", isContentEditable: true, parentElement: host};
+        const span = {localName: "span", isContentEditable: true, parentElement: bold};
+        assert.equal(editableField(span), host);
+    });
+
+    test("an island that is not editable inside a host takes no focus", () => {
+        const host = {localName: "div", isContentEditable: true, parentElement: null};
+        const island = {localName: "span", isContentEditable: false, parentElement: host};
+        assert.equal(editableField(island), null);
+    });
+
+    test("a button and no target take no focus", () => {
+        assert.equal(editableField({localName: "button"}), null);
+        assert.equal(editableField(null), null);
     });
 });
