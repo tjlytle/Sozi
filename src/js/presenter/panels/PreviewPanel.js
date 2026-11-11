@@ -35,9 +35,14 @@ import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protoc
  *
  * The preview of the current frame forwards the links clicked in it and the pans and zooms
  * made on it, shows the display's view, and has a Back to frame button while the display's
- * camera is off its frame; every preview forwards the presentation keys pressed in it. When
- * the iframe loads again (a panel minimised and restored is put back in the page), the
- * preview connects to it again.
+ * camera is off its frame; every preview forwards the presentation keys pressed in it.
+ *
+ * Workspace.addPanel constructs one instance per preview, once per page, through spec.render.
+ * Closing the panel from its ⋯ menu removes its element from the dock without disposing it.
+ * Adding it back from the + menu reuses the same element, so its iframe loads again, as it
+ * does when its group is popped out into a window and docked back. On every load the same
+ * instance runs connect(), dropping the old transport and saying hello to the new deck.
+ * Dragging a panel never reloads its iframe (renderer: "always"; see Workspace).
  */
 export class PreviewPanel {
     /** Draw the preview and follow the display.

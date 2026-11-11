@@ -78,23 +78,20 @@ describe("exporter in the main process", () => {
         }
     });
 
+    // A built deck and the default step limit: the export finishes as soon as its work is
+    // done, so a busy machine cannot run the limit out before the window reports isolation.
     test("the capture window runs with context isolation", () => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
+        const deck = withTempDeck("basic");
         try {
-            const html = path.join(dir, "plain.html");
-            fs.writeFileSync(
-                html,
-                "<!doctype html><html><body><p>Not a presentation</p></body></html>"
-            );
-            const presentation = JSON.parse(
-                fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")
-            );
+            assert.equal(runSozi(["build", "basic.svg"], {cwd: deck.dir}).code, 0);
+            const presentation = JSON.parse(fs.readFileSync(deck.json, "utf8"));
             const report = mainExport({
                 fn: "exportToPDF",
                 presentation,
-                html,
-                opts: {outPath: path.join(dir, "plain.pdf"), timeoutMs: 2000}
+                html: path.join(deck.dir, "basic.sozi.html"),
+                opts: {outPath: path.join(deck.dir, "basic.pdf")}
             });
+            assert.equal(report.ok, true, JSON.stringify(report));
             assert.ok(report.isolation.length > 0, JSON.stringify(report));
             assert.deepEqual(
                 report.isolation,
@@ -102,7 +99,7 @@ describe("exporter in the main process", () => {
                 JSON.stringify(report)
             );
         } finally {
-            fs.rmSync(dir, {recursive: true, force: true});
+            deck.cleanup();
         }
     });
 
