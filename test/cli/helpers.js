@@ -8,10 +8,12 @@
 // a current build: run `npx gulp` after editing src/ and before `npm test`.
 
 const assert = require("node:assert/strict");
-const {spawn, spawnSync} = require("node:child_process");
+const {spawn} = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+
+const {spawnKeepingOutput} = require("./spawn.ts");
 
 const repoDir = path.resolve(__dirname, "..", "..");
 const appDir = path.join(repoDir, "build", "electron");
@@ -85,11 +87,13 @@ function withCommandTimeout(args, timeoutMs) {
  *  by `limit`; `render` and `export` get a `--timeout` below it, unless they have one.
  * @param {string[]} [opts.switches] - Chromium switches placed before `--cli` (default: none).
  * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
+ * @throws {Error} - When Electron cannot start, or when it reaches the time limit: then with
+ *  code `ETIMEDOUT` and the output it printed so far in the message.
  */
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
     const ms = limit(timeout);
     const cliArgs = withCommandTimeout(args, ms);
-    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
+    const result = spawnKeepingOutput(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
         cwd,
         env,
         encoding: "utf8",
