@@ -22,9 +22,15 @@ SUMMARY = re.compile(r"^✖ \d+ problems? |^\s+\d+ errors? and \d+ warnings? pot
 
 
 def edit_hook():
-    """The edit hook module, loaded from its file without writing bytecode beside it."""
+    """The edit hook module, loaded without writing bytecode beside it.
+
+    It is the copy beside this script when there is one (a checkout), else the
+    one in the working directory (the stage image runs /pipeline/ from the root).
+    """
     sys.dont_write_bytecode = True
     path = os.path.join(os.path.dirname(__file__), "..", ".claude", "hooks", "check-file.py")
+    if not os.path.isfile(path):
+        path = os.path.join(os.getcwd(), ".claude", "hooks", "check-file.py")
     spec = importlib.util.spec_from_file_location("check_file", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

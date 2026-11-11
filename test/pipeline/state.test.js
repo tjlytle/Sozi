@@ -162,6 +162,21 @@ describe("state", () => {
     test("loading a missing file gives an empty state", () => {
         assert.deepEqual(loadState("/nonexistent/state.json"), emptyState());
     });
+    test("a state saved before per-harness limits loads without the run-wide pause", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "state-"));
+        const file = path.join(dir, "state.json");
+        const old = emptyState();
+        const run = /** @type {any} */ (old.run);
+        delete run.limits;
+        run.startsPausedUntil = "2026-11-10T15:00:00.000Z";
+        /** @type {any} */ (old.sync).backoffStreak = 2;
+        fs.writeFileSync(file, JSON.stringify(old));
+        const loaded = loadState(file);
+        assert.equal(loaded.run.startsPausedUntil, undefined);
+        assert.equal(/** @type {any} */ (loaded.sync).backoffStreak, undefined);
+        assert.deepEqual(loaded.run.limits, {});
+        fs.rmSync(dir, {recursive: true});
+    });
     test("usage adds up", () => {
         const s = emptyState();
         addUsage(s, {tokens: 10, costUsd: 0.5});

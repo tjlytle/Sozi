@@ -164,6 +164,13 @@ export default [
             "jsdoc/tag-lines": ["off"]
         }
     },
+    // jspot (gulpfile.js, jspotTask) parses src/**/*.js with acorn 5.7, which stops at ES2019:
+    // lint those files at that syntax so the edit hook reports what the build cannot parse.
+    // Built-in globals stay at ES2022; only the syntax is limited. Remove this block with #255.
+    {
+        files: ["src/**/*.js"],
+        languageOptions: {ecmaVersion: 2019, globals: globals.es2022}
+    },
     // Sections 2.3 to 3.3 shape the product code. Tests and scripts drive third-party
     // APIs (page.on, locator.innerHTML()) and are not held to these bans.
     {

@@ -50,6 +50,8 @@
             .sozi-workspace {
                 display: flex;
                 height: 100vh;
+                /* Dockview keeps hidden panels in overlays below the window; they must not lengthen the page. */
+                overflow: clip;
             }
 
             .sozi-bar {

@@ -11,6 +11,7 @@
 
 import {Given, When} from "@cucumber/cucumber";
 import {setTimeout as sleep} from "node:timers/promises";
+import {expect} from "playwright/test";
 
 /** Where a one-finger gesture starts, on the slide. */
 const CENTRE = {x: 640, y: 400};
@@ -116,5 +117,17 @@ When("two fingers move {int} pixels to the right", async function (distance) {
 When("a finger touches the slide for {int} milliseconds", async function (duration) {
     await touch(this, "touchStart", [CENTRE]);
     await sleep(duration);
+    await touch(this, "touchEnd", []);
+});
+
+When("a finger taps the frame list entry {string}", async function (title) {
+    const list = this.deck.locator(".sozi-frame-list");
+    // Wait until the list has slid fully open, so the entry stays where the finger lands.
+    await expect.poll(async () => Math.round((await list.boundingBox())?.x ?? -1)).toBe(0);
+    const box = await this.deck.locator(`.sozi-frame-list a[title="${title}"]`).boundingBox();
+    if (!box) {
+        throw new Error(`No frame list entry titled "${title}"`);
+    }
+    await touch(this, "touchStart", [{x: box.x + box.width / 2, y: box.y + box.height / 2}]);
     await touch(this, "touchEnd", []);
 });

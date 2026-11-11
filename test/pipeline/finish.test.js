@@ -298,3 +298,61 @@ describe("a stub harness the plan named", () => {
         assert.match(usage, /^<details>\n<summary>⏱ review · opencode some-model · /);
     });
 });
+
+describe("judging a session stopped at its usage limit", () => {
+    test("a profile session is kept to resume", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        await w.p.pass();
+        const outbox = w.state.issues[25].session.outbox;
+        end(w, outbox, "c25", {exit: 75, status: "rate-limited"});
+        await w.p.pass();
+        assert.deepEqual(w.state.issues[25].interrupted, {
+            harness: "claude",
+            model: "claude-opus-5-5",
+            session: "s",
+            outbox,
+            persona: "builder",
+            stage: "build"
+        });
+    });
+    test("a token-only session keeps its carry but no session to resume", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {CLAUDE_CODE_OAUTH_TOKEN: "t"}
+        });
+        w.profiles.builder = null;
+        await w.p.pass();
+        const outbox = w.state.issues[25].session.outbox;
+        end(w, outbox, "c25", {exit: 75, status: "rate-limited"});
+        await w.p.pass();
+        assert.equal(w.state.issues[25].interrupted.session, null);
+        assert.equal(w.state.issues[25].interrupted.outbox, outbox);
+    });
+    test("a carry that did not apply keeps the interruption and counts a try", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        const gone = {
+            harness: "claude",
+            model: "claude-opus-5-5",
+            session: "s0",
+            outbox: "/carry",
+            persona: "builder",
+            stage: "build"
+        };
+        w.state.issues[25].interrupted = gone;
+        await w.p.pass();
+        assert.equal(w.state.issues[25].interrupted, null);
+        const outbox = w.state.issues[25].session.outbox;
+        end(w, outbox, "c25", {exit: 1, status: "error", hooks: "skipped", carry: "failed"});
+        await w.p.pass();
+        assert.deepEqual(w.state.issues[25].interrupted, gone);
+        assert.equal(w.state.issues[25].tries, 1);
+        assert.ok(w.logs.some(l => /#25: the carried work did not apply/.test(l)));
+    });
+    test("a session that ended for another reason is not interrupted", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {exit: 1, status: "error"});
+        await w.p.pass();
+        assert.equal(w.state.issues[25].interrupted ?? null, null);
+    });
+});
