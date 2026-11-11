@@ -1,74 +1,15 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {DisplayCommands} from "../../../src/js/player/DisplayCommands.js";
-
-const frames = [
-    {index: 0, frameId: "f1"},
-    {index: 1, frameId: "f2"}
-];
+import {fakeController, fakeHost, fakePlayer, frames} from "./fakeDeck.js";
 
 const JPEG = "data:image/jpeg;base64,AAAA";
-
-/** Stand-in for the player: the current frame, the blank screen and the moves it makes.
- *
- * @returns {any} - The fake player; `calls` lists each move.
- */
-function fakePlayer() {
-    const calls = [];
-    return {
-        calls,
-        currentFrame: frames[0],
-        nextFrame: frames[1],
-        previousFrame: frames[1],
-        blankScreenIsVisible: false,
-        enableBlankScreen: () => calls.push(["enableBlankScreen"]),
-        disableBlankScreen: () => calls.push(["disableBlankScreen"]),
-        jumpToFrame: frame => calls.push(["jumpToFrame", frame]),
-        moveToFrame: frame => calls.push(["moveToFrame", frame])
-    };
-}
-
-/** Stand-in for the player controller and its viewport: each records the calls made on it.
- *
- * @param {any} player - The fake player, for the blank screen toggle.
- * @returns {any} - The fake controller.
- */
-function fakeController(player) {
-    const calls = [];
-    const record =
-        name =>
-        (...args) =>
-            calls.push([name, ...args]);
-    const viewportCalls = [];
-    return {
-        calls,
-        viewport: {
-            calls: viewportCalls,
-            width: 1200,
-            height: 400,
-            zoom: (factor, x, y) => viewportCalls.push(["zoom", factor, x, y]),
-            translate: (deltaX, deltaY) => viewportCalls.push(["translate", deltaX, deltaY])
-        },
-        moveToNext: record("moveToNext"),
-        jumpToNext: record("jumpToNext"),
-        moveToPrevious: record("moveToPrevious"),
-        jumpToPrevious: record("jumpToPrevious"),
-        moveToFrame: record("moveToFrame"),
-        jumpToFrame: record("jumpToFrame"),
-        zoom: record("zoom"),
-        translate: record("translate"),
-        toggleBlankScreen() {
-            calls.push(["toggleBlankScreen"]);
-            player.blankScreenIsVisible = !player.blankScreenIsVisible;
-        }
-    };
-}
 
 /** Build the commands on fakes.
  *
  * @param {object} [options] - What differs from a deck that is not a preview.
  * @param {() => Promise<string>} [options.render] - What a thumbnail render gives.
- * @returns {any} - The commands, their fakes, and `preview`, the flag `isPreview` reads.
+ * @returns {any} - The commands, their fakes, and `state`, whose `preview` `isPreview` reads.
  */
 function commandsOnFakes({render = async () => JPEG} = {}) {
     const player = fakePlayer();
@@ -76,18 +17,11 @@ function commandsOnFakes({render = async () => JPEG} = {}) {
     const links = new Map();
     const renders = [];
     const state = {preview: false};
-    const host = {
-        MouseEvent: class {
-            constructor(type) {
-                this.type = type;
-            }
-        }
-    };
     const commands = new DisplayCommands({
         player,
         controller,
         presentation: {document: {root: {getElementById: id => links.get(id) ?? null}}},
-        host,
+        host: fakeHost(),
         isPreview: () => state.preview,
         renderThumbnail: (index, width) => {
             renders.push([index, width]);
