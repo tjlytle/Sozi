@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/player.js, src/js/player/DisplayChannel.js, src/js/player/PreviewMode.js, src/js/player/Player.js, src/js/protocol/LocalTransport.js, src/js/protocol/messages.js
+# covers: src/js/presenter.js, src/js/player.js, src/js/player/DisplayChannel.js, src/js/player/DisplayCommands.js, src/js/player/PreviewMode.js, src/js/player/Player.js, src/js/protocol/LocalTransport.js, src/js/protocol/messages.js, src/js/protocol/hello.js
 Feature: The presenter and the display talk one protocol
 
   The speaker sees no change: the presenter page opens the audience window, Next,
@@ -12,6 +12,10 @@ Feature: The presenter and the display talk one protocol
   stays on its frame and the room sees nothing happen; the presenter page catches up with
   the talk. If the speaker closed the audience window, coming back opens a new one at the
   first frame.
+
+  Each deck has its own audience window, even two decks with the same file name in different
+  folders: opening another deck's presenter page in the same tab opens that deck's window at
+  its first frame and leaves the first deck's window on its frame.
 
   Background:
     Given the "basic" deck is built
@@ -72,3 +76,33 @@ Feature: The presenter and the display talk one protocol
     And the presenter page is reloaded and opens a new audience window
     Then the audience window is on frame "One"
     And the frame counter reads "1 / 2"
+
+  @issue-310
+  Scenario: Another deck's presenter page in the same tab gets its own audience window
+    Given a second copy of the "basic" deck is built in another folder
+    When the next button is pressed
+    And the audience window is on frame "Two"
+    And the second deck's presenter page is opened in the same tab
+    Then the audience window shows the second deck
+    And the audience window is on frame "One"
+    And the frame counter reads "1 / 2"
+    And the first deck's audience window is still on frame "Two"
+
+  @issue-310
+  Scenario: The second deck's presenter moves only its own audience window
+    Given a second copy of the "basic" deck is built in another folder
+    When the second deck's presenter page is opened in the same tab
+    And the key "." is pressed on the presenter page
+    Then the audience window is blank
+    And the first deck's audience window is not blank
+
+  @issue-310
+  Scenario: Returning to the first deck's presenter page finds its audience window again
+    Given a second copy of the "basic" deck is built in another folder
+    When the next button is pressed
+    And the audience window is on frame "Two"
+    And the second deck's presenter page is opened in the same tab
+    And the first deck's presenter page is opened again in the same tab
+    Then no new audience window was opened
+    And the audience window is on frame "Two"
+    And the frame counter reads "2 / 2"

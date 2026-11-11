@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulpfile.js
+# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulp/templates.js, gulp/shell.js
 Feature: The presenter as a hosted shell that joins a talk from a link
 
   The shell is the presenter page as static files, which any host can serve under any path.

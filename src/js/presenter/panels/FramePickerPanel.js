@@ -8,11 +8,12 @@ import {isBlankHTML, setSanitizedHTML} from "../../html/sanitize";
 import {frameOfTarget, matchFrames} from "../framePicker.js";
 import {PresenterEvents} from "../PresenterApi.js";
 import {TileGestures} from "../TileGestures.js";
-import {MessageNames, Roles} from "../../protocol/messages.js";
+import {Roles} from "../../protocol/hello.js";
+import {MessageNames} from "../../protocol/messages.js";
 
 /** @typedef {import("../PresenterApi.js").PresenterApi} PresenterApi */
 /** @typedef {import("../ThumbnailSource.js").ThumbnailSource} ThumbnailSource */
-/** @typedef {import("../../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../../protocol/hello.js").FrameInfo} FrameInfo */
 
 /** The display's shape until it reports one.
  *

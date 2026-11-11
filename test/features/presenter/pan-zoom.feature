@@ -1,4 +1,4 @@
-# covers: src/js/protocol/camera.js, src/js/player/DisplayChannel.js, src/js/player/PreviewGestures.js, src/js/player/PreviewMode.js, src/js/presenter/panels/PreviewPanel.js, src/js/presenter/DisplayMirror.js, src/templates/presenter.html
+# covers: src/js/protocol/camera.js, src/js/player/DisplayChannel.js, src/js/player/CameraTracker.js, src/js/player/DisplayCommands.js, src/js/player/PreviewGestures.js, src/js/player/PreviewMode.js, src/js/presenter/panels/PreviewPanel.js, src/js/presenter/DisplayMirror.js, src/templates/presenter.html
 Feature: Pan and zoom the audience window from the current-frame preview
 
   Sometimes the speaker wants to show a detail the frame does not frame: a corner of a

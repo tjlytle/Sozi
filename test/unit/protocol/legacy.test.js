@@ -1,9 +1,8 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {fromLegacy, legacyLoadedMessage} from "../../../src/js/protocol/legacy.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
-    Roles,
-    helloMessage,
     blankMessage,
     jumpToFrameMessage,
     nextMessage,
