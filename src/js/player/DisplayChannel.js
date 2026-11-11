@@ -8,6 +8,7 @@ import {EventEmitter} from "events";
 import {PlayerEvents} from "./playerEvents.js";
 import {PlayerControllerEvents} from "./PlayerController.js";
 import {TalkTimerEvents} from "./TalkTimer.js";
+import {DisplayCommands} from "./DisplayCommands.js";
 import {ON_FRAME, cameraMessage, cameraMoveMessage, composeView} from "../protocol/camera.js";
 import {
     MessageNames,
@@ -82,9 +83,8 @@ function frameInfoOf({index, frameId, title, notes}) {
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
  * reports frame changes, the window size, the blank screen, the timer and the camera's view as
- * they change. It hands each command to the controller, or to the player once the deck is a
- * preview. A preview also draws its frames as thumbnails, on request, and shows the view it is
- * sent.
+ * they change. It hands each command to its `DisplayCommands`, which tells them whether the
+ * deck is a preview. A preview also answers requests for thumbnails of its frames.
  *
  * @extends EventEmitter
  */
@@ -117,13 +117,25 @@ export class DisplayChannel extends EventEmitter {
         this.transport.add(transport);
         this.host = host;
         this.enterPreviewMode = enterPreviewMode;
-        this.renderThumbnail = renderThumbnail;
 
         /** Is the deck a preview in a presenter? A preview reports nothing about itself.
          *
          * @type {boolean}
          */
         this.previewMode = false;
+
+        /** What carries out each command a surface sends.
+         *
+         * @type {DisplayCommands}
+         */
+        this.commands = new DisplayCommands({
+            player,
+            controller,
+            presentation,
+            host,
+            isPreview: () => this.previewMode,
+            renderThumbnail
+        });
 
         /** Where the camera looks, relative to the current frame.
          *
@@ -168,13 +180,13 @@ export class DisplayChannel extends EventEmitter {
                     this.answerHello(legacy, from);
                 }
             },
-            [MessageNames.next]: ({transition}) => this.next(transition),
-            [MessageNames.previous]: ({transition}) => this.previous(transition),
+            [MessageNames.next]: ({transition}) => this.commands.next(transition),
+            [MessageNames.previous]: ({transition}) => this.commands.previous(transition),
             [MessageNames.jumpToFrame]: ({index, transition}) =>
-                this.jumpToFrame(index, transition),
-            [MessageNames.blank]: ({on}) => this.blank(on),
+                this.commands.jumpToFrame(index, transition),
+            [MessageNames.blank]: ({on}) => this.commands.blank(on),
             [MessageNames.preview]: ({current}) => this.preview(current),
-            [MessageNames.followLink]: ({id}) => this.followLink(id),
+            [MessageNames.followLink]: ({id}) => this.commands.followLink(id),
             [MessageNames.thumbnailRequest]: ({index, width}, legacy, from) =>
                 this.answerThumbnail(index, width, from),
             [MessageNames.custom]: ({type, data}) =>
@@ -182,9 +194,9 @@ export class DisplayChannel extends EventEmitter {
             // The reader lets through only the actions of `TimerActions`, each a method of the timer.
             [MessageNames.timerAction]: ({action}) => timer[action](),
             [MessageNames.timerTarget]: ({targetMs}) => timer.setTarget(targetMs),
-            [MessageNames.cameraMove]: move => this.moveCamera(move),
-            [MessageNames.cameraReset]: () => player.moveToFrame(player.currentFrame),
-            [MessageNames.camera]: view => this.showView(view)
+            [MessageNames.cameraMove]: move => this.commands.moveCamera(move),
+            [MessageNames.cameraReset]: () => this.commands.resetCamera(),
+            [MessageNames.camera]: view => this.commands.showView(view)
         });
     }
 
@@ -277,35 +289,6 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Move the display's camera, in its own pixels; the controller's events report the view.
-     *
-     * @param {CameraMove} move - The move, in viewport units.
-     */
-    moveCamera({x, y, zoom, atX, atY}) {
-        const {width, height} = this.controller.viewport;
-        if (zoom !== 1) {
-            this.controller.zoom(zoom, atX * width, atY * height);
-        }
-        if (x !== 0 || y !== 0) {
-            this.controller.translate(x * width, y * height);
-        }
-    }
-
-    /** Show a view of the current frame, in a preview only: the deck goes back to its frame,
-     * then zooms about its top-left corner and pans.
-     *
-     * @param {CameraView} view - The view.
-     */
-    showView({zoom, x, y}) {
-        if (!this.previewMode) {
-            return;
-        }
-        const {viewport} = this.controller;
-        this.player.jumpToFrame(this.player.currentFrame);
-        viewport.zoom(zoom, 0, 0);
-        viewport.translate(x * viewport.width, y * viewport.height);
-    }
-
     /** Send a message about the display, unless the deck is a preview.
      *
      * @param {Message} message - The message.
@@ -370,78 +353,6 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Go to the next frame.
-     *
-     * @param {boolean} transition - Animate the move.
-     */
-    next(transition) {
-        if (this.previewMode) {
-            this.movePlayer(this.player.nextFrame, transition);
-        } else if (transition) {
-            this.controller.moveToNext();
-        } else {
-            this.controller.jumpToNext();
-        }
-    }
-
-    /** Go to the previous frame.
-     *
-     * @param {boolean} transition - Animate the move.
-     */
-    previous(transition) {
-        if (this.previewMode) {
-            this.movePlayer(this.player.previousFrame, transition);
-        } else if (transition) {
-            this.controller.moveToPrevious();
-        } else {
-            this.controller.jumpToPrevious();
-        }
-    }
-
-    /** Go to the frame at an index.
-     *
-     * @param {number} index - The frame's position, from 0.
-     * @param {boolean} transition - Animate the move.
-     */
-    jumpToFrame(index, transition) {
-        if (this.previewMode) {
-            this.movePlayer(index, transition);
-        } else if (transition) {
-            this.controller.moveToFrame(index);
-        } else {
-            this.controller.jumpToFrame(index);
-        }
-    }
-
-    /** Move the player itself, as a preview does.
-     *
-     * @param {any} frame - The frame, or its index.
-     * @param {boolean} transition - Animate the move.
-     */
-    movePlayer(frame, transition) {
-        if (transition) {
-            this.player.moveToFrame(frame);
-        } else {
-            this.player.jumpToFrame(frame);
-        }
-    }
-
-    /** Show or hide the blank screen.
-     *
-     * @param {boolean} on - Show it?
-     */
-    blank(on) {
-        if (this.previewMode) {
-            if (on) {
-                this.player.enableBlankScreen();
-            } else {
-                this.player.disableBlankScreen();
-            }
-        } else if (on !== this.player.blankScreenIsVisible) {
-            this.controller.toggleBlankScreen();
-        }
-    }
-
     /** Turn the deck into a presenter preview, once.
      *
      * @param {boolean} current - Does it show the current frame?
@@ -458,18 +369,6 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Follow a link of the deck, as if it was clicked.
-     *
-     * @param {string} id - The id of the link element.
-     */
-    followLink(id) {
-        const link = this.presentation.document.root.getElementById(id);
-        // SVG <a> elements have no click method, so the click is dispatched.
-        if (link) {
-            link.dispatchEvent(new this.host.MouseEvent("click"));
-        }
-    }
-
     /** Draw a frame and answer with it, in a preview only: nothing may move the audience
      * window's camera to make a thumbnail.
      *
@@ -481,13 +380,7 @@ export class DisplayChannel extends EventEmitter {
         if (!this.previewMode) {
             return;
         }
-        let url = "";
-        try {
-            url = await this.renderThumbnail(index, width);
-        } catch (err) {
-            // The empty URL tells the surface; the tile keeps its number and title.
-            console.warn(`No thumbnail for frame ${index}: ${err}`);
-        }
+        const url = await this.commands.thumbnail(index, width);
         from.send(thumbnailMessage(index, url));
     }
 

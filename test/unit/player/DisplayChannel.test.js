@@ -39,37 +39,20 @@ const frames = [
     {index: 1, frameId: "f2", title: "Two", notes: "second"}
 ];
 
-/** Stand-in for the player: the current frame, the blank screen and the moves it makes.
+/** Stand-in for the player: the current frame and the blank screen, which a test changes.
  *
- * @returns {any} - The fake player; `calls` lists each move.
+ * @returns {any} - The fake player.
  */
 function fakePlayer() {
     const player = /** @type {any} */ (new EventEmitter());
     Object.assign(player, {
-        calls: [],
         currentFrame: frames[0],
-        nextFrame: frames[1],
-        previousFrame: frames[1],
         blankScreenIsVisible: false,
-        enableBlankScreen() {
-            player.calls.push(["enableBlankScreen"]);
-            player.setBlank(true);
-        },
-        disableBlankScreen() {
-            player.calls.push(["disableBlankScreen"]);
-            player.setBlank(false);
-        },
         setBlank(on) {
             if (on !== player.blankScreenIsVisible) {
                 player.blankScreenIsVisible = on;
                 player.emit(PlayerEvents.blankScreenChange);
             }
-        },
-        jumpToFrame(f) {
-            player.calls.push(["jumpToFrame", f]);
-        },
-        moveToFrame(f) {
-            player.calls.push(["moveToFrame", f]);
         },
         showFrame(index) {
             player.currentFrame = frames[index];
@@ -79,23 +62,8 @@ function fakePlayer() {
     return player;
 }
 
-/** Stand-in for the deck's viewport: its size, and the zooms and pans applied to it.
- *
- * @returns {any} - The fake viewport; `calls` lists each one.
- */
-function fakeViewport() {
-    const calls = [];
-    return {
-        calls,
-        width: 1200,
-        height: 400,
-        zoom: (factor, x, y) => calls.push(["zoom", factor, x, y]),
-        translate: (deltaX, deltaY) => calls.push(["translate", deltaX, deltaY])
-    };
-}
-
 /** Stand-in for the player controller: it records each method called on it, and emits the
- * events of a zoom and a pan as the real one does.
+ * events of a zoom and a pan as the real one does. Its viewport has a size only.
  *
  * @param {any} player - The fake player, for the blank screen toggle.
  * @returns {any} - The fake controller.
@@ -109,7 +77,7 @@ function fakeController(player) {
     const controller = /** @type {any} */ (new EventEmitter());
     return Object.assign(controller, {
         calls,
-        viewport: fakeViewport(),
+        viewport: {width: 1200, height: 400},
         moveToNext: record("moveToNext"),
         jumpToNext: record("jumpToNext"),
         moveToPrevious: record("moveToPrevious"),
@@ -175,11 +143,6 @@ function fakeHost() {
         innerWidth: 1200,
         innerHeight: 400,
         devicePixelRatio: 2,
-        MouseEvent: class {
-            constructor(type) {
-                this.type = type;
-            }
-        },
         addEventListener(type, listener) {
             assert.equal(type, "resize");
             listeners.add(listener);
@@ -199,27 +162,22 @@ function fakeHost() {
 
 /** Build a display channel on fakes, started, with what it sent on start cleared.
  *
- * @param {(index: number) => Promise<string>} [renderResult] - What a thumbnail render gives.
  * @returns {any} - The channel and its fakes.
  */
-function startedDisplay(renderResult = async () => JPEG) {
+function startedDisplay() {
     const player = fakePlayer();
     const controller = fakeController(player);
     const transport = fakeTransport();
     const host = fakeHost();
-    const links = new Map();
-    const presentation = {
-        frames,
-        document: {root: {getElementById: id => links.get(id) ?? null}}
-    };
+    const presentation = {frames};
     const previews = [];
     const renders = [];
     const clock = {time: 0};
     const timer = new TalkTimer(() => clock.time);
     const channel = new DisplayChannel({
-        renderThumbnail: (index, width) => {
+        renderThumbnail: async (index, width) => {
             renders.push([index, width]);
-            return renderResult(index);
+            return JPEG;
         },
         timer,
         player,
@@ -238,7 +196,6 @@ function startedDisplay(renderResult = async () => JPEG) {
         controller,
         transport,
         host,
-        links,
         previews,
         renders,
         startSent,
@@ -368,16 +325,6 @@ describe("DisplayChannel", () => {
         assert.deepEqual(transport.sent, [thumbnailMessage(1, JPEG)]);
     });
 
-    test("a render that rejects is answered with an empty url", async () => {
-        const {transport} = startedDisplay(async () => {
-            throw new Error("tainted");
-        });
-        transport.deliver(previewMessage(false));
-        transport.deliver(thumbnailRequestMessage(1, 320));
-        await new Promise(setImmediate);
-        assert.deepEqual(transport.sent, [thumbnailMessage(1, "")]);
-    });
-
     test("its hello lists every frame in deck order, whichever is current", () => {
         const {player, transport} = startedDisplay();
         player.showFrame(1);
@@ -482,33 +429,6 @@ describe("DisplayChannel", () => {
         ]);
     });
 
-    test("hands each command to the controller", () => {
-        const {transport, controller} = startedDisplay();
-        transport.deliver(nextMessage(true));
-        transport.deliver(nextMessage(false));
-        transport.deliver(previousMessage(true));
-        transport.deliver(previousMessage(false));
-        transport.deliver(jumpToFrameMessage(1, true));
-        transport.deliver(jumpToFrameMessage(0, false));
-        assert.deepEqual(controller.calls, [
-            ["moveToNext"],
-            ["jumpToNext"],
-            ["moveToPrevious"],
-            ["jumpToPrevious"],
-            ["moveToFrame", 1],
-            ["jumpToFrame", 0]
-        ]);
-    });
-
-    test("blank toggles the screen only when it changes it", () => {
-        const {transport, controller, player} = startedDisplay();
-        transport.deliver(blankMessage(false));
-        transport.deliver(blankMessage(true));
-        transport.deliver(blankMessage(true));
-        assert.deepEqual(controller.calls, [["toggleBlankScreen"]]);
-        assert.equal(player.blankScreenIsVisible, true);
-    });
-
     test("old message names reach the controller through the legacy table", () => {
         const {transport, controller} = startedDisplay();
         transport.deliver({name: "moveToNext"});
@@ -548,36 +468,11 @@ describe("DisplayChannel", () => {
         assert.deepEqual(transport.sent, [customMessage("answer", [2])]);
     });
 
-    test("a followLink clicks the link with that id", () => {
-        const {transport, links} = startedDisplay();
-        const clicks = [];
-        links.set("a1", {dispatchEvent: evt => clicks.push(evt.type)});
-        transport.deliver(followLinkMessage("a1"));
-        transport.deliver(followLinkMessage("missing"));
-        assert.deepEqual(clicks, ["click"]);
-    });
-
-    test("preview mode drives the player and reports link clicks as followLink", () => {
-        const {transport, player, controller, previews, host} = startedDisplay();
+    test("preview mode reports link clicks as followLink, and nothing else about itself", () => {
+        const {transport, player, previews, host} = startedDisplay();
         transport.deliver(previewMessage(true));
         assert.equal(previews.length, 1);
         assert.equal(previews[0].current, true);
-
-        transport.deliver(jumpToFrameMessage(1, false));
-        transport.deliver(jumpToFrameMessage(0, true));
-        transport.deliver(blankMessage(true));
-        transport.deliver(blankMessage(false));
-        transport.deliver(nextMessage(false));
-        transport.deliver(previousMessage(true));
-        assert.deepEqual(controller.calls, []);
-        assert.deepEqual(player.calls, [
-            ["jumpToFrame", 1],
-            ["moveToFrame", 0],
-            ["enableBlankScreen"],
-            ["disableBlankScreen"],
-            ["jumpToFrame", frames[1]],
-            ["moveToFrame", frames[1]]
-        ]);
 
         // A preview reports nothing about itself but its hello and its link clicks.
         transport.sent.length = 0;
@@ -639,6 +534,50 @@ describe("DisplayChannel", () => {
         assert.deepEqual(added.sent, expected);
     });
 
+    test("each command message reaches its DisplayCommands method, with its fields", () => {
+        const {channel, transport} = startedDisplay();
+        const calls = [];
+        for (const name of [
+            "next",
+            "previous",
+            "jumpToFrame",
+            "blank",
+            "followLink",
+            "moveCamera",
+            "resetCamera",
+            "showView"
+        ]) {
+            channel.commands[name] = (...args) => calls.push([name, ...args]);
+        }
+        const move = {x: 0.5, y: 0, zoom: 1, atX: 0, atY: 0};
+        const view = {offFrame: true, zoom: 1.5, x: 0.1, y: -0.2};
+        transport.deliver(nextMessage(false));
+        transport.deliver(previousMessage(true));
+        transport.deliver(jumpToFrameMessage(1, false));
+        transport.deliver(blankMessage(true));
+        transport.deliver(followLinkMessage("a1"));
+        transport.deliver(cameraMoveMessage(move));
+        transport.deliver(cameraResetMessage());
+        transport.deliver(cameraMessage(view));
+        assert.deepEqual(calls, [
+            ["next", false],
+            ["previous", true],
+            ["jumpToFrame", 1, false],
+            ["blank", true],
+            ["followLink", "a1"],
+            ["moveCamera", cameraMoveMessage(move)],
+            ["resetCamera"],
+            ["showView", cameraMessage(view)]
+        ]);
+    });
+
+    test("the commands see the deck turn into a preview", () => {
+        const {channel, transport} = startedDisplay();
+        assert.equal(channel.commands.isPreview(), false);
+        transport.deliver(previewMessage(false));
+        assert.equal(channel.commands.isPreview(), true);
+    });
+
     test("a command from an added transport moves the deck", () => {
         const {channel, controller} = startedDisplay();
         const added = fakeTransport();
@@ -661,25 +600,6 @@ describe("DisplayChannel", () => {
         for (const name of ["zoom", "translate", "rotate"]) {
             assert.equal(controller.listenerCount(PlayerControllerEvents[name]), 0, name);
         }
-    });
-
-    test("a cameraMove zooms and pans the display in its own pixels", () => {
-        const {transport, controller} = startedDisplay();
-        transport.deliver(cameraMoveMessage({x: -0.1, y: 0.2, zoom: 2, atX: 0.25, atY: 0.75}));
-        assert.deepEqual(controller.calls, [
-            ["zoom", 2, 0.25 * 1200, 0.75 * 400],
-            ["translate", -0.1 * 1200, 0.2 * 400]
-        ]);
-    });
-
-    test("a cameraMove that only pans, or only zooms, makes that move alone", () => {
-        const {transport, controller} = startedDisplay();
-        transport.deliver(cameraMoveMessage({x: 0.5, y: 0, zoom: 1, atX: 0, atY: 0}));
-        transport.deliver(cameraMoveMessage({x: 0, y: 0, zoom: 1.05, atX: 0.5, atY: 0.5}));
-        assert.deepEqual(controller.calls, [
-            ["translate", 600, 0],
-            ["zoom", 1.05, 600, 200]
-        ]);
     });
 
     test("each zoom and pan of the display, its own mouse included, is reported as camera", () => {
@@ -706,13 +626,6 @@ describe("DisplayChannel", () => {
             x: -0.1,
             y: 0
         });
-    });
-
-    test("a cameraReset moves back to the current frame", () => {
-        const {transport, player, controller} = startedDisplay();
-        transport.deliver(cameraResetMessage());
-        assert.deepEqual(player.calls, [["moveToFrame", frames[0]]]);
-        assert.deepEqual(controller.calls, []);
     });
 
     test("a frame change puts the camera back on its frame and reports it", () => {
@@ -744,24 +657,5 @@ describe("DisplayChannel", () => {
         const move = {x: -0.1, y: 0, zoom: 1, atX: 0, atY: 0};
         previews[0].onCamera(move);
         assert.deepEqual(transport.sent, [cameraMoveMessage(move)]);
-    });
-
-    test("a preview shows a camera on its own frame, then its view, in its own pixels", () => {
-        const {transport, player, controller} = startedDisplay();
-        transport.deliver(previewMessage(true));
-        transport.deliver(cameraMessage({offFrame: true, zoom: 1.5, x: 0.1, y: -0.2}));
-        assert.deepEqual(player.calls, [["jumpToFrame", frames[0]]]);
-        assert.deepEqual(controller.viewport.calls, [
-            ["zoom", 1.5, 0, 0],
-            ["translate", 0.1 * 1200, -0.2 * 400]
-        ]);
-        assert.deepEqual(controller.calls, []);
-    });
-
-    test("a camera outside preview mode is ignored", () => {
-        const {transport, player, controller} = startedDisplay();
-        transport.deliver(cameraMessage({offFrame: true, zoom: 1.5, x: 0.1, y: -0.2}));
-        assert.deepEqual(player.calls, []);
-        assert.deepEqual(controller.viewport.calls, []);
     });
 });
