@@ -59,7 +59,7 @@ function spawnInteractive(cmd) {
  * @property {string} [harness] - The harness; the stage's setting when absent.
  * @property {string} [model] - The model; the stage's setting when absent.
  * @property {string} [tag] - A suffix that keeps the container name unique.
- * @property {string} [persona] - The persona whose profile volume is mounted.
+ * @property {string} [persona] - The persona the stage runs as: passed as PIPELINE_PERSONA, and its profile volume is the one mounted.
  * @property {boolean} [profile] - Whether to mount the persona's profile; nothing is mounted when absent.
  * @property {Date} [now] - The time the name carries; the current time when absent.
  * @property {Record<string, string>} [env] - Values for the names passed through, such as PIPELINE_ISSUE.
@@ -89,22 +89,6 @@ function spawnInteractive(cmd) {
  */
 function pad(n) {
     return String(n).padStart(2, "0");
-}
-
-/**
- * Find the gh-personas plugin directory the image build copies `bin` from.
- *
- * @returns {string} The first version directory in the plugin cache.
- * @throws {Error} When the plugin is not installed.
- */
-function pluginDir() {
-    const cache = path.join(os.homedir(), ".claude", "plugins", "cache", "dev-flow", "gh-personas");
-    const versions = fs.existsSync(cache) ? fs.readdirSync(cache).sort() : [];
-    const dir = versions.map(v => path.join(cache, v)).find(d => fs.statSync(d).isDirectory());
-    if (!dir) {
-        throw new Error(`the gh-personas plugin is not in ${cache}`);
-    }
-    return dir;
 }
 
 /**
@@ -146,8 +130,6 @@ export function copyIdentities(from, to) {
  *     secrets of var/pipeline/env; the names docker passes on are taken from it.
  * @param {(cmd: string[]) => number | Promise<number>} [options.runInteractive] - Runs a
  *     command with the terminal attached and returns its exit status.
- * @param {string} [options.pluginDir] - The gh-personas plugin directory to build into the
- *     image; by default the newest version in the Claude plugin cache.
  * @param {string} [options.botConfigDir] - The host gh-bot directory the commit identities
  *     are copied from; ~/.config/gh-bot by default.
  * @returns {Sandbox} The sandbox.
@@ -158,7 +140,6 @@ export function createSandbox({
     run = defaultRun,
     env: loopEnv = {},
     runInteractive = spawnInteractive,
-    pluginDir: pluginDirGiven,
     botConfigDir = path.join(os.homedir(), ".config", "gh-bot")
 }) {
     const varDir = path.join(root, "var", "pipeline");
@@ -222,7 +203,9 @@ export function createSandbox({
             PIPELINE_MODEL: model ?? settings.modelFor(stage),
             PIPELINE_SESSION_BUDGET_USD: String(settings.sessionBudgetUsd),
             PIPELINE_MAX_RESUMES: MAX_RESUMES,
-            GH_BOT_CONFIG_DIR: "/outbox/gh-bot"
+            GH_BOT_CONFIG_DIR: "/outbox/gh-bot",
+            // What stage.sh signs gh-as bodies and commits with (#166).
+            ...(persona ? {PIPELINE_PERSONA: persona} : {})
         };
         for (const [key, value] of Object.entries(values)) {
             args.push("-e", `${key}=${value}`);
@@ -276,8 +259,6 @@ export function createSandbox({
                 "build",
                 "-t",
                 settings.image,
-                "--build-context",
-                `ghp=${pluginDirGiven ?? pluginDir()}`,
                 "--build-arg",
                 `FACTORY_UID=${process.getuid?.() ?? 1000}`,
                 "-f",

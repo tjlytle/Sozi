@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Mint (and cache) a GitHub App installation token for one of the configured bots.
+# Vendored from ~/.config/gh-bot/bot-token — this copy is canonical; the script
+# lives with the plugin, the *config* (apps, keys, caches) stays in
+# ~/.config/gh-bot (override with GH_BOT_CONFIG_DIR). Never prints anything but
+# the token on stdout.
+#
+# Usage:
+#   bot-token [bot] [owner/repo]
+#     bot        - config subdirectory name (default: contents of <config>/default).
+#                  Args without "/" are the bot name; args with "/" are the repo —
+#                  order doesn't matter.
+#     owner/repo - defaults to the origin remote of the cwd's git repo
+#
+#   GH_TOKEN=$(bot-token) gh pr create ...
+#   GH_TOKEN=$(bot-token pipeline) gh pr create ...
+#
+# Per-bot config layout (<config>/<bot>/):
+#   app-id            - numeric GitHub App ID (from the app's settings page)
+#   private-key.pem   - private key downloaded when creating the app
+#   bot-env           - generated: BOT_GIT_NAME / BOT_GIT_EMAIL for commits
+#   token-<inst>.json - generated: cached token (reused until <5 min from expiry)
+set -euo pipefail
+
+base="${GH_BOT_CONFIG_DIR:-${HOME}/.config/gh-bot}"
+
+bot="" repo=""
+for arg in "$@"; do
+  if [[ "$arg" == */* ]]; then repo="$arg"; else bot="$arg"; fi
+done
+if [[ -z "$bot" ]]; then
+  bot=$(cat "$base/default" 2>/dev/null) || true
+  [[ -n "$bot" ]] || {
+    echo "error: no bot specified and no default set (echo <bot> > $base/default)" >&2; exit 1; }
+fi
+
+if [[ -z "$repo" ]]; then
+  url=$(git remote get-url origin 2>/dev/null) || {
+    echo "error: no repo argument and no git origin remote in cwd" >&2; exit 1; }
+  repo=$(sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##' <<<"$url")
+fi
+
+dir="$base/$bot"
+[[ -f "$dir/app-id" && -f "$dir/private-key.pem" ]] || {
+  echo "error: $dir needs 'app-id' and 'private-key.pem' (create the '$bot' GitHub App first)" >&2
+  exit 1
+}
+
+app_id=$(<"$dir/app-id")
+now=$(date +%s)
+b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64)
+payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$((now - 60))" "$((now + 540))" "$app_id" | b64)
+sig=$(printf '%s.%s' "$header" "$payload" |
+  openssl dgst -sha256 -sign "$dir/private-key.pem" -binary | b64)
+jwt="$header.$payload.$sig"
+
+api() { curl -fsS -H "Authorization: Bearer $1" -H "Accept: application/vnd.github+json" "${@:2}"; }
+
+inst_id=$(api "$jwt" "https://api.github.com/repos/$repo/installation" | jq -r '.id') || {
+  echo "error: '$bot' app is not installed on $repo (install it in the app's settings)" >&2; exit 1; }
+
+cache="$dir/token-$inst_id.json"
+if [[ -f "$cache" ]]; then
+  exp=$(jq -r '.expires_at' "$cache" 2>/dev/null || echo "")
+  if [[ -n "$exp" ]] && (( $(date -d "$exp" +%s) - now > 300 )); then
+    jq -r '.token' "$cache"
+    exit 0
+  fi
+fi
+
+umask 077
+api "$jwt" -X POST "https://api.github.com/app/installations/$inst_id/access_tokens" |
+  jq '{token, expires_at}' > "$cache"
+
+# First run: record the bot's git identity (needs the bot *user* id, not the app id).
+if [[ ! -f "$dir/bot-env" ]]; then
+  slug=$(api "$jwt" "https://api.github.com/app" | jq -r '.slug')
+  bot_uid=$(curl -fsS -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/users/${slug}%5Bbot%5D" | jq -r '.id')
+  cat > "$dir/bot-env" <<EOF
+BOT_GIT_NAME="${slug}[bot]"
+BOT_GIT_EMAIL="${bot_uid}+${slug}[bot]@users.noreply.github.com"
+EOF
+fi
+
+jq -r '.token' "$cache"

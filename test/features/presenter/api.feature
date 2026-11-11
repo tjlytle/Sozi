@@ -10,9 +10,12 @@ Feature: Add-ons extend the presenter
   transport reports moves the panels. A panel and a script on the presentation page can
   send each other messages of their own.
 
-  The "addons" deck has a presenter panel "Add-on", which shows the frame and has a "Ping"
-  button; a url panel "Page"; a display script that answers a ping with a pong; and two
-  marker scripts that say which page loaded them.
+  A panel can carry a one-line description, which the + menu shows under its title.
+
+  The "addons" deck has a presenter panel "Add-on", which shows the frame, has a "Ping"
+  button and the description "A panel from the test add-on"; a url panel "Page"; a display
+  script that answers a ping with a pong; and two marker scripts that say which page loaded
+  them.
 
   Background:
     Given the "addons" deck is built
@@ -60,3 +63,8 @@ Feature: Add-ons extend the presenter
   Scenario: A custom file loads only on the pages its target names
     Then the presenter page loaded the add-ons "marker.js"
     And the audience window loaded the add-ons "marker.js, marker-display.js"
+
+  @issue-318
+  Scenario: An add-on's panel is listed in the + menu with its description
+    When the "Add-on" panel is closed from its menu
+    Then the + menu lists "Add-on" described as "A panel from the test add-on"

@@ -177,7 +177,7 @@ export class PresenterApi {
         mirror.on(DisplayMirrorEvents.change, this.onMirrorChange);
     }
 
-    /** Add a panel: it docks, tabs, minimises and is remembered like a built-in one.
+    /** Add a panel: it docks, tabs, closes and is remembered like a built-in one.
      *
      * @param {PanelDefinition} def - The panel.
      * @throws {TypeError} If it is not valid, or its id is taken.
