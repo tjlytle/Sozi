@@ -25,7 +25,9 @@ const NOTICE = Object.freeze({
 /** The hosted shell's part of the page: it joins the talk its pairing link names.
  *
  * It says "Not connected" from the start, because a transport only reports a change, and an
- * add-on registers one only after the link has been read.
+ * add-on registers one only after the link has been read. From then on the notice names each
+ * status in the Connection panel's words, and hides while the display can be reached. Without
+ * a link, it keeps saying why there is none.
  */
 export class ShellJoin {
     /** Find the page's elements.
