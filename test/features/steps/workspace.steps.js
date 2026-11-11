@@ -197,6 +197,7 @@ When("the {string} preview is clicked", async function (title) {
 });
 
 When("the {string} tab is chosen", async function (title) {
+    // Dockview hides a panel behind another tab; on a phone-width page every panel is a tab.
     await tabOf(this.presenter, title).click(WAIT);
 });
 
