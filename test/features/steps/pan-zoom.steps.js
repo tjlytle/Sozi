@@ -10,7 +10,7 @@
 import {Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
-import {WAIT} from "./workspace.steps.js";
+import {WAIT} from "../support/panels.js";
 
 /** The iframe of the current-frame preview. */
 const CURRENT = ".sozi-current-frame";

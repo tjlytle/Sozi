@@ -27,7 +27,7 @@ const ANY_STAGE = ["stage:parked", "triage"];
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
- * @typedef {import("./requests.js").Result} Result
+ * @typedef {import("./outbox.js").Result} Result
  * @typedef {"exited" | "gone" | "overdue"} Outcome
  */
 

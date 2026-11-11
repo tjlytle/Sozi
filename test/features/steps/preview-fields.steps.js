@@ -6,7 +6,8 @@
 
 import {Then, When} from "@cucumber/cucumber";
 import {expect} from "playwright/test";
-import {WAIT, previewFrame} from "./workspace.steps.js";
+import {WAIT} from "../support/panels.js";
+import {previewFrame} from "./workspace.steps.js";
 
 // The space a browser may write into editable content for a typed one.
 const NO_BREAK_SPACE = new RegExp(String.fromCharCode(0xa0), "g");

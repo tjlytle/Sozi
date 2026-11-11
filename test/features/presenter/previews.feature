@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/player.js, src/js/protocol/viewport.js, src/templates/presenter.html
+# covers: src/js/presenter.js, src/js/presenter/panels/PreviewPanel.js, src/js/player.js, src/js/protocol/viewport.js, src/templates/presenter.html
 Feature: Presenter previews and navigation
 
   The presenter page is what the speaker looks at. It opens the presentation in its
@@ -11,6 +11,10 @@ Feature: Presenter previews and navigation
   audience window when it is resized, and only the audience window: resizing the
   presenter page moves the boxes, not the shape. Until the audience window has said how
   big it is, the previews take the deck's own aspect ratio, 16:9 for the "basic" deck.
+
+  A screen reader names each preview after its panel, "Current", "Previous" or "Next",
+  the words on the panel's tab, and keeps that name when the panel is closed and added
+  back.
 
   This file is the template for every feature file: a prose description of what a
   person expects, then the scenarios that prove it, each tagged with its issue. The
@@ -62,6 +66,18 @@ Feature: Presenter previews and navigation
       When the audience window is resized to 1200 by 400
       And the presenter page is resized to 900 by 900
       Then every preview has the audience window's shape
+
+    @issue-363
+    Scenario: Each preview is named after its panel
+      Then the preview "sozi-current-frame" has the accessible name "Current"
+      And the preview "sozi-previous-frame" has the accessible name "Previous"
+      And the preview "sozi-next-frame" has the accessible name "Next"
+
+    @issue-363
+    Scenario: A preview closed and added back keeps its name
+      When the "Next" panel is closed from its menu
+      And "Next" is added from the + menu
+      Then the preview "sozi-next-frame" has the accessible name "Next"
 
   Rule: Without the audience window
 

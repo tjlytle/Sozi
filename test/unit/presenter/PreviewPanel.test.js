@@ -2,10 +2,9 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {PreviewPanel} from "../../../src/js/presenter/panels/PreviewPanel.js";
 import {DisplayMirror} from "../../../src/js/presenter/DisplayMirror.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
-    Roles,
     frameChangeMessage,
-    helloMessage,
     jumpToFrameMessage,
     previewMessage
 } from "../../../src/js/protocol/messages.js";
@@ -100,6 +99,7 @@ function loadedPanel(offset) {
         {
             offset,
             className: "sozi-current-frame",
+            title: "Current",
             src: "basic.sozi.html"
         }
     );
@@ -142,6 +142,13 @@ const deckHello = helloMessage(Roles.display, {
 });
 
 describe("PreviewPanel", () => {
+    test("the iframe is named after its panel, not its class", () => {
+        const {box} = loadedPanel(0);
+        const iframe = box.children.find(child => child.localName === "iframe");
+        assert.equal(iframe.title, "Current");
+        assert.equal(iframe.className, "sozi-current-frame");
+    });
+
     test("the current preview forwards its deck's cameraMove to the display", () => {
         const {fromDeck, toDisplay} = loadedPanel(0);
         fromDeck(cameraMoveMessage(move));

@@ -62,6 +62,87 @@ describe("request files", () => {
 });
 
 describe("result.json", () => {
+    test("missing or malformed file gives null", () => {
+        const dir = scratch();
+        assert.equal(readResult(dir), null);
+        fs.writeFileSync(path.join(dir, "result.json"), "{bad");
+        assert.equal(readResult(dir), null);
+    });
+    test("a partial object gets defaults", () => {
+        const dir = scratch();
+        fs.writeFileSync(
+            path.join(dir, "result.json"),
+            JSON.stringify({exit: 0, usage: {turns: 4}, changed: ["a"]})
+        );
+        assert.deepEqual(readResult(dir), {
+            exit: 0,
+            session: null,
+            usage: {
+                tokensIn: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                tokensOut: 0,
+                costUsd: 0,
+                turns: 4,
+                status: "error"
+            },
+            usageKnown: true,
+            changed: ["a"],
+            commits: [],
+            resumes: 0,
+            hooks: "ok"
+        });
+    });
+    test("checks every field type and drops unknown keys", () => {
+        const dir = scratch();
+        fs.writeFileSync(
+            path.join(dir, "result.json"),
+            JSON.stringify({
+                exit: "0",
+                session: 7,
+                extra: "x",
+                usage: {tokensIn: "x", tokensOut: 5, costUsd: null, turns: 2, status: "weird"},
+                changed: ["a", 3, "b"],
+                commits: "abc",
+                resumes: -1
+            })
+        );
+        assert.deepEqual(readResult(dir), {
+            exit: 1,
+            session: null,
+            usage: {
+                tokensIn: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                tokensOut: 5,
+                costUsd: 0,
+                turns: 2,
+                status: "error"
+            },
+            usageKnown: true,
+            changed: ["a", "b"],
+            commits: [],
+            resumes: 0,
+            hooks: "ok"
+        });
+        fs.writeFileSync(
+            path.join(dir, "result.json"),
+            JSON.stringify({usage: "lots", exit: 0, resumes: 2})
+        );
+        const result = readResult(dir);
+        assert.equal(result?.usage.turns, 0);
+        assert.equal(result?.usageKnown, false);
+        assert.equal(result?.exit, 0);
+        assert.equal(result?.resumes, 2);
+        assert.equal(result?.hooks, "ok");
+    });
+    test("a crashed outside pass is kept and anything else defaults to ok", () => {
+        const dir = scratch();
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, hooks: "error"}));
+        assert.equal(readResult(dir)?.hooks, "error");
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, hooks: 5}));
+        assert.equal(readResult(dir)?.hooks, "ok");
+    });
     test("a symlink or a named pipe gives no result", t => {
         const dir = scratch();
         const target = path.join(scratch(), "result.json");

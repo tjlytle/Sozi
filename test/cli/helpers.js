@@ -8,10 +8,12 @@
 // a current build: run `npx gulp` after editing src/ and before `npm test`.
 
 const assert = require("node:assert/strict");
-const {spawn, spawnSync} = require("node:child_process");
+const {spawn} = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+
+const {spawnKeepingOutput} = require("./spawn.ts");
 
 const repoDir = path.resolve(__dirname, "..", "..");
 const appDir = path.join(repoDir, "build", "electron");
@@ -20,6 +22,9 @@ const fixturesDir = path.join(repoDir, "test", "fixtures");
 // The electron npm package exports the path of its binary. Cast: its types describe
 // the API inside Electron instead.
 const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("electron")));
+
+// The longest delay a Node timer accepts; spawn turns a longer timeout into 1 ms.
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
 /** A fixture deck copied into a temporary directory, as `withTempDeck` returns it.
  *
@@ -40,11 +45,12 @@ const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("e
  * @param {number} ms - The limit on an unloaded machine, in milliseconds.
  * @param {Record<string, string|undefined>} [env] - The environment (default: process.env).
  * @returns {number} - The limit times the scale, or the limit when the scale is not a
- *  positive number.
+ *  finite positive number or the result would overflow a Node timer.
  */
 function limit(ms, env = process.env) {
     const scale = Number(env.SOZI_TEST_TIMEOUT_SCALE);
-    return scale > 0 ? Math.round(ms * scale) : ms;
+    const scaled = Math.round(ms * scale);
+    return Number.isFinite(scale) && scale > 0 && scaled <= MAX_TIMEOUT_MS ? scaled : ms;
 }
 
 /** The commands that drive an export window, whose steps report their own time-outs.
@@ -81,11 +87,13 @@ function withCommandTimeout(args, timeoutMs) {
  *  by `limit`; `render` and `export` get a `--timeout` below it, unless they have one.
  * @param {string[]} [opts.switches] - Chromium switches placed before `--cli` (default: none).
  * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
+ * @throws {Error} - When Electron cannot start, or when it reaches the time limit: then with
+ *  code `ETIMEDOUT` and the output it printed so far in the message.
  */
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
     const ms = limit(timeout);
     const cliArgs = withCommandTimeout(args, ms);
-    const result = spawnSync(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
+    const result = spawnKeepingOutput(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
         cwd,
         env,
         encoding: "utf8",

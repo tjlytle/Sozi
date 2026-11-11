@@ -5,6 +5,14 @@
 #     the signature appended, unless its last non-blank line already is the signature;
 #   - `git commit` gets a `Harness:` trailer (GH_AS_HARNESS) and a `Model:` trailer
 #     (GH_AS_MODEL), each only when its variable is set.
+#
+# A signed copy of a body file goes in the directory `sig_dir`, which bin/gh-as makes with
+# `gh_as_tmpdir` and removes when it exits, whether gh succeeded or not.
+
+# gh_as_tmpdir → a new directory for this run's body copies, signed or marked.
+gh_as_tmpdir() {
+  mktemp -d "${TMPDIR:-/tmp}/gh-as-run.XXXXXX"
+}
 
 # sig_applies <gh args…> → success when the command's body is signed.
 sig_applies() {
@@ -29,12 +37,13 @@ sig_append() {
   fi
 }
 
-# sig_file <path|-> → a file holding the signed body; the caller's own path when already signed.
+# sig_file <path|-> → a file in sig_dir holding the signed body; the caller's own path when
+# already signed.
 sig_file() {
   local src="$1" body tmp
   if [ "$src" = "-" ]; then body=$(cat); else body=$(cat "$src"); fi
   if [ "$src" != "-" ] && sig_signed "$body"; then printf '%s' "$src"; return; fi
-  tmp=$(mktemp "${TMPDIR:-/tmp}/gh-as-signed.XXXXXX")
+  tmp=$(mktemp "${sig_dir:?gh_as_tmpdir first}/body.XXXXXX")
   sig_append "$body" > "$tmp"
   printf '%s' "$tmp"
 }

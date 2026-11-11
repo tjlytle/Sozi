@@ -4,35 +4,27 @@
 
 /** The messages a display and its surfaces exchange: names, builders and one reader.
  *
- * docs/presenter-protocol.md describes each one. The `viewport` message lives in
- * `viewport.js`, the thumbnail messages in `thumbnails.js`, the timer's in `timer.js` and the
- * camera's in `camera.js`; `readMessage` reads them too.
+ * docs/presenter-protocol.md describes each one. The `hello` lives in `hello.js`, the
+ * `viewport` message in `viewport.js`, the thumbnail messages in `thumbnails.js`, the timer's in
+ * `timer.js` and the camera's in `camera.js`; `readMessage` reads them too.
  *
  * @module
  */
 
-import {ON_FRAME, readCamera, readCameraMove, readCameraReset, readCameraView} from "./camera.js";
-import {readPresets} from "./layoutPresets.js";
+import {readCamera, readCameraMove, readCameraReset} from "./camera.js";
+import {readFrame, readHello} from "./hello.js";
 import {readThumbnail, readThumbnailRequest} from "./thumbnails.js";
-import {
-    STOPPED_TIMER,
-    readTimer,
-    readTimerAction,
-    readTimerState,
-    readTimerTarget
-} from "./timer.js";
+import {readTimer, readTimerAction, readTimerTarget} from "./timer.js";
 import {readViewport} from "./viewport.js";
 
-/** @typedef {import("./layoutPresets.js").LayoutPreset} LayoutPreset */
-/** @typedef {import("./viewport.js").Viewport} Viewport */
+/** @typedef {import("./hello.js").FrameInfo} FrameInfo */
+/** @typedef {import("./hello.js").HelloMessage} HelloMessage */
 /** @typedef {import("./viewport.js").ViewportMessage} ViewportMessage */
 /** @typedef {import("./thumbnails.js").ThumbnailRequestMessage} ThumbnailRequestMessage */
 /** @typedef {import("./thumbnails.js").ThumbnailMessage} ThumbnailMessage */
-/** @typedef {import("./timer.js").TimerState} TimerState */
 /** @typedef {import("./timer.js").TimerMessage} TimerMessage */
 /** @typedef {import("./timer.js").TimerActionMessage} TimerActionMessage */
 /** @typedef {import("./timer.js").TimerTargetMessage} TimerTargetMessage */
-/** @typedef {import("./camera.js").CameraView} CameraView */
 /** @typedef {import("./camera.js").CameraMessage} CameraMessage */
 /** @typedef {import("./camera.js").CameraMoveMessage} CameraMoveMessage */
 /** @typedef {import("./camera.js").CameraResetMessage} CameraResetMessage */
@@ -63,41 +55,6 @@ export const MessageNames = Object.freeze({
     camera: "camera"
 });
 
-/** Who says `hello`: the deck that plays the presentation, or a surface that watches it.
- *
- * @readonly
- */
-export const Roles = Object.freeze({display: "display", surface: "surface"});
-
-/**
- * A frame as the display reports it.
- *
- * @typedef {object} FrameInfo
- * @property {number} index - The position of the frame, from 0.
- * @property {string} id - The frame's id.
- * @property {string} title - The frame's title.
- * @property {string} notes - The presenter's notes for the frame, as HTML.
- */
-
-/**
- * What a display tells a surface in its `hello`.
- *
- * @typedef {object} DisplayState
- * @property {string} deckId - The deck's file name without `.sozi.html`.
- * @property {string} [version] - The date of the deck's page, as `document.lastModified` gives it.
- * @property {number} frameCount - How many frames the deck has.
- * @property {Viewport | null} viewport - The display's size, null while it has none.
- * @property {FrameInfo} frame - The current frame.
- * @property {FrameInfo[]} frames - Every frame, in deck order.
- * @property {boolean} blank - Is the blank screen shown?
- * @property {Record<string, LayoutPreset>} [layouts] - The deck's layout presets, in order.
- * @property {TimerState} [timer] - The talk timer as it is now.
- * @property {CameraView} [camera] - Where the camera looks, relative to the current frame.
- */
-
-/** @typedef {{name: "hello", role: "surface"}} SurfaceHelloMessage */
-/** @typedef {{name: "hello", role: "display"} & DisplayState} DisplayHelloMessage */
-/** @typedef {SurfaceHelloMessage | DisplayHelloMessage} HelloMessage */
 /** @typedef {{name: "frameChange"} & FrameInfo} FrameChangeMessage */
 /** @typedef {{name: "blank", on: boolean}} BlankMessage */
 /** @typedef {{name: "jumpToFrame", index: number, transition: boolean}} JumpToFrameMessage */
@@ -128,45 +85,6 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  *   | TimerMessage | TimerActionMessage | TimerTargetMessage | CameraMoveMessage
  *   | CameraResetMessage | CameraMessage} Message
  */
-
-/**
- * Build a `hello`. A surface's carries its role only; a display's carries its whole state.
- *
- * @param {"display" | "surface"} role - Who says it.
- * @param {DisplayState} [state] - The display's state; a surface gives none.
- * @returns {HelloMessage} The message.
- */
-export function helloMessage(role, state) {
-    if (role === Roles.display) {
-        const {
-            deckId,
-            version = "",
-            frameCount,
-            viewport,
-            frame,
-            frames,
-            blank,
-            layouts = {},
-            timer = STOPPED_TIMER,
-            camera = ON_FRAME
-        } = /** @type {DisplayState} */ (state);
-        return {
-            name: "hello",
-            role,
-            deckId,
-            version,
-            frameCount,
-            viewport,
-            frame,
-            frames,
-            blank,
-            layouts,
-            timer,
-            camera
-        };
-    }
-    return {name: "hello", role: "surface"};
-}
 
 /**
  * Build a `frameChange`: the display has moved to another frame.
@@ -297,40 +215,6 @@ function isName(v) {
 }
 
 /**
- * Read a received frame.
- *
- * @param {any} f - The fields of a frame.
- * @returns {FrameInfo | null} The frame, or null if a field is malformed.
- */
-function readFrame(f) {
-    if (f === null || typeof f !== "object") {
-        return null;
-    }
-    const {index, id, title, notes} = f;
-    const valid = isIndex(index) && [id, title, notes].every(v => typeof v === "string");
-    return valid ? {index, id, title, notes} : null;
-}
-
-/**
- * Read the `frames` field of a display's `hello`.
- *
- * A display from the release before this field sends none, which reads as an empty list.
- *
- * @param {any} frames - The field as received.
- * @returns {FrameInfo[] | null} The frames, or null if the list or an entry is malformed.
- */
-function readFrames(frames) {
-    if (frames === undefined) {
-        return [];
-    }
-    if (!Array.isArray(frames)) {
-        return null;
-    }
-    const read = frames.map(readFrame);
-    return read.every(frame => frame !== null) ? /** @type {FrameInfo[]} */ (read) : null;
-}
-
-/**
  * Read the `transition` field, which defaults to true.
  *
  * @param {any} transition - The field as received.
@@ -341,57 +225,6 @@ function readTransition(transition) {
         return true;
     }
     return typeof transition === "boolean" ? transition : null;
-}
-
-/**
- * Read a received `hello`.
- *
- * A missing `version`, `frames` or `layouts` reads as none, a missing `timer` as a stopped one and
- * a missing `camera` as on its frame, so a newer surface can join an older deck. A bad preset is
- * dropped, never the whole message; a malformed `frames`, `timer` or `camera` refuses it.
- *
- * @param {any} data - The message.
- * @returns {HelloMessage | null} The message, or null if it is malformed.
- */
-function readHello(data) {
-    if (data.role === Roles.surface) {
-        return helloMessage(Roles.surface);
-    }
-    if (data.role !== Roles.display) {
-        return null;
-    }
-    const {deckId, frameCount, blank, version = ""} = data;
-    const viewport =
-        data.viewport === null ? null : readViewport({...data.viewport, name: "viewport"});
-    const frame = readFrame(data.frame);
-    const frames = readFrames(data.frames);
-    const timer = data.timer === undefined ? STOPPED_TIMER : readTimerState(data.timer);
-    const camera = data.camera === undefined ? ON_FRAME : readCameraView(data.camera);
-    const valid =
-        typeof deckId === "string" &&
-        typeof version === "string" &&
-        isIndex(frameCount) &&
-        (viewport !== null || data.viewport === null) &&
-        frame !== null &&
-        frames !== null &&
-        typeof blank === "boolean" &&
-        timer !== null &&
-        camera !== null;
-    const layouts = readPresets(data.layouts).presets;
-    return valid
-        ? helloMessage(Roles.display, {
-              deckId,
-              version,
-              frameCount,
-              viewport,
-              frame,
-              frames,
-              blank,
-              layouts,
-              timer,
-              camera
-          })
-        : null;
 }
 
 /**
@@ -470,15 +303,4 @@ export function readMessage(data) {
         return null;
     }
     return READERS[data.name](data);
-}
-
-/**
- * The deck id for a page: its file name without `.sozi.html`.
- *
- * @param {string} pathname - The path of the deck's page, as `location.pathname` gives it.
- * @returns {string} The deck id.
- */
-export function deckIdOf(pathname) {
-    const fileName = decodeURIComponent(pathname.slice(pathname.lastIndexOf("/") + 1));
-    return fileName.replace(/\.sozi\.html$/, "");
 }

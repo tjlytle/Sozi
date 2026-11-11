@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulpfile.js
+# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulp/templates.js, gulp/shell.js
 Feature: The presenter as a hosted shell that joins a talk from a link
 
   The shell is the presenter page as static files, which any host can serve under any path.
@@ -14,6 +14,9 @@ Feature: The presenter as a hosted shell that joins a talk from a link
   host's addons.js is the other end, and the two talk over a BroadcastChannel named after the
   session. The shell is served under a deep path, so an absolute URL in the build breaks every
   scenario here.
+
+  The Connection panel names the shell's link to the talk in the same voice as the presenter's
+  own: "Reconnecting" while the shell waits for the display to answer, "Connected" once it has.
 
   Background:
     Given the "relay" deck is built and served
@@ -52,3 +55,17 @@ Feature: The presenter as a hosted shell that joins a talk from a link
     When the shell is opened with a pairing link whose deck is "javascript:alert(1)"
     Then no preview has loaded
     And the shell shows "This is not a Sozi pairing link."
+
+  @issue-303
+  Scenario: The shell says it is reconnecting until the display answers
+    When the shell is opened on a laptop with the pairing link for session "s2"
+    Then the "Connection" panel reads "Reconnecting"
+    And a screenshot "shell-reconnecting" is saved
+
+  @issue-303
+  Scenario: The Connection panel says connected once the display answers
+    Given the shell is opened on a laptop with the pairing link for session "s3"
+    And the "Connection" panel reads "Reconnecting"
+    When the deck page is open on the fake relay session "s3"
+    Then within 5 seconds the laptop's frame counter reads "1 / 2"
+    And the "Connection" panel reads "Connected"

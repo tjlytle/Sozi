@@ -1,11 +1,11 @@
 # covers: src/js/presenter.js, src/js/presenter/Workspace.js, src/js/presenter/WorkspaceBar.js, src/js/presenter/PanelMenu.js, src/js/presenter/Menu.js, src/js/presenter/DisplayMirror.js, src/js/presenter/panels/PreviewPanel.js, src/js/presenter/panels/NotesPanel.js, src/js/presenter/panels/ControlsPanel.js, src/js/presenter/panels/ConnectionPanel.js, src/js/player/PreviewMode.js, src/js/protocol/messages.js, src/templates/presenter.html
 Feature: The presenter arranges a workspace of panels
 
-  The presenter page opens as a workspace of six panels: Current, Previous, Next, Notes,
-  Controls and Connection. The speaker arranges it the way a video editor arranges its
-  panels: drag a tab to dock it somewhere else, drag a splitter to resize, maximise one to
-  fill the workspace. The arrangement is saved for this deck on this device and comes back
-  on reload, and Reset layout brings back the default.
+  The presenter page opens as a workspace of eight panels: Current, Previous, Next, Notes, Frames,
+  Clock, Controls and Connection. The speaker arranges it the way a video editor arranges its
+  panels: drag a tab to dock it somewhere else, drag a splitter to resize, maximise one to fill the
+  workspace. The arrangement is saved for this deck on this device and comes back on reload, and
+  Reset layout brings back the default.
 
   Everything a drag does, the menus do too. The bar on the left edge has + Add panel, which
   lists the panels that are not showing, and each group header has a ⋯ menu to replace its
@@ -14,7 +14,8 @@ Feature: The presenter arranges a workspace of panels
   shows its drop targets as tinted, outlined areas, large enough to hit.
 
   On a page narrower than 600 px the same panels are one stack of tabs, with the same state
-  in them. Widening the page brings back the saved layout.
+  in them. Widening the page brings back the saved layout. A phone lays the page out at its
+  own width, so a phone held upright gets the stack and one held sideways gets the panels.
 
   The presentation keys move the display whichever panel has the focus, a preview included.
 
@@ -90,6 +91,19 @@ Feature: The presenter arranges a workspace of panels
     When the "Current" tab is chosen
     Then the "Current" preview shows frame "Two"
     And a screenshot "presenter-workspace-phone" is saved
+
+  @issue-302
+  Scenario: On a phone the presenter page is laid out at the phone's width
+    When the presenter page is opened on a phone at 390 by 844
+    Then the presenter page is laid out 390 pixels wide
+    And the panels are tabs "Current, Previous, Next, Notes, Frames, Clock, Controls, Connection"
+    And a screenshot "presenter-phone-stack" is saved
+
+  @issue-302
+  Scenario: A phone held sideways gets the workspace of panels
+    When the presenter page is opened on a phone at 844 by 390
+    Then the presenter page is laid out 844 pixels wide
+    And the workspace shows the panels "Current, Previous, Next, Notes, Frames, Clock, Controls, Connection"
 
   @issue-26
   Scenario: Widening the page brings back the saved layout
