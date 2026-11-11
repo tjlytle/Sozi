@@ -246,6 +246,28 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
         );
         assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
     });
+    const twoListeners =
+        "/** Panels of the workspace. */\nclass Panels {\n" +
+        "    /** Fires when the maximized group changes. */\n" +
+        "    onDidMaximizedGroupChange(listener) {\n" +
+        '        const off = this.on("maximized", listener);\n        return off;\n    }\n\n' +
+        "    /**\n     * Fires when the active panel changes.\n     */\n" +
+        "    onDidActivePanelChange(listener) {\n" +
+        '        const off = this.on("active", listener);\n        return off;\n    }\n}\n';
+    test("a method added after a documented method does not blame the method above", () => {
+        const notes = adviseOnDiff(twoListeners, "--- a\n+++ b\n@@ -7,0 +8,8 @@\n+x\n");
+        assert.ok(
+            !notes.some(n => /code of `onDidMaximizedGroupChange`/.test(n)),
+            notes.join("\n")
+        );
+    });
+    test("a change inside the method above the added one still gets a note", () => {
+        const notes = adviseOnDiff(twoListeners, oneLineDiff(6));
+        assert.ok(
+            notes.some(n => /code of `onDidMaximizedGroupChange` changed/.test(n)),
+            notes.join("\n")
+        );
+    });
 });
 
 describe("edit hook: advise on several files", () => {
