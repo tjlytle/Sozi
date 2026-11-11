@@ -4,6 +4,7 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync, spawnSync} from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {encoding: "utf8"}).trim();
@@ -14,17 +15,21 @@ const script = path.join(root, "pipeline", "check-changed.py");
  * @param {string} name - The file name.
  * @param {string} content - The file content.
  * @param {string} diffText - A unified diff of the file; its hunks are the changed lines.
- * @returns {{status: ?number, stdout: string}} - What the script printed.
+ * @param {string} [scriptPath] - The copy of the script to run; the checkout's by default.
+ * @returns {{status: ?number, stdout: string, stderr: string}} - What the script printed.
  */
-function check(name, content, diffText) {
+function check(name, content, diffText, scriptPath = script) {
     const rel = path.join("src", "js", name);
     const diff = path.join(root, ".agents", "tmp", `${name}.diff`);
     fs.mkdirSync(path.dirname(diff), {recursive: true});
     fs.writeFileSync(path.join(root, rel), content);
     fs.writeFileSync(diff, diffText);
     try {
-        const result = spawnSync("python3", [script, rel, diff], {cwd: root, encoding: "utf8"});
-        return {status: result.status, stdout: result.stdout};
+        const result = spawnSync("python3", [scriptPath, rel, diff], {
+            cwd: root,
+            encoding: "utf8"
+        });
+        return {status: result.status, stdout: result.stdout, stderr: result.stderr};
     } finally {
         fs.unlinkSync(path.join(root, rel));
         fs.unlinkSync(diff);
@@ -91,5 +96,20 @@ describe("check-changed: bin/check findings on changed lines only", () => {
         assert.match(out, /\(7,1\)/);
         assert.doesNotMatch(out, /\(3,5\)/);
         assert.match(out, /0:0 {2}warning/);
+    });
+    test("a copy of the script outside the checkout loads the hook from the working directory", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-changed-"));
+        try {
+            const copy = path.join(dir, "check-changed.py");
+            fs.copyFileSync(script, copy);
+            const diff = "--- a\n+++ b\n@@ -3,0 +4,1 @@\n+x\n";
+            const r = check("zz-check-copy.js", OLD_AND_NEW, diff, copy);
+            assert.doesNotMatch(r.stdout + r.stderr, /Traceback|FileNotFoundError/);
+            assert.equal(r.status, 1, r.stdout + r.stderr);
+            assert.match(r.stdout, /4:\d+\s+error.*eqeqeq/);
+            assert.doesNotMatch(r.stdout, /no-var/);
+        } finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
     });
 });

@@ -48,8 +48,16 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
      scenario passes, the `@issue-{N}` ones by name.
    - `npm run check:pr -- --body-file .agents/tmp/pr-{N}.md`,
      `npm run check:coverage -- --body-file .agents/tmp/pr-{N}.md`, `npm run check:deps`.
-   - `npm run check`: red on old code until the cleanup issues land; a failure in a file
-     the PR changed (`git diff --name-only origin/master...HEAD`) is a failure.
+   - `npm run check`: red on old code until the cleanup issues land; a finding on a line
+     the PR changed (`git diff origin/master...HEAD`, the added lines) is a failure. A
+     finding on an untouched line of a file the PR changed is the inherited red: list the
+     count in the table with the cleanup issue that tracks the file, and go on.
+   - A known container problem is not a defect of the PR. When `npm test` fails only in
+     Electron-backed files the PR did not touch (`test/cli/`, `test/golden/`), rerun those
+     files alone: `node --test --test-concurrency=1 <files>`. If they pass alone and CI's
+     "Build, test, scenarios" job is green on the PR, record "environmental, passes alone,
+     #191" in the table with the first failure's output, and go on; it does not hold the
+     merge. A failure that repeats alone, or in a file the PR touched, is a failure.
    Then wait for CI on the PR: `gh-as qa pr checks <pr> -R tjlytle/Sozi --watch`. Read the
    jobs of the newest CI run on master: `gh-as qa run list -R tjlytle/Sozi --branch master
    --workflow CI --limit 1 --json databaseId`, then `gh-as qa run view <id> -R tjlytle/Sozi
@@ -68,7 +76,12 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
    `gh-as qa pr comment <pr> -R tjlytle/Sozi --body-file <file>`. This comment is your
    approval; you do not submit a PR review.
 6. **Is it approved?** `gh-as qa pr view <pr> -R tjlytle/Sozi --json reviews,commits`. Take
-   the newest review whose author login ends in `reviewer[bot]`. It counts when its `state`
+   the newest review by the reviewer persona: the only persona that reviews
+   (`gh-personas card reviewer`), so it is the review whose author is a GitHub App (a
+   `Bot` user: `gh-as qa api repos/tjlytle/Sozi/pulls/<pr>/reviews --jq '.[] | [.user.login,
+   .user.type, .state, .submitted_at]'`) other than the PR's author. Do not match the
+   author by name; `--json` shows an App's login without the `[bot]` suffix that comments
+   show, and the Apps are set per repository. It counts when its `state`
    is `APPROVED` and it was submitted after every commit on the PR other than your merge of
    master: if the only commit after the approval is your merge of master, the approval
    stands.
