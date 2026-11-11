@@ -5,6 +5,7 @@
 /** @module */
 
 import {EventEmitter} from "events";
+import {isEditableTarget} from "../protocol/editable.js";
 
 /** @typedef {import("../model/Presentation.js").Frame} Frame */
 
@@ -20,6 +21,27 @@ import {EventEmitter} from "events";
  * @type {number}
  */
 const DRAG_BUTTON = 0;
+
+/** @typedef {"jumpToFirst" | "jumpToLast" | "jumpToPrevious" | "jumpToNext"} JumpMethod */
+/** @typedef {"moveToFirst" | "moveToLast" | "moveToPrevious" | "moveToNext"} MoveMethod */
+
+/** The navigation keys, by key code: the method each one calls with Shift held, and without.
+ *
+ * @readonly
+ * @type {Readonly<Record<number, [JumpMethod, MoveMethod]>>}
+ */
+const NAVIGATION_KEYS = Object.freeze({
+    36: ["jumpToFirst", "moveToFirst"], // Home
+    35: ["jumpToLast", "moveToLast"], // End
+    38: ["jumpToPrevious", "moveToPrevious"], // Arrow up
+    33: ["jumpToPrevious", "moveToPrevious"], // Page up
+    37: ["jumpToPrevious", "moveToPrevious"], // Arrow left
+    40: ["jumpToNext", "moveToNext"], // Arrow down
+    34: ["jumpToNext", "moveToNext"], // Page down
+    39: ["jumpToNext", "moveToNext"], // Arrow right
+    13: ["jumpToNext", "moveToNext"], // Enter
+    32: ["jumpToNext", "moveToNext"] // Space
+});
 
 /** The minimum distance to detect a drag action, in pixels.
  *
@@ -182,6 +204,8 @@ export const PlayerControllerEvents = Object.freeze({
 /** The player's event handling controller
  *
  * The controller implements keyboard and mouse handlers and performs according actions on the associated viewport.
+ * Keys typed into a field in the deck (a text input, a text area, a list box or editable
+ * content) are left to the field.
  * It also provides an interface to external ui event handlers:
  * - TouchGestures
  *
@@ -641,6 +665,9 @@ export class PlayerController extends EventEmitter {
      * This method handles the navigation keys if they are enabled in the
      * current presentation:
      * Arrows, Page-Up/Down, Home, End, Enter, and Space.
+     * With Shift held, a key jumps to its frame without a transition.
+     * A navigation key is kept from the browser even when navigation is disabled.
+     * A key typed into a field in the deck is left to the field.
      *
      * @param {KeyboardEvent} evt - The DOM event to process.
      *
@@ -648,59 +675,17 @@ export class PlayerController extends EventEmitter {
      */
     onKeyDown(evt) {
         // Keys with Alt/Ctrl/Meta modifiers are ignored
-        if (evt.altKey || evt.ctrlKey || evt.metaKey) {
+        if (evt.altKey || evt.ctrlKey || evt.metaKey || isEditableTarget(evt.target)) {
             return;
         }
 
-        switch (evt.keyCode) {
-            case 36: // Home
-                if (this.presentation.enableKeyboardNavigation) {
-                    if (evt.shiftKey) {
-                        this.jumpToFirst();
-                    } else {
-                        this.moveToFirst();
-                    }
-                }
-                break;
-
-            case 35: // End
-                if (this.presentation.enableKeyboardNavigation) {
-                    if (evt.shiftKey) {
-                        this.jumpToLast();
-                    } else {
-                        this.moveToLast();
-                    }
-                }
-                break;
-
-            case 38: // Arrow up
-            case 33: // Page up
-            case 37: // Arrow left
-                if (this.presentation.enableKeyboardNavigation) {
-                    if (evt.shiftKey) {
-                        this.jumpToPrevious();
-                    } else {
-                        this.moveToPrevious();
-                    }
-                }
-                break;
-
-            case 40: // Arrow down
-            case 34: // Page down
-            case 39: // Arrow right
-            case 13: // Enter
-            case 32: // Space
-                if (this.presentation.enableKeyboardNavigation) {
-                    if (evt.shiftKey) {
-                        this.jumpToNext();
-                    } else {
-                        this.moveToNext();
-                    }
-                }
-                break;
-
-            default:
-                return;
+        const methods = NAVIGATION_KEYS[evt.keyCode];
+        if (!methods) {
+            return;
+        }
+        if (this.presentation.enableKeyboardNavigation) {
+            const [jump, move] = methods;
+            this[evt.shiftKey ? jump : move]();
         }
 
         evt.stopPropagation();
@@ -710,6 +695,7 @@ export class PlayerController extends EventEmitter {
     /** Process a keyboard event.
      *
      * This method handles character keys: "+", "-", "R", "P", "A", ".", "=".
+     * A key typed into a field in the deck is left to the field.
      *
      * @param {KeyboardEvent} evt - The DOM event to process.
      *
@@ -717,7 +703,7 @@ export class PlayerController extends EventEmitter {
      */
     onKeyPress(evt) {
         // Keys with modifiers are ignored
-        if (evt.altKey || evt.ctrlKey || evt.metaKey) {
+        if (evt.altKey || evt.ctrlKey || evt.metaKey || isEditableTarget(evt.target)) {
             return;
         }
 
