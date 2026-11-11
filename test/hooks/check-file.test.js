@@ -89,14 +89,15 @@ function withScratch(name, content) {
     }
 }
 
-/** Run the hook in advise mode on the scratch root with the given arguments and return what it reported.
+/** Run the hook in advise mode on a scratch root with the given arguments and return what it reported.
  *
  * @param {string[]} args - The arguments after `--advise`.
+ * @param {string} [projectDir] - The scratch root to run from; the shared one by default.
  * @returns {{status: ?number, stdout: string, stderr: string}} - What the hook reported.
  */
-function adviseRaw(args) {
+function adviseRaw(args, projectDir = scratch) {
     const result = spawnSync("python3", [hook, "--advise", ...args], {
-        env: {...process.env, CLAUDE_PROJECT_DIR: scratch},
+        env: {...process.env, CLAUDE_PROJECT_DIR: projectDir},
         encoding: "utf8",
         timeout: 120000
     });
@@ -107,11 +108,12 @@ function adviseRaw(args) {
  *
  * @param {string|string[]} files - The file or files to advise on.
  * @param {string} [diffFile] - A unified diff of the file to use instead of the one against HEAD.
+ * @param {string} [projectDir] - The scratch root to run from; the shared one by default.
  * @returns {string[]} - One note per line.
  */
-function advise(files, diffFile) {
+function advise(files, diffFile, projectDir = scratch) {
     const list = Array.isArray(files) ? files : [files];
-    const result = adviseRaw([...list, ...(diffFile ? ["--diff", diffFile] : [])]);
+    const result = adviseRaw([...list, ...(diffFile ? ["--diff", diffFile] : [])], projectDir);
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.split("\n").filter(Boolean);
 }
@@ -366,6 +368,76 @@ describe("edit hook: advise on several files", () => {
             assert.match(after.stdout, /code of `addOne` changed but the summary comment/);
             assert.deepEqual(before, after);
         });
+    });
+});
+
+describe("edit hook: during a merge", () => {
+    const base =
+        "/** A. */\nfunction a() {\n    return 1;\n}\n\n/** B. */\nfunction b() {\n    return 2;\n}\n";
+
+    /** Leave a merge in progress in a fresh scratch repository: the branch and master each
+     * change the deck file once, and the branch merges master without committing.
+     *
+     * @param {(text: string) => string} onBranch - The branch's edit of the file.
+     * @param {(text: string) => string} onMaster - Master's edit of the file.
+     * @returns {{dir: string, file: string}} - The scratch root and the file's path.
+     */
+    function mergeInProgress(onBranch, onMaster) {
+        const dir = scratchRoot();
+        const file = path.join(dir, "src", "js", "zz-merge.js");
+        const git = (...args) =>
+            spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {cwd: dir});
+        const commit = text => {
+            fs.writeFileSync(file, text);
+            git("add", file);
+            git("commit", "-q", "-m", "x");
+        };
+        commit(base);
+        git("branch", "zz-master");
+        commit(onBranch(base));
+        git("checkout", "-q", "zz-master");
+        commit(onMaster(base));
+        git("checkout", "-q", "-");
+        git("merge", "-q", "--no-commit", "--no-ff", "zz-master");
+        return {dir, file};
+    }
+
+    test("lines master brought in give no note; the session's own edit still does", () => {
+        const {dir, file} = mergeInProgress(
+            t => t.replace("return 2;", "return 3;"),
+            t => t.replace("function a", "export function a")
+        );
+        try {
+            assert.ok(fs.existsSync(path.join(dir, ".git", "MERGE_HEAD")));
+            const merged = fs.readFileSync(file, "utf8");
+            assert.match(merged, /export function a[\s\S]*return 3;/);
+            fs.writeFileSync(file, merged.replace("return 3;", "return 4;"));
+            const notes = advise(file, undefined, dir);
+            assert.ok(!notes.some(n => /code of `a` changed/.test(n)), notes.join("\n"));
+            assert.ok(
+                notes.some(n => /code of `b` changed/.test(n)),
+                notes.join("\n")
+            );
+        } finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
+    });
+    test("a conflict resolved by hand gives a note", () => {
+        const {dir, file} = mergeInProgress(
+            t => t.replace("return 1;", "return 10;"),
+            t => t.replace("return 1;", "return 20;")
+        );
+        try {
+            assert.match(fs.readFileSync(file, "utf8"), /<<<<<<</);
+            fs.writeFileSync(file, base.replace("return 1;", "return 30;"));
+            const notes = advise(file, undefined, dir);
+            assert.ok(
+                notes.some(n => /code of `a` changed/.test(n)),
+                notes.join("\n")
+            );
+        } finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
     });
 });
 
