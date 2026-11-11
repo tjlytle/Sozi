@@ -284,6 +284,15 @@ When("the {string} button in the {string} panel is pressed", async function (nam
     await contentOf(this.presenter, title).getByRole("button", {name}).click(WAIT);
 });
 
+When("the {string} panel is scrolled into view", async function (title) {
+    // What the notes do to a section when they follow the talk.
+    await contentOf(this.presenter, title).evaluate(
+        element => element.scrollIntoView({block: "start"}),
+        null,
+        WAIT
+    );
+});
+
 When("the audience window is closed", async function () {
     await this.audience.close();
 });
@@ -347,6 +356,27 @@ Then("the {string} panel fills the workspace", async function (title) {
     assert.ok(box.width >= workspace.width - rail.width - TOLERANCE, `width ${box.width}`);
     assert.ok(box.height >= workspace.height - TOLERANCE, `height ${box.height}`);
     await expect.poll(() => visibleTabTitles(this.presenter)).toEqual([title]);
+});
+
+Then("the presenter page is as tall as its window", async function () {
+    // The layout settles after a resize or a maximise: look again until it has.
+    await expect
+        .poll(() =>
+            this.presenter.evaluate(() => document.documentElement.scrollHeight - innerHeight)
+        )
+        .toBe(0);
+});
+
+Then("the presenter page is not scrolled", async function () {
+    const scrolled = await this.presenter.evaluate(selector => {
+        const workspace = document.querySelector(selector);
+        return {
+            page: window.scrollY,
+            workspace: workspace?.scrollTop,
+            top: workspace?.getBoundingClientRect().top
+        };
+    }, WORKSPACE);
+    assert.deepEqual(scrolled, {page: 0, workspace: 0, top: 0});
 });
 
 Then("the rail shows {string}", async function (list) {
