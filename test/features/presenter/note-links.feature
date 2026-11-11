@@ -1,4 +1,4 @@
-# covers: src/js/presenter/panels/NotesPanel.js, src/js/presenter/noteLinks.js, src/js/presenter.js, src/templates/presenter.html, test/fixtures/frame-links.sozi.json
+# covers: src/js/presenter/panels/NotesPanel.js, src/js/presenter/noteLinks.js, src/js/presenter/NoteLinks.js, src/js/presenter.js, src/templates/presenter.html, test/fixtures/frame-links.sozi.json
 Feature: Links to frames in the notes
 
   An author can link from the notes to another frame of the deck, with the frame's id

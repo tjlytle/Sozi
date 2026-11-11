@@ -8,7 +8,7 @@
 import {Given, When} from "@cucumber/cucumber";
 import {expect} from "playwright/test";
 import {installFakeTransport} from "./addons.steps.js";
-import {WAIT} from "./workspace.steps.js";
+import {WAIT} from "../support/panels.js";
 
 // What the second surface calls to reach the display, and the display to reach it.
 const TO_DISPLAY = "secondSurfaceToDisplay";

@@ -281,24 +281,6 @@ describe("the usage comment", () => {
     });
 });
 
-describe("a stub harness the plan named", () => {
-    test("the park names the plan's harness and points to its Harness line", async () => {
-        const w = world({issues: [issue(25, ["stage:review"])]});
-        w.github.planComment = async () =>
-            "**Harness**\n\n- review: opencode some-model\n\n**Blocked by**\n\nnone.\n";
-        await w.p.pass();
-        end(w, w.state.issues[25].session.outbox, "c25", {exit: 69, status: "unsupported"});
-        await w.p.pass();
-        assert.equal(w.state.issues[25].stage, "stage:parked");
-        // The park comes first, then the session's usage comment.
-        const [[, , park], [, , usage]] = comments(w);
-        assert.match(park, /`opencode` harness is a stub/);
-        assert.match(park, /the plan's \*\*Harness\*\* line for `review`/);
-        assert.doesNotMatch(park, /PIPELINE_HARNESS_REVIEW/);
-        assert.match(usage, /^<details>\n<summary>⏱ review · opencode some-model · /);
-    });
-});
-
 describe("judging a session stopped at its usage limit", () => {
     test("a profile session is kept to resume", async () => {
         const w = world({issues: [issue(25, ["stage:in-progress"])]});

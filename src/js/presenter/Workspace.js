@@ -6,12 +6,12 @@
 
 // The UMD build is the one that brings dockview's styles with it.
 import {createDockview, themeLight} from "dockview-core/dist/dockview-core.js";
+import {LayoutChooser} from "./LayoutChooser.js";
 import {PanelMenu} from "./PanelMenu.js";
 import {PanelWindow} from "./PanelWindow.js";
 import {WorkspaceBar} from "./WorkspaceBar.js";
-import {closedItems, panelChoices, presetChoices} from "./arrangement.js";
-import {dockedLayout, layoutOf, layoutSource, readSavedLayout, savedLayoutText} from "./layout.js";
-import {pickPreset} from "./presets.js";
+import {closedItems, panelChoices} from "./arrangement.js";
+import {dockedLayout, layoutOf} from "./layout.js";
 
 /** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("./layout.js").ClosedEntry} ClosedEntry */
@@ -115,10 +115,9 @@ function inWindow(windows, id) {
  *
  * Every panel is drawn once into an element of its own, and dockview renders it with
  * `renderer: "always"`, so a preview's iframe is never moved and never reloads when its
- * panel is dragged. A change the speaker makes, by dragging or from a menu, is saved for the
- * page's width, except while the page shows the stack or a panel is maximised. Showing a
- * preset by itself saves nothing, so a preset the deck changes later still reaches this
- * device; choosing one from the Layouts menu saves it.
+ * panel is dragged. Which layout the page shows, and when a change the speaker makes is saved,
+ * is up to its `LayoutChooser`; the workspace shows the layouts it picks, as the only owner of
+ * the dock.
  */
 export class Workspace {
     /** Build an empty workspace in an element.
@@ -132,9 +131,6 @@ export class Workspace {
         {storage, keys, media, onNotice, onSavePreset, createDock = createDockview}
     ) {
         this.element = element;
-        this.storage = storage;
-        this.keys = keys;
-        this.media = media;
         this.onNotice = onNotice;
         this.createDock = createDock;
 
@@ -163,42 +159,11 @@ export class Workspace {
          */
         this.lastUsed = null;
 
-        /** Has `open` run? Nothing is saved or arranged before it.
-         *
-         * @type {boolean}
-         */
-        this.opened = false;
-
-        /** The deck's layout presets, the latest the display reported.
-         *
-         * @type {Record<string, LayoutPreset>}
-         */
-        this.presets = {};
-
-        /** Has a preset been offered yet? Only the first offer changes what is on the page.
-         *
-         * @type {boolean}
-         */
-        this.offered = false;
-
-        /** How many of the workspace's own changes to the dock are still being told; what
-         * they fire is not the speaker's.
-         *
-         * @type {number}
-         */
-        this.arranging = 0;
-
         /** The default dock, as built from the panels' positions.
          *
          * @type {any}
          */
         this.defaultDock = null;
-
-        /** Is the page narrow? It picks the layout's slot in the storage.
-         *
-         * @type {boolean}
-         */
-        this.narrow = false;
 
         /** Is the page showing one stack of tabs? Nothing is saved while it is.
          *
@@ -206,13 +171,20 @@ export class Workspace {
          */
         this.stacked = false;
 
+        /** Which layout the page shows, and when the speaker's change is saved. It shows
+         * nothing before `open`, as the dock is built below.
+         *
+         * @type {LayoutChooser}
+         */
+        this.layouts = new LayoutChooser(this, {storage, keys, media, onNotice});
+
         const doc = element.ownerDocument;
         this.bar = new WorkspaceBar(doc, {
             closed: () => closedItems(this.specs(), this.shownIds()),
-            presets: () => this.presetNames(),
+            presets: () => this.layouts.presetNames(),
             onAdd: id => this.showPanel(id),
-            onPreset: name => this.choosePreset(name),
-            onReset: () => this.reset(),
+            onPreset: name => this.layouts.choosePreset(name),
+            onReset: () => this.layouts.reset(),
             onSavePreset: () => {
                 // A maximised dock is one panel for now, not a layout to hand on.
                 if (this.dock.hasMaximizedGroup()) {
@@ -240,15 +212,13 @@ export class Workspace {
             }
         });
         this.subscriptions = [
-            this.dock.onDidLayoutChange(() => this.save()),
+            this.dock.onDidLayoutChange(() => this.layouts.save()),
             this.dock.onDidActivePanelChange(({panel}) => {
                 if (panel) {
                     this.lastUsed = panel.id;
                 }
             })
         ];
-        this.onMediaChange = evt => this.setNarrow(evt.matches);
-        media.addEventListener("change", this.onMediaChange);
     }
 
     /** The options of a dock that shows the workspace's panels: the main one, or a window's.
@@ -289,7 +259,7 @@ export class Workspace {
         content.className = "sozi-panel";
         const cleanup = spec.render(content);
         this.panels.set(spec.id, {spec, content, cleanup});
-        this.whileArranging(() => dockPanel(this.dock, spec, this.stacked));
+        this.layouts.whileArranging(() => dockPanel(this.dock, spec, this.stacked));
     }
 
     /** Size the default layout, remember it, show what this width shows, and start saving. */
@@ -302,28 +272,15 @@ export class Workspace {
             }
         }
         this.defaultDock = this.dock.toJSON();
-        this.opened = true;
-        this.narrow = this.media.matches;
-        this.arrange(true);
+        this.layouts.open();
     }
 
-    /** Take the deck's presets; the first offer shows one, unless a layout is saved here.
-     *
-     * The display can answer many times, and a talk must not rearrange itself when it does:
-     * later presets wait for a reset, a move across the narrow width, or the Layouts menu.
-     * Presets that come before `open` wait for it, as it shows them.
+    /** Take the deck's presets, as `LayoutChooser.offerPresets` does.
      *
      * @param {Record<string, LayoutPreset>} presets - The presets, in the deck's order.
      */
     offerPresets(presets) {
-        this.presets = presets;
-        if (!this.offered) {
-            this.offered = true;
-            // With nothing saved, the dock is still the default, or the stack on a narrow page.
-            if (this.opened && !this.savedLayout()) {
-                this.arrange(true);
-            }
-        }
+        this.layouts.offerPresets(presets);
     }
 
     /** The current layout, in its stored form; a group in a window of its own is docked as
@@ -392,7 +349,7 @@ export class Workspace {
         }
         this.closed.push({id, group: panel.group.id});
         this.dock.removePanel(panel);
-        this.save();
+        this.layouts.save();
     }
 
     /** Show a closed panel: beside a panel, as a tab of the stack, or right of the panel used
@@ -414,7 +371,7 @@ export class Workspace {
             ...panelOptions(entry.spec),
             position: this.placeOf(referenceId, direction)
         });
-        this.save();
+        this.layouts.save();
     }
 
     /** Where `addPanel` puts a panel that comes back.
@@ -476,7 +433,7 @@ export class Workspace {
                 group: panel.group,
                 position: direction === "below" ? "bottom" : "right"
             });
-            this.save();
+            this.layouts.save();
         } else {
             this.showPanel(withId, {referenceId: id, direction});
         }
@@ -541,7 +498,7 @@ export class Workspace {
             return;
         }
         this.windows.set(group.id, {entries, window});
-        this.save();
+        this.layouts.save();
     }
 
     /** Dock a group whose window closed, in the group it left or right of the dock.
@@ -557,7 +514,7 @@ export class Workspace {
         const group = this.dock.getGroup(key);
         const position = group ? {referenceGroup: group.id} : this.placeOf(undefined, "right");
         dockGroup(this.dock, popped.entries, position, this.specs());
-        this.save();
+        this.layouts.save();
     }
 
     /** Close every panel's window, and leave their panels out of the dock. */
@@ -566,39 +523,6 @@ export class Workspace {
             window.dispose();
         }
         this.windows.clear();
-    }
-
-    /** The names of the layouts the Layouts menu offers.
-     *
-     * @returns {string[]} The deck's presets for this width, then Default.
-     */
-    presetNames() {
-        return presetChoices(this.presets, this.width, [...this.panels.keys()]).map(c => c.name);
-    }
-
-    /** Show a layout from the Layouts menu, and save it for this width.
-     *
-     * @param {string} name - A preset's name, or Default.
-     */
-    choosePreset(name) {
-        const choice = presetChoices(this.presets, this.width, [...this.panels.keys()]).find(
-            c => c.name === name
-        );
-        if (!choice) {
-            return;
-        }
-        if (choice.layout && !this.showLayout(choice.layout)) {
-            this.onNotice(`This page cannot use the deck's layout: ${name}.`);
-        } else if (!choice.layout) {
-            this.showLayout({dock: this.defaultDock, rail: []});
-        }
-        this.save();
-    }
-
-    /** Forget the layout saved for this width, and go back to the preset or the default. */
-    reset() {
-        this.storage.removeItem(this.slot);
-        this.arrange();
     }
 
     /** The page's width, in CSS pixels.
@@ -611,79 +535,18 @@ export class Workspace {
         return /** @type {Window} */ (this.element.ownerDocument.defaultView).innerWidth;
     }
 
-    /** The key of the layout saved for the page's width.
+    /** Does a panel's group fill the workspace?
      *
      * @readonly
-     * @type {string}
+     * @type {boolean}
      */
-    get slot() {
-        return this.narrow ? this.keys.narrow : this.keys.wide;
+    get maximised() {
+        return this.dock.hasMaximizedGroup();
     }
 
-    /** The layout saved for the page's width, if it can be used.
-     *
-     * @returns {?SavedLayout} The layout.
-     */
-    savedLayout() {
-        const text = this.storage.getItem(this.slot);
-        return text === null ? null : readSavedLayout(text, [...this.panels.keys()]);
-    }
-
-    /** Change the dock without what that fires counting as the speaker's change.
-     *
-     * Dockview tells its listeners in a microtask queued by the first change, so this one,
-     * queued after them all, ends the guard once they have been told. Changes in one turn
-     * overlap, so the guard lasts until the last of them ends.
-     *
-     * @param {() => void} change - What changes the dock.
-     */
-    whileArranging(change) {
-        this.arranging++;
-        change();
-        queueMicrotask(() => this.arranging--);
-    }
-
-    /** Show what the page's width shows, by the precedence of `layoutSource`.
-     *
-     * @param {boolean} [atDefault] - Is the dock still as the panels built it?
-     */
-    arrange(atDefault = false) {
-        this.whileArranging(() => {
-            const saved = this.savedLayout();
-            const savedShown = saved !== null && this.showLayout(saved);
-            const presetShown = !savedShown && this.showPreset();
-            const source = layoutSource({
-                narrow: this.narrow,
-                saved: savedShown,
-                preset: presetShown
-            });
-            if (source === "stack") {
-                this.showStack();
-            } else if (source === "default" && !atDefault) {
-                this.showLayout({dock: this.defaultDock, rail: []});
-            }
-        });
-    }
-
-    /** Show the first preset of the deck this page can use, and name those it cannot.
-     *
-     * @returns {boolean} True if a preset is shown.
-     */
-    showPreset() {
-        const ids = [...this.panels.keys()];
-        /** @type {string[]} */
-        const failed = [];
-        let pick = pickPreset(this.presets, this.width, ids);
-        const {refused} = pick;
-        while (pick.layout && !this.showLayout(pick.layout)) {
-            failed.push(/** @type {string} */ (pick.name));
-            pick = pickPreset(this.presets, this.width, ids, failed);
-        }
-        const unusable = [...new Set([...refused, ...pick.refused, ...failed])];
-        if (unusable.length) {
-            this.onNotice(`This page cannot use the deck's layout: ${unusable.join(", ")}.`);
-        }
-        return pick.layout !== null;
+    /** Show the default dock, as the panels' positions built it. */
+    showDefault() {
+        this.showLayout({dock: this.defaultDock, rail: []});
     }
 
     /** Show a layout: its dock, and its closed panels in the + menu.
@@ -722,28 +585,6 @@ export class Workspace {
             }
         }
         return shown;
-    }
-
-    /** Save the layout for the page's width, unless the speaker did not change it. */
-    save() {
-        const noChange = !this.opened || this.arranging > 0 || this.stacked;
-        if (noChange || this.dock.hasMaximizedGroup()) {
-            return;
-        }
-        const {dock, rail} = this.layout;
-        this.storage.setItem(this.slot, savedLayoutText(dock, rail));
-    }
-
-    /** Take the page's width class, and show what that width shows.
-     *
-     * @param {boolean} narrow - Is the page narrow now?
-     */
-    setNarrow(narrow) {
-        if (narrow === this.narrow || !this.opened) {
-            return;
-        }
-        this.narrow = narrow;
-        this.arrange();
     }
 
     /** Say whether the page shows the stack, whose panel menus offer Close only.
@@ -785,7 +626,7 @@ export class Workspace {
 
     /** Remove the dock, the bar, the panels' windows and every panel, and stop listening. */
     dispose() {
-        this.media.removeEventListener("change", this.onMediaChange);
+        this.layouts.dispose();
         for (const s of this.subscriptions) {
             s.dispose();
         }

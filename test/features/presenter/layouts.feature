@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/Workspace.js, src/js/presenter/WorkspaceBar.js, src/js/presenter/PanelMenu.js, src/js/presenter/Menu.js, src/js/presenter/PresetForm.js, src/js/presenter/DisplayMirror.js, src/js/player/DisplayChannel.js, src/js/model/Presentation.js, src/js/protocol/messages.js, src/templates/presenter.html
+# covers: src/js/presenter.js, src/js/presenter/Workspace.js, src/js/presenter/LayoutChooser.js, src/js/presenter/WorkspaceBar.js, src/js/presenter/PanelMenu.js, src/js/presenter/Menu.js, src/js/presenter/PresetForm.js, src/js/presenter/DisplayMirror.js, src/js/player/DisplayChannel.js, src/js/model/Presentation.js, src/js/protocol/messages.js, src/templates/presenter.html
 Feature: A deck carries named layouts for the presenter
 
   A deck can carry named layouts, each for a width: one for a phone, one for a laptop, one
@@ -124,4 +124,11 @@ Feature: A deck carries named layouts for the presenter
     When the layout "Default" is chosen from the Layouts menu
     Then the "Current" panel is to the left of "Notes"
     When the layout "laptop" is chosen from the Layouts menu
+    Then the "Notes" panel is to the left of "Current"
+
+  @issue-291
+  Scenario: A saved layout dockview refuses gives way to the preset
+    Given the presenter page is open at 1280 by 800
+    And the saved layout for the deck is "{\"version\":1,\"dock\":{\"grid\":{},\"panels\":{}},\"rail\":[]}"
+    When the presenter page is reloaded
     Then the "Notes" panel is to the left of "Current"

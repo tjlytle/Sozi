@@ -5,7 +5,7 @@ import {linkTarget} from "../../../src/js/presenter/noteLinks.js";
 describe("linkTarget", () => {
     const frames = [
         {index: 0, id: "frame1", title: "One", notes: ""},
-        {index: 1, id: "2", title: "Two", notes: ""},
+        {index: 1, id: "frame2", title: "Two", notes: ""},
         {index: 2, id: "the end", title: "Three", notes: ""}
     ];
 
@@ -18,7 +18,11 @@ describe("linkTarget", () => {
     });
 
     test("an id that looks like a number wins over the number", () => {
-        assert.deepEqual(linkTarget("#2", frames), {kind: "frame", index: 1});
+        const numberedFrames = [
+            {index: 0, id: "2", title: "One", notes: ""},
+            {index: 1, id: "two", title: "Two", notes: ""}
+        ];
+        assert.deepEqual(linkTarget("#2", numberedFrames), {kind: "frame", index: 0});
     });
 
     test("a percent-encoded id is decoded", () => {

@@ -9,7 +9,7 @@
 
 import {LocalTransport, TransportStatus} from "./protocol/LocalTransport";
 import {TransportSet} from "./protocol/TransportSet";
-import {Roles, deckIdOf, helloMessage} from "./protocol/messages";
+import {Roles, deckIdOf, helloMessage} from "./protocol/hello";
 import {isEditableTarget} from "./protocol/editable";
 import {DisplayMirror, DisplayMirrorEvents} from "./presenter/DisplayMirror";
 import {PresenterApi} from "./presenter/PresenterApi";
@@ -202,10 +202,11 @@ function panelSpecs(presenter, mirror, send, src) {
     /** Draw a panel into its element.
      *
      * @param {string} id - The panel's id.
+     * @param {string} title - Its title, the name of a preview's iframe.
      * @param {HTMLElement} element - Its element.
      * @returns {{dispose: () => void}} The panel.
      */
-    const create = (id, element) => {
+    const create = (id, title, element) => {
         switch (id) {
             case "notes":
                 return new NotesPanel(element, mirror, {
@@ -227,6 +228,7 @@ function panelSpecs(presenter, mirror, send, src) {
                 return new PreviewPanel(element, mirror, send, {
                     offset,
                     className: `sozi-${id}-frame`,
+                    title,
                     src: src()
                 });
             }
@@ -239,7 +241,7 @@ function panelSpecs(presenter, mirror, send, src) {
         description,
         defaults,
         render: element => {
-            const drawn = create(id, element);
+            const drawn = create(id, title, element);
             return () => drawn.dispose();
         }
     }));
