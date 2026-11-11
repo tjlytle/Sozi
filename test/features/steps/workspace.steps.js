@@ -105,6 +105,42 @@ function contentOf(page, title) {
     return page.locator(title === "Connection" ? CONNECTION : `[data-addon-panel="${title}"]`);
 }
 
+/** The text of what the panels drew where a panel's group is, right now, for use in a poll.
+ *
+ * An add-on written as a person writes one, like the worked example of
+ * docs/presenter-addons.md, draws no attribute for the steps to find. Its content is the
+ * visible panel whose middle is inside the group of its tab.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @returns {Promise<string>} - The text, or "" while the group has no box.
+ */
+async function drawnTextNow(page, title) {
+    const box = await groupBoxNow(page, title);
+    if (!box) {
+        return "";
+    }
+    return page.locator(".sozi-panel").evaluateAll(
+        (panels, group) =>
+            panels
+                .filter(panel => {
+                    const rect = panel.getBoundingClientRect();
+                    const x = rect.x + rect.width / 2;
+                    const y = rect.y + rect.height / 2;
+                    return (
+                        panel.checkVisibility({visibilityProperty: true}) &&
+                        x >= group.x &&
+                        x <= group.x + group.width &&
+                        y >= group.y &&
+                        y <= group.y + group.height
+                    );
+                })
+                .map(panel => panel.textContent)
+                .join("\n"),
+        box
+    );
+}
+
 /** Drag from one point to another with the mouse, as a person does.
  *
  * @param {import("playwright").Page} page - The presenter page.
@@ -270,7 +306,14 @@ Then("the workspace does not show a panel {string}", async function (title) {
 
 Then("the {string} panel reads {string}", async function (title, text) {
     await expect(tabOf(this.presenter, title)).toBeVisible();
-    await expect(contentOf(this.presenter, title)).toContainText(text);
+    const content = contentOf(this.presenter, title);
+    if ((await content.count()) === 0) {
+        // Only the front tab of a group is drawn: a person brings the panel to the front first.
+        await tabOf(this.presenter, title).click();
+        await expect.poll(() => drawnTextNow(this.presenter, title), WAIT).toContain(text);
+        return;
+    }
+    await expect(content).toContainText(text);
 });
 
 Then("the {string} panel's page reads {string}", async function (title, text) {

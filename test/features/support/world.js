@@ -98,6 +98,16 @@ export function rebuildWithoutNotesFile(name) {
     decks.set(`${name} without its notes file`, deck);
 }
 
+/** Keep a deck a step built under a name, so that `builtDeck(name)` and the steps that open
+ * `this.fixture` find it.
+ *
+ * @param {string} name - The name the scenario gives the deck.
+ * @param {BuiltDeck} deck - The built deck.
+ */
+export function registerBuiltDeck(name, deck) {
+    decks.set(name, deck);
+}
+
 /** A copy of a fixture for one scenario that changes it; built decks are shared.
  *
  * @param {string} name - The fixture name under test/fixtures.
