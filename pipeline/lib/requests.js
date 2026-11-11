@@ -11,8 +11,6 @@ import path from "node:path";
 import {readBounded} from "./outbox.js";
 import {HARNESSES} from "./routing.js";
 
-export {readResult} from "./outbox.js";
-
 const PERSONAS = ["advocate", "architect", "builder", "qa", "reviewer", "ops"];
 
 const DONE_TARGETS = [
