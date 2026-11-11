@@ -4,7 +4,7 @@
 
 /** @module */
 
-import {DRAG_THRESHOLD_PX, SCALE_FACTOR} from "./PlayerController.js";
+import {DRAG_THRESHOLD_PX, SCALE_FACTOR} from "./controlSteps.js";
 
 /** @typedef {import("../protocol/camera.js").CameraMove} CameraMove */
 

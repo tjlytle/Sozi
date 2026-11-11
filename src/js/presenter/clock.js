@@ -98,6 +98,8 @@ export function timerPhase(elapsedMs, targetMs) {
 /**
  * Read the text of the target field.
  *
+ * A number of minutes too long to time in milliseconds is not a target.
+ *
  * @param {string} text - The text.
  * @returns {number | null | undefined} The minutes; null for an empty field, which clears the
  *   target; undefined for anything that is not a target.
@@ -108,7 +110,7 @@ export function readTargetMinutes(text) {
         return null;
     }
     const minutes = /^\d+(\.\d+)?$/.test(trimmed) ? Number(trimmed) : NaN;
-    return Number.isFinite(minutes) && minutes > 0 ? minutes : undefined;
+    return Number.isFinite(minutes * MINUTE_MS) && minutes > 0 ? minutes : undefined;
 }
 
 /**

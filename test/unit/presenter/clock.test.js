@@ -62,6 +62,11 @@ describe("clock", () => {
         }
     });
 
+    test("a target too long to time in milliseconds is no target", () => {
+        assert.equal(readTargetMinutes("9".repeat(305)), undefined);
+        assert.equal(typeof readTargetMinutes("9".repeat(300)), "number");
+    });
+
     test("a target is shown in the field as minutes, no target as nothing", () => {
         assert.equal(targetFieldText(20 * MINUTE_MS), "20");
         assert.equal(targetFieldText(1.5 * MINUTE_MS), "1.5");

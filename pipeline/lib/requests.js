@@ -11,8 +11,6 @@ import path from "node:path";
 import {readBounded} from "./outbox.js";
 import {HARNESSES} from "./routing.js";
 
-export {readResult} from "./outbox.js";
-
 const PERSONAS = ["advocate", "architect", "builder", "qa", "reviewer", "ops"];
 
 const DONE_TARGETS = [
@@ -89,11 +87,6 @@ const NEVER_REMOVED = ["working"];
  * @typedef {object} Refusal
  * @property {string} file - The request file name.
  * @property {string} reason - Why it was refused.
- */
-
-/**
- * @typedef {import("./outbox.js").Usage} Usage
- * @typedef {import("./outbox.js").Result} Result
  */
 
 /**

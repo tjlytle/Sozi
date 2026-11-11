@@ -6,20 +6,19 @@
 
 import {EventEmitter} from "events";
 import {PlayerEvents} from "./playerEvents.js";
-import {PlayerControllerEvents} from "./PlayerController.js";
 import {TalkTimerEvents} from "./TalkTimer.js";
-import {ON_FRAME, cameraMessage, cameraMoveMessage, composeView} from "../protocol/camera.js";
+import {DisplayCommands} from "./DisplayCommands.js";
+import {CameraTracker} from "./CameraTracker.js";
+import {cameraMoveMessage} from "../protocol/camera.js";
+import {Roles, helloMessage, deckIdOf} from "../protocol/hello.js";
 import {
     MessageNames,
-    Roles,
-    helloMessage,
     frameChangeMessage,
     blankMessage,
     customMessage,
     followLinkMessage,
     keyMessage,
-    readMessage,
-    deckIdOf
+    readMessage
 } from "../protocol/messages.js";
 import {fromLegacy, legacyLoadedMessage} from "../protocol/legacy.js";
 import {thumbnailMessage} from "../protocol/thumbnails.js";
@@ -28,10 +27,9 @@ import {viewportMessage, readViewport} from "../protocol/viewport.js";
 import {TransportSet} from "../protocol/TransportSet.js";
 
 /** @typedef {import("../protocol/messages.js").Message} Message */
-/** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 /** @typedef {import("../protocol/TransportSet.js").Transport} Transport */
-/** @typedef {import("../protocol/camera.js").CameraView} CameraView */
 /** @typedef {import("../protocol/camera.js").CameraMove} CameraMove */
 
 /**
@@ -78,13 +76,26 @@ function frameInfoOf({index, frameId, title, notes}) {
     return {index, id: frameId, title, notes};
 }
 
+/** What the legacy table needs to resolve an old name.
+ *
+ * @param {any} presentation - The deck's presentation.
+ * @param {any} player - The deck's player.
+ * @returns {import("../protocol/legacy.js").LegacyState} The frames and the blank screen.
+ */
+function legacyStateOf({frames}, player) {
+    return {
+        frameCount: frames.length,
+        blank: player.blankScreenIsVisible,
+        frameIds: frames.map(frame => frame.frameId)
+    };
+}
+
 /** The display side of the presenter protocol (docs/presenter-protocol.md).
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
  * reports frame changes, the window size, the blank screen, the timer and the camera's view as
- * they change. It hands each command to the controller, or to the player once the deck is a
- * preview. A preview also draws its frames as thumbnails, on request, and shows the view it is
- * sent.
+ * they change; its `CameraTracker` follows the camera. It hands each command to its
+ * `DisplayCommands`, and tells them whether the deck is a preview. A preview also answers requests for thumbnails of its frames.
  *
  * @extends EventEmitter
  */
@@ -117,7 +128,6 @@ export class DisplayChannel extends EventEmitter {
         this.transport.add(transport);
         this.host = host;
         this.enterPreviewMode = enterPreviewMode;
-        this.renderThumbnail = renderThumbnail;
 
         /** Is the deck a preview in a presenter? A preview reports nothing about itself.
          *
@@ -125,11 +135,27 @@ export class DisplayChannel extends EventEmitter {
          */
         this.previewMode = false;
 
-        /** Where the camera looks, relative to the current frame.
+        /** What carries out each command a surface sends.
          *
-         * @type {CameraView}
+         * @type {DisplayCommands}
          */
-        this.camera = ON_FRAME;
+        this.commands = new DisplayCommands({
+            player,
+            controller,
+            presentation,
+            host,
+            isPreview: () => this.previewMode,
+            renderThumbnail
+        });
+
+        /** Where the camera looks, relative to the current frame; a preview's stays unreported.
+         *
+         * @type {CameraTracker}
+         */
+        this.cameraTracker = new CameraTracker({
+            controller,
+            report: message => this.report(message)
+        });
 
         /** The index of the frame last shown: a return to it is not a move in the talk.
          *
@@ -138,8 +164,8 @@ export class DisplayChannel extends EventEmitter {
         this.frameIndex = player.currentFrame.index;
 
         this.onFrameChange = () => {
-            this.report(frameChangeMessage(this.frameInfo));
-            this.setCamera(ON_FRAME);
+            this.report(frameChangeMessage(frameInfoOf(this.player.currentFrame)));
+            this.cameraTracker.reset();
             if (player.currentFrame.index !== this.frameIndex) {
                 this.frameIndex = player.currentFrame.index;
                 timer.frameChanged();
@@ -152,7 +178,6 @@ export class DisplayChannel extends EventEmitter {
         player.on(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         host.addEventListener("resize", this.onResize);
         timer.on(TalkTimerEvents.change, this.onTimerChange);
-        this.followCamera();
         this.stopReceiving = this.transport.onMessage((data, from) => this.receive(data, from));
 
         /** What each message from a surface does, by name: the explicit table (2.5).
@@ -168,13 +193,13 @@ export class DisplayChannel extends EventEmitter {
                     this.answerHello(legacy, from);
                 }
             },
-            [MessageNames.next]: ({transition}) => this.next(transition),
-            [MessageNames.previous]: ({transition}) => this.previous(transition),
+            [MessageNames.next]: ({transition}) => this.commands.next(transition),
+            [MessageNames.previous]: ({transition}) => this.commands.previous(transition),
             [MessageNames.jumpToFrame]: ({index, transition}) =>
-                this.jumpToFrame(index, transition),
-            [MessageNames.blank]: ({on}) => this.blank(on),
+                this.commands.jumpToFrame(index, transition),
+            [MessageNames.blank]: ({on}) => this.commands.blank(on),
             [MessageNames.preview]: ({current}) => this.preview(current),
-            [MessageNames.followLink]: ({id}) => this.followLink(id),
+            [MessageNames.followLink]: ({id}) => this.commands.followLink(id),
             [MessageNames.thumbnailRequest]: ({index, width}, legacy, from) =>
                 this.answerThumbnail(index, width, from),
             [MessageNames.custom]: ({type, data}) =>
@@ -182,9 +207,9 @@ export class DisplayChannel extends EventEmitter {
             // The reader lets through only the actions of `TimerActions`, each a method of the timer.
             [MessageNames.timerAction]: ({action}) => timer[action](),
             [MessageNames.timerTarget]: ({targetMs}) => timer.setTarget(targetMs),
-            [MessageNames.cameraMove]: move => this.moveCamera(move),
-            [MessageNames.cameraReset]: () => player.moveToFrame(player.currentFrame),
-            [MessageNames.camera]: view => this.showView(view)
+            [MessageNames.cameraMove]: move => this.commands.moveCamera(move),
+            [MessageNames.cameraReset]: () => this.commands.resetCamera(),
+            [MessageNames.camera]: view => this.commands.showView(view)
         });
     }
 
@@ -203,15 +228,6 @@ export class DisplayChannel extends EventEmitter {
         transport.send(this.hello);
     }
 
-    /** The current frame, as the protocol reports it.
-     *
-     * @readonly
-     * @type {FrameInfo}
-     */
-    get frameInfo() {
-        return frameInfoOf(this.player.currentFrame);
-    }
-
     /** The display's `hello`, with its state as it is now.
      *
      * @readonly
@@ -223,87 +239,13 @@ export class DisplayChannel extends EventEmitter {
             version: this.host.document.lastModified,
             frameCount: this.presentation.frames.length,
             viewport: readViewport(viewportMessage(this.host)),
-            frame: this.frameInfo,
+            frame: frameInfoOf(this.player.currentFrame),
             frames: this.presentation.frames.map(frameInfoOf),
             blank: this.player.blankScreenIsVisible,
             layouts: this.presentation.presenterLayouts,
             timer: this.timer.state,
-            camera: this.camera
+            camera: this.cameraTracker.view
         });
-    }
-
-    /** Fold every zoom, pan and rotation of the controller into the view and report it: the
-     * moves a surface asks for and those of the display's own mouse go the same way.
-     */
-    followCamera() {
-        const {viewport} = this.controller;
-        this.onZoom = ({factor, x, y}) =>
-            this.setCamera(
-                composeView(this.camera, {
-                    x: 0,
-                    y: 0,
-                    zoom: factor,
-                    atX: x / viewport.width,
-                    atY: y / viewport.height
-                })
-            );
-        this.onTranslate = ({deltaX, deltaY}) =>
-            this.setCamera(
-                composeView(this.camera, {
-                    x: deltaX / viewport.width,
-                    y: deltaY / viewport.height,
-                    zoom: 1,
-                    atX: 0,
-                    atY: 0
-                })
-            );
-        // A preview does not draw a rotation, but the camera has left its frame all the same.
-        this.onRotate = () => this.setCamera({...this.camera, offFrame: true});
-        this.controller.on(PlayerControllerEvents.zoom, this.onZoom);
-        this.controller.on(PlayerControllerEvents.translate, this.onTranslate);
-        this.controller.on(PlayerControllerEvents.rotate, this.onRotate);
-    }
-
-    /** Take a new view, and report it when it is not the one there was.
-     *
-     * @param {CameraView} view - The view.
-     */
-    setCamera(view) {
-        const was = this.camera;
-        this.camera = view;
-        const same = ["offFrame", "zoom", "x", "y"].every(key => view[key] === was[key]);
-        if (!same) {
-            this.report(cameraMessage(view));
-        }
-    }
-
-    /** Move the display's camera, in its own pixels; the controller's events report the view.
-     *
-     * @param {CameraMove} move - The move, in viewport units.
-     */
-    moveCamera({x, y, zoom, atX, atY}) {
-        const {width, height} = this.controller.viewport;
-        if (zoom !== 1) {
-            this.controller.zoom(zoom, atX * width, atY * height);
-        }
-        if (x !== 0 || y !== 0) {
-            this.controller.translate(x * width, y * height);
-        }
-    }
-
-    /** Show a view of the current frame, in a preview only: the deck goes back to its frame,
-     * then zooms about its top-left corner and pans.
-     *
-     * @param {CameraView} view - The view.
-     */
-    showView({zoom, x, y}) {
-        if (!this.previewMode) {
-            return;
-        }
-        const {viewport} = this.controller;
-        this.player.jumpToFrame(this.player.currentFrame);
-        viewport.zoom(zoom, 0, 0);
-        viewport.translate(x * viewport.width, y * viewport.height);
     }
 
     /** Send a message about the display, unless the deck is a preview.
@@ -332,26 +274,12 @@ export class DisplayChannel extends EventEmitter {
      */
     receive(data, from) {
         const current = readMessage(data);
-        const message = current || fromLegacy(data, this.legacyState);
+        const message = current || fromLegacy(data, legacyStateOf(this.presentation, this.player));
         if (message && Object.hasOwn(this.handlers, message.name)) {
             this.handlers[message.name](message, !current, from);
         } else {
             console.log(`Unsupported message: ${data && data.name}`);
         }
-    }
-
-    /** What the legacy table needs to resolve an old name.
-     *
-     * @readonly
-     * @type {import("../protocol/legacy.js").LegacyState}
-     */
-    get legacyState() {
-        const frames = this.presentation.frames;
-        return {
-            frameCount: frames.length,
-            blank: this.player.blankScreenIsVisible,
-            frameIds: frames.map(frame => frame.frameId)
-        };
     }
 
     /** Answer a surface's `hello` with the display's own.
@@ -365,80 +293,8 @@ export class DisplayChannel extends EventEmitter {
     answerHello(legacy, from) {
         from.send(this.hello);
         if (legacy) {
-            from.send(frameChangeMessage(this.frameInfo));
+            from.send(frameChangeMessage(frameInfoOf(this.player.currentFrame)));
             from.send(viewportMessage(this.host));
-        }
-    }
-
-    /** Go to the next frame.
-     *
-     * @param {boolean} transition - Animate the move.
-     */
-    next(transition) {
-        if (this.previewMode) {
-            this.movePlayer(this.player.nextFrame, transition);
-        } else if (transition) {
-            this.controller.moveToNext();
-        } else {
-            this.controller.jumpToNext();
-        }
-    }
-
-    /** Go to the previous frame.
-     *
-     * @param {boolean} transition - Animate the move.
-     */
-    previous(transition) {
-        if (this.previewMode) {
-            this.movePlayer(this.player.previousFrame, transition);
-        } else if (transition) {
-            this.controller.moveToPrevious();
-        } else {
-            this.controller.jumpToPrevious();
-        }
-    }
-
-    /** Go to the frame at an index.
-     *
-     * @param {number} index - The frame's position, from 0.
-     * @param {boolean} transition - Animate the move.
-     */
-    jumpToFrame(index, transition) {
-        if (this.previewMode) {
-            this.movePlayer(index, transition);
-        } else if (transition) {
-            this.controller.moveToFrame(index);
-        } else {
-            this.controller.jumpToFrame(index);
-        }
-    }
-
-    /** Move the player itself, as a preview does.
-     *
-     * @param {any} frame - The frame, or its index.
-     * @param {boolean} transition - Animate the move.
-     */
-    movePlayer(frame, transition) {
-        if (transition) {
-            this.player.moveToFrame(frame);
-        } else {
-            this.player.jumpToFrame(frame);
-        }
-    }
-
-    /** Show or hide the blank screen.
-     *
-     * @param {boolean} on - Show it?
-     */
-    blank(on) {
-        if (this.previewMode) {
-            if (on) {
-                this.player.enableBlankScreen();
-            } else {
-                this.player.disableBlankScreen();
-            }
-        } else if (on !== this.player.blankScreenIsVisible) {
-            this.controller.toggleBlankScreen();
         }
     }
 
@@ -458,19 +314,7 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Follow a link of the deck, as if it was clicked.
-     *
-     * @param {string} id - The id of the link element.
-     */
-    followLink(id) {
-        const link = this.presentation.document.root.getElementById(id);
-        // SVG <a> elements have no click method, so the click is dispatched.
-        if (link) {
-            link.dispatchEvent(new this.host.MouseEvent("click"));
-        }
-    }
-
-    /** Draw a frame and answer with it, in a preview only: nothing may move the audience
+    /** Answer with a frame the commands draw, in a preview only: nothing may move the audience
      * window's camera to make a thumbnail.
      *
      * @param {number} index - The frame's position, from 0.
@@ -481,25 +325,19 @@ export class DisplayChannel extends EventEmitter {
         if (!this.previewMode) {
             return;
         }
-        let url = "";
-        try {
-            url = await this.renderThumbnail(index, width);
-        } catch (err) {
-            // The empty URL tells the surface; the tile keeps its number and title.
-            console.warn(`No thumbnail for frame ${index}: ${err}`);
-        }
+        const url = await this.commands.thumbnail(index, width);
         from.send(thumbnailMessage(index, url));
     }
 
-    /** Remove every listener the channel added, and close its transports. */
+    /** Remove every listener the channel added, stop its camera tracker, and close its
+     * transports.
+     */
     dispose() {
         this.player.off(PlayerEvents.frameChange, this.onFrameChange);
         this.player.off(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         this.host.removeEventListener("resize", this.onResize);
         this.timer.off(TalkTimerEvents.change, this.onTimerChange);
-        this.controller.off(PlayerControllerEvents.zoom, this.onZoom);
-        this.controller.off(PlayerControllerEvents.translate, this.onTranslate);
-        this.controller.off(PlayerControllerEvents.rotate, this.onRotate);
+        this.cameraTracker.dispose();
         this.stopReceiving();
         this.transport.dispose();
         this.removeAllListeners();

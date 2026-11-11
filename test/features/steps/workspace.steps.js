@@ -2,13 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Steps for the presenter workspace (#26, #318): docking, resizing, the drop targets,
+// Steps for the presenter workspace (#26, #318, #302): docking, resizing, the drop targets,
 // maximise and the narrow stack. The menus that arrange it are in workspace-menus.steps.js;
 // finding a panel by its tab title is in support/panels.js.
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
+import {builtDeck} from "../support/decks.js";
 import {
     DROP_TARGET,
     GROUP,
@@ -323,6 +324,22 @@ Then("the panels are tabs {string}", async function (list) {
             return titles.map(title => title.trim()).sort();
         })
         .toEqual(titlesIn(list));
+});
+
+When("the presenter page is opened on a phone at {int} by {int}", async function (width, height) {
+    // A phone lays a page out at the width its viewport line asks for, or at 980 pixels
+    // without one; a desktop window resized to a phone's size does neither, so only
+    // `isMobile` shows what a phone shows.
+    await this.openPresenterIn(
+        {viewport: {width, height}, isMobile: true, hasTouch: true},
+        builtDeck(this.fixture)
+    );
+    await this.presenterIsReady();
+});
+
+Then("the presenter page is laid out {int} pixels wide", async function (width) {
+    const laidOut = await this.presenter.evaluate(() => window.innerWidth);
+    assert.equal(laidOut, width, `the presenter page is laid out ${laidOut} pixels wide`);
 });
 
 Then("the {string} preview shows frame {string}", async function (title, frameTitle) {

@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The decks scenarios open: fixtures copied and built once by the real CLI and shared, the
-// copies a scenario changes for itself, and their removal at the end of the run.
+// The decks scenarios open: fixtures copied to a temp folder, built once by the real CLI and
+// shared, the copies a scenario changes for itself, and their removal at the end of the run.
 
 import fs from "node:fs";
 import {createRequire} from "node:module";
@@ -94,9 +94,11 @@ export function copyDeck(name) {
     return deck;
 }
 
-/** Remove every deck the run built or copied. */
+/** Remove every deck the run built or copied, and forget them; the next build starts afresh. */
 export function removeDecks() {
     for (const deck of [...decks.values(), ...copies]) {
         deck.cleanup();
     }
+    decks.clear();
+    copies.length = 0;
 }

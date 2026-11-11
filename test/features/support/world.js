@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Cucumber support: one Chromium for the run, one browser context per scenario, and the
-// pages a scenario opens on the decks of support/decks.js. Scenarios drive the built
-// presenter and display pages through Playwright (standard 6.2).
+// Cucumber support: one Chromium for the run, one browser context per scenario, on the
+// decks of decks.js. Scenarios drive the built presenter and display pages through
+// Playwright (standard 6.2).
 
 import {
     After,
@@ -29,8 +29,8 @@ export const SCREENSHOTS = path.join(root, "build", "features", "screenshots");
 
 setDefaultTimeout(30000);
 
-/** The size of every page a scenario opens. */
-const VIEWPORT = {width: 1280, height: 800};
+/** The size of the pages a scenario opens, unless a step opens them on another device. */
+export const VIEWPORT = {width: 1280, height: 800};
 
 /** @type {import("playwright").Browser} */
 let browser;
@@ -68,9 +68,31 @@ function recordAddedIframes() {
     }).observe(document, {childList: true, subtree: true});
 }
 
-/** What a scenario can reach: the browser context, the pages it opened, the dialogs they
- * showed, the deck's first view, the notes' font size before a change and what a click in them
- * left, the deck and the shell it serves over http and Cucumber's attach.
+/** Open a browser context for a scenario: its pages record the iframes they add, and every
+ * alert, confirm or prompt is recorded in the world's dialogs, then dismissed so that the page
+ * goes on.
+ *
+ * @param {SoziWorld} world - The scenario's world.
+ * @param {import("playwright").BrowserContextOptions} options - The context's viewport, touch
+ *     support and the like.
+ * @returns {Promise<import("playwright").BrowserContext>} - The new context.
+ */
+async function newContext(world, options) {
+    const context = await browser.newContext(options);
+    await context.addInitScript(recordAddedIframes);
+    context.on("page", page =>
+        page.on("dialog", dialog => {
+            world.dialogs.push(dialog.message());
+            dialog.dismiss().catch(() => {});
+        })
+    );
+    return context;
+}
+
+/** What a scenario can reach: the browser context, the pages it opened and the dialogs they
+ * showed, a second copy of its deck and how many pages were open before the first deck's
+ * presenter page came back, the deck's first view, the notes' font size before a change and what
+ * a click in them left, the deck and the shell it serves over http and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
@@ -86,6 +108,22 @@ export class SoziWorld extends World {
         this.presenter = null;
         /** @type {?import("playwright").Page} */
         this.audience = null;
+        /** The audience window of the deck opened first, once another deck's presenter page
+         * has taken over the tab.
+         *
+         * @type {?import("playwright").Page}
+         */
+        this.firstAudience = null;
+        /** A second built copy of the scenario's deck, in a folder of its own.
+         *
+         * @type {?import("./decks.js").BuiltDeck}
+         */
+        this.secondDeck = null;
+        /** How many pages the context had before the first deck's presenter page came back.
+         *
+         * @type {number}
+         */
+        this.pagesBeforeReturning = 0;
         /** @type {?import("playwright").Page} */
         this.deck = null;
         /** @type {string} */
@@ -139,7 +177,7 @@ export class SoziWorld extends World {
         const deck = builtDeck(fixture);
         if (touch) {
             await this.context?.close();
-            this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
+            this.context = await newContext(this, {viewport: VIEWPORT, hasTouch: true});
         }
         await this.loadDeck(pathToFileURL(deck.html).href);
     }
@@ -188,26 +226,18 @@ export class SoziWorld extends World {
         await this.openBuiltPresenter(builtDeck(fixture), size);
     }
 
-    /** Open the presenter page of a deck on a device that has saved nothing for it.
+    /** Replace the scenario's browser context with one opened with `contextOptions`, so that the
+     * page starts with nothing saved, then open the presenter page of a built deck in it.
      *
+     * @param {import("playwright").BrowserContextOptions} contextOptions - The device: its
+     *     viewport, touch support and the like.
      * @param {{presenter: string}} deck - The built deck.
      * @param {{width: number, height: number}} [size] - The page's size from its first paint.
      */
-    async openPresenterOnNewDevice(deck, size) {
+    async openPresenterIn(contextOptions, deck, size) {
         await this.context?.close();
-        this.context = await browser.newContext({viewport: VIEWPORT});
+        this.context = await newContext(this, contextOptions);
         await this.openBuiltPresenter(deck, size);
-    }
-
-    /** Open the presenter page of a built deck again, in a context with touch support.
-     *
-     * @param {string} fixture - The fixture name.
-     */
-    async openPresenterOnTouchScreen(fixture) {
-        await this.context?.close();
-        this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
-        await this.context.addInitScript(recordAddedIframes);
-        await this.openPresenter(fixture);
     }
 
     /** Open the presenter page of a built deck and wait for the audience window it opens.
@@ -296,15 +326,8 @@ BeforeAll(async () => {
 });
 
 Before(async function () {
-    this.context = await browser.newContext({viewport: VIEWPORT});
-    await this.context.addInitScript(recordAddedIframes);
-    // Record every alert, confirm or prompt, then dismiss it so that the page goes on.
-    this.context.on("page", page =>
-        page.on("dialog", dialog => {
-            this.dialogs.push(dialog.message());
-            dialog.dismiss().catch(() => {});
-        })
-    );
+    // Cast: setWorldConstructor makes every scenario's world a SoziWorld.
+    this.context = await newContext(/** @type {SoziWorld} */ (this), {viewport: VIEWPORT});
 });
 
 After(async function (scenario) {

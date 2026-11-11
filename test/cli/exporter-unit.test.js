@@ -14,15 +14,29 @@ const {appDir} = require("./helpers.js");
 
 const exporterModule = path.join(appDir, "src", "js", "exporter", "index-electron.js");
 
+/** Remove every built exporter module from the module cache.
+ *
+ * `index-electron.js` re-exports the modules of its directory, so a fresh copy of
+ * it needs fresh copies of them too.
+ */
+function forgetExporter() {
+    const dir = path.dirname(exporterModule) + path.sep;
+    for (const file of Object.keys(require.cache)) {
+        if (file.startsWith(dir)) {
+            delete require.cache[file];
+        }
+    }
+}
+
 /** Load a fresh copy of the built exporter module.
  *
- * The compiled module copies the functions of `fs` when it is loaded,
+ * The compiled modules copy the functions of `fs` when they are loaded,
  * so stubs of `fs` must be in place before this call.
  *
  * @returns {object} - The exports of the built exporter module.
  */
 function loadExporter() {
-    delete require.cache[require.resolve(exporterModule)];
+    forgetExporter();
     return require(exporterModule);
 }
 
@@ -188,7 +202,7 @@ describe("linkOrCopy", () => {
             assert.notEqual(fs.statSync(to).ino, fs.statSync(from).ino, "a copy, not a link");
         } finally {
             fs.linkSync = linkSync;
-            delete require.cache[require.resolve(exporterModule)];
+            forgetExporter();
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
