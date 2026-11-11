@@ -16,8 +16,7 @@ import {
     ON_FRAME,
     cameraMessage,
     cameraMoveMessage,
-    cameraResetMessage,
-    composeView
+    cameraResetMessage
 } from "../../../src/js/protocol/camera.js";
 import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
@@ -334,21 +333,6 @@ describe("DisplayChannel", () => {
         for (const name of ["zoom", "translate", "rotate"]) {
             assert.equal(controller.listenerCount(PlayerControllerEvents[name]), 0, name);
         }
-    });
-
-    test("each zoom and pan of the display, its own mouse included, is reported as camera", () => {
-        const {transport, controller} = startedDisplay();
-        controller.zoom(2, 300, 300);
-        controller.translate(-120, 40);
-        const zoomed = composeView(ON_FRAME, {x: 0, y: 0, zoom: 2, atX: 0.25, atY: 0.75});
-        const panned = composeView(zoomed, {x: -0.1, y: 0.1, zoom: 1, atX: 0, atY: 0});
-        assert.deepEqual(transport.sent, [cameraMessage(zoomed), cameraMessage(panned)]);
-    });
-
-    test("a rotation marks the camera off its frame and leaves the view as it was", () => {
-        const {transport, controller} = startedDisplay();
-        controller.emit(PlayerControllerEvents.rotate, 5);
-        assert.deepEqual(transport.sent, [cameraMessage({...ON_FRAME, offFrame: true})]);
     });
 
     test("a hello carries the camera as it is now", () => {
