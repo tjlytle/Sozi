@@ -104,6 +104,45 @@ When("the speaker leaves the presenter page and goes back to it", async function
     await this.presenterIsReady();
 });
 
+Given("the presenter page is open after another page", async function () {
+    // Cast: the Before hook opens a context for every scenario.
+    const context = /** @type {import("playwright").BrowserContext} */ (this.context);
+    this.presenter = await context.newPage();
+    await this.presenter.goto("about:blank");
+    this.addressBefore = this.presenter.url();
+    const popup = this.presenter.waitForEvent("popup");
+    await this.presenter.goto(pathToFileURL(builtDeck(this.fixture).presenter).href);
+    this.audience = await audienceWindow(popup);
+    await this.presenterIsReady();
+});
+
+// The second address differs from the first by a query, so the browser makes it a new
+// history entry instead of replacing the first one, as it does for the same address.
+Given(
+    "the {string} deck's presenter page is opened again in the same tab",
+    async function (fixture) {
+        await this.presenterIsReady();
+        this.addressBefore = this.presenter.url();
+        await this.presenter.goto(`${pathToFileURL(builtDeck(fixture).presenter).href}?again`);
+        await this.presenterIsReady();
+    }
+);
+
+// The page's own history.back(), as the browser's Back button does it. Playwright's goBack
+// waits for the top page to navigate and would time out when Back only moves a preview.
+When("Back is pressed on the presenter page", async function () {
+    await this.presenter.evaluate(() => history.back());
+});
+
+Then("the presenter page has gone back to the page before it", async function () {
+    await expect.poll(() => this.presenter.url()).toBe(this.addressBefore);
+});
+
+Then("the presenter page is open at its first address", async function () {
+    await expect.poll(() => this.presenter.url()).toBe(this.addressBefore);
+    await this.presenterIsReady();
+});
+
 When("the presenter page is reloaded and opens a new audience window", async function () {
     const popup = this.presenter.waitForEvent("popup");
     await this.presenter.reload();
