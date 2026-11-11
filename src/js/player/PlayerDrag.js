@@ -85,7 +85,9 @@ export class PlayerDrag {
             y: press.clientY
         };
 
-        /** The pointer at the start of the drag and at its last step, as the drag modes read it.
+        /** The pointer at the start of the drag, and at the last step of each mode. A step
+         * updates only its own mode's fields of `prev`, so after a change of modifier keys
+         * each mode counts from its own last step.
          *
          * @type {{start: DragPoint, prev: DragPoint}}
          */
@@ -208,7 +210,7 @@ export class PlayerDrag {
      */
     startDrag(point) {
         this.mouseDragged = true;
-        this.dragPoints = {start: point, prev: point};
+        this.dragPoints = {start: point, prev: {...point}};
 
         if (this.controller.presentation.enableMouseTranslation) {
             this.controller.player.pause();
@@ -236,7 +238,7 @@ export class PlayerDrag {
             );
             this.mouseDragChangedState = true;
         }
-        this.dragPoints.prev = point;
+        this.dragPoints.prev.distance = point.distance;
     }
 
     /** Rotate by the angle the pointer swept about the viewport's centre.
@@ -254,7 +256,7 @@ export class PlayerDrag {
         const angle = snap ? 10 * Math.round((point.angle - start) / 10) + start : point.angle;
         controller.rotate(this.dragPoints.prev.angle - angle);
         this.mouseDragChangedState = true;
-        this.dragPoints.prev = {...point, angle};
+        this.dragPoints.prev.angle = angle;
     }
 
     /** Resize the clip rectangle in the editor.
@@ -276,7 +278,7 @@ export class PlayerDrag {
         this.mouseDragChangedState = true;
     }
 
-    /** Pan by the pointer's move since the last drag step.
+    /** Pan by the pointer's move since the last pan step.
      *
      * @private
      * @param {DragPoint} point - Where the pointer is.
@@ -300,7 +302,8 @@ export class PlayerDrag {
         const prev = this.dragPoints.prev;
         controller.translate(x - prev.x, y - prev.y);
         this.mouseDragChangedState = true;
-        this.dragPoints.prev = {...point, x, y};
+        prev.x = x;
+        prev.y = y;
     }
 }
 
