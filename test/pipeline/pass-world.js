@@ -94,6 +94,32 @@ function fakeAdvisor() {
 }
 
 /**
+ * @typedef {object} Records
+ * @property {any[]} calls - The fake GitHub's writes and the sandbox's starts, in order.
+ * @property {Record<string, string>} containers - Each container's status, by id.
+ * @property {string[]} logs - The pass's log lines.
+ * @property {any[]} outboxes - What each prepareOutbox call was given.
+ * @property {any[]} starts - What each sandbox start was given.
+ * @property {Record<string, any>} profiles - What inspectProfile answers, by persona.
+ */
+
+/**
+ * The records the fakes write and the tests read: empty, with every persona logged in.
+ *
+ * @returns {Records} - The records.
+ */
+function emptyRecords() {
+    return {
+        calls: [],
+        containers: {},
+        logs: [],
+        outboxes: [],
+        starts: [],
+        profiles: Object.fromEntries(PERSONAS.map(p => [p, loggedIn()]))
+    };
+}
+
+/**
  * A fake clock that starts at now and moves only when a test advances it.
  *
  * @param {number} now - The starting time in milliseconds.
@@ -113,7 +139,7 @@ function fakeClock(now) {
  * A pass over fakes. Its advisor answers nothing; it records each question in `asks`.
  *
  * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void, configRoot?: string, reload?: () => void}} [options] - The world; configRoot is where the settings files are read.
- * @returns {any} - The pass, the state, the recorded calls and the fakes.
+ * @returns {any} - The pass, the state, the fakes, the records they write (`Records`) and `asks`.
  */
 export function world({
     issues = [],
@@ -129,20 +155,9 @@ export function world({
     for (const i of issues) {
         applyIssue(state, i);
     }
-    /** @type {any[]} */
-    const calls = [];
-    /** @type {Record<string, string>} */
-    const containers = {};
-    /** @type {string[]} */
-    const logs = [];
-    /** @type {any[]} */
-    const outboxes = [];
-    /** @type {any[]} */
-    const starts = [];
-    /** @type {Record<string, any>} */
-    const profiles = Object.fromEntries(PERSONAS.map(p => [p, loggedIn()]));
-    const github = fakeGithub(state, issues, calls);
-    const sandbox = fakeSandbox({containers, calls, outboxes, starts, profiles});
+    const records = emptyRecords();
+    const github = fakeGithub(state, issues, records.calls);
+    const sandbox = fakeSandbox(records);
     /** @type {any} */
     const board = {sync: async () => ({failed: []})};
     const digest = {add: async () => {}, finish: async () => {}};
@@ -158,20 +173,15 @@ export function world({
         digest,
         clock,
         env,
-        log: line => logs.push(line),
+        log: line => records.logs.push(line),
         save: () => save(state),
         reload
     });
     return {
+        ...records,
         p,
         state,
-        calls,
-        containers,
         clock,
-        logs,
-        outboxes,
-        starts,
-        profiles,
         github,
         issues,
         settings,
