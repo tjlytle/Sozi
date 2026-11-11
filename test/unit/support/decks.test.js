@@ -5,7 +5,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {builtDeck, copyDeck, removeDecks} from "../../features/support/decks.js";
+import {builtDeck, copyDeck, registerBuiltDeck, removeDecks} from "../../features/support/decks.js";
 
 test("a fixture is built once and its pages are shared", () => {
     const deck = builtDeck("basic");
@@ -33,5 +33,18 @@ test("removing the decks deletes every build and copy, and empties the cache", (
     const rebuilt = builtDeck("basic");
     assert.notEqual(rebuilt, deck);
     assert.ok(fs.existsSync(rebuilt.html), rebuilt.html);
+    removeDecks();
+});
+
+test("a deck registered under a name is the built deck for that name", () => {
+    const deck = {
+        dir: "/tmp/deck",
+        svg: "/tmp/deck/basic.svg",
+        html: "/tmp/deck/basic.sozi.html",
+        presenter: "/tmp/deck/basic-presenter.sozi.html",
+        cleanup: () => {}
+    };
+    registerBuiltDeck("basic with the worked example", deck);
+    assert.equal(builtDeck("basic with the worked example"), deck);
     removeDecks();
 });

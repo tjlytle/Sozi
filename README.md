@@ -167,6 +167,8 @@ When running from the source tree, replace `sozi` with
   first preset that matches a page's width wins. `FILE` is what the presenter's Save as preset
   downloads. `--layout NAME=` removes the preset. Build the deck again for a device to see the
   change. `inspect` lists each preset as `layouts`: its `name`, `match`, `panels` and `rail`.
+  To add a panel of your own to the presenter, see
+  [docs/presenter-addons.md](docs/presenter-addons.md).
 * `--out-dir DIR` (for `build`, `set`, `inspect`, `render` and `export`) is the directory of the
   HTML files; see [Output directory](#output-directory).
 * `--presentation P.sozi.json` (for every command, with an SVG file argument)

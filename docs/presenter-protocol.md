@@ -236,6 +236,8 @@ An add-on's transport has what `LocalTransport` has:
 
 ## API
 
+To write a panel, start with [presenter-addons.md](presenter-addons.md).
+
 A deck's custom CSS or JS file has a target: `display` (the default), `presenter` or
 `both`. In the presentation file a `display` file is the plain string it always was, and
 any other is `{path, target}`. Each page inlines its files after its own script, so a
