@@ -4,8 +4,9 @@
 
 // Electron main script for the exporter tests: calls an export function of
 // the built exporter module in the main process and prints one JSON line:
-// {ok, result | error, elapsedMs, windows} where `windows` is the number of
-// windows still open after the export.
+// {ok, result | error, elapsedMs, windows, isolation} where `windows` is the
+// number of windows still open after the export and `isolation` holds, for each
+// window the export opened, whether its page loaded with context isolation.
 //
 // Usage: electron export-main.js <exporter module> <JSON {fn, presentation, html, opts} | @file>
 
@@ -17,9 +18,21 @@ const [modulePath, argsJSON] = process.argv.slice(-2);
 app.on("window-all-closed", () => {});
 app.commandLine.appendSwitch("disable-gpu-sandbox");
 
+/** @type {boolean[]} */
+const isolation = [];
+app.on("browser-window-created", (_event, w) => {
+    // getLastWebPreferences exists at run time but is missing from Electron's typings.
+    const contents = /** @type {{getLastWebPreferences: () => ?{contextIsolation?: boolean}}} */ (
+        /** @type {unknown} */ (w.webContents)
+    );
+    w.webContents.once("did-finish-load", () => {
+        isolation.push(!!contents.getLastWebPreferences()?.contextIsolation);
+    });
+});
+
 app.on("ready", async () => {
     const start = Date.now();
-    /** @type {{ok: boolean, result?: unknown, error?: string, elapsedMs?: number, windows?: number}} */
+    /** @type {{ok: boolean, result?: unknown, error?: string, elapsedMs?: number, windows?: number, isolation?: boolean[]}} */
     let report;
     try {
         const json = argsJSON.startsWith("@")
@@ -37,5 +50,6 @@ app.on("ready", async () => {
     }
     report.elapsedMs = Date.now() - start;
     report.windows = BrowserWindow.getAllWindows().length;
+    report.isolation = isolation;
     process.stdout.write(JSON.stringify(report) + "\n", () => app.exit(0));
 });

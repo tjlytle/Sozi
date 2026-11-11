@@ -242,7 +242,7 @@ describe("GUI export (SOZI_TEST_EXPORT)", () => {
 /** Run an export function of the built exporter module in the Electron main process.
  *
  * @param {object} args - `{fn, presentation, html, opts}`.
- * @returns {object} - The report of the harness: `{ok, result | error, elapsedMs, windows}`.
+ * @returns {object} - The report of the harness: `{ok, result | error, elapsedMs, windows, isolation}`.
  */
 function mainExport(args) {
     const harness = path.join(__dirname, "harness", "export-main.js");
@@ -288,6 +288,34 @@ describe("exporter in the main process", () => {
             assert.ok(report.elapsedMs < 10000, `took ${report.elapsedMs} ms`);
             assert.equal(report.windows, 0);
             assert.ok(!fs.existsSync(out));
+        } finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
+    });
+
+    test("the capture window runs with context isolation", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-test-"));
+        try {
+            const html = path.join(dir, "plain.html");
+            fs.writeFileSync(
+                html,
+                "<!doctype html><html><body><p>Not a presentation</p></body></html>"
+            );
+            const presentation = JSON.parse(
+                fs.readFileSync(path.join(fixturesDir, "basic.sozi.json"), "utf8")
+            );
+            const report = mainExport({
+                fn: "exportToPDF",
+                presentation,
+                html,
+                opts: {outPath: path.join(dir, "plain.pdf"), timeoutMs: 2000}
+            });
+            assert.ok(report.isolation.length > 0, JSON.stringify(report));
+            assert.deepEqual(
+                report.isolation,
+                report.isolation.map(() => true),
+                JSON.stringify(report)
+            );
         } finally {
             fs.rmSync(dir, {recursive: true, force: true});
         }
