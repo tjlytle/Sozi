@@ -79,6 +79,20 @@ function frameInfoOf({index, frameId, title, notes}) {
     return {index, id: frameId, title, notes};
 }
 
+/** What the legacy table needs to resolve an old name.
+ *
+ * @param {any} presentation - The deck's presentation.
+ * @param {any} player - The deck's player.
+ * @returns {import("../protocol/legacy.js").LegacyState} The frames and the blank screen.
+ */
+function legacyStateOf({frames}, player) {
+    return {
+        frameCount: frames.length,
+        blank: player.blankScreenIsVisible,
+        frameIds: frames.map(frame => frame.frameId)
+    };
+}
+
 /** The display side of the presenter protocol (docs/presenter-protocol.md).
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
@@ -315,26 +329,12 @@ export class DisplayChannel extends EventEmitter {
      */
     receive(data, from) {
         const current = readMessage(data);
-        const message = current || fromLegacy(data, this.legacyState);
+        const message = current || fromLegacy(data, legacyStateOf(this.presentation, this.player));
         if (message && Object.hasOwn(this.handlers, message.name)) {
             this.handlers[message.name](message, !current, from);
         } else {
             console.log(`Unsupported message: ${data && data.name}`);
         }
-    }
-
-    /** What the legacy table needs to resolve an old name.
-     *
-     * @readonly
-     * @type {import("../protocol/legacy.js").LegacyState}
-     */
-    get legacyState() {
-        const frames = this.presentation.frames;
-        return {
-            frameCount: frames.length,
-            blank: this.player.blankScreenIsVisible,
-            frameIds: frames.map(frame => frame.frameId)
-        };
     }
 
     /** Answer a surface's `hello` with the display's own.
