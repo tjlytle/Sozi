@@ -1,7 +1,8 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {ThumbnailSource} from "../../../src/js/presenter/ThumbnailSource.js";
-import {Roles, helloMessage, previewMessage} from "../../../src/js/protocol/messages.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
+import {previewMessage} from "../../../src/js/protocol/messages.js";
 import {thumbnailMessage, thumbnailRequestMessage} from "../../../src/js/protocol/thumbnails.js";
 
 const JPEG = "data:image/jpeg;base64,AAAA";

@@ -9,7 +9,7 @@
 
 import {LocalTransport, TransportStatus} from "./protocol/LocalTransport";
 import {TransportSet} from "./protocol/TransportSet";
-import {Roles, deckIdOf, helloMessage} from "./protocol/messages";
+import {Roles, deckIdOf, helloMessage} from "./protocol/hello";
 import {isEditableTarget} from "./protocol/editable";
 import {DisplayMirror, DisplayMirrorEvents} from "./presenter/DisplayMirror";
 import {PresenterApi} from "./presenter/PresenterApi";
