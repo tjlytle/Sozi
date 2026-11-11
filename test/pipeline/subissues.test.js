@@ -132,6 +132,42 @@ describe("subissues", () => {
         assert.deepEqual(ctx.calls, [["linkSubIssue", 93, 120]]);
         assert.equal(ctx.state.issues[120].linked, 93);
     });
+    test("a full epic is tried once a sync, and its other issues wait with one log line", async () => {
+        const full = new Error("gh: Parent cannot have more than 100 sub-issues (HTTP 422)");
+        const ctx = context({fail: {linkSubIssue: [full]}});
+        applyIssue(ctx.state, issue(120, 93));
+        applyIssue(ctx.state, issue(121, 93));
+        applyIssue(ctx.state, issue(122, 94));
+        await linkSubIssues(ctx);
+        assert.deepEqual(
+            ctx.calls.filter(c => c[0] === "linkSubIssue"),
+            [
+                ["linkSubIssue", 93, 120],
+                ["linkSubIssue", 94, 122]
+            ]
+        );
+        assert.equal(ctx.state.issues[120].linked, null);
+        assert.equal(ctx.state.issues[121].linked, null);
+        assert.equal(ctx.state.issues[122].linked, 94);
+        assert.deepEqual(
+            ctx.logs.filter(l => /#93/.test(l)),
+            ["epic #93 is full (100 sub-issues): 2 issues wait to be linked"]
+        );
+    });
+    test("a full epic with room again links its waiting issues at the next sync", async () => {
+        const full = new Error("Parent cannot have more than 100 sub-issues");
+        const ctx = context({fail: {linkSubIssue: [full]}});
+        applyIssue(ctx.state, issue(120, 93));
+        applyIssue(ctx.state, issue(121, 93));
+        await linkSubIssues(ctx);
+        ctx.calls.length = 0;
+        await linkSubIssues(ctx);
+        assert.deepEqual(ctx.calls, [
+            ["linkSubIssue", 93, 120],
+            ["linkSubIssue", 93, 121]
+        ]);
+        assert.equal(ctx.state.issues[121].linked, 93);
+    });
     test("a rate limit stops the walk and reaches the caller", async () => {
         const ctx = context({
             fail: {linkSubIssue: [new RateLimited("limit", new Date(NOW + 60000))]}

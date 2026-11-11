@@ -29,7 +29,7 @@ the policy for this session; obey them.
 
 ## Steps
 
-1. **Read the trail.** `gh-as builder issue view {N} -R tjlytle/Sozi --comments`. The newest
+1. **Read the trail.** `gh-as builder issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`. The newest
    **Implementation Plan** comment is the contract: its Shape is where the code goes, its
    Dependencies the only packages you may add. QA's comment names the feature file and the
    red run. Depart from the plan only with a reason, stated in the PR body.
@@ -41,7 +41,7 @@ the policy for this session; obey them.
 3. **Returned from review or QA?** If a PR for this branch exists
    (`gh-as builder pr list -R tjlytle/Sozi --state open --head {N}-<slug>`), the issue came
    back. Read the newest reviewer or qa comment on the issue and the PR
-   (`gh-as builder pr view <pr> -R tjlytle/Sozi --comments`); it says what to fix. Fix
+   (`gh-as builder pr view <pr> -R tjlytle/Sozi --json title,body,comments,reviews`); it says what to fix. Fix
    exactly that on this branch and PR, run the checks in step 5, then continue at step 6.
 4. **Unit tests first.** For each function or class the Shape names, write the
    unit test before the function it pins, named after the module (standard 6.1). Run

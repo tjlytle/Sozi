@@ -118,7 +118,8 @@ function inWindow(windows, id) {
  * panel is dragged. A change the speaker makes, by dragging or from a menu, is saved for the
  * page's width, except while the page shows the stack or a panel is maximised. Showing a
  * preset by itself saves nothing, so a preset the deck changes later still reaches this
- * device; choosing one from the Layouts menu saves it.
+ * device; choosing one from the Layouts menu saves it. The page opens on the layout saved for
+ * its width if dockview takes it, else on a preset, else on the default dock or the stack.
  */
 export class Workspace {
     /** Build an empty workspace in an element.
@@ -180,6 +181,12 @@ export class Workspace {
          * @type {boolean}
          */
         this.offered = false;
+
+        /** Did the last `arrange` show the saved layout? Dockview can refuse one that reads well.
+         *
+         * @type {boolean}
+         */
+        this.savedShown = false;
 
         /** How many of the workspace's own changes to the dock are still being told; what
          * they fire is not the speaker's.
@@ -307,7 +314,7 @@ export class Workspace {
         this.arrange(true);
     }
 
-    /** Take the deck's presets; the first offer shows one, unless a layout is saved here.
+    /** Take the deck's presets; the first offer shows one, unless a saved layout is shown.
      *
      * The display can answer many times, and a talk must not rearrange itself when it does:
      * later presets wait for a reset, a move across the narrow width, or the Layouts menu.
@@ -319,8 +326,8 @@ export class Workspace {
         this.presets = presets;
         if (!this.offered) {
             this.offered = true;
-            // With nothing saved, the dock is still the default, or the stack on a narrow page.
-            if (this.opened && !this.savedLayout()) {
+            // With no saved layout shown, the dock is the default, or the stack on a narrow page.
+            if (this.opened && !this.savedShown) {
                 this.arrange(true);
             }
         }
@@ -620,41 +627,37 @@ export class Workspace {
         return this.narrow ? this.keys.narrow : this.keys.wide;
     }
 
-    /** The layout saved for the page's width, if it can be used.
-     *
-     * @returns {?SavedLayout} The layout.
-     */
-    savedLayout() {
-        const text = this.storage.getItem(this.slot);
-        return text === null ? null : readSavedLayout(text, [...this.panels.keys()]);
-    }
-
     /** Change the dock without what that fires counting as the speaker's change.
      *
      * Dockview tells its listeners in a microtask queued by the first change, so this one,
      * queued after them all, ends the guard once they have been told. Changes in one turn
-     * overlap, so the guard lasts until the last of them ends.
+     * overlap, so the guard lasts until the last of them ends. The guard ends even when the
+     * change throws, and the error reaches the caller as it was thrown.
      *
      * @param {() => void} change - What changes the dock.
      */
     whileArranging(change) {
         this.arranging++;
-        change();
-        queueMicrotask(() => this.arranging--);
+        try {
+            change();
+        } finally {
+            queueMicrotask(() => this.arranging--);
+        }
     }
 
-    /** Show what the page's width shows, by the precedence of `layoutSource`.
+    /** Show what the page's width shows, by `layoutSource`, and note if it was the saved one.
      *
      * @param {boolean} [atDefault] - Is the dock still as the panels built it?
      */
     arrange(atDefault = false) {
         this.whileArranging(() => {
-            const saved = this.savedLayout();
-            const savedShown = saved !== null && this.showLayout(saved);
-            const presetShown = !savedShown && this.showPreset();
+            const text = this.storage.getItem(this.slot);
+            const saved = text === null ? null : readSavedLayout(text, [...this.panels.keys()]);
+            this.savedShown = saved !== null && this.showLayout(saved);
+            const presetShown = !this.savedShown && this.showPreset();
             const source = layoutSource({
                 narrow: this.narrow,
-                saved: savedShown,
+                saved: this.savedShown,
                 preset: presetShown
             });
             if (source === "stack") {
