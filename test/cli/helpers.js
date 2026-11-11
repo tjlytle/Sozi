@@ -23,6 +23,9 @@ const fixturesDir = path.join(repoDir, "test", "fixtures");
 // the API inside Electron instead.
 const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("electron")));
 
+// The longest delay a Node timer accepts; spawn turns a longer timeout into 1 ms.
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
 /** A fixture deck copied into a temporary directory, as `withTempDeck` returns it.
  *
  * @typedef {{dir: string, svg: string, json: string, cleanup: Function}} Deck
@@ -42,11 +45,12 @@ const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("e
  * @param {number} ms - The limit on an unloaded machine, in milliseconds.
  * @param {Record<string, string|undefined>} [env] - The environment (default: process.env).
  * @returns {number} - The limit times the scale, or the limit when the scale is not a
- *  positive number.
+ *  finite positive number or the result would overflow a Node timer.
  */
 function limit(ms, env = process.env) {
     const scale = Number(env.SOZI_TEST_TIMEOUT_SCALE);
-    return scale > 0 ? Math.round(ms * scale) : ms;
+    const scaled = Math.round(ms * scale);
+    return Number.isFinite(scale) && scale > 0 && scaled <= MAX_TIMEOUT_MS ? scaled : ms;
 }
 
 /** The commands that drive an export window, whose steps report their own time-outs.
