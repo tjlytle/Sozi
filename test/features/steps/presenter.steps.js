@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
 import path from "node:path";
-import {audienceWindow, buildDeck, builtDeck, copyDeck} from "../support/world.js";
+import {buildDeck, builtDeck, copyDeck} from "../support/decks.js";
+import {audienceWindow} from "../support/world.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.
 const WITHIN_A_FRAME = 250;
