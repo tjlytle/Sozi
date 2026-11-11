@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/panels/NotesPanel.js, src/js/presenter/PublishedNotes.js, src/js/presenter/DisplayMirror.js, src/js/html/highlight.js, src/js/html/sanitize.js, src/js/player/DisplayChannel.js, src/js/protocol/messages.js, src/js/Storage.js, src/js/backend/Electron.js, src/templates/presenter.html, gulpfile.js
+# covers: src/js/presenter.js, src/js/presenter/panels/NotesPanel.js, src/js/presenter/PublishedNotes.js, src/js/presenter/DisplayMirror.js, src/js/html/highlight.js, src/js/html/sanitize.js, src/js/player/DisplayChannel.js, src/js/protocol/messages.js, src/js/Storage.js, src/js/backend/Electron.js, src/templates/presenter.html, gulp/templates.js
 Feature: The notes as one document that follows the talk
 
   The same notes often cover several frames, and a speaker wants to read ahead. So the

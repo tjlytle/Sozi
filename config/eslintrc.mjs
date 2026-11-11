@@ -164,7 +164,7 @@ export default [
             "jsdoc/tag-lines": ["off"]
         }
     },
-    // jspot (gulpfile.js, jspotTask) parses src/**/*.js with acorn 5.7, which stops at ES2019:
+    // jspot (gulp/i18n.js, jspotTask) parses src/**/*.js with acorn 5.7, which stops at ES2019:
     // lint those files at that syntax so the edit hook reports what the build cannot parse.
     // Built-in globals stay at ES2022; only the syntax is limited. Remove this block with #255.
     {
@@ -213,7 +213,7 @@ export default [
     {files: ["src/js/svg/authorStyle.js"], rules: syntax(without(BAN.styleAppearance))},
     // Tool config files must export a default: that is the shape ESLint and gulp read.
     {
-        files: ["config/*.mjs", "gulpfile.js", "*.config.{js,mjs}"],
+        files: ["config/*.mjs", "gulpfile.js", "gulp/**/*.js", "*.config.{js,mjs}"],
         rules: {"import/no-default-export": "off"}
     },
     // TypeScript files: the types are in the code, so the JSDoc type rules do not apply;
