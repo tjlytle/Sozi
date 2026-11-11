@@ -7,7 +7,7 @@
 
 /**
  * @typedef {import("./state.js").Interrupted} Interrupted
- * @typedef {import("./start.js").StageRoute} StageRoute
+ * @typedef {import("./stage-route.js").StageRoute} StageRoute
  */
 
 /**
