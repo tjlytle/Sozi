@@ -31,8 +31,8 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
 1. **Read the trail.** You sit on the issue's branch, `{N}-<slug>`
    (`git branch --show-current`). Find its PR:
    `gh-as qa pr list -R tjlytle/Sozi --state open --head {N}-<slug>`. Read the issue
-   (`gh-as qa issue view {N} -R tjlytle/Sozi --comments`), its newest Implementation Plan,
-   and the PR with its reviews (`gh-as qa pr view <pr> -R tjlytle/Sozi --comments`). Save
+   (`gh-as qa issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`), its newest Implementation Plan,
+   and the PR with its reviews (`gh-as qa pr view <pr> -R tjlytle/Sozi --json title,body,comments,reviews`). Save
    the body: `gh-as qa pr view <pr> -R tjlytle/Sozi --json body -q .body >
    .agents/tmp/pr-{N}.md`.
 2. **Merge master in first.** The branch was tested against an older master; test what will

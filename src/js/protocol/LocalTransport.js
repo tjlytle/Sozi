@@ -22,14 +22,20 @@ const CLOSED_CHECK_MS = 1000;
  */
 export const TransportEvents = Object.freeze({message: "message", statusChange: "statusChange"});
 
-/** The status of a local transport: it can reach its target, or the target is gone.
+/** Every status a transport can have.
  *
- * These are two of the four statuses #28 names; `reconnecting` and `stale` belong to a
- * transport over a network, which a window in the same browser never is.
+ * A local transport only ever has `connected` and `closed`: it can reach its target, or the
+ * target is gone. `reconnecting` and `stale` belong to a transport over a network, which a
+ * window in the same browser never is.
  *
  * @readonly
  */
-export const TransportStatus = Object.freeze({connected: "connected", closed: "closed"});
+export const TransportStatus = Object.freeze({
+    connected: "connected",
+    reconnecting: "reconnecting",
+    stale: "stale",
+    closed: "closed"
+});
 
 /**
  * The parts of a window a transport uses.

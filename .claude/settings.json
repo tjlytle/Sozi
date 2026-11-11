@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/repo-lock.py\" tjlytle/Sozi",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/repo-lock.py\" tjlytle/Sozi tjlytle/sozi-channel",
             "timeout": 10
           }
         ]

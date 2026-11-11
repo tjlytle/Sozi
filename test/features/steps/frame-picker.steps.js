@@ -14,7 +14,7 @@ import {expect} from "playwright/test";
 import {buildDeck, builtDeck, copyDeck} from "../support/decks.js";
 import {installFakeTransport} from "./addons.steps.js";
 import {scriptsAndHandlers} from "./notes.steps.js";
-import {LAYOUT_KEY, WAIT, tabOf} from "./workspace.steps.js";
+import {LAYOUT_KEY, WAIT, tabOf} from "../support/panels.js";
 
 // What the panel draws. A tile is a button, and aria-current on it is the mark. The filter
 // is the panel's one input.

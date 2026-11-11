@@ -8,6 +8,7 @@
  */
 
 import {PreviewGestures} from "./PreviewGestures.js";
+import {isEditableTarget} from "../protocol/editable.js";
 
 /** @typedef {import("./Player.js").Player} Player */
 /** @typedef {import("../model/Presentation.js").Presentation} Presentation */
@@ -24,7 +25,8 @@ import {PreviewGestures} from "./PreviewGestures.js";
  * numbers are hidden, hyperlinks in the previous and next views are disabled, and in the
  * current view, hyperlink clicks are reported so that the display follows them, and so are
  * its pans and zooms, which the display makes and the preview then shows. Every key pressed in
- * a preview is reported, so that the presentation keys work while it has the focus.
+ * a preview, outside a field a person types into, is reported, so that the presentation keys
+ * work while it has the focus. A click on such a field gives it the focus.
  *
  * @param {object} options - The deck and what to report to.
  * @param {Player} options.player - The deck's player.
@@ -33,7 +35,7 @@ import {PreviewGestures} from "./PreviewGestures.js";
  * @param {(id: string) => void} options.onFollowLink - Called with the id of each link clicked
  *   in the current view.
  * @param {(key: string, modifiers: KeyModifiers) => void} options.onKey - Called with each key
- *   pressed in the preview.
+ *   pressed in the preview, outside a field a person types into.
  * @param {(move: CameraMove) => void} options.onCamera - Called with each pan and zoom made on
  *   the current view.
  */
@@ -56,22 +58,7 @@ export function enterPreviewMode({player, presentation, isCurrent, onFollowLink,
     }
 
     const svg = /** @type {SVGDocumentWrapper} */ (presentation.document);
-    svg.root.ownerDocument.addEventListener(
-        "keydown",
-        evt =>
-            onKey(evt.key, {
-                shift: evt.shiftKey,
-                alt: evt.altKey,
-                ctrl: evt.ctrlKey,
-                meta: evt.metaKey
-            }),
-        false
-    );
-    // The player's mousedown handler keeps a click from focusing the preview, which needs the
-    // focus for its keys.
-    // Cast: a loaded deck's document has a window.
-    const view = /** @type {Window} */ (svg.root.ownerDocument.defaultView);
-    svg.root.addEventListener("pointerdown", () => view.focus());
+    reportKeys(svg.root, onKey);
 
     if (isCurrent) {
         // Report hyperlink clicks so that the display follows them.
@@ -92,4 +79,46 @@ export function enterPreviewMode({player, presentation, isCurrent, onFollowLink,
     } else {
         svg.disableHyperlinks(true);
     }
+}
+
+/** Report the keys pressed in a preview, outside a field a person types into.
+ *
+ * @param {SVGSVGElement} root - The root of the deck's SVG document.
+ * @param {(key: string, modifiers: KeyModifiers) => void} onKey - Called with each key.
+ */
+function reportKeys(root, onKey) {
+    root.ownerDocument.addEventListener(
+        "keydown",
+        evt => {
+            // Read at each key, so that the keys work again once the focus leaves the field.
+            if (isEditableTarget(evt.target)) {
+                return;
+            }
+            onKey(evt.key, {
+                shift: evt.shiftKey,
+                alt: evt.altKey,
+                ctrl: evt.ctrlKey,
+                meta: evt.metaKey
+            });
+        },
+        false
+    );
+    // The player's mousedown handler keeps a click from moving the focus: to the preview, which
+    // needs it for its keys, to a field in the deck, which needs it to be typed into, or away
+    // from that field.
+    // Cast: a loaded deck's document has a window.
+    const view = /** @type {Window} */ (root.ownerDocument.defaultView);
+    root.addEventListener("pointerdown", evt => {
+        view.focus();
+        // Cast: a field a person types into is an HTML element.
+        const field = /** @type {?HTMLElement} */ (
+            isEditableTarget(evt.target) ? evt.target : null
+        );
+        const focused = /** @type {?HTMLElement} */ (root.ownerDocument.activeElement);
+        if (field) {
+            field.focus();
+        } else if (focused && isEditableTarget(focused)) {
+            focused.blur();
+        }
+    });
 }

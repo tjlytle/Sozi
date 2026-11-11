@@ -7,7 +7,7 @@
 
 import {Then, When} from "@cucumber/cucumber";
 import {expect} from "playwright/test";
-import {WAIT, groupOf, savedAfter, tabOf, titlesIn, visibleTabTitles} from "./workspace.steps.js";
+import {WAIT, groupOf, savedAfter, tabOf, titlesIn, visibleTabTitles} from "../support/panels.js";
 
 // The button that opens a menu, the bar's or a group header's.
 const MENU_BUTTON = '[aria-haspopup="menu"]';

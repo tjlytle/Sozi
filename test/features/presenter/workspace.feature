@@ -14,9 +14,14 @@ Feature: The presenter arranges a workspace of panels
   shows its drop targets as tinted, outlined areas, large enough to hit.
 
   On a page narrower than 600 px the same panels are one stack of tabs, with the same state
-  in them. Widening the page brings back the saved layout.
+  in them. Widening the page brings back the saved layout. A phone lays the page out at its
+  own width, so a phone held upright gets the stack and one held sideways gets the panels.
 
   The presentation keys move the display whichever panel has the focus, a preview included.
+
+  The page is exactly as tall as its window in every layout and never scrolls under the
+  workspace, so the bar on the left edge and the panels' toolbars stay on screen. Bringing something in a
+  panel into view scrolls that panel only.
 
   Background:
     Given the "basic" deck is built
@@ -86,6 +91,19 @@ Feature: The presenter arranges a workspace of panels
     When the "Current" tab is chosen
     Then the "Current" preview shows frame "Two"
     And a screenshot "presenter-workspace-phone" is saved
+
+  @issue-302
+  Scenario: On a phone the presenter page is laid out at the phone's width
+    When the presenter page is opened on a phone at 390 by 844
+    Then the presenter page is laid out 390 pixels wide
+    And the panels are tabs "Current, Previous, Next, Notes, Frames, Clock, Controls, Connection"
+    And a screenshot "presenter-phone-stack" is saved
+
+  @issue-302
+  Scenario: A phone held sideways gets the workspace of panels
+    When the presenter page is opened on a phone at 844 by 390
+    Then the presenter page is laid out 844 pixels wide
+    And the workspace shows the panels "Current, Previous, Next, Notes, Frames, Clock, Controls, Connection"
 
   @issue-26
   Scenario: Widening the page brings back the saved layout
@@ -159,3 +177,25 @@ Feature: The presenter arranges a workspace of panels
     Then the "Notes" panel is in a window of its own
     When the popped-out window is closed
     Then the workspace shows a panel "Notes"
+
+  @issue-286
+  Scenario: The page is as tall as its window with a tab behind another
+    When the presenter page is resized to 1280 by 800
+    Then the presenter page is as tall as its window
+
+  @issue-286
+  Scenario: Bringing a hidden panel into view leaves the workspace in place
+    When the presenter page is resized to 1280 by 800
+    And the "Connection" panel is scrolled into view
+    Then the presenter page is not scrolled
+    And a screenshot "presenter-workspace-not-scrolled" is saved
+
+  @issue-286
+  Scenario: A maximised panel leaves the page as tall as its window
+    When the "Current" panel is maximised
+    Then the presenter page is as tall as its window
+
+  @issue-286
+  Scenario: The phone-width stack is as tall as its window
+    When the presenter page is resized to 390 by 844
+    Then the presenter page is as tall as its window

@@ -227,6 +227,23 @@ export class SoziWorld extends World {
         await this.openPresenter(fixture);
     }
 
+    /** Open the presenter page of a built deck again, on an emulated phone, and wait for it.
+     *
+     * A phone lays a page out at the width its viewport line asks for, or at 980 pixels
+     * without one; a desktop window resized to a phone's size does neither, so only
+     * `isMobile` shows what a phone shows.
+     *
+     * @param {string} fixture - The fixture name.
+     * @param {{width: number, height: number}} size - The phone's screen in CSS pixels.
+     */
+    async openPresenterOnPhone(fixture, size) {
+        await this.context?.close();
+        this.context = await browser.newContext({viewport: size, isMobile: true, hasTouch: true});
+        await this.context.addInitScript(recordAddedIframes);
+        await this.openPresenter(fixture);
+        await this.presenterIsReady();
+    }
+
     /** Open the presenter page of a built deck and wait for the audience window it opens.
      *
      * @param {{presenter: string}} deck - The built deck.
