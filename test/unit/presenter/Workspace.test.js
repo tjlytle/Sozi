@@ -203,6 +203,40 @@ describe("Workspace", () => {
         assert.deepEqual(JSON.parse(items.get(KEYS.narrow)), saved);
     });
 
+    test("a saved layout dockview refuses gives way to the first offer", async () => {
+        const refused = JSON.stringify(preset(REFUSED).layout);
+        const {workspace, dock, items} = await openWorkspace({stored: {[KEYS.narrow]: refused}});
+        workspace.offerPresets({phone: preset()});
+        await settled();
+        assert.equal(workspace.stacked, false);
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+        assert.equal(items.get(KEYS.narrow), refused);
+    });
+
+    test("a laptop's saved layout dockview refuses gives way to the first offer", async () => {
+        const refused = JSON.stringify(preset(REFUSED).layout);
+        const {workspace, dock, items} = await openWorkspace({
+            width: 1280,
+            stored: {[KEYS.wide]: refused}
+        });
+        workspace.offerPresets({laptop: preset()});
+        await settled();
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+        assert.equal(items.get(KEYS.wide), refused);
+    });
+
+    test("a later offer still waits after a refused saved layout", async () => {
+        const refused = JSON.stringify(preset(REFUSED).layout);
+        const {workspace, dock} = await openWorkspace({stored: {[KEYS.narrow]: refused}});
+        workspace.offerPresets({phone: preset()});
+        await settled();
+        const loads = dock.loads.length;
+        workspace.offerPresets({phone: preset({other: true})});
+        await settled();
+        assert.equal(dock.loads.length, loads);
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+    });
+
     test("only the first offer changes what is on the page", async () => {
         const {workspace, dock} = await openWorkspace({width: 1280});
         workspace.offerPresets({});

@@ -181,6 +181,12 @@ export class Workspace {
          */
         this.offered = false;
 
+        /** Did the last `arrange` show the saved layout? Dockview can refuse one that reads well.
+         *
+         * @type {boolean}
+         */
+        this.savedShown = false;
+
         /** How many of the workspace's own changes to the dock are still being told; what
          * they fire is not the speaker's.
          *
@@ -307,7 +313,7 @@ export class Workspace {
         this.arrange(true);
     }
 
-    /** Take the deck's presets; the first offer shows one, unless a layout is saved here.
+    /** Take the deck's presets; the first offer shows one, unless a saved layout is shown.
      *
      * The display can answer many times, and a talk must not rearrange itself when it does:
      * later presets wait for a reset, a move across the narrow width, or the Layouts menu.
@@ -319,8 +325,9 @@ export class Workspace {
         this.presets = presets;
         if (!this.offered) {
             this.offered = true;
-            // With nothing saved, the dock is still the default, or the stack on a narrow page.
-            if (this.opened && !this.savedLayout()) {
+            // With no saved layout shown, the dock is still the default, or the stack on a
+            // narrow page.
+            if (this.opened && !this.savedShown) {
                 this.arrange(true);
             }
         }
@@ -650,11 +657,11 @@ export class Workspace {
     arrange(atDefault = false) {
         this.whileArranging(() => {
             const saved = this.savedLayout();
-            const savedShown = saved !== null && this.showLayout(saved);
-            const presetShown = !savedShown && this.showPreset();
+            this.savedShown = saved !== null && this.showLayout(saved);
+            const presetShown = !this.savedShown && this.showPreset();
             const source = layoutSource({
                 narrow: this.narrow,
-                saved: savedShown,
+                saved: this.savedShown,
                 preset: presetShown
             });
             if (source === "stack") {
