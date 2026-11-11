@@ -42,7 +42,12 @@ const DEFAULTS = {
     PIPELINE_PROFILES: "auto",
     PIPELINE_PER_PERSONA: "1",
     PIPELINE_BACKLOG: "",
-    PIPELINE_ON_LIMIT: "wait"
+    PIPELINE_ON_LIMIT: "wait",
+    PIPELINE_MODEL_ADVISOR: "claude-fable-5-1",
+    PIPELINE_ADVISOR_MAX: "2",
+    PIPELINE_ADVISOR_NUDGE_SHARE: "0.5",
+    PIPELINE_ADVISOR_MAX_CONTEXT: "300000",
+    PIPELINE_ADVISOR_WAIT_MINUTES: "15"
 };
 
 const CHOICES = {
@@ -64,10 +69,16 @@ const NUMBERS = [
     "PIPELINE_MINT_PORT",
     "PIPELINE_CPUS",
     "PIPELINE_BOARD_FULL_EVERY",
-    "PIPELINE_PER_PERSONA"
+    "PIPELINE_PER_PERSONA",
+    "PIPELINE_ADVISOR_MAX",
+    "PIPELINE_ADVISOR_MAX_CONTEXT"
 ];
 
-const DECIMALS = ["PIPELINE_SESSION_BUDGET_USD"];
+const DECIMALS = [
+    "PIPELINE_SESSION_BUDGET_USD",
+    "PIPELINE_ADVISOR_NUDGE_SHARE",
+    "PIPELINE_ADVISOR_WAIT_MINUTES"
+];
 
 /** File keys that are secrets for the containers and the Notion calls, not settings. */
 const SECRET_SETTINGS = /^PIPELINE_(EVIDENCE_|NOTION_PAGE$)/;
@@ -302,6 +313,13 @@ export function loadConfig({root, env, files}) {
         profiles: raw.PIPELINE_PROFILES,
         perPersona: num("PIPELINE_PER_PERSONA"),
         backlog: raw.PIPELINE_BACKLOG ? Number(raw.PIPELINE_BACKLOG) : null,
+        advisor: {
+            model: raw.PIPELINE_MODEL_ADVISOR,
+            max: num("PIPELINE_ADVISOR_MAX"),
+            nudgeShare: num("PIPELINE_ADVISOR_NUDGE_SHARE"),
+            maxContext: num("PIPELINE_ADVISOR_MAX_CONTEXT"),
+            waitMinutes: num("PIPELINE_ADVISOR_WAIT_MINUTES")
+        },
         /** The MCP servers a persona's profile may hold.
          *
          * @param {string} persona - The persona name.

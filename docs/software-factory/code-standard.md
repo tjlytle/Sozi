@@ -267,7 +267,8 @@ the deck that is the load handler of `player.js`, and the presenter gets one of 
 shape. `window.sozi` (the deck API) and `window.sozi.presenter` are each assigned in
 exactly one module; nothing else reads or writes `window` for state. Add-ons, the
 presenter first among them, use the API and never internals, so the API has to offer
-what they need (the protocol issue, #25, defines that).
+what they need (the protocol issue, #28, defines that; `docs/presenter-protocol.md` says
+what the API offers).
 
 **The deck never depends on a surface (Tim, 2026-10-21).** The slides expose an API,
 reachable locally (same page, `postMessage`) or remotely (the relay, with auth), and
@@ -342,7 +343,7 @@ generated from the same definitions.
 it finds 19 sites (16 in `presenter.js`, 3 in `player.js`), all replaced by the presenter
 rewrite.
 
-**Requirements for the protocol issue (#25), recorded 2026-10-21.** The receiver checks
+**Requirements for the protocol issue (#28), recorded 2026-10-21.** The receiver checks
 the sender (origin for `postMessage`; the relay's own auth for the Worker) and dispatches
 only from an explicit table of message names. Today the deck accepts a message from any
 origin, posts to `"*"`, and its default branch calls whatever method the message names.

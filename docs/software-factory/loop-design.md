@@ -417,6 +417,39 @@ Requests are harness-neutral by construction (any agent can write a file) and ar
 one way personas hand work to each other without the loop knowing why. A spawned session
 gets its own outbox, so chains are possible; the per-run ceilings bound them.
 
+### A stuck session can ask the advisor (#473)
+
+Two things go through the outbox while a session runs, not after it ends:
+
+- **Asking.** `bin/advise "<question>" [--output FILE]` writes `advise/q-<n>.json`
+  (question, stage, issue, the diff against the merge base with `origin/master` cut to
+  100 KiB, FILE cut to 20 KiB) and waits up to `PIPELINE_ADVISOR_WAIT_MINUTES` (15) for
+  `advise/a-<n>.json`. Each pass reads every running issue session's new questions once
+  (`pipeline/lib/consults.js`) and hands them to the advisor; past `PIPELINE_ADVISOR_MAX`
+  (2) a session it answers `{"refused": ...}` itself, and a question that is not valid gets
+  `{"error": ...}`. A pass that handed over or answered a question is busy, so the next one
+  comes after 30 s.
+- **The advisor** (`pipeline/lib/advisor.js`) is one resumable Claude session per epic, or
+  per issue with no epic, on `PIPELINE_MODEL_ADVISOR` (`claude-fable-5-1`) whatever harness
+  the stage runs. Consults to one session run one at a time and never block the pass. Each
+  runs `pipeline/harness/claude` in a short container under the architect's profile, with
+  `var/pipeline/advisors/<key>/` mounted at `/advisor` as its working directory every time,
+  since Claude keeps a session under the directory it ran in. `state.run.advisors[<key>]`
+  holds the session id and its context estimate; past `PIPELINE_ADVISOR_MAX_CONTEXT`
+  (300000 tokens) the old session writes a summary and a new one starts with it. Every
+  consult carries the issue's body, its newest Implementation Plan, the stage, the diff and
+  the failing output, and with an epic the epic's body and its issues with their stages. Ops
+  posts each consult on the issue as one collapsed comment; its tokens go into the run
+  totals and the session's usage comment as an Advisor row under the advisor's model.
+- **Nudging.** A session that has used `PIPELINE_ADVISOR_NUDGE_SHARE` (0.5) of
+  `PIPELINE_SESSION_MINUTES` gets `nudge.md` once. `pipeline/nudge.sh` prints it once and
+  renames it to `nudge.seen`: the claude adapter runs it as a PostToolUse hook (through
+  `--settings`, since stages cannot edit `.claude/`, #213), and `bin/check` runs it, which
+  reaches Codex and agy. #405's "the cap is near" warning can use the same channel.
+
+The loop writes into the outbox only through a fresh temporary file and a rename, and never
+into an `advise` directory that is a link, since the session controls what is there.
+
 ### The loop keeps its own state and asks GitHub little
 
 Last time, the board and label polling hit the GraphQL rate limit (Tim, 2026-10-21). So

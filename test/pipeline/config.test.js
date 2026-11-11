@@ -20,6 +20,26 @@ describe("pipeline settings", () => {
         assert.equal(s.harnessFor("build"), "claude");
         assert.equal(s.shmSize, "1g");
     });
+    test("the advisor settings default to Fable, two consults, half the session", () => {
+        const s = loadConfig({root: "/nonexistent", env: {}});
+        assert.deepEqual(s.advisor, {
+            model: "claude-fable-5-1",
+            max: 2,
+            nudgeShare: 0.5,
+            maxContext: 300000,
+            waitMinutes: 15
+        });
+        const set = loadConfig({
+            root: "/nonexistent",
+            env: {PIPELINE_ADVISOR_MAX: "0", PIPELINE_ADVISOR_NUDGE_SHARE: "0.25"}
+        });
+        assert.equal(set.advisor.max, 0);
+        assert.equal(set.advisor.nudgeShare, 0.25);
+        assert.throws(
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_ADVISOR_MAX: "two"}}),
+            /PIPELINE_ADVISOR_MAX/
+        );
+    });
     test("file values override defaults and env overrides the file", () => {
         const file = parseConfigText(
             "# comment\nPIPELINE_PARALLEL=3\nPIPELINE_HARNESS_REVIEW=codex\n"

@@ -21,6 +21,7 @@ const STAGE_LABELS = /^stage:/;
  * @property {[number, string | null, string][]} moved - Stage moves the loop made: issue, from, to.
  * @property {number[]} parked - Issues parked this pass.
  * @property {number} spawns - Spawned sessions started or finished this pass.
+ * @property {number} consults - Advisor questions handed over or answered this pass.
  * @property {string | null} stopped - Why the run stops, or null while it goes on.
  */
 
