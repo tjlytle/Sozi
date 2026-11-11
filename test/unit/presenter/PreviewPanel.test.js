@@ -100,6 +100,7 @@ function loadedPanel(offset) {
         {
             offset,
             className: "sozi-current-frame",
+            title: "Current",
             src: "basic.sozi.html"
         }
     );
@@ -142,6 +143,13 @@ const deckHello = helloMessage(Roles.display, {
 });
 
 describe("PreviewPanel", () => {
+    test("the iframe is named after its panel, not its class", () => {
+        const {box} = loadedPanel(0);
+        const iframe = box.children.find(child => child.localName === "iframe");
+        assert.equal(iframe.title, "Current");
+        assert.equal(iframe.className, "sozi-current-frame");
+    });
+
     test("the current preview forwards its deck's cameraMove to the display", () => {
         const {fromDeck, toDisplay} = loadedPanel(0);
         fromDeck(cameraMoveMessage(move));
