@@ -325,8 +325,7 @@ export class Workspace {
         this.presets = presets;
         if (!this.offered) {
             this.offered = true;
-            // With no saved layout shown, the dock is still the default, or the stack on a
-            // narrow page.
+            // With no saved layout shown, the dock is the default, or the stack on a narrow page.
             if (this.opened && !this.savedShown) {
                 this.arrange(true);
             }
@@ -650,7 +649,8 @@ export class Workspace {
         queueMicrotask(() => this.arranging--);
     }
 
-    /** Show what the page's width shows, by the precedence of `layoutSource`.
+    /** Show what the page's width shows, by the precedence of `layoutSource`, and remember
+     * whether that was the saved layout.
      *
      * @param {boolean} [atDefault] - Is the dock still as the panels built it?
      */
