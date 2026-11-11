@@ -771,7 +771,6 @@ export async function openExportWindow(htmlPath, opts) {
         paintWhenInitiallyHidden: true,
         backgroundColor: transparent ? "#00000000" : "#ffffff",
         webPreferences: {
-            contextIsolation: false,
             nodeIntegration: false,
             backgroundThrottling: false,
             spellcheck: false
