@@ -229,6 +229,11 @@ Then("the page title contains {string}", async function (text) {
     assert.match(await this.deck.title(), new RegExp(text));
 });
 
+// The page's own history.back(), as the browser's Back button does it.
+When("Back is pressed on the deck page", async function () {
+    await this.deck.evaluate(() => history.back());
+});
+
 Then("the URL hash names frame {string}", async function (frameId) {
     await expect.poll(() => this.deck.evaluate(() => window.location.hash)).toBe(`#${frameId}`);
 });

@@ -8,9 +8,6 @@ import {
     applyIssue,
     stageOf,
     promptFor,
-    dueIssues,
-    scope,
-    isQuiet,
     recordTry,
     park,
     wake,
@@ -53,25 +50,6 @@ describe("state", () => {
         assert.equal(s.issues[25].epic, 24);
         assert.deepEqual(s.issues[25].blockers, [28]);
         assert.equal(s.issues[25].stage, "stage:blocked");
-    });
-    test("due issues: a prompt, no session, blockers closed, by number", () => {
-        const s = emptyState();
-        applyIssue(s, issue(30, ["stage:todo"]));
-        applyIssue(s, issue(25, ["stage:in-progress"]));
-        applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [28]}));
-        applyIssue(s, issue(28, ["stage:done"], {state: "CLOSED"}));
-        applyIssue(s, issue(27, ["stage:blocked"], {blockedBy: [25]}));
-        s.issues[30].session = {container: "x"};
-        assert.deepEqual(dueIssues(s, settings, new Date()), [25, 26]);
-    });
-    test("scope follows the epic marker; quiet means nothing is due and nothing runs", () => {
-        const s = emptyState();
-        applyIssue(s, issue(25, ["stage:done"], {body: "Part of #24.", state: "CLOSED"}));
-        applyIssue(s, issue(31, ["triage"], {body: "Part of #24."}));
-        applyIssue(s, issue(40, ["stage:todo"]));
-        assert.deepEqual(scope(s, {epic: 24}), [25, 31]);
-        assert.equal(isQuiet(s, scope(s, {epic: 24})), true);
-        assert.equal(isQuiet(s, scope(s, {})), false);
     });
     test("three tries park; waking resumes at the stage it parked from", () => {
         const s = emptyState();
@@ -198,70 +176,15 @@ describe("state", () => {
         park(s, 26);
         assert.equal(wake(s, 26), "stage:qa");
     });
-    test("blocked without blockers, or by a blocker not in state, is not due", () => {
-        const s = emptyState();
-        applyIssue(s, issue(25, ["stage:blocked"]));
-        applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [99]}));
-        assert.deepEqual(dueIssues(s, settings, new Date()), []);
-    });
     test("the try limit can be given", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:review"]));
         assert.equal(recordTry(s, 25, 2).park, false);
         assert.equal(recordTry(s, 25, 2).park, true);
     });
-    test("a scope with a startable blocked issue is not quiet", () => {
-        const s = emptyState();
-        applyIssue(s, issue(28, ["stage:done"], {state: "CLOSED", body: "Part of #24."}));
-        applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [28], body: "Part of #24."}));
-        assert.equal(isQuiet(s, scope(s, {epic: 24})), false);
-    });
-    test("a blocked issue is quiet when no blocker can make progress", () => {
-        /** @type {(blocker: string[], extra?: (s: any) => void) => boolean} */
-        const quiet = (labels, extra = () => {}) => {
-            const s = emptyState();
-            applyIssue(s, issue(25, labels));
-            applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [25]}));
-            extra(s);
-            return isQuiet(s, [25, 26]);
-        };
-        assert.equal(quiet(["stage:parked"]), true, "blocked by a parked issue");
-        assert.equal(
-            quiet(["stage:todo"], s => (s.issues[25].waiting = true)),
-            true,
-            "blocked by a waiting issue"
-        );
-        assert.equal(quiet(["triage"]), true, "blocked by an issue in triage");
-        assert.equal(quiet(["stage:todo"]), false, "blocked by an open stage:todo issue");
-        assert.equal(quiet(["stage:done"]), false, "blocked by a merged issue not yet closed");
-    });
-    test("a blocked cycle is quiet and does not recurse forever", () => {
-        const s = emptyState();
-        applyIssue(s, issue(25, ["stage:blocked"], {blockedBy: [26]}));
-        applyIssue(s, issue(26, ["stage:blocked"], {blockedBy: [25]}));
-        assert.equal(isQuiet(s, [25, 26]), true);
-    });
-    test("a blocked issue with no blockers is quiet", () => {
-        const s = emptyState();
-        applyIssue(s, issue(25, ["stage:blocked"]));
-        assert.equal(isQuiet(s, [25]), true);
-    });
     test("two stage labels: the later stage in the stage order wins", () => {
         assert.equal(stageOf(["stage:review", "stage:todo"]), "stage:review");
         assert.equal(stageOf(["stage:qa", "stage:in-progress"]), "stage:qa");
-    });
-    test("an issue waiting for a person is not due until its stage changes", () => {
-        const s = emptyState();
-        applyIssue(s, issue(25, ["stage:todo"]));
-        s.issues[25].waiting = true;
-        applyIssue(s, issue(25, ["stage:todo"]));
-        assert.deepEqual(dueIssues(s, settings, new Date()), []);
-        assert.equal(isQuiet(s, [25]), true);
-        applyIssue(s, issue(25, ["stage:tests"]));
-        assert.deepEqual(dueIssues(s, settings, new Date()), [25]);
-        s.issues[25].waiting = true;
-        setStage(s, 25, "stage:in-progress");
-        assert.equal(s.issues[25].waiting, false);
     });
     test("the time the loop parked an issue lasts while it stays parked", () => {
         const s = emptyState();

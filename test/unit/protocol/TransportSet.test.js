@@ -94,13 +94,13 @@ describe("TransportSet", () => {
         const set = new TransportSet();
         assert.equal(set.status, TransportStatus.closed);
         const a = fakeTransport(TransportStatus.closed);
-        const b = fakeTransport("stale");
+        const b = fakeTransport(TransportStatus.stale);
         set.add(a);
         assert.equal(set.status, TransportStatus.closed);
         set.add(b);
-        assert.equal(set.status, "stale");
-        b.setStatus("reconnecting");
-        assert.equal(set.status, "reconnecting");
+        assert.equal(set.status, TransportStatus.stale);
+        b.setStatus(TransportStatus.reconnecting);
+        assert.equal(set.status, TransportStatus.reconnecting);
         a.setStatus(TransportStatus.connected);
         assert.equal(set.status, TransportStatus.connected);
     });

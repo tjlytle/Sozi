@@ -43,7 +43,11 @@ run() {
     printf 'gh-as[%s]:' "$mode_desc" >&2; printf ' %q' "${out[@]}" >&2; printf '\n' >&2
     exit 0
   fi
-  exec "$@"
+  [ -n "${sig_dir:-}" ] || exec "$@"
+  # Body copies may exist: wait for the command so the EXIT trap can remove them.
+  local status=0
+  "$@" || status=$?
+  exit "$status"
 }
 
 mint_token() {
@@ -79,9 +83,19 @@ mark() {
   case "$body" in '#'*|'-'*|'*'*|'|'*|'```'*|'>'*) printf '%s\n\n%s' "$m" "$body" ;; *) printf '%s %s' "$m" "$body" ;; esac
 }
 
+# Make this run's directory for body copies, once; the EXIT trap removes it when
+# gh-as exits, whether the command succeeded or not.
+use_tmpdir() {
+  [ -z "${sig_dir:-}" ] || return 0
+  sig_dir=$(gh_as_tmpdir)
+  trap 'rm -rf "$sig_dir"' EXIT
+}
+
+# mark_file <path|-> → a marked copy of the body in this run's directory, which
+# lives until gh exits; the caller's file is never changed.
 mark_file() {
   local src="$1" tmp
-  tmp=$(mktemp "${TMPDIR:-/tmp}/gh-as-body.XXXXXX")
+  tmp=$(mktemp "${sig_dir:?use_tmpdir first}/gh-as-body.XXXXXX")
   if [ "$src" = "-" ]; then mark "$(cat)" > "$tmp"; else mark "$(cat "$src")" > "$tmp"; fi
   printf '%s' "$tmp"
 }
@@ -144,6 +158,7 @@ if [ "${1:-}" = --git ] && [ "${2:-}" = commit ]; then
   while IFS= read -r -d '' a; do trailers+=("$a"); done < <(sig_trailers)
   set -- --git commit ${trailers[@]+"${trailers[@]}"} "$@"
 elif [ "${1:-}" != --push ] && [ "${1:-}" != --git ] && sig_applies "$@"; then
+  use_tmpdir
   signed=()
   while IFS= read -r -d '' a; do signed+=("$a"); done < <(signed_gh_args "$@")
   set -- "${signed[@]}"
@@ -181,6 +196,8 @@ case "${1:-}" in
         export GH_TOKEN="$token"
         run gh "$@" ;;
       marker)
+        # Made here: marked_gh_args runs in a subshell, which can't hand a directory back.
+        use_tmpdir
         args=()
         while IFS= read -r -d '' a; do args+=("$a"); done < <(marked_gh_args "$@")
         run gh "${args[@]}" ;;

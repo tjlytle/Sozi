@@ -1,13 +1,8 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {DisplayMirror, DisplayMirrorEvents} from "../../../src/js/presenter/DisplayMirror.js";
-import {
-    Roles,
-    blankMessage,
-    frameChangeMessage,
-    helloMessage,
-    nextMessage
-} from "../../../src/js/protocol/messages.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
+import {blankMessage, frameChangeMessage, nextMessage} from "../../../src/js/protocol/messages.js";
 import {TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 import {STOPPED_TIMER, timerMessage} from "../../../src/js/protocol/timer.js";
 import {ON_FRAME, cameraMessage} from "../../../src/js/protocol/camera.js";

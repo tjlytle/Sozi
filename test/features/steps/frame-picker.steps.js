@@ -11,10 +11,11 @@ import fs from "node:fs";
 import path from "node:path";
 import {setTimeout as sleep} from "node:timers/promises";
 import {expect} from "playwright/test";
-import {buildDeck, builtDeck, copyDeck} from "../support/world.js";
+import {buildDeck, builtDeck, copyDeck} from "../support/decks.js";
 import {installFakeTransport} from "./addons.steps.js";
 import {scriptsAndHandlers} from "./notes.steps.js";
-import {LAYOUT_KEY, WAIT, tabOf} from "./workspace.steps.js";
+import {LAYOUT_KEY, WAIT, tabOf} from "../support/panels.js";
+import {VIEWPORT} from "../support/world.js";
 
 // What the panel draws. A tile is a button, and aria-current on it is the mark. The filter
 // is the panel's one input.
@@ -128,7 +129,7 @@ async function addedDecks(page) {
 }
 
 Given("the presenter page is on a touch screen", async function () {
-    await this.openPresenterOnTouchScreen(this.fixture);
+    await this.openPresenterIn({viewport: VIEWPORT, hasTouch: true}, builtDeck(this.fixture));
     await this.presenterIsReady();
 });
 

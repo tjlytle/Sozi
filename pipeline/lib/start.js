@@ -4,27 +4,26 @@
 
 // Starting sessions: queued spawn requests first, then due issues, the least-busy persona first,
 // while a slot is free and the persona has one. Each session gets a rendered prompt in a fresh
-// outbox and a container, with its persona's profile mounted when the profile passes its checks.
+// outbox and a container, with its persona's profile mounted when profile-verdict.js passes it,
+// on the route stage-route.js picks.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {carryOf, fallbackNote} from "./carry.js";
-import {RateLimited} from "./github.js";
-import {chooseHarness, pausedUntil} from "./limits.js";
+import {pausedUntil} from "./limits.js";
 import {stillLoggedOut} from "./logins.js";
-import {checkAllowlist, personaFor} from "./profile.js";
+import {personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
-import {planRoutes} from "./routing.js";
-import {ceiling, dueIssues, promptFor, scope} from "./state.js";
-import {backOff, inBackoff, moveStage, writeComment, writeLabel} from "./sync.js";
+import {pickRoute, routeFor} from "./stage-route.js";
+import {dueIssues, scope} from "./due.js";
+import {ceiling, promptFor} from "./state.js";
+import {moveStage, writeComment, writeLabel} from "./sync.js";
 
 /**
  * @typedef {import("./sync.js").PassContext} PassContext
+ * @typedef {import("./stage-route.js").StageRoute} StageRoute
  * @typedef {{persona: string, prompt: string, issue: number | null, harness: string | null}} Spawn
- * @typedef {{profile: boolean, updated: string | null} | {refused: string}} ProfileVerdict
- * @typedef {{harness: string, model: string, planned: boolean}} StageRoute
- * @typedef {{route: StageRoute, verdict: ProfileVerdict, fallbackFrom?: string}} Pick
  */
 
 /**
@@ -77,66 +76,6 @@ export function runningFor(ctx, persona) {
 function atPersonaLimit(ctx, persona) {
     const limit = ctx.settings.perPersona;
     return limit > 0 && runningFor(ctx, persona) >= limit;
-}
-
-/**
- * Judge a persona's profile: mount it, start without one, or refuse the start. A verdict
- * to start carries when the profile's credentials last changed, when known.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @param {string} harness - The harness the session runs on.
- * @returns {Promise<ProfileVerdict>} The verdict.
- */
-async function judgeProfile(ctx, persona, harness) {
-    const {settings, sandbox, env} = ctx;
-    if (settings.profiles === "off") {
-        return {profile: false, updated: null};
-    }
-    /** @type {import("./profile.js").ProfileInfo | null} */
-    const info = await sandbox.inspectProfile(persona);
-    const harnessFlag = harness === "claude" ? "" : ` --harness ${harness}`;
-    const login = `npm run pipeline -- --login ${persona}${harnessFlag}`;
-    if (info === null) {
-        // Only Claude has a token that stands in for a profile.
-        if (harness === "claude" && (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY)) {
-            return {profile: false, updated: null};
-        }
-        return {refused: `no profile for ${persona}: run ${login}`};
-    }
-    if (harness === "claude" && !info.claude.loggedIn) {
-        return {refused: `profile of ${persona} is not logged in`};
-    }
-    // opencode keeps its login where the inspection does not look; its start is not judged.
-    if ((harness === "codex" || harness === "agy") && !info[harness]?.loggedIn) {
-        return {refused: `profile of ${persona} is not logged in to ${harness}: run ${login}`};
-    }
-    const extra = checkAllowlist(info, settings.mcpFor(persona));
-    if (extra.length > 0) {
-        return {
-            refused: `profile of ${persona} holds MCP servers not allowed: ${extra.join(", ")}`
-        };
-    }
-    return {profile: true, updated: info.claude.updated ?? null};
-}
-
-/**
- * The verdict on a persona's profile for one harness, inspected at most once a pass.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @param {string} harness - The harness the session runs on.
- * @returns {Promise<ProfileVerdict>} The verdict.
- */
-export async function profileFor(ctx, persona, harness) {
-    const key = `${persona}/${harness}`;
-    const cached = ctx.profiles.get(key);
-    if (cached) {
-        return cached;
-    }
-    const verdict = await judgeProfile(ctx, persona, harness);
-    ctx.profiles.set(key, verdict);
-    return verdict;
 }
 
 /**
@@ -337,45 +276,6 @@ function nextIssue(ctx) {
 }
 
 /**
- * The route a session starts on now, with the verdict on the persona's profile for it. While the
- * route's harness is at its usage limit it waits, or under PIPELINE_ON_LIMIT=fallback it takes
- * the first fallback that is not paused and that the persona's profile is logged in to.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @param {StageRoute} route - The harness and model it would run on.
- * @returns {Promise<Pick | {wait: string}>} - The route and verdict, or why it waits.
- */
-async function pickRoute(ctx, persona, route) {
-    const {settings, state} = ctx;
-    let fallbacks = settings.fallbackFor(route.harness);
-    for (;;) {
-        const choice = chooseHarness({
-            route,
-            fallbacks,
-            policy: settings.onLimit,
-            limits: state.run.limits,
-            now: ctx.clock.now()
-        });
-        if ("wait" in choice) {
-            return {wait: `${route.harness} is at its usage limit until ${choice.wait}`};
-        }
-        const verdict = await profileFor(ctx, persona, choice.harness);
-        if (!("fallbackFrom" in choice)) {
-            return {route, verdict};
-        }
-        // A profile left unmounted (PIPELINE_PROFILES=off, or a token) proves no login.
-        if ("profile" in verdict && verdict.profile) {
-            const {harness, model, fallbackFrom} = choice;
-            return {route: {harness, model, planned: false}, verdict, fallbackFrom};
-        }
-        const why = "refused" in verdict ? verdict.refused : `no logged-in profile for ${persona}`;
-        ctx.log(`fallback ${choice.harness} skipped: ${why}`);
-        fallbacks = fallbacks.filter(f => f.harness !== choice.harness);
-    }
-}
-
-/**
  * Try the queued spawn at an index: it stays queued while its persona is at its limit or
  * logged out or its harness is at its usage limit, and is dropped when its profile is refused or
  * it cannot start.
@@ -416,44 +316,6 @@ async function trySpawn(ctx, index) {
     }
     await startSpawn(ctx, spawn, {profile: verdict.profile, route});
     return index;
-}
-
-/**
- * The harness and model a stage of an issue runs on: the line the newest plan has for the
- * stage, else the stage's setting. The plan stage reads no plan. Refused while GitHub is
- * backed off or rate limits the read, and when the plan's Harness section holds a line
- * that does not parse; any other failed read is thrown.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {number} n - The issue number.
- * @param {string} stage - The prompt stage name.
- * @returns {Promise<StageRoute | {refused: string}>} The route, or why the issue waits.
- */
-async function routeFor(ctx, n, stage) {
-    const {settings} = ctx;
-    const setting = {harness: settings.harnessFor(stage), model: settings.modelFor(stage)};
-    if (stage === "plan") {
-        return {...setting, planned: false};
-    }
-    if (inBackoff(ctx)) {
-        return {refused: `#${n}: waits, GitHub backed off, its plan is not read`};
-    }
-    let text;
-    try {
-        text = (await ctx.github.planComment(n)) ?? "";
-    } catch (error) {
-        if (!(error instanceof RateLimited)) {
-            throw error;
-        }
-        backOff(ctx, error);
-        return {refused: `#${n}: waits, GitHub rate limited the read of its plan`};
-    }
-    const {routes, bad} = planRoutes(text);
-    if (bad.length > 0) {
-        return {refused: `#${n}: plan Harness line "${bad[0]}" is not <stage>: <harness> <model>`};
-    }
-    const route = routes[stage];
-    return route ? {...route, planned: true} : {...setting, planned: false};
 }
 
 /**

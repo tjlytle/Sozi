@@ -10,9 +10,8 @@
  * @module
  */
 
+import {Roles, helloMessage} from "./hello.js";
 import {
-    Roles,
-    helloMessage,
     blankMessage,
     jumpToFrameMessage,
     nextMessage,

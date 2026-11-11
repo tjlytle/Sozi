@@ -11,8 +11,9 @@ import fs from "node:fs";
 import {createRequire} from "node:module";
 import path from "node:path";
 import {expect} from "playwright/test";
-import {buildDeck, copyDeck} from "../support/world.js";
-import {WAIT, savedLayout} from "./workspace.steps.js";
+import {buildDeck, copyDeck} from "../support/decks.js";
+import {WAIT, savedLayout} from "../support/panels.js";
+import {VIEWPORT} from "../support/world.js";
 
 const require = createRequire(import.meta.url);
 const {runSozi} = require("../../cli/helpers.js");
@@ -107,7 +108,7 @@ When("the deck is built again", CLI_STEP, function () {
 When(
     "the presenter page is opened on a new device at {int} by {int}",
     async function (width, height) {
-        await this.openPresenterOnNewDevice(this.ownBuild, {width, height});
+        await this.openPresenterIn({viewport: VIEWPORT}, this.ownBuild, {width, height});
         await this.presenterIsReady();
     }
 );
