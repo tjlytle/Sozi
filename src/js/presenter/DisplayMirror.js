@@ -5,14 +5,15 @@
 /** @module */
 
 import {EventEmitter} from "events";
-import {MessageNames, Roles} from "../protocol/messages.js";
+import {Roles} from "../protocol/hello.js";
+import {MessageNames} from "../protocol/messages.js";
 import {TransportStatus} from "../protocol/LocalTransport.js";
 import {STOPPED_TIMER, elapsedAfter} from "../protocol/timer.js";
 import {ON_FRAME} from "../protocol/camera.js";
 
 /** @typedef {import("../protocol/camera.js").CameraView} CameraView */
 /** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
-/** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").Message} Message */
 /** @typedef {import("../protocol/timer.js").TimerState} TimerState */
 /** @typedef {import("../protocol/viewport.js").Viewport} Viewport */

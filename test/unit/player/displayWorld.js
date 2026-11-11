@@ -5,7 +5,7 @@ import {fakeController, fakeHost, fakePlayer, fakeTransport, frames} from "./fak
 import {DisplayChannel} from "../../../src/js/player/DisplayChannel.js";
 import {TalkTimer} from "../../../src/js/player/TalkTimer.js";
 import {ON_FRAME} from "../../../src/js/protocol/camera.js";
-import {Roles, helloMessage} from "../../../src/js/protocol/messages.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 
 /** What a thumbnail render gives. */
 export const JPEG = "data:image/jpeg;base64,AAAA";

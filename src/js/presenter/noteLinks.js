@@ -7,7 +7,7 @@
  * @module
  */
 
-/** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 
 /**
  * Where a link goes.
