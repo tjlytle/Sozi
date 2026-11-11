@@ -235,7 +235,7 @@ async function applyRequests(ctx, n, accepted, unverified) {
  *
  * @param {PassContext} ctx - The pass context.
  * @param {any} session - The issue's session record.
- * @param {import("./requests.js").Result | null} result - Its result.
+ * @param {import("./outbox.js").Result | null} result - Its result.
  * @returns {import("./state.js").Interrupted} - The interruption.
  */
 function interruption(ctx, session, result) {

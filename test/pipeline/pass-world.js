@@ -162,19 +162,26 @@ export function world({
         sandbox
     };
 }
-export const issue = (
-    /** @type {number} */ number,
-    /** @type {string[]} */ labels,
-    /** @type {any} */ extra = {}
-) => ({
-    number,
-    title: `t${number}`,
-    labels,
-    state: "OPEN",
-    body: "",
-    updatedAt: "2026-10-21T00:00:00Z",
-    ...extra
-});
+
+/**
+ * An open issue as `searchIssues` returns it.
+ *
+ * @param {number} number - The issue number; the title is built from it.
+ * @param {string[]} labels - The issue's labels.
+ * @param {any} [extra] - Fields that replace or add to the defaults.
+ * @returns {any} - The issue.
+ */
+export function issue(number, labels, extra = {}) {
+    return {
+        number,
+        title: `t${number}`,
+        labels,
+        state: "OPEN",
+        body: "",
+        updatedAt: "2026-10-21T00:00:00Z",
+        ...extra
+    };
+}
 
 /**
  * Write a session's result and requests into its outbox and end its container.
