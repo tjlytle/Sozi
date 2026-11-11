@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Steps for the presenter workspace (#26, #318): docking, resizing, the drop targets,
+// Steps for the presenter workspace (#26, #318, #302): docking, resizing, the drop targets,
 // maximise and the narrow stack. The menus that arrange it are in workspace-menus.steps.js;
 // finding a panel by its tab title is in support/panels.js.
 
@@ -354,6 +354,15 @@ Then("the panels are tabs {string}", async function (list) {
             return titles.map(title => title.trim()).sort();
         })
         .toEqual(titlesIn(list));
+});
+
+When("the presenter page is opened on a phone at {int} by {int}", async function (width, height) {
+    await this.openPresenterOnPhone(this.fixture, {width, height});
+});
+
+Then("the presenter page is laid out {int} pixels wide", async function (width) {
+    const laidOut = await this.presenter.evaluate(() => window.innerWidth);
+    assert.equal(laidOut, width, `the presenter page is laid out ${laidOut} pixels wide`);
 });
 
 Then("the {string} preview shows frame {string}", async function (title, frameTitle) {
