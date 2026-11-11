@@ -30,6 +30,21 @@ describe("the field a click focuses", () => {
         assert.equal(editableField(input), input);
     });
 
+    test("a control inside editable content takes the focus itself", () => {
+        const host = {localName: "div", isContentEditable: true, parentElement: null};
+        const input = {
+            localName: "input",
+            type: "text",
+            isContentEditable: true,
+            parentElement: host
+        };
+        const area = {localName: "textarea", isContentEditable: true, parentElement: host};
+        const list = {localName: "select", isContentEditable: true, parentElement: host};
+        assert.equal(editableField(input), input);
+        assert.equal(editableField(area), area);
+        assert.equal(editableField(list), list);
+    });
+
     test("a child of editable content gives the focus to its host", () => {
         const host = {localName: "div", isContentEditable: true, parentElement: null};
         const span = {localName: "span", isContentEditable: true, parentElement: host};
