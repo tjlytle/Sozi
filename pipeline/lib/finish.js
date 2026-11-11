@@ -3,14 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Judging a session that ended: its usage, its requests, and whether it moved its
-// issue. A session that moved nothing is a try; enough tries park the issue.
+// issue. A session that moved nothing is a try; park.js counts it and parks the issue.
 
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
-import {logTail, readResult} from "./outbox.js";
+import {readResult} from "./outbox.js";
+import {countTry, parkStub} from "./park.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
-import {park, promptFor, recordTry, stageOf} from "./state.js";
+import {stageOf} from "./state.js";
 import {
     applyLabels,
     backOff,
@@ -142,76 +143,6 @@ async function postUsage(ctx, n, session, {stage, try: attempt, outcome}) {
     } catch (error) {
         ctx.log(`#${n}: usage comment failed: ${String(error)}`);
     }
-}
-
-/**
- * Park an issue, note when, comment why (or queue the comment) and record the move.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {number} n - The issue number.
- * @param {string} text - The comment.
- * @returns {Promise<void>}
- */
-async function parkIssue(ctx, n, text) {
-    const stage = ctx.state.issues[n].stage;
-    park(ctx.state, n);
-    ctx.state.issues[n].parkedAt = new Date(ctx.clock.now()).toISOString();
-    await writeComment(ctx, n, text);
-    await writeLabel(ctx, {issue: n, add: ["stage:parked"], remove: stage ? [stage] : []});
-    ctx.summary.moved.push([n, stage, "stage:parked"]);
-    ctx.summary.parked.push(n);
-    ctx.changed.add(n);
-}
-
-/**
- * Count a try for an issue that did not move; on the last, park it with the log tail.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {number} n - The issue number.
- * @param {string} outbox - The outbox, for the log tail.
- * @returns {Promise<void>}
- */
-async function countTry(ctx, n, outbox) {
-    const {state, settings} = ctx;
-    const stage = state.issues[n].stage;
-    ctx.tried.add(n);
-    const {tries, park: parks} = recordTry(state, n, settings.maxTries || undefined);
-    ctx.log(`#${n}: no move from ${stage}; try ${tries}`);
-    if (!parks) {
-        return;
-    }
-    await parkIssue(
-        ctx,
-        n,
-        `Pipeline: the ${promptFor(stage) ?? stage} stage ended ${tries} times without moving ` +
-            `this issue, so I am parking it. @${settings.human}, the log tail:\n\n` +
-            "```\n" +
-            `${logTail(outbox)}\n` +
-            "```\n"
-    );
-}
-
-/**
- * Park an issue whose session ran on a stub harness, naming the harness and the stage, and
- * the plan's Harness line or the stage setting that chose it.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {number} n - The issue number.
- * @returns {Promise<void>}
- */
-async function parkStub(ctx, n) {
-    const {stage, planned, harness = ctx.settings.harnessFor(stage)} = ctx.state.issues[n].session;
-    const fix = planned
-        ? `change the plan's **Harness** line for \`${stage}\``
-        : `set \`PIPELINE_HARNESS_${stage.toUpperCase()}\``;
-    ctx.log(`#${n}: the ${harness} harness is a stub; parking`);
-    await parkIssue(
-        ctx,
-        n,
-        `Pipeline: the \`${harness}\` harness is a stub (\`status: unsupported\`), so the ` +
-            `\`${stage}\` stage cannot run; parking. @${ctx.settings.human}, ${fix} to a ` +
-            "working harness and comment to wake it."
-    );
 }
 
 /**
