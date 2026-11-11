@@ -19,7 +19,14 @@ prev=""
 for a in "$@"; do
     case "$prev" in
         -b|--body) printf '%s' "$a" >"$FAKE_DIR/gh-body" ;;
-        -F|--body-file) if [ "$a" = - ]; then cat >"$FAKE_DIR/gh-body"; else cat "$a" >"$FAKE_DIR/gh-body"; fi ;;
+        -F|--body-file|-f|--field|--raw-field)
+            case "$a" in
+                -) cat >"$FAKE_DIR/gh-body" ;;
+                body=@*) cat "\${a#body=@}" >"$FAKE_DIR/gh-body" ;;
+                body=*) printf '%s' "\${a#body=}" >"$FAKE_DIR/gh-body" ;;
+                *=*) ;;
+                *) cat "$a" >"$FAKE_DIR/gh-body" ;;
+            esac ;;
     esac
     prev="$a"
 done
@@ -39,6 +46,11 @@ const FAKE_CURL = `#!/usr/bin/env bash
 echo '{"token": "ghs_fake"}'
 `;
 
+/** A mint that is down, so gh-as falls back to marker mode. */
+const FAILING_CURL = `#!/usr/bin/env bash
+exit 1
+`;
+
 after(() => {
     for (const dir of dirs) {
         fs.rmSync(dir, {recursive: true, force: true});
@@ -49,9 +61,10 @@ after(() => {
  * A scratch repository whose personas are bound to Apps, fakes for gh, git and the mint, and
  * an empty TMPDIR at `<dir>/tmp`.
  *
+ * @param {{mint?: boolean}} [opts] - `mint: false` makes the mint fail, so gh-as uses marker mode.
  * @returns {{dir: string, repo: string, env: Record<string, string>}} - The scratch dir, the repository and the environment.
  */
-function world() {
+function world({mint = true} = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gh-as-"));
     dirs.push(dir);
     const bin = path.join(dir, "bin");
@@ -62,7 +75,7 @@ function world() {
     fs.mkdirSync(tmp);
     fs.writeFileSync(path.join(bin, "gh"), FAKE_GH, {mode: 0o755});
     fs.writeFileSync(path.join(bin, "git"), FAKE_GIT, {mode: 0o755});
-    fs.writeFileSync(path.join(bin, "curl"), FAKE_CURL, {mode: 0o755});
+    fs.writeFileSync(path.join(bin, "curl"), mint ? FAKE_CURL : FAILING_CURL, {mode: 0o755});
     execFileSync(realGit, ["init", "-q", repo]);
     execFileSync(realGit, [
         "-C",
@@ -298,6 +311,62 @@ describe("gh-as", () => {
     test("a signed --body leaves nothing in TMPDIR", () => {
         const w = world();
         ghAsRun(w, ["issue", "comment", "7", "--body", "Done."], {env: SIGNED});
+        assert.deepEqual(leftovers(w), []);
+    });
+});
+
+describe("gh-as marker mode", () => {
+    const MARKED = /^🤖 \*\*\[architect\]\*\* /;
+
+    test("issue comment --body-file is marked, leaves nothing in TMPDIR and keeps the file", () => {
+        const w = world({mint: false});
+        const file = path.join(w.dir, "comment.md");
+        fs.writeFileSync(file, "Looks good.\n");
+        ghAsRun(w, ["issue", "comment", "7", "--body-file", file]);
+        assert.match(body(w), MARKED);
+        assert.deepEqual(leftovers(w), []);
+        assert.equal(fs.readFileSync(file, "utf8"), "Looks good.\n");
+    });
+    test("-F - from stdin is marked and leaves nothing in TMPDIR", () => {
+        const w = world({mint: false});
+        ghAsRun(w, ["issue", "comment", "7", "-F", "-"], {input: "From stdin.\n"});
+        assert.match(body(w), /^🤖 \*\*\[architect\]\*\* From stdin\./);
+        assert.deepEqual(leftovers(w), []);
+    });
+    test("a signed --body-file is marked first, signed last and leaves neither copy", () => {
+        const w = world({mint: false});
+        const file = path.join(w.dir, "comment.md");
+        fs.writeFileSync(file, "Looks good.\n");
+        ghAsRun(w, ["issue", "comment", "7", "--body-file", file], {env: SIGNED});
+        assert.match(body(w), MARKED);
+        assert.ok(body(w).trimEnd().endsWith(`\n\n${SIGNATURE}`), body(w));
+        assert.equal(signatures(body(w)), 1);
+        assert.deepEqual(leftovers(w), []);
+    });
+    test("api -f body=@file is marked, leaves nothing in TMPDIR and keeps the file", () => {
+        const w = world({mint: false});
+        const file = path.join(w.dir, "comment.md");
+        fs.writeFileSync(file, "Looks good.\n");
+        ghAsRun(w, ["api", "repos/tjlytle/Sozi/issues/7/comments", "-f", `body=@${file}`]);
+        assert.match(body(w), MARKED);
+        assert.deepEqual(leftovers(w), []);
+        assert.equal(fs.readFileSync(file, "utf8"), "Looks good.\n");
+    });
+    test("when gh fails, gh-as exits with its status and still removes the copy", () => {
+        const w = world({mint: false});
+        const file = path.join(w.dir, "comment.md");
+        fs.writeFileSync(file, "Looks good.\n");
+        const r = ghAsStatus(w, ["issue", "comment", "7", "--body-file", file], {
+            env: {FAKE_GH_EXIT: "3"}
+        });
+        assert.equal(r.status, 3, r.stderr);
+        assert.match(body(w), MARKED);
+        assert.deepEqual(leftovers(w), []);
+    });
+    test("issue view, with no body, leaves nothing in TMPDIR", () => {
+        const w = world({mint: false});
+        ghAsRun(w, ["issue", "view", "7"]);
+        assert.deepEqual(argv(path.join(w.dir, "gh-argv")), ["issue", "view", "7"]);
         assert.deepEqual(leftovers(w), []);
     });
 });
