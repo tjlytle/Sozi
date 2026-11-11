@@ -9,17 +9,15 @@ import {PlayerEvents} from "./playerEvents.js";
 import {PlayerControllerEvents} from "./PlayerController.js";
 import {TalkTimerEvents} from "./TalkTimer.js";
 import {ON_FRAME, cameraMessage, cameraMoveMessage, composeView} from "../protocol/camera.js";
+import {Roles, helloMessage, deckIdOf} from "../protocol/hello.js";
 import {
     MessageNames,
-    Roles,
-    helloMessage,
     frameChangeMessage,
     blankMessage,
     customMessage,
     followLinkMessage,
     keyMessage,
-    readMessage,
-    deckIdOf
+    readMessage
 } from "../protocol/messages.js";
 import {fromLegacy, legacyLoadedMessage} from "../protocol/legacy.js";
 import {thumbnailMessage} from "../protocol/thumbnails.js";
@@ -28,7 +26,7 @@ import {viewportMessage, readViewport} from "../protocol/viewport.js";
 import {TransportSet} from "../protocol/TransportSet.js";
 
 /** @typedef {import("../protocol/messages.js").Message} Message */
-/** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 /** @typedef {import("../protocol/TransportSet.js").Transport} Transport */
 /** @typedef {import("../protocol/camera.js").CameraView} CameraView */

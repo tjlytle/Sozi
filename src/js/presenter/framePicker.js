@@ -7,7 +7,7 @@
  * @module
  */
 
-/** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 
 /** What a tile's button is found by.
  *

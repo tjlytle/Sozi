@@ -12,7 +12,7 @@ import {linkTarget} from "../noteLinks.js";
 import {coveringSection, nextFontSize, notesUrl, readFontSize} from "../notesPosition.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
-/** @typedef {import("../../protocol/messages.js").FrameInfo} FrameInfo */
+/** @typedef {import("../../protocol/hello.js").FrameInfo} FrameInfo */
 
 /**
  * A section of the document, as drawn.

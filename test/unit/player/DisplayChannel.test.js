@@ -11,9 +11,8 @@ import {
     cameraResetMessage,
     composeView
 } from "../../../src/js/protocol/camera.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
-    Roles,
-    helloMessage,
     frameChangeMessage,
     blankMessage,
     jumpToFrameMessage,
