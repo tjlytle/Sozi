@@ -268,6 +268,24 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
             notes.join("\n")
         );
     });
+    test("a change to a method's summary gives no note for the method or its class", () => {
+        const notes = adviseOnDiff(twoListeners, oneLineDiff(10));
+        assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
+    });
+    test("a change to a line comment inside a body gives no note", () => {
+        const notes = adviseOnDiff(
+            "/** Adds one. */\nfunction addOne(n) {\n    // One, not two.\n    return n + 1;\n}\n",
+            oneLineDiff(3)
+        );
+        assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
+    });
+    test("a change to a code line in a method's body still gets a note for the method", () => {
+        const notes = adviseOnDiff(twoListeners, oneLineDiff(13));
+        assert.ok(
+            notes.some(n => /code of `onDidActivePanelChange` changed/.test(n)),
+            notes.join("\n")
+        );
+    });
 });
 
 describe("edit hook: advise on several files", () => {

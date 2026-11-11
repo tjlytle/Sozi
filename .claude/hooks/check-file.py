@@ -134,16 +134,26 @@ def changed_lines(diff_text):
     return changed
 
 
+def is_comment_line(text):
+    """True when a source line is a comment line: `/*`, `/**`, ` * ...`, `*/` or `//`."""
+    return text.strip().startswith(("/*", "*", "//"))
+
+
 def stale_comments(lines, diff_text):
-    """Names whose body changed while the doc comment above them did not."""
+    """Names whose body changed while the doc comment above them did not.
+
+    Only changed code lines count as a change to a body: a changed comment line inside it,
+    such as a member's summary or a `//` line, leaves the code as it was.
+    """
     changed = changed_lines(diff_text)
     if not changed:
         return []
+    code_changed = {n for n in changed if n <= len(lines) and not is_comment_line(lines[n - 1])}
     stale = []
     for name, doc, body in declarations(lines):
         if not doc:
             continue
-        body_changed = any(body[0] <= n <= body[1] for n in changed)
+        body_changed = any(body[0] <= n <= body[1] for n in code_changed)
         doc_changed = any(doc[0] <= n <= doc[1] for n in changed)
         if body_changed and not doc_changed:
             stale.append((name, doc[0]))
