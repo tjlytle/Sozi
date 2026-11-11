@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {RateLimited} from "../../pipeline/lib/github.js";
 import {end, issue, world} from "./pass-world.js";
 
 describe("persona profiles at start", () => {
@@ -14,6 +15,33 @@ describe("persona profiles at start", () => {
         assert.equal(w.starts[0].persona, "builder");
         assert.equal(w.starts[0].profile, true);
         assert.equal(w.state.issues[25].session.persona, "builder");
+    });
+    test("an issue's session records its harness, model and try", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {PIPELINE_HARNESS_BUILD: "codex", PIPELINE_MODEL_BUILD: "gpt-6.1-sol"}
+        });
+        w.profiles.builder.codex = {present: true, loggedIn: true};
+        w.state.issues[25].tries = 1;
+        await w.p.pass();
+        const {harness, model, try: attempt} = w.state.issues[25].session;
+        assert.deepEqual(
+            {harness, model, attempt},
+            {harness: "codex", model: "gpt-6.1-sol", attempt: 2}
+        );
+    });
+    test("a spawned session records its harness and model", async () => {
+        const w = world({env: {PIPELINE_MODEL_QA: "qa-model"}});
+        w.state.run.spawns.push({
+            persona: "advocate",
+            prompt: "File Y",
+            issue: null,
+            harness: "codex"
+        });
+        w.profiles.advocate.codex = {present: true, loggedIn: true};
+        await w.p.pass();
+        const {harness, model} = w.state.run.sessions[0];
+        assert.deepEqual({harness, model}, {harness: "codex", model: "qa-model"});
     });
     test("no profile and no token: the start is refused and logged, no working label", async () => {
         const w = world({issues: [issue(25, ["stage:in-progress"])]});
@@ -266,5 +294,113 @@ describe("choosing the next issue", () => {
         running(w, "architect", "ca");
         const s = await w.p.pass();
         assert.deepEqual(s.started, [11]);
+    });
+});
+
+/**
+ * A plan comment whose Harness section holds the given lines.
+ *
+ * @param {string} lines - The lines under the Harness heading.
+ * @returns {string} - The plan text.
+ */
+function planWith(lines) {
+    return `**Implementation Plan**\n\n**Harness**\n\n${lines}\n\n**Blocked by**\n\nnone.\n`;
+}
+
+describe("the plan names the harness of a stage", () => {
+    test("the plan's line starts the stage on its harness and model", async () => {
+        const w = world({issues: [issue(25, ["stage:review"])]});
+        w.github.planComment = async () => planWith("- review: codex gpt-5.5");
+        w.profiles.reviewer = {...w.profiles.reviewer, codex: {present: true, loggedIn: true}};
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+        assert.equal(w.starts[0].harness, "codex");
+        assert.equal(w.starts[0].model, "gpt-5.5");
+        const session = w.state.issues[25].session;
+        assert.equal(session.harness, "codex");
+        assert.equal(session.model, "gpt-5.5");
+        assert.equal(session.planned, true);
+    });
+    test("with no line for the stage, the setting decides", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {PIPELINE_MODEL_BUILD: "claude-sonnet-5-5"}
+        });
+        w.github.planComment = async () => planWith("- review: codex gpt-5.5");
+        await w.p.pass();
+        assert.equal(w.starts[0].harness, "claude");
+        assert.equal(w.starts[0].model, "claude-sonnet-5-5");
+        assert.equal(w.state.issues[25].session.harness, "claude");
+        assert.equal(w.state.issues[25].session.planned, false);
+    });
+    test("a missing login for the plan's harness is refused and the issue waits", async () => {
+        const w = world({issues: [issue(25, ["stage:review"])]});
+        w.github.planComment = async () => planWith("- review: codex gpt-5.5");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.equal(w.starts.length, 0);
+        assert.ok(
+            w.logs.includes(
+                "profile of reviewer is not logged in to codex: run npm run pipeline -- --login reviewer --harness codex"
+            )
+        );
+        assert.ok(!w.state.issues[25].labels.includes("working"));
+    });
+    test("a bad line is refused by name and the issue waits", async () => {
+        const w = world({issues: [issue(25, ["stage:review"])]});
+        w.github.planComment = async () => planWith("- review: codx gpt-5.5");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.ok(
+            w.logs.includes(
+                '#25: plan Harness line "review: codx gpt-5.5" is not <stage>: <harness> <model>'
+            )
+        );
+    });
+    test("while backed off the plan is not read and the issue waits", async () => {
+        const w = world({issues: [issue(25, ["stage:review"])]});
+        let reads = 0;
+        w.github.planComment = async () => {
+            reads++;
+            return null;
+        };
+        w.state.sync.backoffUntil = new Date(w.clock.now() + 60000).toISOString();
+        await w.p.pass();
+        assert.equal(reads, 0);
+        assert.equal(w.starts.length, 0);
+    });
+    test("a rate-limited read backs the loop off and the issue waits", async () => {
+        const w = world({issues: [issue(25, ["stage:review"])]});
+        const reset = new Date(w.clock.now() + 600000);
+        w.github.planComment = async () => {
+            throw new RateLimited("plan", reset);
+        };
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.equal(w.state.sync.backoffUntil, reset.toISOString());
+    });
+    test("the plan stage never reads a plan", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        let reads = 0;
+        w.github.planComment = async () => {
+            reads++;
+            return planWith("- plan: codex gpt-5.5");
+        };
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+        assert.equal(reads, 0);
+        assert.equal(w.starts[0].harness, "claude");
+    });
+    test("a spawn records its harness and model", async () => {
+        const w = world();
+        w.state.run.spawns.push({
+            persona: "advocate",
+            prompt: "File Y",
+            issue: null,
+            harness: null
+        });
+        await w.p.pass();
+        assert.equal(w.state.run.sessions[0].harness, "claude");
+        assert.equal(w.state.run.sessions[0].model, w.settings.modelFor("qa"));
     });
 });
