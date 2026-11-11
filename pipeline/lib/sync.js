@@ -37,7 +37,7 @@ const STAGE_LABELS = /^stage:/;
  * @property {Set<number>} changed - Issues whose stage changed since the last board sync, or whose board sync failed.
  * @property {number} syncs - GitHub syncs since the loop started; the first and every boardFullEvery-th sync the whole board.
  * @property {Set<number>} tried - Issues that used a try, or whose persona is busy or profile refused, this pass; they wait for the next.
- * @property {Map<string, import("./start.js").ProfileVerdict>} profiles - The verdict on each persona's profile this pass.
+ * @property {Map<string, import("./profile-verdict.js").ProfileVerdict>} profiles - The verdict on each persona's profile this pass.
  * @property {Record<string, string | undefined>} env - The loop's environment, where the model tokens are read.
  * @property {Summary} summary - The summary of the running pass.
  * @property {() => void} save - Writes the state.
