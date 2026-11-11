@@ -84,9 +84,11 @@ export function copyDeck(name) {
     return deck;
 }
 
-/** Remove every deck the run built or copied, at the end of the run. */
+/** Remove every deck the run built or copied, and forget them; the next build starts afresh. */
 export function removeDecks() {
     for (const deck of [...decks.values(), ...copies]) {
         deck.cleanup();
     }
+    decks.clear();
+    copies.length = 0;
 }
