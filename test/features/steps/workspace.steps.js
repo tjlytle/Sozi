@@ -187,7 +187,7 @@ async function splitterBeside(page, box) {
  * @param {string} title - The panel's title: "Current", "Previous" or "Next".
  * @returns {Promise<import("playwright").Frame>} - The frame.
  */
-async function previewFrame(page, title) {
+export async function previewFrame(page, title) {
     const iframe = await page.locator(previewSelector(title)).elementHandle(WAIT);
     const frame = await iframe?.contentFrame();
     assert.ok(frame, `the "${title}" preview has a window`);
