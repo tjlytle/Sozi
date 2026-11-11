@@ -13,6 +13,16 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..", "..");
 const hook = path.join(root, ".claude", "hooks", "check-file.py");
+const scratch = root;
+
+/** The path of a fixture file under the scratch root's src/js.
+ *
+ * @param {string} name - The file name.
+ * @returns {string} - Its absolute path.
+ */
+function fixture(name) {
+    return path.join(scratch, "src", "js", name);
+}
 
 /** Run the hook on a written file and return its exit status and stderr.
  *
@@ -289,6 +299,11 @@ describe("edit hook: advise on several files", () => {
 });
 
 describe("edit hook", () => {
+    test("writes its fixtures outside the working tree", () => {
+        assert.ok(path.relative(root, scratch).startsWith(".."), scratch);
+        assert.equal(path.dirname(fixture("zz-hook-pass.js")), path.join(scratch, "src", "js"));
+        assert.ok(fs.statSync(path.join(scratch, "src", "js")).isDirectory());
+    });
     test("ignores files it does not check", () => {
         assert.equal(run(path.join(root, "README.md")).status, 0);
         assert.equal(run("/etc/hostname").status, 0);
