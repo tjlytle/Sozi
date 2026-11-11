@@ -43,7 +43,11 @@ run() {
     printf 'gh-as[%s]:' "$mode_desc" >&2; printf ' %q' "${out[@]}" >&2; printf '\n' >&2
     exit 0
   fi
-  exec "$@"
+  [ -n "${sig_dir:-}" ] || exec "$@"
+  # Signed copies exist: wait for the command so the EXIT trap can remove them.
+  local status=0
+  "$@" || status=$?
+  exit "$status"
 }
 
 mint_token() {
@@ -144,6 +148,8 @@ if [ "${1:-}" = --git ] && [ "${2:-}" = commit ]; then
   while IFS= read -r -d '' a; do trailers+=("$a"); done < <(sig_trailers)
   set -- --git commit ${trailers[@]+"${trailers[@]}"} "$@"
 elif [ "${1:-}" != --push ] && [ "${1:-}" != --git ] && sig_applies "$@"; then
+  sig_dir=$(sig_tmpdir)
+  trap 'rm -rf "$sig_dir"' EXIT
   signed=()
   while IFS= read -r -d '' a; do signed+=("$a"); done < <(signed_gh_args "$@")
   set -- "${signed[@]}"
