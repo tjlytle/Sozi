@@ -236,6 +236,29 @@ describe("sandbox", () => {
         });
         assert.ok(!args.some(a => a.includes("/profile")));
     });
+    test("startArgs passes the session to resume as PIPELINE_RESUME_SESSION", () => {
+        const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
+        const args = sb.startArgs({...base, resume: {session: "abc-123", carryFrom: "/old"}});
+        assert.equal(args[args.indexOf("PIPELINE_RESUME_SESSION=abc-123") - 1], "-e");
+        assert.ok(!sb.startArgs(base).some(a => a.startsWith("PIPELINE_RESUME_SESSION")));
+    });
+    test("prepareOutbox copies the carry, and the resume message when resuming", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));
+        const {sb: s} = recording(() => ({code: 0}), root);
+        const old = fs.mkdtempSync(path.join(os.tmpdir(), "old-"));
+        fs.writeFileSync(path.join(old, "carry.bundle"), "B");
+        fs.writeFileSync(path.join(old, "carry.patch"), "P");
+        fs.writeFileSync(path.join(old, "usage.json"), "{}");
+        const base = {issue: 25, stage: "build", prompt: "p", allow: "a"};
+        const fresh = s.prepareOutbox({...base, carryFrom: old});
+        assert.equal(fs.readFileSync(path.join(fresh, "carry.bundle"), "utf8"), "B");
+        assert.equal(fs.readFileSync(path.join(fresh, "carry.patch"), "utf8"), "P");
+        assert.equal(fs.existsSync(path.join(fresh, "resume.md")), false);
+        assert.equal(fs.existsSync(path.join(fresh, "usage.json")), false);
+        const resumed = s.prepareOutbox({...base, carryFrom: old, resume: "carry on"});
+        assert.equal(fs.readFileSync(path.join(resumed, "resume.md"), "utf8"), "carry on");
+        assert.equal(fs.readFileSync(path.join(resumed, "prompt.md"), "utf8"), "p");
+    });
     test("startArgs passes the persona by value as PIPELINE_PERSONA", () => {
         const base = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
         const args = sb.startArgs({...base, persona: "architect"});

@@ -81,7 +81,7 @@ let currentOffset = startOffset;
  * It registers a {@linkcode module:player/Player.frameChange|frameChange} event handler
  * to highlight the current frame title in the frame list.
  *
- * It also registers mouse and keyboard events related to the frame list.
+ * It also registers mouse, keyboard and touch events related to the frame list.
  *
  * @param {module:player/Player.Player} p - The current Sozi player.
  * @param {module:player/PlayerController.PlayerController} controller - The current Sozi player controller.
@@ -107,7 +107,7 @@ export function init(p, controller) {
     window.addEventListener("keypress", onKeyPress, false);
     window.addEventListener("resize", () => setCurrentOffset(currentOffset));
     controller.on(PlayerControllerEvents.mouseDown, onMouseDown);
-    player.viewport.svgRoot.addEventListener("touchstart", () => onTouchStart);
+    player.viewport.svgRoot.addEventListener("touchstart", onTouchStart);
     frameList.addEventListener("mouseout", onMouseOut, false);
     p.on(PlayerEvents.frameChange, onFrameChange);
     setCurrentOffset(startOffset);
@@ -212,12 +212,16 @@ function onMouseDown(button) {
 
 /** Process a touch event on touch devices.
  *
- * Closes the Frame List on any touch outside of the list itself.
+ * Closes the frame list when a finger touches the slide while the list is open
+ * or opening. A touch with the list closed does nothing here, since closing
+ * pauses the player and would stop an auto-playing deck.
  *
  * @listens event:touchstart
  */
 function onTouchStart() {
-    close();
+    if (endOffset === 0) {
+        close();
+    }
 }
 
 /** Process a mouse-out event.

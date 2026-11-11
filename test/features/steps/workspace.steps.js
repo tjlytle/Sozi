@@ -2,24 +2,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Steps for the presenter workspace (#26): finding a panel by its tab title, docking,
-// resizing, the rail, maximise and the narrow stack.
+// Steps for the presenter workspace (#26, #318): finding a panel by its tab title, docking,
+// resizing, the drop targets, maximise and the narrow stack. The menus that arrange it are
+// in workspace-menus.steps.js.
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
 
-// What dockview-core draws. These three selectors are the only ones here that name the
+// What dockview-core draws. These four selectors are the only ones here that name the
 // library, so a change of version or of engine changes them and nothing else.
 const TAB = ".dv-tab";
 const GROUP = ".dv-groupview";
 const SASH = ".dv-sash";
+// The tinted area of a drop target: drawn in the group, or in an anchor over the dock when
+// the theme mounts the overlays absolutely.
+const DROP_TARGET = ".dv-drop-target-selection, .dv-drop-target-anchor";
 
 // What the workspace draws around dockview.
 export const WORKSPACE = ".sozi-workspace";
-export const RAIL = ".sozi-rail";
-const RAIL_PANELS = ".sozi-rail__panels";
 const CONNECTION = ".sozi-connection";
+
+// The smallest side of a drop target a person can hit, in pixels.
+const DROP_TARGET_SIDE = 48;
 
 // The page the url panel of test/fixtures/addons points at.
 const URL_PANEL_PAGE = "page.html";
@@ -50,7 +55,7 @@ export function tabOf(page, title) {
  * @param {string} title - The panel's title.
  * @returns {import("playwright").Locator} - The group.
  */
-function groupOf(page, title) {
+export function groupOf(page, title) {
     return page.locator(GROUP).filter({has: tabOf(page, title)});
 }
 
@@ -71,7 +76,7 @@ async function groupBox(page, title) {
  * @param {import("playwright").Page} page - The presenter page.
  * @returns {Promise<string[]>} - The titles.
  */
-async function visibleTabTitles(page) {
+export async function visibleTabTitles(page) {
     const titles = await page.locator(`${TAB}:visible`).allTextContents();
     return titles.map(title => title.trim()).sort();
 }
@@ -81,7 +86,7 @@ async function visibleTabTitles(page) {
  * @param {string} list - The titles, separated by commas.
  * @returns {string[]} - The titles.
  */
-function titlesIn(list) {
+export function titlesIn(list) {
     return list
         .split(",")
         .map(title => title.trim())
@@ -124,7 +129,7 @@ export function savedLayout(page) {
  * @param {import("playwright").Page} page - The presenter page.
  * @param {() => Promise<void>} action - What changes the layout.
  */
-async function savedAfter(page, action) {
+export async function savedAfter(page, action) {
     const before = await savedLayout(page);
     await action();
     await expect.poll(() => savedLayout(page)).not.toBe(before);
@@ -174,18 +179,6 @@ async function splitterBeside(page, box) {
     const left = near(box.x);
     assert.ok(right !== undefined || left !== undefined, "the panel has a splitter beside it");
     return right !== undefined ? {x: right, onRight: true} : {x: left, onRight: false};
-}
-
-/** The button of a panel's group header, with that panel's tab active.
- *
- * @param {import("playwright").Page} page - The presenter page.
- * @param {string} title - The panel's title.
- * @param {RegExp} name - The button's accessible name.
- * @returns {Promise<import("playwright").Locator>} - The button.
- */
-async function headerButton(page, title, name) {
-    await tabOf(page, title).click(WAIT);
-    return groupOf(page, title).getByRole("button", {name});
 }
 
 /** The window of a preview's iframe.
@@ -240,24 +233,20 @@ When("the {string} panel is resized to {int} pixels wide", async function (title
     );
 });
 
-When("the {string} panel is minimised", async function (title) {
-    const button = await headerButton(this.presenter, title, /^Minimise$/);
-    await savedAfter(this.presenter, () => button.click(WAIT));
-});
-
-When("the {string} icon on the rail is clicked", async function (title) {
-    const button = this.presenter.locator(RAIL).getByRole("button", {name: title, exact: true});
-    await savedAfter(this.presenter, () => button.click(WAIT));
-});
-
-When("the {string} panel is maximised", async function (title) {
-    // Pressed again it restores, and it may then say so.
-    const button = await headerButton(this.presenter, title, /^(Maximise|Restore)$/);
-    await button.click(WAIT);
+When("a drag of the {string} tab starts over {string}", async function (title, target) {
+    const tab = await tabOf(this.presenter, title).boundingBox(WAIT);
+    assert.ok(tab, `the tab of "${title}" is visible`);
+    const from = middleOf(tab);
+    const to = middleOf(await groupBox(this.presenter, target));
+    await this.presenter.mouse.move(from.x, from.y);
+    await this.presenter.mouse.down();
+    // The button stays down: the drop targets show only while the drag goes on.
+    await this.presenter.mouse.move(from.x + 5, from.y + 5);
+    await this.presenter.mouse.move(to.x, to.y, {steps: 5});
 });
 
 When("the layout is reset", async function () {
-    const button = this.presenter.locator(RAIL).getByRole("button", {name: "Reset layout"});
+    const button = this.presenter.getByRole("button", {name: "Reset layout"});
     await savedAfter(this.presenter, () => button.click(WAIT));
 });
 
@@ -351,25 +340,31 @@ Then("the {string} panel is {int} pixels wide", async function (title, width) {
 Then("the {string} panel fills the workspace", async function (title) {
     const box = await groupBox(this.presenter, title);
     const workspace = await this.presenter.locator(WORKSPACE).boundingBox(WAIT);
-    const rail = await this.presenter.locator(RAIL).boundingBox(WAIT);
-    assert.ok(workspace && rail, "the workspace and its rail are visible");
-    assert.ok(box.width >= workspace.width - rail.width - TOLERANCE, `width ${box.width}`);
+    assert.ok(workspace, "the workspace is visible");
+    // The bar on the left edge is not the dock's: the group fills the rest, to the right edge.
+    const right = workspace.x + workspace.width;
+    assert.ok(box.x + box.width >= right - TOLERANCE, `right edge ${box.x + box.width}`);
     assert.ok(box.height >= workspace.height - TOLERANCE, `height ${box.height}`);
     await expect.poll(() => visibleTabTitles(this.presenter)).toEqual([title]);
 });
 
-Then("the rail shows {string}", async function (list) {
-    const rail = this.presenter.locator(RAIL);
-    for (const title of titlesIn(list)) {
-        await expect(rail.getByRole("button", {name: title, exact: true})).toBeVisible();
-    }
-});
-
-Then("the rail is empty", async function () {
-    // Reset layout stays, and it is not a panel; neither are the rail's other tools.
-    const rail = this.presenter.locator(RAIL);
-    await expect(rail.getByRole("button", {name: "Reset layout"})).toBeVisible();
-    await expect(rail.locator(RAIL_PANELS).getByRole("button")).toHaveCount(0);
+Then("the drop targets are visible", async function () {
+    const target = this.presenter.locator(DROP_TARGET).locator("visible=true").first();
+    await expect(target).toBeVisible(WAIT);
+    const look = await target.evaluate(element => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+            outlined:
+                (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) ||
+                (style.borderTopStyle !== "none" && parseFloat(style.borderTopWidth) > 0),
+            tinted: !/^(transparent|rgba\(.*, 0\))$/.test(style.backgroundColor),
+            side: Math.min(rect.width, rect.height)
+        };
+    });
+    assert.ok(look.outlined, "the drop target has an outline");
+    assert.ok(look.tinted, "the drop target is tinted");
+    assert.ok(look.side >= DROP_TARGET_SIDE, `the drop target is ${look.side} pixels across`);
 });
 
 Then("the panels are tabs {string}", async function (list) {
