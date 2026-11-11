@@ -6,10 +6,10 @@
 
 import {EventEmitter} from "events";
 import {PlayerEvents} from "./playerEvents.js";
-import {PlayerControllerEvents} from "./PlayerController.js";
 import {TalkTimerEvents} from "./TalkTimer.js";
 import {DisplayCommands} from "./DisplayCommands.js";
-import {ON_FRAME, cameraMessage, cameraMoveMessage, composeView} from "../protocol/camera.js";
+import {CameraTracker} from "./CameraTracker.js";
+import {cameraMoveMessage} from "../protocol/camera.js";
 import {
     MessageNames,
     Roles,
@@ -32,7 +32,6 @@ import {TransportSet} from "../protocol/TransportSet.js";
 /** @typedef {import("../protocol/messages.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 /** @typedef {import("../protocol/TransportSet.js").Transport} Transport */
-/** @typedef {import("../protocol/camera.js").CameraView} CameraView */
 /** @typedef {import("../protocol/camera.js").CameraMove} CameraMove */
 
 /**
@@ -151,11 +150,14 @@ export class DisplayChannel extends EventEmitter {
             renderThumbnail
         });
 
-        /** Where the camera looks, relative to the current frame.
+        /** Where the camera looks, relative to the current frame; a preview's stays unreported.
          *
-         * @type {CameraView}
+         * @type {CameraTracker}
          */
-        this.camera = ON_FRAME;
+        this.cameraTracker = new CameraTracker({
+            controller,
+            report: message => this.report(message)
+        });
 
         /** The index of the frame last shown: a return to it is not a move in the talk.
          *
@@ -165,7 +167,7 @@ export class DisplayChannel extends EventEmitter {
 
         this.onFrameChange = () => {
             this.report(frameChangeMessage(frameInfoOf(this.player.currentFrame)));
-            this.setCamera(ON_FRAME);
+            this.cameraTracker.reset();
             if (player.currentFrame.index !== this.frameIndex) {
                 this.frameIndex = player.currentFrame.index;
                 timer.frameChanged();
@@ -178,7 +180,6 @@ export class DisplayChannel extends EventEmitter {
         player.on(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         host.addEventListener("resize", this.onResize);
         timer.on(TalkTimerEvents.change, this.onTimerChange);
-        this.followCamera();
         this.stopReceiving = this.transport.onMessage((data, from) => this.receive(data, from));
 
         /** What each message from a surface does, by name: the explicit table (2.5).
@@ -245,53 +246,8 @@ export class DisplayChannel extends EventEmitter {
             blank: this.player.blankScreenIsVisible,
             layouts: this.presentation.presenterLayouts,
             timer: this.timer.state,
-            camera: this.camera
+            camera: this.cameraTracker.view
         });
-    }
-
-    /** Fold every zoom, pan and rotation of the controller into the view and report it: the
-     * moves a surface asks for and those of the display's own mouse go the same way.
-     */
-    followCamera() {
-        const {viewport} = this.controller;
-        this.onZoom = ({factor, x, y}) =>
-            this.setCamera(
-                composeView(this.camera, {
-                    x: 0,
-                    y: 0,
-                    zoom: factor,
-                    atX: x / viewport.width,
-                    atY: y / viewport.height
-                })
-            );
-        this.onTranslate = ({deltaX, deltaY}) =>
-            this.setCamera(
-                composeView(this.camera, {
-                    x: deltaX / viewport.width,
-                    y: deltaY / viewport.height,
-                    zoom: 1,
-                    atX: 0,
-                    atY: 0
-                })
-            );
-        // A preview does not draw a rotation, but the camera has left its frame all the same.
-        this.onRotate = () => this.setCamera({...this.camera, offFrame: true});
-        this.controller.on(PlayerControllerEvents.zoom, this.onZoom);
-        this.controller.on(PlayerControllerEvents.translate, this.onTranslate);
-        this.controller.on(PlayerControllerEvents.rotate, this.onRotate);
-    }
-
-    /** Take a new view, and report it when it is not the one there was.
-     *
-     * @param {CameraView} view - The view.
-     */
-    setCamera(view) {
-        const was = this.camera;
-        this.camera = view;
-        const same = ["offFrame", "zoom", "x", "y"].every(key => view[key] === was[key]);
-        if (!same) {
-            this.report(cameraMessage(view));
-        }
     }
 
     /** Send a message about the display, unless the deck is a preview.
@@ -381,9 +337,7 @@ export class DisplayChannel extends EventEmitter {
         this.player.off(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
         this.host.removeEventListener("resize", this.onResize);
         this.timer.off(TalkTimerEvents.change, this.onTimerChange);
-        this.controller.off(PlayerControllerEvents.zoom, this.onZoom);
-        this.controller.off(PlayerControllerEvents.translate, this.onTranslate);
-        this.controller.off(PlayerControllerEvents.rotate, this.onRotate);
+        this.cameraTracker.dispose();
         this.stopReceiving();
         this.transport.dispose();
         this.removeAllListeners();
