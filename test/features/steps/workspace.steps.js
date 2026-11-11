@@ -10,6 +10,7 @@ import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {errors} from "playwright";
 import {expect} from "playwright/test";
+import {builtDeck} from "../support/decks.js";
 import {
     DROP_TARGET,
     GROUP,
@@ -357,7 +358,14 @@ Then("the panels are tabs {string}", async function (list) {
 });
 
 When("the presenter page is opened on a phone at {int} by {int}", async function (width, height) {
-    await this.openPresenterOnPhone(this.fixture, {width, height});
+    // A phone lays a page out at the width its viewport line asks for, or at 980 pixels
+    // without one; a desktop window resized to a phone's size does neither, so only
+    // `isMobile` shows what a phone shows.
+    await this.openPresenterIn(
+        {viewport: {width, height}, isMobile: true, hasTouch: true},
+        builtDeck(this.fixture)
+    );
+    await this.presenterIsReady();
 });
 
 Then("the presenter page is laid out {int} pixels wide", async function (width) {
