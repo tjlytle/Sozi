@@ -68,10 +68,10 @@ function recordAddedIframes() {
     }).observe(document, {childList: true, subtree: true});
 }
 
-/** What a scenario can reach: the browser context, the pages it opened (a second deck's among
- * them), the dialogs they
- * showed, the deck's first view, the notes' font size before a change and what a click in them
- * left, the deck and the shell it serves over http and Cucumber's attach.
+/** What a scenario can reach: the browser context, the pages it opened and the dialogs they
+ * showed, a second copy of its deck and how many pages were open before the first deck's
+ * presenter page came back, the deck's first view, the notes' font size before a change and what
+ * a click in them left, the deck and the shell it serves over http and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
