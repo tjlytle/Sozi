@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Cucumber support: one Chromium for the run, one browser context per scenario,
-// decks built once by the real CLI and reused. Scenarios drive the built presenter
-// and display pages through Playwright (standard 6.2).
+// Cucumber support: one Chromium for the run, one browser context per scenario, on the
+// decks of decks.js. Scenarios drive the built presenter and display pages through
+// Playwright (standard 6.2).
 
 import {
     After,
@@ -16,16 +16,13 @@ import {
     World
 } from "@cucumber/cucumber";
 import fs from "node:fs";
-import {createRequire} from "node:module";
 import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {chromium} from "playwright";
 import {expect} from "playwright/test";
+import {builtDeck, removeDecks} from "./decks.js";
 import {serveDirectory} from "./server.js";
-
-const require = createRequire(import.meta.url);
-const {runSozi, withTempDeck} = require("../../cli/helpers.js");
 
 const root = path.resolve(import.meta.dirname, "..", "..", "..");
 export const SCREENSHOTS = path.join(root, "build", "features", "screenshots");
@@ -37,78 +34,6 @@ const VIEWPORT = {width: 1280, height: 800};
 
 /** @type {import("playwright").Browser} */
 let browser;
-/** A built deck: where its files and pages are, and the function that removes them.
- *
- * @typedef {{dir: string, svg: string, html: string, presenter: string, cleanup: Function}} BuiltDeck
- */
-
-/** @type {Map<string, BuiltDeck>} */
-const decks = new Map();
-/** The decks scenarios copied for themselves, to remove at the end of the run.
- *
- * @type {{cleanup: Function}[]}
- */
-const copies = [];
-
-/** Build a deck with the CLI.
- *
- * @param {{dir: string, svg: string, cleanup: Function}} deck - A deck `withTempDeck` copied.
- * @returns {BuiltDeck} - Where the built pages are.
- */
-export function buildDeck(deck) {
-    const run = runSozi(["build", path.basename(deck.svg)], {cwd: deck.dir});
-    if (run.code !== 0) {
-        throw new Error(`sozi build ${deck.svg} failed:\n${run.stdout}\n${run.stderr}`);
-    }
-    const base = deck.svg.replace(/\.svg$/, "");
-    return {
-        dir: deck.dir,
-        svg: deck.svg,
-        html: base + ".sozi.html",
-        presenter: base + "-presenter.sozi.html",
-        cleanup: deck.cleanup
-    };
-}
-
-/** The built deck for a fixture, building it with the CLI on first use.
- *
- * @param {string} name - The fixture name under test/fixtures.
- * @returns {BuiltDeck} - Where the built pages are.
- */
-export function builtDeck(name) {
-    if (!decks.has(name)) {
-        decks.set(name, buildDeck(withTempDeck(name)));
-    }
-    // Cast: the deck was built above if it was missing.
-    return /** @type {BuiltDeck} */ (decks.get(name));
-}
-
-/** Remove the notes file of a built deck and build it again, in place.
- *
- * The deck's pages stay where they are, for the page already open on them. A later scenario
- * that asks for this fixture gets a fresh copy, with its notes file.
- *
- * @param {string} name - The fixture name.
- */
-export function rebuildWithoutNotesFile(name) {
-    const deck = builtDeck(name);
-    fs.rmSync(path.join(deck.dir, `${name}.notes.md`));
-    buildDeck(deck);
-    decks.delete(name);
-    decks.set(`${name} without its notes file`, deck);
-}
-
-/** A copy of a fixture for one scenario that changes it; built decks are shared.
- *
- * @param {string} name - The fixture name under test/fixtures.
- * @returns {{dir: string, svg: string, json: string, cleanup: Function}} - The copy.
- */
-export function copyDeck(name) {
-    const deck = withTempDeck(name);
-    copies.push(deck);
-    return deck;
-}
-
 /** The audience window a presenter page opens, once the deck has loaded in it.
  *
  * A new window can start on `about:blank`, whose own load does not count.
@@ -143,9 +68,10 @@ function recordAddedIframes() {
     }).observe(document, {childList: true, subtree: true});
 }
 
-/** What a scenario can reach: the browser context, the pages it opened, the dialogs they
- * showed, the deck's first view, the notes' font size before a change and what a click in them
- * left, the deck and the shell it serves over http and Cucumber's attach.
+/** What a scenario can reach: the browser context, the pages it opened and the dialogs they
+ * showed, a second copy of its deck and how many pages were open before the first deck's
+ * presenter page came back, the deck's first view, the notes' font size before a change and what
+ * a click in them left, the deck and the shell it serves over http and Cucumber's attach.
  */
 export class SoziWorld extends World {
     /** A scenario starts with nothing open.
@@ -161,6 +87,22 @@ export class SoziWorld extends World {
         this.presenter = null;
         /** @type {?import("playwright").Page} */
         this.audience = null;
+        /** The audience window of the deck opened first, once another deck's presenter page
+         * has taken over the tab.
+         *
+         * @type {?import("playwright").Page}
+         */
+        this.firstAudience = null;
+        /** A second built copy of the scenario's deck, in a folder of its own.
+         *
+         * @type {?import("./decks.js").BuiltDeck}
+         */
+        this.secondDeck = null;
+        /** How many pages the context had before the first deck's presenter page came back.
+         *
+         * @type {number}
+         */
+        this.pagesBeforeReturning = 0;
         /** @type {?import("playwright").Page} */
         this.deck = null;
         /** @type {string} */
@@ -285,6 +227,23 @@ export class SoziWorld extends World {
         await this.openPresenter(fixture);
     }
 
+    /** Open the presenter page of a built deck again, on an emulated phone, and wait for it.
+     *
+     * A phone lays a page out at the width its viewport line asks for, or at 980 pixels
+     * without one; a desktop window resized to a phone's size does neither, so only
+     * `isMobile` shows what a phone shows.
+     *
+     * @param {string} fixture - The fixture name.
+     * @param {{width: number, height: number}} size - The phone's screen in CSS pixels.
+     */
+    async openPresenterOnPhone(fixture, size) {
+        await this.context?.close();
+        this.context = await browser.newContext({viewport: size, isMobile: true, hasTouch: true});
+        await this.context.addInitScript(recordAddedIframes);
+        await this.openPresenter(fixture);
+        await this.presenterIsReady();
+    }
+
     /** Open the presenter page of a built deck and wait for the audience window it opens.
      *
      * @param {{presenter: string}} deck - The built deck.
@@ -402,7 +361,5 @@ After(async function (scenario) {
 
 AfterAll(async () => {
     await browser?.close();
-    for (const deck of [...decks.values(), ...copies]) {
-        deck.cleanup();
-    }
+    removeDecks();
 });

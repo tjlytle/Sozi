@@ -56,13 +56,15 @@ function fakeCaches() {
  *
  * @param {string} version - The Sozi version it is built with.
  * @param {any} caches - The cache storage it sees.
+ * @param {string} scope - The scope it is registered with.
  * @returns {any} - Its parts: what it sends to the network, and a way to fire its events.
  */
-function worker(version, caches) {
+function worker(version, caches, scope = SCOPE) {
     const listeners = new Map();
     const network = [];
     const source = fs.readFileSync(TEMPLATE, "utf8");
     const self = {
+        registration: {scope},
         addEventListener(name, listener) {
             listeners.set(name, listener);
         }
@@ -156,5 +158,36 @@ describe("the shell's service worker", () => {
         const names = [...caches.stores.keys()];
         assert.equal(names.length, 1);
         assert.match(names[0], /1\.2\.4/);
+    });
+
+    test("the cache name holds the scope as well as the version", async () => {
+        const caches = fakeCaches();
+        await worker("1.2.3", caches).lifecycle("install");
+        const [name] = [...caches.stores.keys()];
+        assert.ok(name.includes(SCOPE), name);
+        assert.ok(name.includes("1.2.3"), name);
+    });
+
+    test("activate keeps the caches of another installation on the same origin", async () => {
+        const caches = fakeCaches();
+        await worker("1.2.3", caches, "https://host.example/a/").lifecycle("install");
+        const other = worker("1.2.4", caches, "https://host.example/b/");
+        await other.lifecycle("install");
+        await other.lifecycle("activate");
+        assert.equal(caches.stores.size, 2);
+    });
+
+    test("activate keeps the caches of an installation whose path starts with its own", async () => {
+        const caches = fakeCaches();
+        await worker("1.2.3", caches, "https://host.example/a/b/").lifecycle("install");
+        const outer = worker("1.2.4", caches, "https://host.example/a/");
+        await outer.lifecycle("install");
+        await outer.lifecycle("activate");
+        const names = [...caches.stores.keys()];
+        assert.equal(names.length, 2);
+        assert.ok(
+            names.some(name => name.includes("https://host.example/a/b/")),
+            names.join()
+        );
     });
 });

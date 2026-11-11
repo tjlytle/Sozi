@@ -7,7 +7,7 @@
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
-import {tabOf, WAIT} from "./workspace.steps.js";
+import {tabOf, WAIT} from "../support/panels.js";
 
 /** @typedef {import("../support/world.js").SoziWorld} SoziWorld */
 
