@@ -83,8 +83,8 @@ function frameInfoOf({index, frameId, title, notes}) {
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
  * reports frame changes, the window size, the blank screen, the timer and the camera's view as
- * they change. It hands each command to its `DisplayCommands`, which tells them whether the
- * deck is a preview. A preview also answers requests for thumbnails of its frames.
+ * they change. It hands each command to its `DisplayCommands`, and tells them whether the deck
+ * is a preview. A preview also answers requests for thumbnails of its frames.
  *
  * @extends EventEmitter
  */
@@ -369,7 +369,7 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Draw a frame and answer with it, in a preview only: nothing may move the audience
+    /** Answer with a frame the commands draw, in a preview only: nothing may move the audience
      * window's camera to make a thumbnail.
      *
      * @param {number} index - The frame's position, from 0.
