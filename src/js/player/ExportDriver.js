@@ -30,6 +30,9 @@ export class ExportDriver {
 
         /** Whether the repaint loop started by `kick(true)` is running. */
         this.kicking = false;
+
+        /** @type {number | null} The id of the animation frame the repaint loop waits for. */
+        this.frameRequest = null;
     }
 
     /** Prepare the transition from the current frame to another frame.
@@ -68,6 +71,7 @@ export class ExportDriver {
      * A hidden window produces no new frame while its content is static, and the
      * Chrome DevTools Protocol waits for one before it takes a screenshot.
      * Repainting with the current camera states produces new frames with the same pixels.
+     * Stopping cancels the animation frame the loop waits for, so a later start runs one loop only.
      *
      * @param {boolean} enable - Start (`true`) or stop (`false`) repainting.
      */
@@ -80,11 +84,14 @@ export class ExportDriver {
         const loop = () => {
             if (this.kicking) {
                 this.viewport.repaint();
-                requestAnimationFrame(loop);
+                this.frameRequest = requestAnimationFrame(loop);
             }
         };
         if (enable) {
             loop();
+        } else if (this.frameRequest !== null) {
+            cancelAnimationFrame(this.frameRequest);
+            this.frameRequest = null;
         }
     }
 
@@ -110,7 +117,7 @@ export class ExportDriver {
         return index;
     }
 
-    /** Stop the repaint loop. */
+    /** Stop the repaint loop and cancel its pending frame. */
     dispose() {
         this.kick(false);
     }

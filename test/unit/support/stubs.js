@@ -39,7 +39,8 @@ export function fakeLocalStorage() {
  *
  * Callbacks run only when `tick` is called, with a clock that the test controls.
  *
- * @returns {{install: Function, uninstall: Function, tick: Function}} - Install it on `globalThis`, then advance the clock.
+ * @returns {{install: Function, uninstall: Function, tick: Function, pending: number}} - Install it
+ *  on `globalThis`, then advance the clock; `pending` counts the callbacks waiting for the next tick.
  */
 export function fakeRequestAnimationFrame() {
     let now = 0;
@@ -72,6 +73,9 @@ export function fakeRequestAnimationFrame() {
             for (const callback of callbacks) {
                 callback(now);
             }
+        },
+        get pending() {
+            return pending.size;
         }
     };
 }
