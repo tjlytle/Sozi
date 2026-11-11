@@ -203,6 +203,10 @@ export class PlayerDrag {
 
     /** Start the drag at the point the mouse moved past the threshold.
      *
+     * That point becomes the start of the drag and the last step of every mode, each mode
+     * with its own copy, so whichever mode moves first counts from there. The player pauses
+     * when the deck allows mouse panning.
+     *
      * @private
      * @param {DragPoint} point - Where the pointer is.
      *
