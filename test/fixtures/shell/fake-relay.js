@@ -5,6 +5,7 @@
 // The shell's addons.js in the scenarios: the surface's end of the stand-in relay, over a
 // BroadcastChannel named after the session. test/fixtures/relay/fake-relay-display.js is the
 // other end. Like a real relay, it is connected only once it has heard from the display.
+// It is window.fakeRelay, so that a scenario can make it report a status with report().
 
 // The page's own load listener comes first, so the pairing link has been read by now.
 window.addEventListener("load", () => {
@@ -32,6 +33,10 @@ window.addEventListener("load", () => {
         off(event, listener) {
             statusListeners.delete(listener);
         },
+        report(status) {
+            transport.status = status;
+            statusListeners.forEach(listener => listener(status));
+        },
         dispose() {
             channel.close();
             handlers.clear();
@@ -48,5 +53,6 @@ window.addEventListener("load", () => {
         }
         handlers.forEach(handler => handler(data.message));
     };
+    /** @type {any} */ (window).fakeRelay = transport;
     presenter.registerTransport(transport);
 });
