@@ -20,7 +20,7 @@ const SASH = ".dv-sash";
 const DROP_TARGET = ".dv-drop-target-selection, .dv-drop-target-anchor";
 
 // What the workspace draws around dockview.
-const WORKSPACE = ".sozi-workspace";
+export const WORKSPACE = ".sozi-workspace";
 const CONNECTION = ".sozi-connection";
 
 // The smallest side of a drop target a person can hit, in pixels.
@@ -271,6 +271,15 @@ When("the {string} button in the {string} panel is pressed", async function (nam
     // Dockview hides a tab that is behind another one, its buttons with it.
     await tabOf(this.presenter, title).click(WAIT);
     await contentOf(this.presenter, title).getByRole("button", {name}).click(WAIT);
+});
+
+When("the {string} panel is scrolled into view", async function (title) {
+    // What the notes do to a section when they follow the talk.
+    await contentOf(this.presenter, title).evaluate(
+        element => element.scrollIntoView({block: "start"}),
+        null,
+        WAIT
+    );
 });
 
 When("the audience window is closed", async function () {
