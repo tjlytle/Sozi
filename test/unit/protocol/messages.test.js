@@ -12,6 +12,7 @@ import {
     keyMessage,
     readMessage
 } from "../../../src/js/protocol/messages.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {viewportMessage} from "../../../src/js/protocol/viewport.js";
 import {
     TimerActions,
@@ -149,6 +150,30 @@ describe("protocol messages", () => {
         ];
         for (const data of bad) {
             assert.equal(readMessage(data), null, JSON.stringify(data));
+        }
+    });
+
+    test("carries notes as stored: an unsanitized HTML fragment, never converted", () => {
+        const stored = [
+            '<p onclick="x()">a</p><script>b</script>',
+            "# Title\n\n- item",
+            "First line\n\nSecond line",
+            ""
+        ];
+        for (const notes of stored) {
+            const noted = {...frame, notes};
+            const change = readMessage(frameChangeMessage(noted));
+            assert.equal(change?.name === "frameChange" && change.notes, notes);
+            const state = {deckId: "d", frameCount: 2, viewport: null, blank: false};
+            const hello = readMessage(
+                helloMessage(Roles.display, {...state, frame: noted, frames: [frame, noted]})
+            );
+            assert.ok(hello?.name === "hello" && hello.role === Roles.display);
+            assert.equal(hello.frame.notes, notes);
+            assert.deepEqual(
+                hello.frames.map(f => f.notes),
+                [frame.notes, notes]
+            );
         }
     });
 });

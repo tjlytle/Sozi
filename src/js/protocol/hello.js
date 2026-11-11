@@ -32,7 +32,8 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @property {number} index - The position of the frame, from 0.
  * @property {string} id - The frame's id.
  * @property {string} title - The frame's title.
- * @property {string} notes - The presenter's notes for the frame, as HTML.
+ * @property {string} notes - The frame's notes as stored in the deck: an HTML fragment, not
+ *     sanitized, never Markdown.
  */
 
 /**
