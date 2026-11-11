@@ -115,7 +115,8 @@ export function createControl({sleep, save, exit, log, state, now = Date.now}) {
 
 /**
  * Pass after pass until the stop condition holds or a signal, backing off while nothing
- * happens. A pass that throws is logged and the state saved; the loop goes on.
+ * happens: no session started, finished or spawned, and no advisor question handed over or
+ * answered. A pass that throws is logged and the state saved; the loop goes on.
  *
  * @param {Pass} pass - The pass.
  * @param {Control} control - The control.
@@ -132,7 +133,7 @@ export async function watch(pass, control, log, save) {
             if (s.stopped) {
                 return s.stopped;
             }
-            busy = s.started.length + s.finished.length + s.spawns > 0;
+            busy = s.started.length + s.finished.length + s.spawns + (s.consults ?? 0) > 0;
         } catch (error) {
             log(`pass failed: ${String(error)}`);
             save();

@@ -14,6 +14,11 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
 - Questions do not stop the line. When the plan leaves a scenario unclear, write the one a
   person would expect, say so in your comment, and file the alternative as an `idea` issue
   only when it would be worth doing on its own.
+- Stuck? Ask the advisor, a stronger model that already knows this epic:
+  `bin/advise "<question>" --output <file holding the failing output>`. Ask when the
+  runner's nudge arrives, or after two approaches to the same problem have failed; a session
+  gets two questions. It prints the advice; exit 1 means it refused or failed and 2 that no
+  answer came in time, and either way you go on without it.
 - A finding is a bug or an improvement you notice outside this issue. File every finding as
   its own issue; never test or fix it here. Apply one test:
   It is obvious when the fix is contained to the thing noticed, needs no new dependency and no protocol or API change, and you can say in one sentence why it is better.

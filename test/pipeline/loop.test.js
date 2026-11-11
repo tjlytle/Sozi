@@ -3,7 +3,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {EventEmitter} from "node:events";
 import {emptyState} from "../../pipeline/lib/state.js";
-import {createControl, drain, hookSignals, sessionNames} from "../../pipeline/lib/loop.js";
+import {createControl, drain, hookSignals, sessionNames, watch} from "../../pipeline/lib/loop.js";
 
 /**
  * A state with one issue session and one spawn.
@@ -102,4 +102,24 @@ test("drain names the sessions it waits for and returns once they clear", async 
     assert.deepEqual(h.lines, [
         "waiting for #75 build (sozi-75-build), spawn #120 (sozi-120-spawn); signal again to leave them"
     ]);
+});
+
+test("a pass that handed a question to the advisor is busy: the next comes after 30 s", async () => {
+    const h = fakeControl(emptyState());
+    /** @type {number[]} */
+    const pauses = [];
+    h.control.pause = async (/** @type {number} */ seconds) => {
+        pauses.push(seconds);
+        h.control.stopping = pauses.length === 3;
+    };
+    const quiet = {started: [], finished: [], moved: [], parked: [], spawns: 0, stopped: null};
+    const summaries = [quiet, {...quiet, consults: 1}, quiet];
+    const pass = async () => /** @type {any} */ (summaries.shift());
+    await watch(
+        pass,
+        h.control,
+        () => {},
+        () => {}
+    );
+    assert.deepEqual(pauses, [60, 30, 60]);
 });

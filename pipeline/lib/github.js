@@ -41,6 +41,7 @@ const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
  * @typedef {object} Github
  * @property {(opts?: {since?: string}) => Promise<Issue[]>} searchIssues - Open issues, plus closed ones updated since.
  * @property {(n: number) => Promise<string[]>} labelsOf - Label names of an issue.
+ * @property {(n: number) => Promise<string>} issueBody - The body of an issue.
  * @property {(opts: {issue: number, add?: string[], remove?: string[]}) => Promise<void>} label - Edit labels in one call.
  * @property {(persona: string, n: number, body: string) => Promise<void>} comment - Comment as a persona.
  * @property {(n: number) => Promise<boolean>} lastCommentIsHuman - Whether the newest comment is from a user.
@@ -296,6 +297,11 @@ export function createGithub({repo, run = defaultRun}) {
                 "labels"
             ]);
             return (v.labels ?? []).map((/** @type {any} */ l) => l.name);
+        },
+        async issueBody(n) {
+            const view = ["gh-as", "ops", "issue", "view", String(n), "-R", repo];
+            const v = await json([...view, "--json", "body"]);
+            return String(v.body ?? "");
         },
         async label({issue, add = [], remove = []}) {
             if (!add.length && !remove.length) {

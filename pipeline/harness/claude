@@ -5,7 +5,8 @@
 #        claude resume --session ID --message FILE --model M --allow FILE --checkout DIR --out DIR
 #
 # Runs `claude -p` in the checkout, saves the raw stream to OUT/stream.jsonl,
-# prints a readable log on stdout, and leaves OUT/session and OUT/usage.json.
+# prints a readable log on stdout, and leaves OUT/session and OUT/usage.json. A
+# PostToolUse hook passed with --settings prints the runner's nudge (pipeline/nudge.sh).
 # Exit: the CLI's exit status; 75 when the session was rate-limited; 64 on a bad call.
 #
 # Env read: CLAUDE_BIN (claude), PIPELINE_SESSION_BUDGET_USD (unset or 0: no cap).
@@ -36,6 +37,15 @@ read_allow() {
     mapfile -t ALLOW < <(tr -d '\r' <"$ALLOW_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^#' | grep -v '^$')
 }
 
+# Settings that add a PostToolUse hook printing the runner's nudge (pipeline/nudge.sh), so
+# the session hears it after its next tool call; .claude/ in the checkout is not touched.
+nudge_settings() {
+    local nudge
+    nudge="bash $(realpath -m "$(dirname "${BASH_SOURCE[0]}")/../nudge.sh") --hook"
+    jq -cn --arg command "$nudge" \
+        '{hooks: {PostToolUse: [{matcher: ".*", hooks: [{type: "command", command: $command}]}]}}'
+}
+
 # Run the CLI in the checkout; returns the CLI's exit status.
 launch() {
     local text session_flag cmd ALLOW
@@ -48,6 +58,7 @@ launch() {
     cmd=("${CLAUDE_BIN:-claude}" -p "$text" "${session_flag[@]}" --model "$MODEL"
         --permission-mode acceptEdits --output-format stream-json --verbose --add-dir "$OUT")
     case "${PIPELINE_SESSION_BUDGET_USD:-0}" in 0) ;; *) cmd+=(--max-budget-usd "$PIPELINE_SESSION_BUDGET_USD") ;; esac
+    cmd+=(--settings "$(nudge_settings)")
     # Last, so a bare flag can never swallow another.
     [ "${#ALLOW[@]}" -eq 0 ] || cmd+=(--allowedTools "${ALLOW[@]}")
     cd "$CHECKOUT" || return 1

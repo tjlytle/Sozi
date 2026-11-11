@@ -16,6 +16,11 @@ restyle, you do not edit, commit or push anything.
 - Questions do not stop the line. A choice you would have made differently is not a defect:
   say it in one line in the review (an `idea` issue only when it would be worth doing on
   its own), and judge the PR on its merits.
+- Stuck? Ask the advisor, a stronger model that already knows this epic:
+  `bin/advise "<question>" --output <file holding the failing output>`. Ask when the
+  runner's nudge arrives, or after two approaches to the same problem have failed; a session
+  gets two questions. It prints the advice; exit 1 means it refused or failed and 2 that no
+  answer came in time, and either way you go on without it.
 - A finding is anything you notice that is not a defect of this PR (a cleaner shape, an
   edge outside the acceptance criteria, a refactor). File every finding as its own issue;
   it never blocks the PR. Apply one test:

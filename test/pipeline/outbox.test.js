@@ -9,7 +9,7 @@ import {spawnSync} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {copyCarry, logTail, readResult} from "../../pipeline/lib/outbox.js";
+import {copyCarry, logTail, readResult, writeNew} from "../../pipeline/lib/outbox.js";
 import {readRequests} from "../../pipeline/lib/requests.js";
 
 /**
@@ -257,5 +257,30 @@ describe("the log tail", () => {
             return;
         }
         assert.equal(logTail(pipe), "(no log)");
+    });
+});
+
+describe("writeNew", () => {
+    test("writes the file, replacing a link left in its place or the temporary's", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wn-"));
+        const target = path.join(dir, "elsewhere");
+        fs.writeFileSync(target, "untouched");
+        fs.symlinkSync(target, path.join(dir, "a-1.json"));
+        fs.symlinkSync(target, path.join(dir, ".a-1.json.tmp"));
+        assert.equal(writeNew(dir, "a-1.json", "{}"), true);
+        assert.equal(fs.readFileSync(target, "utf8"), "untouched");
+        assert.ok(fs.lstatSync(path.join(dir, "a-1.json")).isFile());
+        assert.equal(fs.readFileSync(path.join(dir, "a-1.json"), "utf8"), "{}");
+        assert.ok(!fs.existsSync(path.join(dir, ".a-1.json.tmp")));
+    });
+
+    test("writes nothing into a directory that is a link, or missing", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wn-"));
+        const real = path.join(dir, "real");
+        fs.mkdirSync(real);
+        fs.symlinkSync(real, path.join(dir, "advise"));
+        assert.equal(writeNew(path.join(dir, "advise"), "a-1.json", "{}"), false);
+        assert.deepEqual(fs.readdirSync(real), []);
+        assert.equal(writeNew(path.join(dir, "missing"), "a-1.json", "{}"), false);
     });
 });

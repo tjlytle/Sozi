@@ -3,17 +3,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // One pass of the factory loop, as a function the watch loop, --once and a single issue
-// all call: reread changed settings, write queued label changes, reap ended sessions, refresh the mirror, sync with GitHub when due, unblock,
+// all call: reread changed settings, write queued label changes, reap ended sessions, hand
+// questions to the advisor and nudge, refresh the mirror, sync with GitHub when due, unblock,
 // test the stop condition, start what is due, save.
 
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import {Advisor} from "./advisor.js";
+import {consult} from "./consults.js";
 import {isQuiet, scope} from "./due.js";
 import {ceiling} from "./state.js";
 import {finishIssue, finishSpawn} from "./finish.js";
 import {running} from "./running.js";
 import {start} from "./start.js";
-import {drainIfFree, syncIfDue, unblock} from "./sync.js";
+import {drainIfFree, syncIfDue, unblock, writeComment} from "./sync.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -36,6 +39,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * @property {string} [root] - The repository root, where pipeline/*.md live; this checkout when absent.
  * @property {() => void} [save] - Writes the state; called at the end of every pass.
  * @property {() => void} [reload] - Rereads the settings; called first in every pass.
+ * @property {{ask: (job: import("./advisor.js").Job) => Promise<void>, dispose: () => Promise<void>}} [advisor] - The advisor; one over the sandbox, under var/pipeline/advisors, when absent.
  */
 
 /**
@@ -109,15 +113,21 @@ function stopCheck(ctx) {
  * Create the pass over a state.
  *
  * @param {PassOptions} options - What the pass works with.
- * @returns {{pass: (options?: {start?: boolean}) => Promise<Summary>}} The pass; `start: false` only judges and syncs.
+ * @returns {{pass: (options?: {start?: boolean}) => Promise<Summary>, dispose: () => Promise<void>}} The pass, where `start: false` only judges and syncs; dispose waits for the advisor's consults.
  */
-export function createPass({root = REPO_ROOT, save = () => {}, reload = () => {}, ...parts}) {
+export function createPass({
+    root = REPO_ROOT,
+    save = () => {},
+    reload = () => {},
+    advisor,
+    ...parts
+}) {
     const {state} = parts;
     state.run.spawns ??= [];
     state.run.sessions ??= [];
     state.run.only ??= null;
     state.deadLetters ??= [];
-    /** @type {PassContext} */
+    /** @type {import("./consults.js").ConsultContext} */
     const ctx = {
         ...parts,
         root,
@@ -126,9 +136,18 @@ export function createPass({root = REPO_ROOT, save = () => {}, reload = () => {}
         syncs: 0,
         tried: new Set(),
         profiles: new Map(),
-        summary: emptySummary()
+        summary: emptySummary(),
+        advisor:
+            advisor ??
+            new Advisor({
+                ...parts,
+                save,
+                comment: (n, body) => writeComment(ctx, n, body),
+                dir: path.join(root, "var", "pipeline", "advisors")
+            })
     };
     return {
+        dispose: () => ctx.advisor.dispose(),
         async pass({start: starts = true} = {}) {
             ctx.summary = emptySummary();
             ctx.tried.clear();
@@ -136,6 +155,7 @@ export function createPass({root = REPO_ROOT, save = () => {}, reload = () => {}
             reload();
             await drainIfFree(ctx);
             await reap(ctx);
+            consult(ctx);
             try {
                 await ctx.sandbox.refreshMirror();
             } catch (error) {
@@ -160,5 +180,13 @@ export function createPass({root = REPO_ROOT, save = () => {}, reload = () => {}
  * @returns {Summary} The summary.
  */
 function emptySummary() {
-    return {started: [], finished: [], moved: [], parked: [], spawns: 0, stopped: null};
+    return {
+        started: [],
+        finished: [],
+        moved: [],
+        parked: [],
+        spawns: 0,
+        consults: 0,
+        stopped: null
+    };
 }
