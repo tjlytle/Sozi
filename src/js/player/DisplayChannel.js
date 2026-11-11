@@ -164,7 +164,7 @@ export class DisplayChannel extends EventEmitter {
         this.frameIndex = player.currentFrame.index;
 
         this.onFrameChange = () => {
-            this.report(frameChangeMessage(this.frameInfo));
+            this.report(frameChangeMessage(frameInfoOf(this.player.currentFrame)));
             this.setCamera(ON_FRAME);
             if (player.currentFrame.index !== this.frameIndex) {
                 this.frameIndex = player.currentFrame.index;
@@ -229,15 +229,6 @@ export class DisplayChannel extends EventEmitter {
         transport.send(this.hello);
     }
 
-    /** The current frame, as the protocol reports it.
-     *
-     * @readonly
-     * @type {FrameInfo}
-     */
-    get frameInfo() {
-        return frameInfoOf(this.player.currentFrame);
-    }
-
     /** The display's `hello`, with its state as it is now.
      *
      * @readonly
@@ -249,7 +240,7 @@ export class DisplayChannel extends EventEmitter {
             version: this.host.document.lastModified,
             frameCount: this.presentation.frames.length,
             viewport: readViewport(viewportMessage(this.host)),
-            frame: this.frameInfo,
+            frame: frameInfoOf(this.player.currentFrame),
             frames: this.presentation.frames.map(frameInfoOf),
             blank: this.player.blankScreenIsVisible,
             layouts: this.presentation.presenterLayouts,
@@ -348,7 +339,7 @@ export class DisplayChannel extends EventEmitter {
     answerHello(legacy, from) {
         from.send(this.hello);
         if (legacy) {
-            from.send(frameChangeMessage(this.frameInfo));
+            from.send(frameChangeMessage(frameInfoOf(this.player.currentFrame)));
             from.send(viewportMessage(this.host));
         }
     }
