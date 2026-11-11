@@ -286,8 +286,9 @@ Reading internals through the API is a review rule.
 `player.setupTransition`, `player.onAnimatorStep`) to render video frame by frame. The
 cleanup gives the API the two calls it needs (prepare a transition, step it) and the
 exporter uses those, so the API is a real contract before the presenter builds on it.
-Today `window.sozi` also exposes `viewport` and `playerController`; whether those stay
-public is settled in #25.
+Today `window.sozi` also exposes `viewport` and `playerController`; the
+[API section of the presenter protocol](../presenter-protocol.md#api) notes that both are
+undefined until `load`.
 
 **Alternatives.** (a) Modules import a shared singleton (`import {presenter} from
 "./state"`): convenient, untestable, and every model invents a different singleton; it
