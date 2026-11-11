@@ -96,8 +96,8 @@ function legacyStateOf({frames}, player) {
  *
  * It says `hello` when it starts and answers each surface's `hello` with a fresh one, then
  * reports frame changes, the window size, the blank screen, the timer and the camera's view as
- * they change. It hands each command to its `DisplayCommands`, and tells them whether the deck
- * is a preview. A preview also answers requests for thumbnails of its frames.
+ * they change; its `CameraTracker` follows the camera. It hands each command to its
+ * `DisplayCommands`, and tells them whether the deck is a preview. A preview also answers requests for thumbnails of its frames.
  *
  * @extends EventEmitter
  */
@@ -331,7 +331,9 @@ export class DisplayChannel extends EventEmitter {
         from.send(thumbnailMessage(index, url));
     }
 
-    /** Remove every listener the channel added, and close its transports. */
+    /** Remove every listener the channel added, stop its camera tracker, and close its
+     * transports.
+     */
     dispose() {
         this.player.off(PlayerEvents.frameChange, this.onFrameChange);
         this.player.off(PlayerEvents.blankScreenChange, this.onBlankScreenChange);
