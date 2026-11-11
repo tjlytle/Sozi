@@ -77,6 +77,24 @@ describe("bin/pipeline.js", () => {
         assert.match(text, /profile advocate: unknown \(docker is down\)\n/);
         assert.doesNotMatch(text, /accessToken|s3cret/);
     });
+    test("--on-limit sets PIPELINE_ON_LIMIT for the run and rejects anything else", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pl-"));
+        let text = "";
+        const bad = await main(["--status", "--on-limit", "maybe"], {
+            root,
+            env: {},
+            err: t => (text += t)
+        });
+        assert.equal(bad, 2);
+        assert.match(text, /PIPELINE_ON_LIMIT must be one of wait\|fallback, not "maybe"/);
+        assert.match(text, /--on-limit wait\|fallback/);
+        const good = await main(["--status", "--on-limit", "fallback"], {
+            root,
+            env: {},
+            out: () => {}
+        });
+        assert.equal(good, 0);
+    });
     test("an unknown argument prints the usage", async () => {
         let text = "";
         assert.equal(await main(["nope"], {env: {}, err: t => (text += t)}), 2);

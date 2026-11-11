@@ -5,6 +5,7 @@
 /** @module */
 
 import {addSVGHandler, DefaultSVGHandler} from "./SVGDocumentWrapper";
+import {pageBackground} from "./pageBackground";
 
 /** The XML namespace URI of Inkscape.
  *
@@ -49,13 +50,15 @@ export class InkscapeHandler extends DefaultSVGHandler {
             }
         }
 
-        // Extract RGB assuming page color is in 6-digit hex format
-        // @ts-expect-error A pagecolor other than 6-digit hex (e.g. "white", "#fff") makes exec return null, and this throws.
-        const [, red, green, blue] = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(pageColor);
+        // A page colour that is not hex leaves Sozi's default background.
+        const background = pageBackground(pageColor, pageOpacity);
+        if (background === null) {
+            return;
+        }
 
         const style = document.createElement("style");
         style.textContent = `svg {
-            background: rgba(${parseInt(red, 16)}, ${parseInt(green, 16)}, ${parseInt(blue, 16)}, ${pageOpacity});
+            background: ${background};
         }`;
         svgRoot.insertBefore(style, svgRoot.firstChild);
     }
