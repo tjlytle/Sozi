@@ -8,7 +8,7 @@
  */
 
 import {PreviewGestures} from "./PreviewGestures.js";
-import {isEditableTarget} from "../protocol/editable.js";
+import {editableField, isEditableTarget} from "../protocol/editable.js";
 
 /** @typedef {import("./Player.js").Player} Player */
 /** @typedef {import("../model/Presentation.js").Presentation} Presentation */
@@ -83,6 +83,9 @@ export function enterPreviewMode({player, presentation, isCurrent, onFollowLink,
 
 /** Report the keys pressed in a preview, outside a field a person types into.
  *
+ * A click in the preview gives the focus to the field it lands in, or to the editing host of
+ * the editable content it lands in, and takes it away from a field otherwise.
+ *
  * @param {SVGSVGElement} root - The root of the deck's SVG document.
  * @param {(key: string, modifiers: KeyModifiers) => void} onKey - Called with each key.
  */
@@ -105,15 +108,13 @@ function reportKeys(root, onKey) {
     );
     // The player's mousedown handler keeps a click from moving the focus: to the preview, which
     // needs it for its keys, to a field in the deck, which needs it to be typed into, or away
-    // from that field.
+    // from that field. A click on text nested in editable content gives the focus to its host.
     // Cast: a loaded deck's document has a window.
     const view = /** @type {Window} */ (root.ownerDocument.defaultView);
     root.addEventListener("pointerdown", evt => {
         view.focus();
         // Cast: a field a person types into is an HTML element.
-        const field = /** @type {?HTMLElement} */ (
-            isEditableTarget(evt.target) ? evt.target : null
-        );
+        const field = /** @type {?HTMLElement} */ (editableField(evt.target));
         const focused = /** @type {?HTMLElement} */ (root.ownerDocument.activeElement);
         if (field) {
             field.focus();
