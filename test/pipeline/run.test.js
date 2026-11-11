@@ -8,21 +8,25 @@ import {finishDigest, openRun} from "../../pipeline/lib/run.js";
  * Finish the digest of a run on page-1 with a digest command that exits with a code.
  *
  * @param {number} code - The exit status of the digest command.
- * @param {{notionPage?: string | null}} [run] - What to change on the run.
- * @returns {Promise<{finished: boolean, calls: string[][]}>} - The result and the commands.
+ * @param {{notionPage?: string | null, env?: Record<string, string>}} [run] - What to change
+ *     on the run, and the environment it finishes in.
+ * @returns {Promise<{finished: boolean, calls: string[][], lines: string[]}>} - The result,
+ *     the commands and the log.
  */
-async function finish(code, {notionPage = "page-1"} = {}) {
+async function finish(code, {notionPage = "page-1", env = {NOTION_TOKEN: "nt"}} = {}) {
     const state = emptyState();
     state.run.notionPage = notionPage;
     /** @type {string[][]} */
     const calls = [];
+    /** @type {string[]} */
+    const lines = [];
     const finished = await finishDigest({
         state,
         reason: "finished by hand",
         settings: {repo: "tjlytle/Sozi", evidence: {url: ""}},
         root: "/nowhere",
-        env: {NOTION_TOKEN: "nt"},
-        log: () => {},
+        env,
+        log: line => lines.push(line),
         deps: {
             run: async () => ({code: 1, stdout: "", stderr: ""}),
             startMint: /** @type {any} */ (null),
@@ -32,7 +36,7 @@ async function finish(code, {notionPage = "page-1"} = {}) {
             }
         }
     });
-    return {finished, calls};
+    return {finished, calls, lines};
 }
 
 describe("pipeline/lib/run.js", () => {
@@ -49,6 +53,17 @@ describe("pipeline/lib/run.js", () => {
     test("finishDigest is not finished when the summary could not be posted", async () => {
         const {finished} = await finish(1);
         assert.equal(finished, false);
+    });
+    test("finishDigest is not finished when the run has a page but no NOTION_TOKEN", async () => {
+        const {finished, calls, lines} = await finish(0, {env: {}});
+        assert.equal(finished, false);
+        assert.equal(calls.length, 0);
+        assert.match(lines.join("\n"), /no NOTION_TOKEN/);
+    });
+    test("finishDigest is finished when there is neither a page nor a token", async () => {
+        const {finished, calls} = await finish(0, {notionPage: null, env: {}});
+        assert.equal(finished, true);
+        assert.equal(calls.length, 0);
     });
     test("openRun clears the logged-out personas of the run before", async () => {
         const state = emptyState();

@@ -49,5 +49,5 @@ case "$mode" in
         echo '{"type":"result","subtype":"error_max_budget_usd","is_error":true,"num_turns":3,"total_cost_usd":0.12,"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
         exit 1 ;;
 esac
-echo '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":'"${FAKE_COST:-0.12}"',"usage":{"input_tokens":100,"output_tokens":20},"session_id":"'"$id"'"}'
+echo '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":'"${FAKE_COST:-0.12}"',"usage":{"input_tokens":100,"cache_read_input_tokens":1000,"cache_creation_input_tokens":50,"output_tokens":20},"session_id":"'"$id"'"}'
 exit 0
