@@ -1,7 +1,15 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
-import {fakeController, fakeHost, fakePlayer, fakeTransport, frames} from "./fakeDeck.js";
-import {DisplayChannel, DisplayChannelEvents} from "../../../src/js/player/DisplayChannel.js";
+import {fakeTransport} from "./fakeDeck.js";
+import {
+    JPEG,
+    displayHello,
+    everyFrame,
+    firstFrame,
+    secondFrame,
+    startedDisplay
+} from "./displayWorld.js";
+import {DisplayChannelEvents} from "../../../src/js/player/DisplayChannel.js";
 import {PlayerEvents} from "../../../src/js/player/playerEvents.js";
 import {PlayerControllerEvents} from "../../../src/js/player/PlayerController.js";
 import {
@@ -26,156 +34,9 @@ import {
 } from "../../../src/js/protocol/messages.js";
 import {thumbnailMessage, thumbnailRequestMessage} from "../../../src/js/protocol/thumbnails.js";
 import {viewportMessage} from "../../../src/js/protocol/viewport.js";
-import {
-    TimerActions,
-    timerActionMessage,
-    timerMessage,
-    timerTargetMessage
-} from "../../../src/js/protocol/timer.js";
-import {TalkTimer, TalkTimerEvents} from "../../../src/js/player/TalkTimer.js";
-
-/** Build a display channel on fakes, started, with what it sent on start cleared.
- *
- * @returns {any} - The channel and its fakes.
- */
-function startedDisplay() {
-    const player = fakePlayer();
-    const controller = fakeController(player);
-    const transport = fakeTransport();
-    const host = fakeHost();
-    const presentation = {frames};
-    const previews = [];
-    const renders = [];
-    const clock = {time: 0};
-    const timer = new TalkTimer(() => clock.time);
-    const channel = new DisplayChannel({
-        renderThumbnail: async (index, width) => {
-            renders.push([index, width]);
-            return JPEG;
-        },
-        timer,
-        player,
-        controller,
-        presentation,
-        transport,
-        host,
-        enterPreviewMode: ({isCurrent, onFollowLink, onKey, onCamera}) =>
-            previews.push({current: isCurrent, onFollowLink, onKey, onCamera})
-    });
-    channel.start();
-    const startSent = transport.sent.splice(0);
-    return {
-        channel,
-        player,
-        controller,
-        transport,
-        host,
-        previews,
-        renders,
-        startSent,
-        timer,
-        clock
-    };
-}
-
-const JPEG = "data:image/jpeg;base64,AAAA";
-const firstFrame = {index: 0, id: "f1", title: "One", notes: "first"};
-const everyFrame = [firstFrame, {index: 1, id: "f2", title: "Two", notes: "second"}];
-const viewport = {width: 1200, height: 400, pixelRatio: 2};
-
-/** The hello a display sends in the given state.
- *
- * @param {object} changes - The fields that differ from the first frame, not blank.
- * @returns {object} - The message.
- */
-function displayHello(changes = {}) {
-    return helloMessage(Roles.display, {
-        deckId: "basic",
-        version: "11/06/2026 18:26:48",
-        frameCount: 2,
-        viewport,
-        frame: firstFrame,
-        frames: everyFrame,
-        blank: false,
-        camera: ON_FRAME,
-        ...changes
-    });
-}
+import {timerMessage} from "../../../src/js/protocol/timer.js";
 
 describe("DisplayChannel", () => {
-    test("the first frame change starts the timer and is reported, after the frame", () => {
-        const {player, timer, transport} = startedDisplay();
-        player.showFrame(1);
-        assert.equal(timer.state.running, true);
-        assert.deepEqual(transport.sent, [
-            frameChangeMessage({index: 1, id: "f2", title: "Two", notes: "second"}),
-            timerMessage({elapsedMs: 0, running: true, targetMs: null})
-        ]);
-    });
-
-    test("a surface's timer actions reach the timer, and each change is reported", () => {
-        const {timer, clock, transport} = startedDisplay();
-        transport.deliver(timerActionMessage(TimerActions.start));
-        clock.time = 1000;
-        transport.deliver(timerActionMessage(TimerActions.pause));
-        assert.deepEqual(timer.state, {elapsedMs: 1000, running: false, targetMs: null});
-        transport.deliver(timerActionMessage(TimerActions.reset));
-        assert.deepEqual(timer.state, {elapsedMs: 0, running: false, targetMs: null});
-        assert.deepEqual(transport.sent, [
-            timerMessage({elapsedMs: 0, running: true, targetMs: null}),
-            timerMessage({elapsedMs: 1000, running: false, targetMs: null}),
-            timerMessage({elapsedMs: 0, running: false, targetMs: null})
-        ]);
-    });
-
-    test("a surface's target reaches the timer, and is reported", () => {
-        const {timer, transport} = startedDisplay();
-        transport.deliver(timerTargetMessage(60000));
-        assert.equal(timer.state.targetMs, 60000);
-        transport.deliver(timerTargetMessage(null));
-        assert.equal(timer.state.targetMs, null);
-        assert.deepEqual(transport.sent, [
-            timerMessage({elapsedMs: 0, running: false, targetMs: 60000}),
-            timerMessage({elapsedMs: 0, running: false, targetMs: null})
-        ]);
-    });
-
-    test("a change of the timer goes out on every link", () => {
-        const {channel, timer, transport} = startedDisplay();
-        const other = fakeTransport();
-        channel.addTransport(other);
-        other.sent.length = 0;
-        timer.start();
-        assert.deepEqual(transport.sent, other.sent);
-        assert.equal(other.sent.length, 1);
-    });
-
-    test("a hello while the timer runs carries the time counted so far", () => {
-        const {timer, clock, transport} = startedDisplay();
-        timer.start();
-        clock.time = 3000;
-        transport.sent.length = 0;
-        transport.deliver(helloMessage(Roles.surface));
-        assert.deepEqual(
-            transport.sent[0],
-            displayHello({timer: {elapsedMs: 3000, running: true, targetMs: null}})
-        );
-    });
-
-    test("a preview reports nothing about its timer", () => {
-        const {player, timer, transport} = startedDisplay();
-        transport.deliver(previewMessage(true));
-        player.showFrame(1);
-        timer.reset();
-        assert.deepEqual(transport.sent, []);
-    });
-
-    test("dispose stops listening to the timer", () => {
-        const {channel, timer} = startedDisplay();
-        channel.dispose();
-        assert.equal(timer.listenerCount(TalkTimerEvents.change), 0);
-    });
-
     test("its hello names the deck page's date as its version", () => {
         const {transport} = startedDisplay();
         transport.deliver(helloMessage(Roles.surface));
@@ -403,7 +264,7 @@ describe("DisplayChannel", () => {
 
         player.showFrame(1);
         channel.sendCustom("pong", 1);
-        const expected = [frameChangeMessage(channel.frameInfo), customMessage("pong", 1)];
+        const expected = [frameChangeMessage(secondFrame), customMessage("pong", 1)];
         assert.deepEqual(transport.sent, expected);
         assert.deepEqual(added.sent, expected);
     });
