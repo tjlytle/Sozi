@@ -71,6 +71,7 @@ export class ExportDriver {
      * A hidden window produces no new frame while its content is static, and the
      * Chrome DevTools Protocol waits for one before it takes a screenshot.
      * Repainting with the current camera states produces new frames with the same pixels.
+     * Stopping cancels the animation frame the loop waits for, so a later start runs one loop only.
      *
      * @param {boolean} enable - Start (`true`) or stop (`false`) repainting.
      */
