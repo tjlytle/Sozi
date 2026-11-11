@@ -40,6 +40,21 @@ describe("github", () => {
         assert.ok(calls[0].cmd.includes("--add-label") && calls[0].cmd.includes("--remove-label"));
         assert.ok(calls[0].cmd.includes("tjlytle/Sozi"));
     });
+    test("issueBody reads the body as ops", async () => {
+        const gh = make([json({body: "Part of #123"})]);
+        assert.equal(await gh.issueBody(25), "Part of #123");
+        assert.deepEqual(calls[0].cmd, [
+            "gh-as",
+            "ops",
+            "issue",
+            "view",
+            "25",
+            "-R",
+            "tjlytle/Sozi",
+            "--json",
+            "body"
+        ]);
+    });
     test("a rate-limit reply becomes RateLimited with a reset time", async () => {
         const gh = make([
             {code: 1, stderr: "HTTP 403: API rate limit exceeded"},

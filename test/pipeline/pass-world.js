@@ -95,7 +95,7 @@ function fakeClock(now) {
 }
 
 /**
- * A pass over fakes.
+ * A pass over fakes. Its advisor answers nothing; it records each question in `asks`.
  *
  * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void, configRoot?: string, reload?: () => void}} [options] - The world; configRoot is where the settings files are read.
  * @returns {any} - The pass, the state, the recorded calls and the fakes.
@@ -132,7 +132,14 @@ export function world({
     const board = {sync: async () => ({failed: []})};
     const digest = {add: async () => {}, finish: async () => {}};
     const clock = fakeClock(now);
+    /** @type {any[]} */
+    const asks = [];
+    const advisor = {
+        ask: async (/** @type {any} */ a) => void asks.push(a),
+        dispose: async () => {}
+    };
     const p = createPass({
+        advisor,
         settings,
         state,
         github,
@@ -159,7 +166,8 @@ export function world({
         issues,
         settings,
         board,
-        sandbox
+        sandbox,
+        asks
     };
 }
 

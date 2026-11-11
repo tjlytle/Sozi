@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Ask the advisor (a stronger model, one session per epic) when a stage is stuck.
+#
+# Usage: bin/advise "<question>" [--output FILE]
+#
+# Writes OUTBOX/advise/q-<n>.json with the question, the stage, the issue, the diff
+# against the merge base with origin/master (cut to 100 KiB) and FILE, the failing
+# output (cut to 20 KiB). The loop reads it, consults the advisor and writes
+# a-<n>.json; this waits for that answer and prints it.
+# Exit: 0 with the advice on stdout; 1 when the loop refused the question (the limit is
+# PIPELINE_ADVISOR_MAX consults a session) or the advisor failed; 2 when no answer came
+# within PIPELINE_ADVISOR_WAIT_MINUTES; 64 on a bad call. Needs no harness: only the
+# outbox, git and jq, so it works the same from a Claude, Codex or agy stage.
+#
+# Env read: OUTBOX (/outbox), PIPELINE_ISSUE, PIPELINE_STAGE,
+# PIPELINE_ADVISOR_WAIT_MINUTES (15), PIPELINE_ADVISOR_POLL_SECONDS (5).
+set -u
+
+MAX_DIFF=$((100 * 1024))
+MAX_FAILING=$((20 * 1024))
+
+usage_exit() { echo 'usage: bin/advise "<question>" [--output FILE]' >&2; exit 64; }
+
+# The first max bytes of a file, with a note when it was longer.
+cut_to() {
+    local file="$1" max="$2" what="$3"
+    head -c "$max" "$file"
+    if [ "$(wc -c <"$file")" -gt "$max" ]; then
+        printf '\n[%s cut to %s KiB]' "$what" "$((max / 1024))"
+    fi
+}
+
+question=""; output=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --output) [ $# -ge 2 ] || usage_exit; output="$2"; shift 2 ;;
+        *) [ -z "$question" ] || usage_exit; question="$1"; shift ;;
+    esac
+done
+[ -n "$question" ] || usage_exit
+[ -z "$output" ] || [ -r "$output" ] || { echo "advise: cannot read $output" >&2; exit 64; }
+
+dir="${OUTBOX:-/outbox}/advise"
+mkdir -p "$dir" || exit 64
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+base=$(git merge-base HEAD origin/master 2>/dev/null) || base=HEAD
+git diff "$base" >"$tmp/diff.full" 2>/dev/null
+cut_to "$tmp/diff.full" "$MAX_DIFF" diff >"$tmp/diff"
+: >"$tmp/failing"
+[ -z "$output" ] || cut_to "$output" "$MAX_FAILING" "failing output" >"$tmp/failing"
+
+n=1
+while [ -e "$dir/q-$n.json" ]; do n=$((n + 1)); done
+jq -n --arg question "$question" --arg stage "${PIPELINE_STAGE:-unknown}" \
+    --arg issue "${PIPELINE_ISSUE:-0}" --rawfile diff "$tmp/diff" --rawfile failing "$tmp/failing" \
+    '{question: $question, stage: $stage, issue: ($issue | tonumber? // 0), diff: $diff, failing: $failing}' \
+    >"$dir/.q-$n.json.tmp" && mv "$dir/.q-$n.json.tmp" "$dir/q-$n.json" || exit 64
+echo "advise: question $n asked; waiting for the advisor" >&2
+
+answer="$dir/a-$n.json"
+wait_s=$(awk -v m="${PIPELINE_ADVISOR_WAIT_MINUTES:-15}" 'BEGIN { print int(m * 60 + 0.5) }')
+deadline=$(($(date +%s) + wait_s))
+while [ ! -s "$answer" ]; do
+    [ "$(date +%s)" -lt "$deadline" ] || { echo "advise: no answer in time" >&2; exit 2; }
+    sleep "${PIPELINE_ADVISOR_POLL_SECONDS:-5}"
+done
+
+if jq -e 'has("advice")' "$answer" >/dev/null 2>&1; then
+    jq -r .advice "$answer"
+    exit 0
+fi
+jq -r '.refused // .error // "advise: the answer is not readable"' "$answer" >&2
+exit 1
