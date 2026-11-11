@@ -27,6 +27,7 @@ import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protoc
  * @typedef {object} PreviewOptions
  * @property {number} offset - The frame it shows, relative to the current one.
  * @property {string} className - The class of its iframe.
+ * @property {string} title - Its panel's title, the iframe's accessible name.
  * @property {string} src - The deck's page, empty when there is none to show.
  */
 
@@ -46,7 +47,7 @@ export class PreviewPanel {
      * @param {(message: Message) => void} send - Sends a message to the audience window.
      * @param {PreviewOptions} options - What the preview shows.
      */
-    constructor(element, mirror, send, {offset, className, src}) {
+    constructor(element, mirror, send, {offset, className, title, src}) {
         this.element = element;
         this.mirror = mirror;
         this.send = send;
@@ -69,7 +70,7 @@ export class PreviewPanel {
         box.className = "sozi-preview-box";
         this.iframe = doc.createElement("iframe");
         this.iframe.className = className;
-        this.iframe.title = className;
+        this.iframe.title = title;
         this.onLoad = () => this.connect();
         this.iframe.addEventListener("load", this.onLoad, false);
         // A hosted shell with no deck to show leaves its previews empty.
