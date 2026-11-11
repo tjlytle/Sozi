@@ -5,6 +5,7 @@ import {DisplayMirror, DisplayMirrorEvents} from "../../../src/js/presenter/Disp
 import {PresenterApi, PresenterEvents} from "../../../src/js/presenter/PresenterApi.js";
 import {TransportEvents, TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 import {TransportSet} from "../../../src/js/protocol/TransportSet.js";
+import {ON_FRAME, cameraMessage} from "../../../src/js/protocol/camera.js";
 import {
     Roles,
     blankMessage,
@@ -95,7 +96,8 @@ describe("PresenterApi", () => {
             viewport: null,
             blank: false,
             status: TransportStatus.connected,
-            timer: STOPPED_TIMER
+            timer: STOPPED_TIMER,
+            camera: ON_FRAME
         });
         transport.deliver(
             helloMessage(Roles.display, {
@@ -117,12 +119,16 @@ describe("PresenterApi", () => {
             viewport: VIEWPORT,
             blank: true,
             status: TransportStatus.connected,
-            timer: STOPPED_TIMER
+            timer: STOPPED_TIMER,
+            camera: ON_FRAME
         });
         const other = fakeTransport();
         api.registerTransport(other);
         other.deliver(blankMessage(false));
         assert.equal(api.state.blank, false);
+        const panned = {offFrame: true, zoom: 1, x: -0.1, y: 0};
+        other.deliver(cameraMessage(panned));
+        assert.deepEqual(api.state.camera, panned);
     });
 
     test("state.timer reads the time counted so far", () => {

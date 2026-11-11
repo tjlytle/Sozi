@@ -232,13 +232,14 @@ export class PresenterApi {
      *
      * @readonly
      * @type {{frame: any, frames: any[], frameCount: number, deckId: string, version: string,
-     *   viewport: any, blank: boolean, status: string, timer: any}}
+     *   viewport: any, blank: boolean, status: string, timer: any, camera: any}}
      */
     get state() {
         const {mirror} = this;
-        const {frame, frames, frameCount, deckId, version, viewport, blank, status} = mirror;
+        const {frame, frames, frameCount, deckId, version, viewport, blank, status, camera} =
+            mirror;
         const timer = {...mirror.timer, elapsedMs: mirror.elapsedAt()};
-        return {frame, frames, frameCount, deckId, version, viewport, blank, status, timer};
+        return {frame, frames, frameCount, deckId, version, viewport, blank, status, timer, camera};
     }
 
     /** The pairing link of the hosted shell, for add-ons; null on the local page.

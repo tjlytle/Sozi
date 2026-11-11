@@ -209,7 +209,9 @@ function panelSpecs(presenter, mirror, send, src) {
             case "notes":
                 return new NotesPanel(element, mirror, {
                     storage: window.localStorage,
-                    deckHref: () => new URL(src(), location.href).href
+                    deckHref: () => new URL(src(), location.href).href,
+                    jumpToFrame: (index, transition) =>
+                        presenter.display.jumpToFrame(index, transition)
                 });
             case "frames":
                 return framePicker(element, presenter, src());

@@ -102,6 +102,8 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 100,
             tokensOut: 20,
+            cacheRead: 1000,
+            cacheWrite: 50,
             costUsd: 0.12,
             turns: 3,
             status: "ok"
@@ -141,13 +143,15 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 100,
             tokensOut: 20,
+            cacheRead: 1000,
+            cacheWrite: 50,
             costUsd: 0.12,
             turns: 3,
             status: "ok"
         });
     });
 
-    test("claude: resume sums tokens and turns and takes the cost as reported", () => {
+    test("claude: resume sums tokens, cache counts and turns and takes the cost as reported", () => {
         const out = scratch();
         adapter("claude", runArgs(out));
         const r = adapter("claude", resumeArgs(out), {FAKE_COST: "0.30"});
@@ -155,6 +159,8 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 200,
             tokensOut: 40,
+            cacheRead: 2000,
+            cacheWrite: 100,
             costUsd: 0.3,
             turns: 6,
             status: "ok"
@@ -169,8 +175,26 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 200,
             tokensOut: 40,
+            cacheRead: 1000,
+            cacheWrite: 50,
             costUsd: 0.12,
             turns: 6,
+            status: "rate-limited"
+        });
+    });
+
+    test("claude: a usage-limited resume keeps the session's cost and exits 75", () => {
+        const out = scratch();
+        adapter("claude", runArgs(out));
+        const r = adapter("claude", resumeArgs(out), {FAKE_MODE: "usagelimit"});
+        assert.equal(r.status, 75);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 101,
+            tokensOut: 20,
+            cacheRead: 1000,
+            cacheWrite: 50,
+            costUsd: 0.12,
+            turns: 4,
             status: "rate-limited"
         });
     });
@@ -184,6 +208,8 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 100,
             tokensOut: 20,
+            cacheRead: 1000,
+            cacheWrite: 50,
             costUsd: 0.12,
             turns: 3,
             status: "ok"
@@ -200,6 +226,8 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 100,
             tokensOut: 20,
+            cacheRead: 1000,
+            cacheWrite: 50,
             costUsd: 0.12,
             turns: 3,
             status: "ok"
@@ -278,15 +306,12 @@ describe("harness adapters", () => {
         assert.doesNotMatch(fs.readFileSync(args2, "utf8"), /--max-budget-usd/);
     });
 
-    test("claude: --plugin-dir only when the directory exists", () => {
+    test("claude never passes --plugin-dir", () => {
         const out = scratch();
-        const args = path.join(out, "args");
-        adapter("claude", runArgs(out), {FAKE_ARGS: args, PLUGIN_DIR: path.join(out, "nope")});
-        assert.doesNotMatch(fs.readFileSync(args, "utf8"), /--plugin-dir/);
         fs.mkdirSync(path.join(out, "plugin"));
-        const args2 = path.join(out, "args2");
-        adapter("claude", runArgs(out), {FAKE_ARGS: args2, PLUGIN_DIR: path.join(out, "plugin")});
-        assert.match(fs.readFileSync(args2, "utf8"), /--plugin-dir .*plugin/);
+        const args = path.join(out, "args");
+        adapter("claude", runArgs(out), {FAKE_ARGS: args, PLUGIN_DIR: path.join(out, "plugin")});
+        assert.doesNotMatch(fs.readFileSync(args, "utf8"), /--plugin-dir/);
     });
 
     test("claude: a success that mentions 429 and rate limit stays ok", () => {
@@ -358,6 +383,8 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 100,
             tokensOut: 20,
+            cacheRead: 1000,
+            cacheWrite: 50,
             costUsd: 0.12,
             turns: 3,
             status: "error"
@@ -384,8 +411,10 @@ describe("harness adapters", () => {
             "01a168dc-712c-7cc1-82fc-6f3dfe62bcf2"
         );
         assert.deepEqual(usageOf(out), {
-            tokensIn: 100,
+            tokensIn: 40,
             tokensOut: 20,
+            cacheRead: 60,
+            cacheWrite: 0,
             costUsd: 0,
             turns: 2,
             status: "ok"
@@ -439,7 +468,7 @@ describe("harness adapters", () => {
         assert.equal(r.status, 0, r.stderr);
         assert.match(fs.readFileSync(args, "utf8"), / resume abc-123 -$/m);
         assert.equal(fs.readFileSync(stdin, "utf8"), "fix the lint");
-        assert.equal(usageOf(out).tokensIn, 100);
+        assert.equal(usageOf(out).tokensIn, 40);
         assert.equal(fs.readFileSync(path.join(out, "session"), "utf8").trim(), "abc-123");
     });
 
@@ -475,6 +504,8 @@ describe("harness adapters", () => {
         assert.deepEqual(usageOf(out), {
             tokensIn: 100,
             tokensOut: 20,
+            cacheRead: 30,
+            cacheWrite: 0,
             costUsd: 0,
             turns: 3,
             status: "ok"
@@ -573,6 +604,8 @@ describe("harness adapters", () => {
             assert.deepEqual(usageOf(out), {
                 tokensIn: 0,
                 tokensOut: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
                 costUsd: 0,
                 turns: 0,
                 status: "unsupported"

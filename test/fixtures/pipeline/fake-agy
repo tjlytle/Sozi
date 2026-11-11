@@ -31,5 +31,5 @@ case "${FAKE_MODE:-}" in
         echo '{"event":"result","result":{"conversation_id":"'"$id"'","status":"ERROR","error":"tool crashed","num_turns":2,"usage":{"input_tokens":100,"output_tokens":20}}}'
         exit 1 ;;
 esac
-echo '{"event":"result","result":{"conversation_id":"'"$id"'","status":"SUCCESS","response":"hello from fake","num_turns":3,"usage":{"input_tokens":100,"output_tokens":20,"thinking_tokens":4,"cache_read_tokens":0,"total_tokens":124}}}'
+echo '{"event":"result","result":{"conversation_id":"'"$id"'","status":"SUCCESS","response":"hello from fake","num_turns":3,"usage":{"input_tokens":100,"output_tokens":20,"thinking_tokens":4,"cache_read_tokens":30,"total_tokens":124}}}'
 exit 0

@@ -21,6 +21,7 @@ while [ $# -gt 0 ]; do
 done
 echo "fake harness ran"
 echo "display=\${DISPLAY:-}" >>"$out/display"
+env | grep '^GH_AS_' | sort >"$out/gh-as-env"
 [ -z "\${FAKE_NO_SESSION:-}" ] && echo "fake-session-1" >"$out/session"
 echo '{"tokensIn": 10, "tokensOut": 5, "costUsd": 0.25, "turns": 2, "status": "ok"}' >"$out/usage.json"
 [ -n "\${FAKE_SLEEP:-}" ] && sleep "$FAKE_SLEEP"
@@ -253,7 +254,7 @@ describe("the in-container stage runner", () => {
         const r = result(w.outbox);
         assert.equal(r.exit, 1);
         assert.equal(r.session, null);
-        assert.equal(r.usage.status, "error");
+        assert.equal(r.usage, null, "no usage.json is written as null");
         assert.deepEqual(r.changed, []);
         assert.equal(r.hooks, "skipped");
     });
@@ -486,12 +487,30 @@ merge_side() { git fetch -q "$MIRROR" side; git -c user.name=t -c user.email=t@t
         );
         assert.deepEqual(subjects, ["Add b.txt", "Add a.txt"]);
     });
+    test("with PIPELINE_PERSONA the harness sees the gh-as signature and trailer values", () => {
+        const w = world();
+        runStage({...w.env, PIPELINE_PERSONA: "architect"});
+        assert.equal(
+            fs.readFileSync(path.join(w.outbox, "gh-as-env"), "utf8"),
+            "GH_AS_HARNESS=fake\nGH_AS_MODEL=m\nGH_AS_SIGNATURE=architect · fake · m\n"
+        );
+    });
+    test("without PIPELINE_PERSONA the harness sees no gh-as values", () => {
+        const w = world();
+        const env = Object.fromEntries(
+            Object.entries(w.env).filter(
+                ([key]) => key !== "PIPELINE_PERSONA" && !key.startsWith("GH_AS_")
+            )
+        );
+        runStage(env);
+        assert.equal(fs.readFileSync(path.join(w.outbox, "gh-as-env"), "utf8"), "");
+    });
     test("a harness name with a slash is rejected", () => {
         const w = world();
         runStage({...w.env, PIPELINE_HARNESS: "../fake"});
         const r = result(w.outbox);
         assert.equal(r.exit, 1);
-        assert.equal(r.usage.status, "error");
+        assert.equal(r.usage, null);
     });
     test("SIGTERM still leaves a result.json", async () => {
         const w = world();

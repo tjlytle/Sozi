@@ -9,7 +9,9 @@ import {
     notion,
     main,
     runs,
-    pageId
+    pageId,
+    need,
+    numeric
 } from "../../bin/digest.js";
 
 const script = path.resolve("bin/digest.js");
@@ -290,6 +292,19 @@ describe("digest", () => {
         assert.equal(pageId(`Deadbeef-${ID}`, "x"), ID);
         assert.equal(pageId(ID.toUpperCase(), "x"), ID);
     });
+    test("pageId takes the side peek's ?p= over the database in the path", () => {
+        const peek = "fedcba0987654321fedcba0987654321";
+        const db = `https://www.notion.so/ws/Db-${ID}`;
+        assert.equal(pageId(`${db}?v=${PAGE}&p=${peek}&pm=s`, "x"), peek);
+        assert.equal(pageId(`${db}?p=fedcba09-8765-4321-fedc-ba0987654321`, "x"), peek);
+        assert.equal(pageId(`${db}?p=${peek.toUpperCase()}`, "x"), peek);
+    });
+    test("pageId keeps the path id when the query has no page id in p", () => {
+        const db = `https://www.notion.so/ws/Db-${ID}`;
+        for (const value of [`${db}?p=abc`, `${db}?pvs=4`, `${db}?pm=s`, `${db}#p=${PAGE}`]) {
+            assert.equal(pageId(value, "x"), ID, value);
+        }
+    });
     test("pageId throws naming the setting when there is no id", () => {
         for (const value of ["Sozi", ID.slice(1)]) {
             assert.throws(() => pageId(value, "--parent or PIPELINE_NOTION_PARENT"), {
@@ -319,6 +334,20 @@ describe("digest", () => {
         assert.equal(r.code, 1);
         assert.match(r.err, /--parent or PIPELINE_NOTION_PARENT has no Notion page id: "Sozi"/);
         assert.equal(r.calls.length, 0);
+    });
+    test("need returns a set value and throws naming an unset one", () => {
+        assert.equal(need("x", "--title"), "x");
+        for (const value of [undefined, ""]) {
+            assert.throws(() => need(value, "--title"), {message: "--title is not set"});
+        }
+    });
+    test("numeric returns digits and throws naming --issue otherwise", () => {
+        assert.equal(numeric("25"), "25");
+        for (const value of ["2a", "", "-1"]) {
+            assert.throws(() => numeric(value), {
+                message: `--issue must be a number: ${JSON.stringify(value)}`
+            });
+        }
     });
     test("the script exits 2 on an unknown subcommand", () => {
         const r = spawnSync(process.execPath, [script, "bogus"], {

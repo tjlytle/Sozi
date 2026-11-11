@@ -85,11 +85,17 @@ export class FakeDock {
             group: this.group(groupId),
             toJSON: () => ({id}),
             api: {
+                // As in dockview, the panel moved is the one the dock shows.
                 moveTo: ({group, position}) => {
                     this.moves.push({id, group: group.id, position});
                     const beside = position && position !== "center";
                     panel.group = this.group(beside ? this.newGroup() : group.id);
+                    this.active = id;
                     this.changed();
+                },
+                setActive: () => {
+                    panel.group.activePanel = panel;
+                    this.active = id;
                 }
             }
         };

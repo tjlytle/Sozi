@@ -238,6 +238,11 @@ describe("Workspace", () => {
         assert.deepEqual(added, [POSITION]);
     });
 
+    test("the stack opens on the panel that leads it", async () => {
+        const {dock} = await openWorkspace();
+        assert.equal(dock.active, IDS[0]);
+    });
+
     test("a panel added on the stack joins it", async () => {
         const {workspace, dock} = await openWorkspace();
         const added = addedPositions(dock);

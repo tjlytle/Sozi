@@ -201,9 +201,24 @@
 
             /* Each preview is letterboxed in its box with the display's shape. */
             .sozi-preview-box {
+                position: relative;
                 display: flex;
                 height: 100%;
                 container-type: size;
+            }
+
+            /* Over the preview's corner while the display's camera is off its frame. */
+            .sozi-preview-box__back {
+                position: absolute;
+                top: var(--sozi-space);
+                right: var(--sozi-space);
+                min-height: 2rem;
+                padding: 0 var(--sozi-space);
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                background: var(--sozi-button-background);
+                font: inherit;
+                cursor: pointer;
             }
 
             .sozi-current-frame, .sozi-previous-frame, .sozi-next-frame {
@@ -283,6 +298,15 @@
             .sozi-notes__section[aria-current] > h1 {
                 border-left: 4px solid var(--sozi-button-border);
                 padding-left: var(--sozi-space);
+            }
+
+            /* A link to a frame the deck does not have. Scoped to the notes body, so that it
+               outranks the Markdown stylesheet's link and hover rules. */
+            .sozi-notes-body .sozi-notes__link--broken,
+            .sozi-notes-body .sozi-notes__link--broken:hover {
+                color: var(--sozi-button-border);
+                text-decoration: line-through;
+                cursor: not-allowed;
             }
 
             /* An h1 in a frame's notes sits below the frame's own heading. */

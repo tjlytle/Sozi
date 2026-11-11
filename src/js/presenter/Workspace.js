@@ -757,7 +757,8 @@ export class Workspace {
 
     /** Show every panel as one stack of tabs.
      *
-     * The first panel added leads the stack; closed panels are tabs of it too.
+     * The first panel added leads the stack and is the tab shown; closed panels are tabs of
+     * it too.
      */
     showStack() {
         this.closeWindows();
@@ -778,6 +779,8 @@ export class Workspace {
                 panel.api.moveTo({group: target});
             }
         }
+        // Each move shows the panel moved; the stack opens on its lead.
+        /** @type {any} */ (lead).api.setActive();
     }
 
     /** Remove the dock, the bar, the panels' windows and every panel, and stop listening. */

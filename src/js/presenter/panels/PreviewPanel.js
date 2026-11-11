@@ -17,6 +17,7 @@ import {
     previewMessage,
     readMessage
 } from "../../protocol/messages.js";
+import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protocol/camera.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
 /** @typedef {import("../../protocol/messages.js").Message} Message */
@@ -32,9 +33,11 @@ import {
 
 /** A preview panel: the deck in an iframe, kept on a frame relative to the display's.
  *
- * The preview of the current frame forwards the links clicked in it; every preview
- * forwards the presentation keys pressed in it. When the iframe loads again (a panel
- * minimised and restored is put back in the page), the preview connects to it again.
+ * The preview of the current frame forwards the links clicked in it and the pans and zooms
+ * made on it, shows the display's view, and has a Back to frame button while the display's
+ * camera is off its frame; every preview forwards the presentation keys pressed in it. When
+ * the iframe loads again (a panel minimised and restored is put back in the page), the
+ * preview connects to it again.
  */
 export class PreviewPanel {
     /** Draw the preview and follow the display.
@@ -75,15 +78,35 @@ export class PreviewPanel {
             this.iframe.src = src;
         }
         box.append(this.iframe);
+
+        /** The Back to frame button of the current preview, null in another.
+         *
+         * @type {?HTMLButtonElement}
+         */
+        this.backButton = null;
+        if (this.current) {
+            this.backButton = doc.createElement("button");
+            this.backButton.type = "button";
+            this.backButton.className = "sozi-preview-box__back";
+            this.backButton.textContent = "Back to frame";
+            this.backButton.hidden = !mirror.camera.offFrame;
+            this.backButton.addEventListener("click", () => send(cameraResetMessage()));
+            box.append(this.backButton);
+        }
         element.append(box);
 
-        /** Follow the display to a new frame.
+        /** Follow the display to a new frame, and the current preview to a new view.
          *
-         * @param {{index?: number}} part - What changed in the mirror.
+         * @param {{index?: number, camera?: object}} part - What changed in the mirror.
          */
-        this.onChange = ({index}) => {
+        this.onChange = ({index, camera}) => {
             if (index !== undefined) {
                 this.update();
+            } else if (camera !== undefined) {
+                this.showCamera();
+            }
+            if (camera !== undefined && this.backButton) {
+                this.backButton.hidden = !mirror.camera.offFrame;
             }
         };
         mirror.on(DisplayMirrorEvents.change, this.onChange);
@@ -138,6 +161,8 @@ export class PreviewPanel {
             this.update();
         } else if (message.name === MessageNames.followLink && this.current) {
             this.send(followLinkMessage(message.id));
+        } else if (message.name === MessageNames.cameraMove && this.current) {
+            this.send(cameraMoveMessage(message));
         } else if (message.name === MessageNames.key) {
             const command = messageForKey(message.key, message.modifiers, this.mirror);
             if (command) {
@@ -146,7 +171,9 @@ export class PreviewPanel {
         }
     }
 
-    /** Move the deck to its frame, or blank it when the deck has no such frame. */
+    /** Move the deck to its frame, or blank it when the deck has no such frame. The current
+     * preview then shows the display's view, when it is off the frame.
+     */
     update() {
         if (!this.ready || !this.transport) {
             return;
@@ -157,6 +184,16 @@ export class PreviewPanel {
                 ? jumpToFrameMessage(index, false)
                 : blankMessage(true)
         );
+        if (this.mirror.camera.offFrame) {
+            this.showCamera();
+        }
+    }
+
+    /** Show the display's view on the current preview's deck. */
+    showCamera() {
+        if (this.current && this.ready && this.transport) {
+            this.transport.send(cameraMessage(this.mirror.camera));
+        }
     }
 
     /** Stop following the display, close the transport and empty the element. */
