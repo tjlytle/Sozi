@@ -58,10 +58,10 @@ window.sozi.presenter.registerPanel({
 });
 ```
 
-Call `registerPanel` at the top level of your script, as it loads. Do not call it from a timer or
-an event handler. The page reads the saved layout once, at `load`, and a panel registered after
-that is refused. A call made before the page has finished loading waits for it, so you do not
-need to wait for `load` yourself.
+Call `registerPanel` at the top level of your script, as it loads, not from a timer or an event
+handler. The page applies the speaker's saved layout once, at `load`. A panel registered after
+that is still added, but at its default place, not where the speaker left it. A call made before
+the page has finished loading waits for it, so you do not need to wait for `load` yourself.
 
 ### The fields of a panel
 
