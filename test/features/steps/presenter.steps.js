@@ -192,6 +192,12 @@ Then("the presenter page shows no notice", async function () {
     await expect(notice).toBeHidden();
 });
 
+Then("the preview {string} has the accessible name {string}", async function (className, name) {
+    // The iframe's accessible name is what a screen reader announces for the preview.
+    const preview = this.presenter.locator(`iframe.${className}`);
+    await expect(preview).toHaveAccessibleName(name);
+});
+
 Then("no dialog was shown", function () {
     assert.deepEqual(this.dialogs, []);
 });
