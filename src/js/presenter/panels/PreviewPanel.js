@@ -7,12 +7,11 @@
 import {DisplayMirrorEvents} from "../DisplayMirror.js";
 import {messageForKey} from "../keys.js";
 import {LocalTransport} from "../../protocol/LocalTransport.js";
+import {Roles, helloMessage} from "../../protocol/hello.js";
 import {
     MessageNames,
-    Roles,
     blankMessage,
     followLinkMessage,
-    helloMessage,
     jumpToFrameMessage,
     previewMessage,
     readMessage

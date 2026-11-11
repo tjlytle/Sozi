@@ -2,10 +2,9 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {PreviewPanel} from "../../../src/js/presenter/panels/PreviewPanel.js";
 import {DisplayMirror} from "../../../src/js/presenter/DisplayMirror.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
-    Roles,
     frameChangeMessage,
-    helloMessage,
     jumpToFrameMessage,
     previewMessage
 } from "../../../src/js/protocol/messages.js";

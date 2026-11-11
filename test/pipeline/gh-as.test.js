@@ -23,6 +23,7 @@ for a in "$@"; do
     esac
     prev="$a"
 done
+exit "\${FAKE_GH_EXIT:-0}"
 `;
 
 /** Records the argv of a commit; every other git command is the real git. */
@@ -45,7 +46,8 @@ after(() => {
 });
 
 /**
- * A scratch repository whose personas are bound to Apps, and fakes for gh, git and the mint.
+ * A scratch repository whose personas are bound to Apps, fakes for gh, git and the mint, and
+ * an empty TMPDIR at `<dir>/tmp`.
  *
  * @returns {{dir: string, repo: string, env: Record<string, string>}} - The scratch dir, the repository and the environment.
  */
@@ -54,8 +56,10 @@ function world() {
     dirs.push(dir);
     const bin = path.join(dir, "bin");
     const repo = path.join(dir, "repo");
+    const tmp = path.join(dir, "tmp");
     fs.mkdirSync(bin);
     fs.mkdirSync(repo);
+    fs.mkdirSync(tmp);
     fs.writeFileSync(path.join(bin, "gh"), FAKE_GH, {mode: 0o755});
     fs.writeFileSync(path.join(bin, "git"), FAKE_GIT, {mode: 0o755});
     fs.writeFileSync(path.join(bin, "curl"), FAKE_CURL, {mode: 0o755});
@@ -83,6 +87,7 @@ function world() {
         PATH: `${bin}:${process.env.PATH}`,
         FAKE_DIR: dir,
         REAL_GIT: realGit,
+        TMPDIR: tmp,
         GH_MINT_URL: "http://mint.invalid/",
         GH_MINT_KEY: "k",
         GH_BOT_CONFIG_DIR: path.join(dir, "gh-bot")
@@ -91,7 +96,7 @@ function world() {
 }
 
 /**
- * Run gh-as as architect in the world's repository.
+ * Run gh-as as architect in the world's repository and assert that it succeeded.
  *
  * @param {{repo: string, env: Record<string, string>}} w - The world.
  * @param {string[]} args - The arguments after the persona.
@@ -99,14 +104,34 @@ function world() {
  * @returns {void}
  */
 function ghAsRun(w, args, opts = {}) {
-    const r = spawnSync("bash", [ghAs, "architect", ...args], {
+    const r = ghAsStatus(w, args, opts);
+    assert.equal(r.status, 0, r.stderr);
+}
+
+/**
+ * Run gh-as as architect in the world's repository and return how it exited.
+ *
+ * @param {{repo: string, env: Record<string, string>}} w - The world.
+ * @param {string[]} args - The arguments after the persona.
+ * @param {{env?: Record<string, string>, input?: string}} [opts] - Extra environment and stdin.
+ * @returns {{status: number | null, stderr: string}} - The exit status and stderr.
+ */
+function ghAsStatus(w, args, opts = {}) {
+    return spawnSync("bash", [ghAs, "architect", ...args], {
         cwd: w.repo,
         env: {...w.env, ...opts.env},
         input: opts.input ?? "",
         encoding: "utf8"
     });
-    assert.equal(r.status, 0, r.stderr);
 }
+
+/**
+ * List what gh-as left in the world's TMPDIR.
+ *
+ * @param {{dir: string}} w - The world.
+ * @returns {string[]} - The entry names.
+ */
+const leftovers = w => fs.readdirSync(path.join(w.dir, "tmp"));
 
 /**
  * Read a NUL-separated argv the fakes recorded.
@@ -231,5 +256,48 @@ describe("gh-as", () => {
         ghAsRun(w, ["--git", "commit", "-m", "x"], {env: noSignature});
         const a = argv(path.join(w.dir, "git-argv"));
         assert.deepEqual(a.slice(a.indexOf("commit")), ["commit", "-m", "x"]);
+        assert.deepEqual(leftovers(w), [], "nothing is created in TMPDIR");
+    });
+    test("a signed --body-file leaves no copy in TMPDIR and keeps the caller's file", () => {
+        const w = world();
+        const file = path.join(w.dir, "comment.md");
+        fs.writeFileSync(file, "Looks good.\n");
+        ghAsRun(w, ["issue", "comment", "7", "--body-file", file], {env: SIGNED});
+        assert.match(body(w), /^Looks good\.\n\narchitect · codex · gpt-5\.5\n?$/);
+        assert.deepEqual(leftovers(w), []);
+        assert.equal(fs.readFileSync(file, "utf8"), "Looks good.\n");
+    });
+    test("a signed body from stdin leaves no copy in TMPDIR", () => {
+        const w = world();
+        ghAsRun(w, ["issue", "comment", "7", "-F", "-"], {env: SIGNED, input: "From stdin.\n"});
+        assert.equal(signatures(body(w)), 1);
+        assert.deepEqual(leftovers(w), []);
+    });
+    test("when gh fails, gh-as exits with its status and still removes the copy", () => {
+        const w = world();
+        const file = path.join(w.dir, "comment.md");
+        fs.writeFileSync(file, "Looks good.\n");
+        const r = ghAsStatus(w, ["issue", "comment", "7", "--body-file", file], {
+            env: {...SIGNED, FAKE_GH_EXIT: "3"}
+        });
+        assert.equal(r.status, 3, r.stderr);
+        assert.match(body(w), /^Looks good\.\n\narchitect · codex · gpt-5\.5\n?$/);
+        assert.deepEqual(leftovers(w), []);
+    });
+    test("an already signed --body-file reaches gh by its own path and is kept", () => {
+        const w = world();
+        const file = path.join(w.dir, "signed.md");
+        const signed = `Looks good.\n\n${SIGNATURE}\n`;
+        fs.writeFileSync(file, signed);
+        ghAsRun(w, ["issue", "comment", "7", "--body-file", file], {env: SIGNED});
+        const a = argv(path.join(w.dir, "gh-argv"));
+        assert.equal(a[a.indexOf("--body-file") + 1], file);
+        assert.equal(fs.readFileSync(file, "utf8"), signed);
+        assert.deepEqual(leftovers(w), []);
+    });
+    test("a signed --body leaves nothing in TMPDIR", () => {
+        const w = world();
+        ghAsRun(w, ["issue", "comment", "7", "--body", "Done."], {env: SIGNED});
+        assert.deepEqual(leftovers(w), []);
     });
 });

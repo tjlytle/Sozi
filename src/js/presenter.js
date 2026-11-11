@@ -9,14 +9,15 @@
 
 import {LocalTransport, TransportStatus} from "./protocol/LocalTransport";
 import {TransportSet} from "./protocol/TransportSet";
-import {Roles, deckIdOf, helloMessage} from "./protocol/messages";
+import {Roles, deckIdOf, helloMessage} from "./protocol/hello";
+import {isEditableTarget} from "./protocol/editable";
 import {DisplayMirror, DisplayMirrorEvents} from "./presenter/DisplayMirror";
 import {PresenterApi} from "./presenter/PresenterApi";
 import {PresetForm} from "./presenter/PresetForm";
 import {ShellJoin} from "./presenter/ShellJoin";
 import {Workspace} from "./presenter/Workspace";
 import {NARROW_MAX_WIDTH, layoutKey} from "./presenter/layout";
-import {isEditableTarget, messageForKey} from "./presenter/keys";
+import {messageForKey} from "./presenter/keys";
 import {PreviewPanel} from "./presenter/panels/PreviewPanel";
 import {NotesPanel} from "./presenter/panels/NotesPanel";
 import {ControlsPanel} from "./presenter/panels/ControlsPanel";

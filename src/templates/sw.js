@@ -5,7 +5,10 @@
 // The hosted shell's service worker. The build renders this file. Its fields stay inside
 // strings, so that it is plain JavaScript before that too: the build's tools read src/**/*.js.
 
-const CACHE_PREFIX = "sozi-shell-";
+// This installation's caches, named by its scope and then its version. Other installations
+// on the origin have other scopes. A URL holds no space, so the space after the scope stops
+// "/a/" from matching the caches of "/a/b/".
+const CACHE_PREFIX = "sozi-shell " + self.registration.scope + " ";
 const CACHE = CACHE_PREFIX + "{{ version }}";
 const FILES = "{{ files | join(' ') }}".split(" ");
 
@@ -18,7 +21,7 @@ async function precache() {
     await cache.addAll(FILES);
 }
 
-/** Drop what earlier versions kept.
+/** Drop what this installation's earlier versions kept, and leave other installations' caches.
  *
  * @returns {Promise<void>} - Resolves when they are gone.
  */

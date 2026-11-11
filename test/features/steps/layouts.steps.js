@@ -11,8 +11,8 @@ import fs from "node:fs";
 import {createRequire} from "node:module";
 import path from "node:path";
 import {expect} from "playwright/test";
-import {buildDeck, copyDeck} from "../support/world.js";
-import {WAIT, savedLayout} from "./workspace.steps.js";
+import {buildDeck, copyDeck} from "../support/decks.js";
+import {WAIT, savedLayout} from "../support/panels.js";
 
 const require = createRequire(import.meta.url);
 const {runSozi} = require("../../cli/helpers.js");

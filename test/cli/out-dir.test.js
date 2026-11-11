@@ -8,12 +8,12 @@
 
 const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
-const {spawnSync} = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
 const {limit, runSozi, withTempDeck, decodePng} = require("./helpers.js");
+const {spawnKeepingOutput} = require("./spawn.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -54,12 +54,13 @@ const CHROME = "/usr/bin/google-chrome";
 
 /** Check the result of a headless Chrome run.
  *
- * Only a failure to spawn Chrome (ENOENT, EACCES) skips the test;
- * a timeout or a non-zero exit status fails it.
+ * Only a failure to spawn Chrome (ENOENT, EACCES) skips the test; any other spawn error
+ * or a non-zero exit status fails it. A timeout never reaches here: `spawnKeepingOutput`
+ * throws it with Chrome's output.
  *
  * @param {TestContext} t - The context of the running test, to skip it.
  * @param {import("node:child_process").SpawnSyncReturns<string>} result - The result of
- *  `spawnSync` for Chrome.
+ *  `spawnKeepingOutput` for Chrome.
  * @returns {boolean} - `true` if Chrome ran, `false` if the test was skipped.
  */
 function chromeRan(t, result) {
@@ -79,7 +80,7 @@ function chromeRan(t, result) {
 /** The DOM of an HTML file after its scripts ran in headless Chrome.
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
- * a Chrome run that fails or times out is a test failure.
+ * a Chrome run that fails is a test failure, and one that times out throws with its output.
  *
  * @param {TestContext} t - The context of the running test, to skip it.
  * @param {string} file - The path of the HTML file.
@@ -92,7 +93,7 @@ function browserDom(t, file) {
     }
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
     try {
-        const result = spawnSync(
+        const result = spawnKeepingOutput(
             CHROME,
             [
                 "--headless=new",
@@ -121,7 +122,7 @@ function browserDom(t, file) {
 /** A PNG screenshot of an HTML file in headless Chrome, after its scripts ran.
  *
  * Skips the test and returns null when Chrome is missing or cannot be spawned;
- * a Chrome run that fails or times out is a test failure.
+ * a Chrome run that fails is a test failure, and one that times out throws with its output.
  *
  * @param {TestContext} t - The context of the running test, to skip it.
  * @param {string} file - The path of the HTML file.
@@ -139,7 +140,7 @@ function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
     try {
         const png = path.join(profile, "shot.png");
-        const result = spawnSync(
+        const result = spawnKeepingOutput(
             CHROME,
             [
                 "--headless=new",
