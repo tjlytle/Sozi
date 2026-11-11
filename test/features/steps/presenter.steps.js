@@ -130,8 +130,17 @@ Given(
 
 // The page's own history.back(), as the browser's Back button does it. Playwright's goBack
 // waits for the top page to navigate and would time out when Back only moves a preview.
+// A speaker presses Back after the talk has moved, not in the same instant as the button:
+// the step lets the audience window finish first, or the page leaves before its message
+// lands. Back runs after evaluate returns, because leaving the page ends the evaluation.
 When("Back is pressed on the presenter page", async function () {
-    await this.presenter.evaluate(() => history.back());
+    await this.audience.evaluate(() => new Promise(resolve => setTimeout(resolve, 50)));
+    await expect
+        .poll(() => this.audience.evaluate(() => window.sozi.player.animator.running))
+        .toBe(false);
+    await this.presenter.evaluate(() => {
+        setTimeout(() => history.back());
+    });
 });
 
 Then("the presenter page has gone back to the page before it", async function () {
