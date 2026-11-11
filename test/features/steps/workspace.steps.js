@@ -8,8 +8,8 @@
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
-import {errors} from "playwright";
 import {expect} from "playwright/test";
+import {builtDeck} from "../support/decks.js";
 import {
     DROP_TARGET,
     GROUP,
@@ -17,6 +17,9 @@ import {
     SASH,
     TAB,
     WAIT,
+    contentOf,
+    drawnTextNow,
+    groupBoxNow,
     groupOf,
     savedAfter,
     tabOf,
@@ -26,7 +29,6 @@ import {
 
 // What the workspace draws around dockview.
 export const WORKSPACE = ".sozi-workspace";
-const CONNECTION = ".sozi-connection";
 
 // The smallest side of a drop target a person can hit, in pixels.
 const DROP_TARGET_SIDE = 48;
@@ -36,10 +38,6 @@ const URL_PANEL_PAGE = "page.html";
 
 // How far a width or an edge may be from the expected one, in pixels.
 const TOLERANCE = 2;
-
-// One look inside a poll: short, so that a group that is not there yet leaves the poll time
-// to look again.
-const GLANCE = {timeout: 1000};
 
 /** The box of the group that holds a panel's tab.
  *
@@ -51,27 +49,6 @@ async function groupBox(page, title) {
     const box = await groupOf(page, title).boundingBox(WAIT);
     assert.ok(box, `the group of "${title}" is visible`);
     return box;
-}
-
-/** The box of the group that holds a panel's tab right now, for use inside a poll.
- *
- * A dock that is being rebuilt has no box for a moment. This returns null then, where
- * groupBox would throw, because a throw ends expect.poll instead of letting it look again.
- *
- * @param {import("playwright").Page} page - The presenter page.
- * @param {string} title - The panel's title.
- * @returns {Promise<{x: number, y: number, width: number, height: number} | null>} - The
- *   box, or null when the group has none at this moment.
- */
-async function groupBoxNow(page, title) {
-    try {
-        return await groupOf(page, title).boundingBox(GLANCE);
-    } catch (error) {
-        if (error instanceof errors.TimeoutError) {
-            return null;
-        }
-        throw error;
-    }
 }
 
 /** How far one panel's group reaches past another's, measured inside a poll.
@@ -89,20 +66,6 @@ async function overlapNow(page, title, other, overlap) {
     const otherBox = await groupBoxNow(page, other);
     // A dock that is being rebuilt has no box for a moment: look again.
     return box && otherBox ? overlap(box, otherBox) : Infinity;
-}
-
-/** What a panel drew.
- *
- * With `renderer: "always"` dockview keeps a panel's content in an overlay, away from its
- * tab, so a tab does not lead to its content: the Connection panel is found by its own
- * class, an add-on's by the attribute the test/fixtures/addons panels draw.
- *
- * @param {import("playwright").Page} page - The presenter page.
- * @param {string} title - The panel's title.
- * @returns {import("playwright").Locator} - The content.
- */
-function contentOf(page, title) {
-    return page.locator(title === "Connection" ? CONNECTION : `[data-addon-panel="${title}"]`);
 }
 
 /** Drag from one point to another with the mouse, as a person does.
@@ -271,7 +234,14 @@ Then("the workspace does not show a panel {string}", async function (title) {
 
 Then("the {string} panel reads {string}", async function (title, text) {
     await expect(tabOf(this.presenter, title)).toBeVisible();
-    await expect(contentOf(this.presenter, title)).toContainText(text);
+    const content = contentOf(this.presenter, title);
+    if ((await content.count()) === 0) {
+        // Only the front tab of a group is drawn: a person brings the panel to the front first.
+        await tabOf(this.presenter, title).click();
+        await expect.poll(() => drawnTextNow(this.presenter, title), WAIT).toContain(text);
+        return;
+    }
+    await expect(content).toContainText(text);
 });
 
 Then("the {string} panel's page reads {string}", async function (title, text) {
@@ -358,7 +328,14 @@ Then("the panels are tabs {string}", async function (list) {
 });
 
 When("the presenter page is opened on a phone at {int} by {int}", async function (width, height) {
-    await this.openPresenterOnPhone(this.fixture, {width, height});
+    // A phone lays a page out at the width its viewport line asks for, or at 980 pixels
+    // without one; a desktop window resized to a phone's size does neither, so only
+    // `isMobile` shows what a phone shows.
+    await this.openPresenterIn(
+        {viewport: {width, height}, isMobile: true, hasTouch: true},
+        builtDeck(this.fixture)
+    );
+    await this.presenterIsReady();
 });
 
 Then("the presenter page is laid out {int} pixels wide", async function (width) {

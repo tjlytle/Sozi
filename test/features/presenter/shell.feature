@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulpfile.js
+# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulp/templates.js, gulp/shell.js
 Feature: The presenter as a hosted shell that joins a talk from a link
 
   The shell is the presenter page as static files, which any host can serve under any path.
@@ -59,6 +59,7 @@ Feature: The presenter as a hosted shell that joins a talk from a link
   @issue-303
   Scenario: The shell says it is reconnecting until the display answers
     When the shell is opened on a laptop with the pairing link for session "s2"
+    And the "Connection" tab is chosen
     Then the "Connection" panel reads "Reconnecting"
     And a screenshot "shell-reconnecting" is saved
 

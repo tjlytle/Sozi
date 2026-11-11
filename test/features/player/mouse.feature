@@ -1,9 +1,10 @@
-# covers: src/js/player/PlayerController.js, src/js/player/Viewport.js, src/js/player/Camera.js
+# covers: src/js/player/PlayerController.js, src/js/player/PlayerMouse.js, src/js/player/controlSteps.js, src/js/player/Viewport.js, src/js/player/Camera.js
 Feature: The mouse in the player
 
   A left click on the slide goes to the next frame and a right click goes back. The
   wheel zooms the view in and out without changing frame; with Shift held it rotates
-  the view. Dragging the slide moves the view, and a drag is never taken for a click.
+  the view. Dragging the slide moves the view, and with Shift held it rotates the view.
+  A drag is never taken for a click, and a move of a few pixels still is one.
   A deck can turn mouse zoom off, and then the wheel does nothing.
 
   Background:
@@ -40,3 +41,14 @@ Feature: The mouse in the player
     Given the deck turns mouse zoom off
     When the wheel turns up over the slide
     Then the view is not zoomed
+
+  @issue-407
+  Scenario: Shift and a drag rotate the view without changing frame
+    When the slide is dragged 100 pixels to the left with Shift held
+    Then the view is rotated
+    And the player is on frame "One"
+
+  @issue-407
+  Scenario: A move shorter than the drag threshold is a click
+    When the slide is dragged 3 pixels to the left
+    Then the player is on frame "Two"

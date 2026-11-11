@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/Workspace.js, src/js/presenter/WorkspaceBar.js, src/js/presenter/PanelMenu.js, src/js/presenter/Menu.js, src/js/presenter/PresetForm.js, src/js/presenter/DisplayMirror.js, src/js/player/DisplayChannel.js, src/js/model/Presentation.js, src/js/protocol/messages.js, src/templates/presenter.html
+# covers: src/js/presenter.js, src/js/presenter/Workspace.js, src/js/presenter/LayoutChooser.js, src/js/presenter/WorkspaceBar.js, src/js/presenter/PanelMenu.js, src/js/presenter/Menu.js, src/js/presenter/PresetForm.js, src/js/presenter/DisplayMirror.js, src/js/player/DisplayChannel.js, src/js/model/Presentation.js, src/js/protocol/messages.js, src/templates/presenter.html
 Feature: A deck carries named layouts for the presenter
 
   A deck can carry named layouts, each for a width: one for a phone, one for a laptop, one

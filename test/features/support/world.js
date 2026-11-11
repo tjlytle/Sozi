@@ -29,8 +29,8 @@ export const SCREENSHOTS = path.join(root, "build", "features", "screenshots");
 
 setDefaultTimeout(30000);
 
-/** The size of every page a scenario opens. */
-const VIEWPORT = {width: 1280, height: 800};
+/** The size of the pages a scenario opens, unless a step opens them on another device. */
+export const VIEWPORT = {width: 1280, height: 800};
 
 /** @type {import("playwright").Browser} */
 let browser;
@@ -66,6 +66,27 @@ function recordAddedIframes() {
             }
         }
     }).observe(document, {childList: true, subtree: true});
+}
+
+/** Open a browser context for a scenario: its pages record the iframes they add, and every
+ * alert, confirm or prompt is recorded in the world's dialogs, then dismissed so that the page
+ * goes on.
+ *
+ * @param {SoziWorld} world - The scenario's world.
+ * @param {import("playwright").BrowserContextOptions} options - The context's viewport, touch
+ *     support and the like.
+ * @returns {Promise<import("playwright").BrowserContext>} - The new context.
+ */
+async function newContext(world, options) {
+    const context = await browser.newContext(options);
+    await context.addInitScript(recordAddedIframes);
+    context.on("page", page =>
+        page.on("dialog", dialog => {
+            world.dialogs.push(dialog.message());
+            dialog.dismiss().catch(() => {});
+        })
+    );
+    return context;
 }
 
 /** What a scenario can reach: the browser context, the pages it opened and the dialogs they
@@ -156,7 +177,7 @@ export class SoziWorld extends World {
         const deck = builtDeck(fixture);
         if (touch) {
             await this.context?.close();
-            this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
+            this.context = await newContext(this, {viewport: VIEWPORT, hasTouch: true});
         }
         await this.loadDeck(pathToFileURL(deck.html).href);
     }
@@ -205,43 +226,18 @@ export class SoziWorld extends World {
         await this.openBuiltPresenter(builtDeck(fixture), size);
     }
 
-    /** Open the presenter page of a deck on a device that has saved nothing for it.
+    /** Replace the scenario's browser context with one opened with `contextOptions`, so that the
+     * page starts with nothing saved, then open the presenter page of a built deck in it.
      *
+     * @param {import("playwright").BrowserContextOptions} contextOptions - The device: its
+     *     viewport, touch support and the like.
      * @param {{presenter: string}} deck - The built deck.
      * @param {{width: number, height: number}} [size] - The page's size from its first paint.
      */
-    async openPresenterOnNewDevice(deck, size) {
+    async openPresenterIn(contextOptions, deck, size) {
         await this.context?.close();
-        this.context = await browser.newContext({viewport: VIEWPORT});
+        this.context = await newContext(this, contextOptions);
         await this.openBuiltPresenter(deck, size);
-    }
-
-    /** Open the presenter page of a built deck again, in a context with touch support.
-     *
-     * @param {string} fixture - The fixture name.
-     */
-    async openPresenterOnTouchScreen(fixture) {
-        await this.context?.close();
-        this.context = await browser.newContext({viewport: VIEWPORT, hasTouch: true});
-        await this.context.addInitScript(recordAddedIframes);
-        await this.openPresenter(fixture);
-    }
-
-    /** Open the presenter page of a built deck again, on an emulated phone, and wait for it.
-     *
-     * A phone lays a page out at the width its viewport line asks for, or at 980 pixels
-     * without one; a desktop window resized to a phone's size does neither, so only
-     * `isMobile` shows what a phone shows.
-     *
-     * @param {string} fixture - The fixture name.
-     * @param {{width: number, height: number}} size - The phone's screen in CSS pixels.
-     */
-    async openPresenterOnPhone(fixture, size) {
-        await this.context?.close();
-        this.context = await browser.newContext({viewport: size, isMobile: true, hasTouch: true});
-        await this.context.addInitScript(recordAddedIframes);
-        await this.openPresenter(fixture);
-        await this.presenterIsReady();
     }
 
     /** Open the presenter page of a built deck and wait for the audience window it opens.
@@ -330,15 +326,8 @@ BeforeAll(async () => {
 });
 
 Before(async function () {
-    this.context = await browser.newContext({viewport: VIEWPORT});
-    await this.context.addInitScript(recordAddedIframes);
-    // Record every alert, confirm or prompt, then dismiss it so that the page goes on.
-    this.context.on("page", page =>
-        page.on("dialog", dialog => {
-            this.dialogs.push(dialog.message());
-            dialog.dismiss().catch(() => {});
-        })
-    );
+    // Cast: setWorldConstructor makes every scenario's world a SoziWorld.
+    this.context = await newContext(/** @type {SoziWorld} */ (this), {viewport: VIEWPORT});
 });
 
 After(async function (scenario) {

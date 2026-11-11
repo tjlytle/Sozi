@@ -15,6 +15,9 @@ import {expect} from "playwright/test";
 /** A point on the slide, clear of the frame number and the frame list. */
 const SLIDE = {x: 640, y: 400};
 
+/** A point on the slide 200 pixels above the window's centre. */
+const ABOVE_CENTRE = {x: 640, y: 200};
+
 /** A point on the slide, far from the frame list when it is open. */
 const FAR_FROM_FRAME_LIST = {x: 1200, y: 700};
 
@@ -66,6 +69,12 @@ Given("the deck turns mouse zoom off", async function () {
     });
 });
 
+Given("the deck turns keyboard zoom off", async function () {
+    await this.deck.evaluate(() => {
+        /** @type {any} */ (window).sozi.presentation.enableKeyboardZoom = false;
+    });
+});
+
 When("the slide is clicked", async function () {
     await this.deck.mouse.click(SLIDE.x, SLIDE.y);
 });
@@ -95,6 +104,17 @@ When("the slide is dragged {int} pixels to the left", async function (distance) 
     await this.deck.mouse.down();
     await this.deck.mouse.move(SLIDE.x - distance, SLIDE.y, {steps: 10});
     await this.deck.mouse.up();
+});
+
+// A Shift drag turns the view by the angle the pointer sweeps about the window's centre, so
+// this drag runs above the centre: one along the line through it would sweep no angle.
+When("the slide is dragged {int} pixels to the left with Shift held", async function (distance) {
+    await this.deck.mouse.move(ABOVE_CENTRE.x, ABOVE_CENTRE.y);
+    await this.deck.keyboard.down("Shift");
+    await this.deck.mouse.down();
+    await this.deck.mouse.move(ABOVE_CENTRE.x - distance, ABOVE_CENTRE.y, {steps: 10});
+    await this.deck.mouse.up();
+    await this.deck.keyboard.up("Shift");
 });
 
 When("the frame number is clicked", async function () {
@@ -207,6 +227,11 @@ Then("the player is on frame {string}", async function (title) {
 
 Then("the page title contains {string}", async function (text) {
     assert.match(await this.deck.title(), new RegExp(text));
+});
+
+// The page's own history.back(), as the browser's Back button does it.
+When("Back is pressed on the deck page", async function () {
+    await this.deck.evaluate(() => history.back());
 });
 
 Then("the URL hash names frame {string}", async function (frameId) {
