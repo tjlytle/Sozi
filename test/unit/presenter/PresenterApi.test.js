@@ -6,12 +6,11 @@ import {PresenterApi, PresenterEvents} from "../../../src/js/presenter/Presenter
 import {TransportEvents, TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 import {TransportSet} from "../../../src/js/protocol/TransportSet.js";
 import {ON_FRAME, cameraMessage} from "../../../src/js/protocol/camera.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
-    Roles,
     blankMessage,
     customMessage,
     frameChangeMessage,
-    helloMessage,
     jumpToFrameMessage,
     nextMessage,
     previousMessage

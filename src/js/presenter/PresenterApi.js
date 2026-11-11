@@ -8,11 +8,10 @@ import {EventEmitter} from "events";
 import {DisplayMirrorEvents} from "./DisplayMirror.js";
 import {readPanel} from "./panels.js";
 import {TransportEvents} from "../protocol/LocalTransport.js";
+import {Roles, helloMessage} from "../protocol/hello.js";
 import {
-    Roles,
     blankMessage,
     customMessage,
-    helloMessage,
     jumpToFrameMessage,
     nextMessage,
     previousMessage,

@@ -255,8 +255,8 @@ describe("Workspace", () => {
         workspace.offerPresets({laptop: preset()});
         await settled();
         assert.deepEqual(groupsOf(dock), ["left", "right"]);
-        assert.deepEqual(workspace.presetNames(), ["laptop", "Default"]);
-        workspace.choosePreset("Default");
+        assert.deepEqual(workspace.layouts.presetNames(), ["laptop", "Default"]);
+        workspace.layouts.choosePreset("Default");
         await settled();
         assert.notDeepEqual(groupsOf(dock), ["left", "right"]);
         assert.ok(items.has(KEYS.wide));
@@ -306,7 +306,7 @@ describe("Workspace", () => {
         const refused = new Error("refused");
         assert.throws(
             () =>
-                workspace.whileArranging(() => {
+                workspace.layouts.whileArranging(() => {
                     throw refused;
                 }),
             error => error === refused
@@ -322,12 +322,12 @@ describe("Workspace", () => {
         const refused = new Error("refused");
         assert.throws(
             () =>
-                workspace.whileArranging(() => {
+                workspace.layouts.whileArranging(() => {
                     throw refused;
                 }),
             error => error === refused
         );
-        workspace.arrange();
+        workspace.layouts.arrange();
         await settled();
         assert.equal(items.size, 0);
         dock.getPanel("notes").api.moveTo({group: dock.getPanel("current").group});

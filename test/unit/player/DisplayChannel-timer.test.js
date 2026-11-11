@@ -7,12 +7,8 @@ import assert from "node:assert/strict";
 import {fakeTransport} from "./fakeDeck.js";
 import {displayHello, startedDisplay} from "./displayWorld.js";
 import {TalkTimerEvents} from "../../../src/js/player/TalkTimer.js";
-import {
-    Roles,
-    helloMessage,
-    frameChangeMessage,
-    previewMessage
-} from "../../../src/js/protocol/messages.js";
+import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
+import {frameChangeMessage, previewMessage} from "../../../src/js/protocol/messages.js";
 import {
     TimerActions,
     timerActionMessage,
