@@ -108,7 +108,7 @@ Feature: The clock, the elapsed timer and the frame counter
   @issue-32
   Scenario Outline: The elapsed time is readable at <width> by <height>
     When the presenter page is resized to <width> by <height>
-    And the "Clock" panel is shown
+    And the "Clock" tab is chosen
     Then the elapsed time is at least 48 pixels tall and fits its panel
     And a screenshot "<shot>" is saved
 
