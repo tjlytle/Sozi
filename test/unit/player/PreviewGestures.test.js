@@ -1,7 +1,7 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {PreviewGestures} from "../../../src/js/player/PreviewGestures.js";
-import {DRAG_THRESHOLD_PX, SCALE_FACTOR} from "../../../src/js/player/PlayerController.js";
+import {DRAG_THRESHOLD_PX, SCALE_FACTOR} from "../../../src/js/player/controlSteps.js";
 
 /** Stand-in for the deck's SVG root: it keeps its listeners and its classes.
  *
