@@ -6,6 +6,7 @@
 
 import {PresenterEvents} from "./PresenterApi.js";
 import {readShellLink} from "./shellLink.js";
+import {statusText} from "./statusText.js";
 import {TransportStatus} from "../protocol/LocalTransport.js";
 
 /** @typedef {import("./PresenterApi.js").PresenterApi} PresenterApi */
@@ -43,12 +44,22 @@ export class ShellJoin {
             document.querySelector(".sozi-connection-notice")
         );
 
-        /** Show the notice unless a transport can reach the display.
+        /** Name the link's status in the notice, or hide it once the display can be reached.
+         * Without a link the notice keeps saying why there is none.
          *
          * @param {string} status - One of `TransportStatus`.
          */
         this.onStatus = status => {
-            this.notice.hidden = status === TransportStatus.connected;
+            if (!this.api.link) {
+                return;
+            }
+            if (status === TransportStatus.connected) {
+                this.notice.hidden = true;
+            } else if (status === TransportStatus.closed) {
+                this.show(NOTICE.notConnected);
+            } else {
+                this.show(statusText(status));
+            }
         };
 
         // Reloading means that a new link never meets half-torn state.

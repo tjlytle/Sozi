@@ -5,20 +5,9 @@
 /** @module */
 
 import {DisplayMirrorEvents} from "../DisplayMirror.js";
-import {TransportStatus} from "../../protocol/LocalTransport.js";
+import {statusText} from "../statusText.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
-
-/** What the panel says for each status of a transport.
- *
- * @readonly
- */
-const STATUS_TEXT = Object.freeze({
-    [TransportStatus.connected]: "Connected",
-    [TransportStatus.reconnecting]: "Reconnecting",
-    [TransportStatus.stale]: "Stale",
-    [TransportStatus.closed]: "Closed"
-});
 
 /** The Connection panel: can the presenter still reach the display? */
 export class ConnectionPanel {
@@ -54,7 +43,7 @@ export class ConnectionPanel {
      * @param {string} status - One of `TransportStatus`.
      */
     show(status) {
-        this.text.textContent = Object.hasOwn(STATUS_TEXT, status) ? STATUS_TEXT[status] : status;
+        this.text.textContent = statusText(status);
     }
 
     /** Stop following the status and empty the element. */
