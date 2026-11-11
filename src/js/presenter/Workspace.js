@@ -118,7 +118,8 @@ function inWindow(windows, id) {
  * panel is dragged. A change the speaker makes, by dragging or from a menu, is saved for the
  * page's width, except while the page shows the stack or a panel is maximised. Showing a
  * preset by itself saves nothing, so a preset the deck changes later still reaches this
- * device; choosing one from the Layouts menu saves it.
+ * device; choosing one from the Layouts menu saves it. The page opens on the layout saved for
+ * its width if dockview takes it, else on a preset, else on the default dock or the stack.
  */
 export class Workspace {
     /** Build an empty workspace in an element.
@@ -626,15 +627,6 @@ export class Workspace {
         return this.narrow ? this.keys.narrow : this.keys.wide;
     }
 
-    /** The layout saved for the page's width, if it can be used.
-     *
-     * @returns {?SavedLayout} The layout.
-     */
-    savedLayout() {
-        const text = this.storage.getItem(this.slot);
-        return text === null ? null : readSavedLayout(text, [...this.panels.keys()]);
-    }
-
     /** Change the dock without what that fires counting as the speaker's change.
      *
      * Dockview tells its listeners in a microtask queued by the first change, so this one,
@@ -649,14 +641,14 @@ export class Workspace {
         queueMicrotask(() => this.arranging--);
     }
 
-    /** Show what the page's width shows, by the precedence of `layoutSource`, and remember
-     * whether that was the saved layout.
+    /** Show what the page's width shows, by `layoutSource`, and note if it was the saved one.
      *
      * @param {boolean} [atDefault] - Is the dock still as the panels built it?
      */
     arrange(atDefault = false) {
         this.whileArranging(() => {
-            const saved = this.savedLayout();
+            const text = this.storage.getItem(this.slot);
+            const saved = text === null ? null : readSavedLayout(text, [...this.panels.keys()]);
             this.savedShown = saved !== null && this.showLayout(saved);
             const presetShown = !this.savedShown && this.showPreset();
             const source = layoutSource({
