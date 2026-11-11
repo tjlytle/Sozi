@@ -76,7 +76,7 @@ let currentOffset = startOffset;
  *
  * This function creates an {@linkcode module:player/Animator.Animator|animator}
  * to manage the open/close animations and registers its {@linkcode module:player/Animator.step|step}
- * even handler.
+ * event handler.
  *
  * It registers a {@linkcode module:player/Player.frameChange|frameChange} event handler
  * to highlight the current frame title in the frame list.
