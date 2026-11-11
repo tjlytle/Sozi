@@ -95,7 +95,8 @@ async function judgeProfile(ctx, persona, harness) {
     }
     /** @type {import("./profile.js").ProfileInfo | null} */
     const info = await sandbox.inspectProfile(persona);
-    const login = `npm run pipeline -- --login ${persona}${harness === "claude" ? "" : ` --harness ${harness}`}`;
+    const harnessFlag = harness === "claude" ? "" : ` --harness ${harness}`;
+    const login = `npm run pipeline -- --login ${persona}${harnessFlag}`;
     if (info === null) {
         // Only Claude has a token that stands in for a profile.
         if (harness === "claude" && (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY)) {
@@ -184,7 +185,7 @@ function render(ctx, template, issue, stage) {
 }
 
 /**
- * Start a spawn request as a session of its own.
+ * Start a spawn request as a session of its own, recording its harness and model.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {Spawn} spawn - The request.
@@ -245,6 +246,8 @@ function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
  * Start the stage session of an issue, labelled working while it runs. It carries on the work of
  * a session of the same stage a usage limit stopped, resuming that session when it can, and keeps
  * that interruption in its session record so that a carry that does not apply is not lost.
+ * The session records its harness, model and try now, since the settings may change before
+ * it ends.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -287,7 +290,11 @@ async function startIssue(ctx, n, who) {
     }
     const started = new Date(ctx.clock.now()).toISOString();
     const carried = carry.carryFrom ? {carried: record.interrupted} : {};
-    record.session = {container, started, stage, outbox, persona, profile, ...route, ...carried};
+    const attempt = record.tries + 1;
+    record.session = {
+        ...{container, started, stage, outbox, persona, profile, ...route, try: attempt},
+        ...carried
+    };
     record.interrupted = null;
     ctx.summary.started.push(n);
     ctx.log(`#${n}: ${stage} ${resume ? "resumed" : "started"}: ${container}`);

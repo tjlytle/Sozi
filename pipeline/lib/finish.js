@@ -7,7 +7,7 @@
 
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
-import {logTail} from "./outbox.js";
+import {logTail, readResult} from "./outbox.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
 import {park, promptFor, recordTry, stageOf} from "./state.js";
@@ -20,6 +20,7 @@ import {
     writeComment,
     writeLabel
 } from "./sync.js";
+import {usageComment} from "./usage-comment.js";
 import {
     allowedMoves,
     costsNoTry,
@@ -107,6 +108,39 @@ async function readBlockers(ctx, n) {
         if (error instanceof RateLimited) {
             backOff(ctx, error);
         }
+    }
+}
+
+/**
+ * Post an ended session's usage comment on its issue as ops, or queue it. The harness and
+ * model are the ones the session recorded at its start; a session saved before it did
+ * takes them from the settings. A failure is logged and never undoes the verdict.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {{started: string, outbox: string, persona?: string, harness?: string, model?: string}} session - The session.
+ * @param {{stage: string, try: number | null, outcome: Outcome}} how - Its stage, try and end.
+ * @returns {Promise<void>}
+ */
+async function postUsage(ctx, n, session, {stage, try: attempt, outcome}) {
+    const {settings} = ctx;
+    const settingsStage = stage === "spawn" ? "qa" : stage;
+    try {
+        const body = usageComment({
+            stage,
+            try: attempt,
+            persona: session.persona ?? personaFor(stage),
+            harness: session.harness ?? settings.harnessFor(settingsStage),
+            model: session.model ?? settings.modelFor(settingsStage),
+            result: readResult(session.outbox),
+            startedAt: session.started,
+            endedAt: new Date(ctx.clock.now()).toISOString(),
+            outcome,
+            outbox: session.outbox
+        });
+        await writeComment(ctx, n, body);
+    } catch (error) {
+        ctx.log(`#${n}: usage comment failed: ${String(error)}`);
     }
 }
 
@@ -338,9 +372,9 @@ async function judgeIssue(ctx, n, outcome) {
 }
 
 /**
- * Judge an issue's ended session once and free its slot. The session is marked judged
- * (and saved) first, so a loop that dies half way never applies its requests twice, and
- * the verdict is saved as soon as it is reached.
+ * Judge an issue's ended session once, comment its usage and free its slot. The session
+ * is marked judged (and saved) first, so a loop that dies half way never applies its
+ * requests twice, and the verdict is saved as soon as it is reached.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -355,11 +389,14 @@ export async function finishIssue(ctx, n, outcome = "exited") {
     } else {
         session.judged = true;
         ctx.save();
+        // Read before judging: a session that moved nothing counts a try.
+        const attempt = session.try ?? record.tries + 1;
         try {
             await judgeIssue(ctx, n, outcome);
         } catch (error) {
             ctx.log(`#${n}: finishing failed: ${String(error)}`);
         }
+        await postUsage(ctx, n, session, {stage: session.stage, try: attempt, outcome});
         ctx.save();
     }
     record.labels = record.labels.filter(l => l !== "working");
@@ -373,10 +410,10 @@ export async function finishIssue(ctx, n, outcome = "exited") {
  * Judge a spawned session that ended, once, and free its slot. Its done and wait requests
  * were refused, since a spawned session has no stage, and its spawns are refused: a
  * spawned session may not spawn again. A session whose login died marks its persona
- * logged out.
+ * logged out. One that names an issue comments its usage there.
  *
  * @param {PassContext} ctx - The pass context.
- * @param {{container: string, outbox: string, persona: string, harness?: string, judged?: boolean}} session - The session.
+ * @param {{container: string, started: string, outbox: string, persona: string, issue?: number | null, harness?: string, model?: string, judged?: boolean}} session - The session.
  * @param {Outcome} [outcome] - How the session ended.
  * @returns {Promise<void>}
  */
@@ -407,6 +444,9 @@ export async function finishSpawn(ctx, session, outcome = "exited") {
             await notesAndRefusals(ctx, accepted, refused, 0, who);
         } catch (error) {
             ctx.log(`${who}: finishing failed: ${String(error)}`);
+        }
+        if (session.issue) {
+            await postUsage(ctx, session.issue, session, {stage: "spawn", try: null, outcome});
         }
     }
     await ctx.sandbox.remove(session.container).catch(() => {});

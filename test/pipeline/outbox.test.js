@@ -106,6 +106,25 @@ describe("result.json", () => {
         fs.writeFileSync(file, JSON.stringify({exit: 1, carry: "maybe"}));
         assert.equal(readResult(dir)?.carry, undefined);
     });
+    test("the cache counts are read, 0 when absent", () => {
+        const dir = scratch();
+        const usage = {tokensIn: 4, cacheRead: 136247, cacheWrite: 9933, status: "ok"};
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 0, usage}));
+        const read = readResult(dir);
+        assert.equal(read?.usage.cacheRead, 136247);
+        assert.equal(read?.usage.cacheWrite, 9933);
+        assert.equal(read?.usageKnown, true);
+        fs.writeFileSync(path.join(dir, "result.json"), RESULT);
+        assert.equal(readResult(dir)?.usage.cacheRead, 0);
+        assert.equal(readResult(dir)?.usage.cacheWrite, 0);
+    });
+    test("a null usage is not known, and its status is error", () => {
+        const dir = scratch();
+        fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 1, usage: null}));
+        const read = readResult(dir);
+        assert.equal(read?.usageKnown, false);
+        assert.equal(read?.usage.status, "error");
+    });
 });
 
 describe("the log tail", () => {

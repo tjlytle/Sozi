@@ -58,7 +58,8 @@ write_usage() {
     jq -n --argjson r "$result" '
         ($r // {}) as $x |
         ((($x.error // "") | tostring) + " " + (($x.status // "") | tostring)) as $text |
-        {tokensIn: ($x.usage.input_tokens // 0), tokensOut: ($x.usage.output_tokens // 0),
+        {tokensIn: ($x.usage.input_tokens // 0), cacheRead: ($x.usage.cache_read_tokens // 0),
+         cacheWrite: 0, tokensOut: ($x.usage.output_tokens // 0),
          costUsd: 0, turns: ($x.num_turns // 0),
          status: (if $r == null then "error"
                   elif $x.status == "SUCCESS" then "ok"

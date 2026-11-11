@@ -24,7 +24,9 @@ const NON_BLOCK = fs.constants.O_NONBLOCK ?? 0;
 
 /**
  * @typedef {object} Usage
- * @property {number} tokensIn - Input tokens.
+ * @property {number} tokensIn - Input tokens, cached input left out.
+ * @property {number} cacheRead - Input tokens read from the cache.
+ * @property {number} cacheWrite - Input tokens written to the cache.
  * @property {number} tokensOut - Output tokens.
  * @property {number} costUsd - Cost in US dollars.
  * @property {number} turns - Conversation turns.
@@ -37,6 +39,7 @@ const NON_BLOCK = fs.constants.O_NONBLOCK ?? 0;
  * @property {number} exit - The session's exit code.
  * @property {string | null} session - The harness session id.
  * @property {Usage} usage - Usage totals.
+ * @property {boolean} usageKnown - Whether the harness reported usage; false when it wrote no usage.json.
  * @property {string[]} changed - Files changed.
  * @property {string[]} commits - Commits made.
  * @property {number} resumes - How many times the session was resumed.
@@ -156,8 +159,10 @@ function isObject(value) {
 
 /**
  * Read the result.json the stage runner wrote, filling in defaults; `hooks` is "ok"
- * unless the runner wrote "error" or "skipped", a usage `limit` message is kept only
- * as a string, cut to 300 characters, and `carry` only when it is "failed".
+ * unless the runner wrote "error" or "skipped". A usage that is not an object (null when
+ * the harness wrote no usage.json) reads as zeros with status "error" and `usageKnown`
+ * false. A usage `limit` message is kept only as a string, cut to 300 characters, and
+ * `carry` only when it is "failed".
  *
  * @param {string} dir - The outbox directory.
  * @param {{log?: (line: string) => void}} [options] - Where to say why a file was not read.
@@ -197,6 +202,8 @@ export function readResult(dir, {log = () => {}} = {}) {
         session: typeof raw.session === "string" ? raw.session : null,
         usage: {
             tokensIn: num(u.tokensIn),
+            cacheRead: num(u.cacheRead),
+            cacheWrite: num(u.cacheWrite),
             tokensOut: num(u.tokensOut),
             costUsd: num(u.costUsd),
             turns: num(u.turns),
@@ -206,6 +213,7 @@ export function readResult(dir, {log = () => {}} = {}) {
                     : "error",
             ...(typeof u.limit === "string" ? {limit: u.limit.slice(0, MAX_LIMIT_CHARS)} : {})
         },
+        usageKnown: isObject(raw.usage),
         changed: strings(raw.changed),
         commits: strings(raw.commits),
         resumes:

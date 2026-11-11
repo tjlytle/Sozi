@@ -128,3 +128,47 @@ describe("2.6 only the sanitizer parses HTML", () => {
     test("fires in the protocol module", () => fires("src/js/protocol/messages.js", code, "2.6"));
     test("quiet in the sanitizer module", () => quiet("src/js/html/markdown.js", code, "2.6"));
 });
+
+/** Lint a snippet as if it lived at a path, and return its parsing errors.
+ *
+ * @param {string} filePath - The path, relative to the repository, the snippet pretends to be.
+ * @param {string} code - The snippet.
+ * @returns {Promise<import("eslint").Linter.LintMessage[]>} - The fatal messages.
+ */
+async function fatalMessages(filePath, code) {
+    const [result] = await eslint.lintText(code, {filePath: path.join(root, filePath)});
+    return result.messages.filter(m => m.fatal);
+}
+
+describe("1.2 src/js stays at the syntax jspot parses", () => {
+    const chaining = "export const f = a => a?.b;\n";
+    test("optional chaining fails to parse in src/js", async () =>
+        assert.notEqual((await fatalMessages("src/js/model/probe.js", chaining)).length, 0));
+    test("nullish coalescing fails to parse in src/js", async () =>
+        assert.notEqual(
+            (await fatalMessages("src/js/model/probe.js", "export const f = a => a ?? 1;\n"))
+                .length,
+            0
+        ));
+    test("a class field fails to parse in src/js", async () =>
+        assert.notEqual(
+            (await fatalMessages("src/js/model/A.js", "export class A {\n    x = 1;\n}\n")).length,
+            0
+        ));
+    test("optional chaining parses in a test", async () =>
+        assert.deepEqual(await fatalMessages("test/unit/probe.test.js", chaining), []));
+    test("ES2022 globals stay defined in src/js", async () => {
+        const code =
+            "/** @type {Window & typeof globalThis} */\n" +
+            "export const w = /** @type {any} */ (window);\n" +
+            "export const r = new WeakRef({});\n";
+        const [result] = await eslint.lintText(code, {
+            filePath: path.join(root, "src/js/model/probe.js")
+        });
+        const rules = result.messages.map(m => m.ruleId);
+        assert.ok(
+            !rules.includes("jsdoc/no-undefined-types") && !rules.includes("no-undef"),
+            JSON.stringify(result.messages)
+        );
+    });
+});

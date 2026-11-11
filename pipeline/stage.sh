@@ -101,26 +101,27 @@ apply_carry() {
 }
 
 # Write result.json from whatever state exists; runs on every exit. Its commits are the
-# session's own: first parents only, no merge commits, so a merge of master adds none. Its
-# carry is "failed" when the carried work did not apply and the harness never ran.
+# session's own: first parents only, no merge commits, so a merge of master adds none.
+# Its usage is null when the harness left no usage.json (or one that is not JSON), so
+# the host can tell a missing report from a real one. Its carry is "failed" when the
+# carried work did not apply and the harness never ran.
 write_result() {
-    local sfile=/dev/null usage changed commits out="$OUTBOX/result.json"
+    local sfile=/dev/null usage=null changed commits out="$OUTBOX/result.json"
     write_carry
     [ -s "$OUTBOX/session" ] && sfile="$OUTBOX/session"
-    usage='{"tokensIn":0,"tokensOut":0,"costUsd":0,"turns":0,"status":"error"}'
     [ -s "$OUTBOX/usage.json" ] && usage=$(cat "$OUTBOX/usage.json")
     changed=$(changed_files | to_array)
     commits='[]'
     [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline --first-parent --no-merges \
         "$start..HEAD" 2>/dev/null | to_array)
-    if command -v jq >/dev/null && echo "$usage" | jq -e . >/dev/null 2>&1; then
+    if command -v jq >/dev/null && echo "$usage" | jq . >/dev/null 2>&1; then
         jq -n --argjson exit "$harness_exit" --rawfile session "$sfile" --argjson usage "$usage" \
             --argjson changed "$changed" --argjson commits "$commits" --argjson resumes "$resumes" \
             --arg hooks "$hooks_state" --arg carry "$carry_state" \
             '{exit: $exit, session: (if $session == "" then null else ($session | rtrimstr("\n")) end), usage: $usage, changed: $changed, commits: $commits, resumes: $resumes, hooks: $hooks} + (if $carry == "" then {} else {carry: $carry} end)' \
             >"$out.tmp"
     else
-        node -e 'const a=process.argv;let u;try{u=JSON.parse(a[4])}catch{u={tokensIn:0,tokensOut:0,costUsd:0,turns:0,status:"error"}}
+        node -e 'const a=process.argv;let u;try{u=JSON.parse(a[4])}catch{u=null}
 console.log(JSON.stringify({exit:+a[1],session:require("fs").readFileSync(a[2],"utf8").trim()||null,usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3],hooks:a[7],...(a[8]?{carry:a[8]}:{})}))' \
             "$harness_exit" "$sfile" "$resumes" "$usage" "$changed" "$commits" "$hooks_state" "$carry_state" >"$out.tmp"
     fi

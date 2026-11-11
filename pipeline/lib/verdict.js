@@ -75,9 +75,10 @@ export function stubHarness(result) {
 }
 
 /**
- * Read a session's result and add its usage to the run. A rate-limited session pauses its
- * harness until the reset its CLI named, else for the back-off (limits.js); a session that
- * ended ok clears its harness's pause. GitHub's back-off is not touched.
+ * Read a session's result and add its usage to the run: input, cache reads, cache writes
+ * and output all count toward the tokens the ceilings measure. A rate-limited session pauses
+ * its harness until the reset its CLI named, else for the back-off (limits.js); a session
+ * that ended ok clears its harness's pause. GitHub's back-off is not touched.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {string} outbox - The outbox directory.
@@ -91,10 +92,8 @@ export function takeResult(ctx, outbox, who, harness) {
         ctx.log(`${who}: no result.json`);
         return null;
     }
-    addUsage(ctx.state, {
-        tokens: result.usage.tokensIn + result.usage.tokensOut,
-        costUsd: result.usage.costUsd
-    });
+    const {tokensIn, cacheRead, cacheWrite, tokensOut, costUsd} = result.usage;
+    addUsage(ctx.state, {tokens: tokensIn + cacheRead + cacheWrite + tokensOut, costUsd});
     const run = ctx.state.run;
     if (result.usage.status === "ok") {
         run.limits = clearHarness(run.limits, harness);
