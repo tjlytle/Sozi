@@ -29,6 +29,8 @@ posts and commits exactly what it is given.
 - `GH_AS_SIGNATURE`: one line, such as `architect · codex · gpt-5.5`, appended after a blank line
   to every body of `gh issue|pr create|comment|edit` and `gh pr review` (`--body`, `-b`,
   `--body-file`, `-F`, stdin with `-`), unless the body's last non-blank line already is it.
+  A signed copy of a body file lives in a `gh-as-signed.*` directory under `$TMPDIR` only until
+  `gh` exits; the caller's own file is never changed or removed.
 - `GH_AS_HARNESS` and `GH_AS_MODEL`: `git commit` through `gh-as <who> --git` gets a
   `Harness:` and a `Model:` trailer, each only when its variable is set and only while
   `GH_AS_SIGNATURE` is.
