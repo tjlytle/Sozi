@@ -18,7 +18,8 @@ import MarkdownIt from "markdown-it";
  * @typedef {object} NotesFrame
  * @property {string} frameId - The frame's id.
  * @property {string} title - The frame's title.
- * @property {string} notes - The presenter's notes for the frame, as HTML.
+ * @property {string} notes - The frame's notes as stored in the deck: an HTML fragment, not
+ *     sanitized, never Markdown.
  */
 
 /**
