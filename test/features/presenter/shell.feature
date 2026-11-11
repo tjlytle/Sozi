@@ -59,6 +59,7 @@ Feature: The presenter as a hosted shell that joins a talk from a link
   @issue-303
   Scenario: The shell says it is reconnecting until the display answers
     When the shell is opened on a laptop with the pairing link for session "s2"
+    And the "Connection" tab is chosen
     Then the "Connection" panel reads "Reconnecting"
     And a screenshot "shell-reconnecting" is saved
 
