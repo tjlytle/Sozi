@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import {expect} from "playwright/test";
-import {tabOf, WAIT} from "./workspace.steps.js";
+import {tabOf, WAIT} from "../support/panels.js";
 
 /** @typedef {import("../support/world.js").SoziWorld} SoziWorld */
 
