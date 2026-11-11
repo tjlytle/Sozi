@@ -77,6 +77,8 @@ write_usage() {
         ((($x.usage.input_tokens // 0) + ($x.usage.output_tokens // 0)) == 0 and
          ($said | test("Failed to authenticate|authentication_error|\\b401\\b"))) as $auth |
         {tokensIn: (($prev.tokensIn // 0) + ($x.usage.input_tokens // 0)),
+         cacheRead: (($prev.cacheRead // 0) + ($x.usage.cache_read_input_tokens // 0)),
+         cacheWrite: (($prev.cacheWrite // 0) + ($x.usage.cache_creation_input_tokens // 0)),
          tokensOut: (($prev.tokensOut // 0) + ($x.usage.output_tokens // 0)),
          costUsd: ([$prev.costUsd // 0, $x.total_cost_usd // 0] | max),
          turns: (($prev.turns // 0) + ($x.num_turns // 0)),
@@ -84,7 +86,8 @@ write_usage() {
                   elif $r == null then "error"
                   elif ($text | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
                   elif (($x.subtype // "") | test("budget")) then "budget"
-                  elif $x.is_error == true then "error" else "ok" end)}' >"$OUT/usage.json"
+                  elif $x.is_error == true then "error" else "ok" end)} |
+        if .status == "rate-limited" then .limit = ($said | gsub("^\\s+|\\s+$"; "") | .[0:300]) else . end' >"$OUT/usage.json"
 }
 
 main() {

@@ -7,6 +7,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import {HARNESSES} from "./routing.js";
 
 const DEFAULT_MODEL = "claude-opus-5-5";
 
@@ -40,14 +41,16 @@ const DEFAULTS = {
     PIPELINE_BOARD_FULL_EVERY: "12",
     PIPELINE_PROFILES: "auto",
     PIPELINE_PER_PERSONA: "1",
-    PIPELINE_BACKLOG: ""
+    PIPELINE_BACKLOG: "",
+    PIPELINE_ON_LIMIT: "wait"
 };
 
 const CHOICES = {
     PIPELINE_MERGE: ["auto", "review"],
     PIPELINE_PLANS: ["auto", "review"],
     PIPELINE_FINDINGS: ["obvious", "triage"],
-    PIPELINE_PROFILES: ["auto", "off"]
+    PIPELINE_PROFILES: ["auto", "off"],
+    PIPELINE_ON_LIMIT: ["wait", "fallback"]
 };
 
 const NUMBERS = [
@@ -123,6 +126,68 @@ function secretsOf(layers) {
     return out;
 }
 
+/** Checks the settings that take a choice, an issue number, an integer or a decimal.
+ *
+ * @param {Record<string, string>} raw - The effective settings.
+ * @returns {void}
+ * @throws {Error} - When a value is invalid; the message names the key.
+ */
+function checkValues(raw) {
+    for (const [key, allowed] of Object.entries(CHOICES)) {
+        if (!allowed.includes(raw[key])) {
+            throw new Error(`${key} must be one of ${allowed.join("|")}, not "${raw[key]}"`);
+        }
+    }
+    if (!/^([1-9]\d*)?$/.test(raw.PIPELINE_BACKLOG)) {
+        throw new Error(`PIPELINE_BACKLOG must be an issue number, not "${raw.PIPELINE_BACKLOG}"`);
+    }
+    for (const key of NUMBERS) {
+        if (!/^\d+$/.test(raw[key])) {
+            throw new Error(`${key} must be an integer of at least 0, not "${raw[key]}"`);
+        }
+    }
+    for (const key of DECIMALS) {
+        if (!/^\d+(\.\d+)?$/.test(raw[key])) {
+            throw new Error(`${key} must be a number of at least 0, not "${raw[key]}"`);
+        }
+    }
+}
+
+/** Reads every PIPELINE_FALLBACK_<HARNESS> setting: the harnesses, each with its model, a
+ * stage due on that harness runs on while it is at its usage limit, in order.
+ *
+ * @param {Record<string, string>} raw - The effective settings.
+ * @returns {Record<string, {harness: string, model: string}[]>} - The fallbacks by harness.
+ * @throws {Error} - When a key names no harness, or an entry is not <harness>:<model>.
+ */
+function fallbacksOf(raw) {
+    /** @type {Record<string, {harness: string, model: string}[]>} */
+    const out = {};
+    for (const [key, value] of Object.entries(raw)) {
+        const named = /^PIPELINE_FALLBACK_(.+)$/.exec(key);
+        if (!named) {
+            continue;
+        }
+        const from = named[1].toLowerCase();
+        if (!HARNESSES.includes(from)) {
+            throw new Error(`${key} names no harness: use one of ${HARNESSES.join("|")}`);
+        }
+        if (value.trim() === "") {
+            continue;
+        }
+        out[from] = value.split(",").map(entry => {
+            const [harness, model, ...rest] = entry.trim().split(":");
+            if (!HARNESSES.includes(harness) || !model || rest.length > 0) {
+                throw new Error(
+                    `${key}: "${value}" is not <harness>:<model> with a harness of ${HARNESSES.join("|")}`
+                );
+            }
+            return {harness, model};
+        });
+    }
+    return out;
+}
+
 /** Settings the loop reads once at start; a change waits for a restart. */
 const START_ONLY = ["PIPELINE_REPO", "PIPELINE_NOTION_PARENT", "PIPELINE_MINT_PORT"];
 
@@ -176,25 +241,8 @@ export function loadConfig({root, env, files}) {
             raw[key] = value;
         }
     }
-    for (const [key, allowed] of Object.entries(CHOICES)) {
-        if (!allowed.includes(raw[key])) {
-            throw new Error(`${key} must be one of ${allowed.join("|")}, not "${raw[key]}"`);
-        }
-    }
-    if (!/^([1-9]\d*)?$/.test(raw.PIPELINE_BACKLOG)) {
-        throw new Error(`PIPELINE_BACKLOG must be an issue number, not "${raw.PIPELINE_BACKLOG}"`);
-    }
-    for (const key of NUMBERS) {
-        if (!/^\d+$/.test(raw[key])) {
-            throw new Error(`${key} must be an integer of at least 0, not "${raw[key]}"`);
-        }
-    }
-    for (const key of DECIMALS) {
-        if (!/^\d+(\.\d+)?$/.test(raw[key])) {
-            throw new Error(`${key} must be a number of at least 0, not "${raw[key]}"`);
-        }
-    }
-
+    checkValues(raw);
+    const fallbacks = fallbacksOf(raw);
     const num = key => Number(raw[key]);
     const perStage = (prefix, stage, fallback) =>
         raw[`${prefix}_${stage.toUpperCase()}`] || fallback;
@@ -213,6 +261,13 @@ export function loadConfig({root, env, files}) {
         repo: raw.PIPELINE_REPO,
         human: raw.PIPELINE_HUMAN,
         harness: raw.PIPELINE_HARNESS,
+        onLimit: raw.PIPELINE_ON_LIMIT,
+        /** The harnesses a stage due on a harness at its usage limit runs on instead, in order.
+         *
+         * @param {string} harness - The harness at its limit.
+         * @returns {{harness: string, model: string}[]} - The fallbacks; empty when none are set.
+         */
+        fallbackFor: harness => fallbacks[harness] ?? [],
         /** The harness for a stage.
          *
          * @param {string} stage - The stage name.

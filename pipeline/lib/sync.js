@@ -94,6 +94,29 @@ export async function writeLabel(ctx, {issue, add = [], remove = []}) {
 }
 
 /**
+ * Comment as ops now, or queue the comment while backed off or when it fails.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {string} body - The comment.
+ * @returns {Promise<void>}
+ */
+export async function writeComment(ctx, n, body) {
+    if (!inBackoff(ctx)) {
+        try {
+            await ctx.github.comment("ops", n, body);
+            return;
+        } catch (error) {
+            if (error instanceof RateLimited) {
+                backOff(ctx, error);
+            }
+            ctx.log(`#${n}: comment failed, queued: ${String(error)}`);
+        }
+    }
+    ctx.state.queued.push({comment: {persona: "ops", issue: n, body}});
+}
+
+/**
  * Move an issue to a stage, or out of the stages to triage, in the state and on GitHub.
  *
  * @param {PassContext} ctx - The pass context.

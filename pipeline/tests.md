@@ -26,7 +26,7 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
 
 ## Steps
 
-1. **Read the trail.** `gh-as qa issue view {N} -R tjlytle/Sozi --comments`. The newest
+1. **Read the trail.** `gh-as qa issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`. The newest
    **Implementation Plan** comment is the contract: its Scenarios heading is what you
    write, its Tests heading names the feature file and the `# covers:` line, its Shape
    heading names the files those scenarios cover.

@@ -497,7 +497,8 @@ export class Storage {
         }
     }
 
-    /** Create the presentation HTML file if it does not exist.
+    /** Write the presentation HTML file: create it if it does not exist, or save over it
+     * unless the save mode is manual. The first call also registers it for autosave.
      *
      * @param {string} name - The name of the HTML file to create.
      * @param {any} location - The location of the file (backend-dependent).
@@ -526,7 +527,8 @@ export class Storage {
         }
     }
 
-    /** Create the presenter console HTML file if it does not exist.
+    /** Write the presenter console HTML file: create it if it does not exist, or save
+     * over it.
      *
      * @param {string} name - The name of the HTML file to create.
      * @param {any} location - The location of the file (backend-dependent).

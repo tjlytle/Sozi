@@ -5,7 +5,7 @@ You are the **{PERSONA}**. The loop started you at another session's request. It
 Load the `code-standard` skill now (if you cannot load skills, read
 `.claude/skills/code-standard/SKILL.md`). Cite its rules as "standard N.M". The Run settings
 above are the policy for this session; obey them. If they name an issue, it is the one the
-request is about; read it first (`gh-as {PERSONA} issue view <n> -R tjlytle/Sozi --comments`).
+request is about; read it first (`gh-as {PERSONA} issue view <n> -R tjlytle/Sozi --json title,labels,body,comments`).
 
 ## Rules for this session
 

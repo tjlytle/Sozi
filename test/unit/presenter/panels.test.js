@@ -39,6 +39,8 @@ describe("panels", () => {
             [{id: "a", title: "T", render: "nope"}, /render/],
             [{id: "a", title: "T", url: 3}, /url/],
             [{id: "a", title: "T", render, icon: 3}, /icon/],
+            [{id: "a", title: "T", render, description: 3}, /description/],
+            [{id: "a", title: "T", render, description: "Two\nlines"}, /description/],
             [null, /id/]
         ]);
         for (const [def, message] of refused) {
@@ -116,5 +118,11 @@ describe("panels", () => {
         ]) {
             assert.throws(() => urlPanelRender(url, "T"), {name: "TypeError", message: /url/}, url);
         }
+    });
+
+    test("a panel's description is kept, and is empty when it gives none", () => {
+        assert.equal(readPanel({id: "a", title: "A", render}).description, "");
+        const described = readPanel({id: "a", title: "A", description: "Says what", render});
+        assert.equal(described.description, "Says what");
     });
 });
