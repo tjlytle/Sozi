@@ -139,13 +139,28 @@ def is_comment_line(text):
     return text.strip().startswith(("/*", "*", "//"))
 
 
-def stale_comments(lines, diff_text):
+def session_changed_lines(root, rel):
+    """The line numbers of `rel` in the working tree that the session changed.
+
+    Outside a merge that is the diff against HEAD. During a merge (MERGE_HEAD exists) the
+    lines the merged branch brought in also differ from HEAD but are not the session's, so
+    only the lines that differ from both parents count. An untracked file has none.
+    """
+    if run(["git", "ls-files", "--error-unmatch", rel], root).returncode != 0:
+        return set()
+    changed = changed_lines(run(["git", "diff", "-U0", "HEAD", "--", rel], root).stdout)
+    if run(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], root).returncode == 0:
+        changed &= changed_lines(run(["git", "diff", "-U0", "MERGE_HEAD", "--", rel], root).stdout)
+    return changed
+
+
+def stale_comments(lines, changed):
     """Names whose body changed while the doc comment above them did not.
 
-    Only changed code lines count as a change to a body: a changed comment line inside it,
-    such as a member's summary or a `//` line, leaves the code as it was.
+    `changed` is the set of changed line numbers. Only changed code lines count as a
+    change to a body: a changed comment line inside it, such as a member's summary or a
+    `//` line, leaves the code as it was.
     """
-    changed = changed_lines(diff_text)
     if not changed:
         return []
     code_changed = {n for n in changed if n <= len(lines) and not is_comment_line(lines[n - 1])}
@@ -246,11 +261,9 @@ def advice(root, rel, diff_text=None):
             notes.append(f"{rel}: class `{cls}` has {n} public methods; the guideline is "
                          f"{MAX_PUBLIC_METHODS} (standard 2.8). Consider whether it has "
                          f"more than one job.")
-    if diff_text is None:
-        tracked = run(["git", "ls-files", "--error-unmatch", rel], root).returncode == 0
-        diff_text = run(["git", "diff", "-U0", "HEAD", "--", rel], root).stdout if tracked else ""
+    changed = changed_lines(diff_text) if diff_text is not None else session_changed_lines(root, rel)
     notes.extend(coverage_notes(root, rel))
-    for name, doc_line in stale_comments(lines, diff_text):
+    for name, doc_line in stale_comments(lines, changed):
         notes.append(f"{rel}: the code of `{name}` changed but the summary comment above it "
                      f"(line {doc_line}) did not. Consider whether the comment still describes "
                      f"it (standard 2.8).")
