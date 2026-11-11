@@ -631,14 +631,18 @@ export class Workspace {
      *
      * Dockview tells its listeners in a microtask queued by the first change, so this one,
      * queued after them all, ends the guard once they have been told. Changes in one turn
-     * overlap, so the guard lasts until the last of them ends.
+     * overlap, so the guard lasts until the last of them ends. The guard ends even when the
+     * change throws, and the error reaches the caller as it was thrown.
      *
      * @param {() => void} change - What changes the dock.
      */
     whileArranging(change) {
         this.arranging++;
-        change();
-        queueMicrotask(() => this.arranging--);
+        try {
+            change();
+        } finally {
+            queueMicrotask(() => this.arranging--);
+        }
     }
 
     /** Show what the page's width shows, by `layoutSource`, and note if it was the saved one.

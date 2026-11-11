@@ -301,6 +301,40 @@ describe("Workspace", () => {
         assert.equal(group.activePanel.id, "notes");
     });
 
+    test("a change that throws still ends the guard", async () => {
+        const {workspace, dock, items} = await openWorkspace({width: 1280});
+        const refused = new Error("refused");
+        assert.throws(
+            () =>
+                workspace.whileArranging(() => {
+                    throw refused;
+                }),
+            error => error === refused
+        );
+        await settled();
+        dock.getPanel("notes").api.moveTo({group: dock.getPanel("current").group});
+        await settled();
+        assert.ok(items.has(KEYS.wide));
+    });
+
+    test("a throwing change followed by an arrangement that works", async () => {
+        const {workspace, dock, items} = await openWorkspace({width: 1280});
+        const refused = new Error("refused");
+        assert.throws(
+            () =>
+                workspace.whileArranging(() => {
+                    throw refused;
+                }),
+            error => error === refused
+        );
+        workspace.arrange();
+        await settled();
+        assert.equal(items.size, 0);
+        dock.getPanel("notes").api.moveTo({group: dock.getPanel("current").group});
+        await settled();
+        assert.ok(items.has(KEYS.wide));
+    });
+
     test("a group that holds every docked panel cannot pop out", async () => {
         const {workspace, dock} = await openWorkspace({width: 1280});
         assert.equal(workspace.menuState("notes").canPopOut, true);
