@@ -83,6 +83,9 @@ export function enterPreviewMode({player, presentation, isCurrent, onFollowLink,
 
 /** Report the keys pressed in a preview, outside a field a person types into.
  *
+ * A click in the preview gives the focus to the field it lands in, or to the editing host of
+ * the editable content it lands in, and takes it away from a field otherwise.
+ *
  * @param {SVGSVGElement} root - The root of the deck's SVG document.
  * @param {(key: string, modifiers: KeyModifiers) => void} onKey - Called with each key.
  */
