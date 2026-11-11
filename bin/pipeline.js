@@ -386,17 +386,8 @@ async function runLoop(opt, target, ctx) {
     const save = () => saveState(file, state);
     const mint = await openRun(state, settings, runEnv, log, deps);
     save();
-    const {pass, dispose} = loopPass({
-        state,
-        settings,
-        sandbox,
-        runEnv,
-        configEnv,
-        root,
-        log,
-        save,
-        deps
-    });
+    const loop = loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps});
+    const {pass} = loop;
     const control = createControl({
         sleep: deps.sleep,
         save,
@@ -426,7 +417,7 @@ async function runLoop(opt, target, ctx) {
             }
         }
         await drain(pass, state, control, log);
-        await dispose();
+        await loop.dispose();
         save();
         return code;
     } finally {

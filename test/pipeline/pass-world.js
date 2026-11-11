@@ -79,6 +79,19 @@ function fakeSandbox({containers, calls, outboxes, starts, profiles}) {
 }
 
 /**
+ * A fake advisor that answers nothing and records each question it is asked.
+ *
+ * @param {any[]} asks - Where the questions are recorded.
+ * @returns {{ask: (job: any) => Promise<void>, dispose: () => Promise<void>}} - The advisor.
+ */
+function fakeAdvisor(asks) {
+    return {
+        ask: async job => void asks.push(job),
+        dispose: async () => {}
+    };
+}
+
+/**
  * A fake clock that starts at now and moves only when a test advances it.
  *
  * @param {number} now - The starting time in milliseconds.
@@ -134,10 +147,7 @@ export function world({
     const clock = fakeClock(now);
     /** @type {any[]} */
     const asks = [];
-    const advisor = {
-        ask: async (/** @type {any} */ a) => void asks.push(a),
-        dispose: async () => {}
-    };
+    const advisor = fakeAdvisor(asks);
     const p = createPass({
         advisor,
         settings,
