@@ -8,6 +8,7 @@
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
+import {errors} from "playwright";
 import {expect} from "playwright/test";
 
 // What dockview-core draws. These four selectors are the only ones here that name the
@@ -39,6 +40,10 @@ const TOLERANCE = 2;
 // A panel that is not there fails its step with this wait, not with the step's timeout.
 export const WAIT = {timeout: 5000};
 
+// One look inside a poll: short, so that a group that is not there yet leaves the poll time
+// to look again.
+const GLANCE = {timeout: 1000};
+
 /** The tab of a panel.
  *
  * @param {import("playwright").Page} page - The presenter page.
@@ -69,6 +74,44 @@ async function groupBox(page, title) {
     const box = await groupOf(page, title).boundingBox(WAIT);
     assert.ok(box, `the group of "${title}" is visible`);
     return box;
+}
+
+/** The box of the group that holds a panel's tab right now, for use inside a poll.
+ *
+ * A dock that is being rebuilt has no box for a moment. This returns null then, where
+ * groupBox would throw, because a throw ends expect.poll instead of letting it look again.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The panel's title.
+ * @returns {Promise<{x: number, y: number, width: number, height: number} | null>} - The
+ *   box, or null when the group has none at this moment.
+ */
+async function groupBoxNow(page, title) {
+    try {
+        return await groupOf(page, title).boundingBox(GLANCE);
+    } catch (error) {
+        if (error instanceof errors.TimeoutError) {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/** How far one panel's group reaches past another's, measured inside a poll.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @param {string} title - The first panel's title.
+ * @param {string} other - The second panel's title.
+ * @param {(box: {x: number, y: number, width: number, height: number},
+ *   otherBox: {x: number, y: number, width: number, height: number}) => number} overlap -
+ *   The overlap of the two boxes.
+ * @returns {Promise<number>} - The overlap, or Infinity while either group has no box.
+ */
+async function overlapNow(page, title, other, overlap) {
+    const box = await groupBoxNow(page, title);
+    const otherBox = await groupBoxNow(page, other);
+    // A dock that is being rebuilt has no box for a moment: look again.
+    return box && otherBox ? overlap(box, otherBox) : Infinity;
 }
 
 /** The titles of the tabs a person can see, sorted.
@@ -302,29 +345,36 @@ Then("the {string} panel's page reads {string}", async function (title, text) {
 
 Then("the {string} panel is to the left of {string}", async function (title, other) {
     await expect
-        .poll(async () => {
-            const box = await groupOf(this.presenter, title).boundingBox(WAIT);
-            const otherBox = await groupOf(this.presenter, other).boundingBox(WAIT);
-            // A dock that is being rebuilt has no box for a moment: look again.
-            return box && otherBox ? box.x + box.width - otherBox.x : Infinity;
-        })
+        .poll(() =>
+            overlapNow(
+                this.presenter,
+                title,
+                other,
+                (box, otherBox) => box.x + box.width - otherBox.x
+            )
+        )
         .toBeLessThanOrEqual(TOLERANCE);
 });
 
 Then("the {string} panel is above {string}", async function (title, other) {
     await expect
-        .poll(async () => {
-            const box = await groupOf(this.presenter, title).boundingBox(WAIT);
-            const otherBox = await groupOf(this.presenter, other).boundingBox(WAIT);
-            // A dock that is being rebuilt has no box for a moment: look again.
-            return box && otherBox ? box.y + box.height - otherBox.y : Infinity;
-        })
+        .poll(() =>
+            overlapNow(
+                this.presenter,
+                title,
+                other,
+                (box, otherBox) => box.y + box.height - otherBox.y
+            )
+        )
         .toBeLessThanOrEqual(TOLERANCE);
 });
 
 Then("the {string} panel is {int} pixels wide", async function (title, width) {
     await expect
-        .poll(async () => Math.abs((await groupBox(this.presenter, title)).width - width))
+        .poll(async () => {
+            const box = await groupBoxNow(this.presenter, title);
+            return box ? Math.abs(box.width - width) : Infinity;
+        })
         .toBeLessThanOrEqual(TOLERANCE);
 });
 
