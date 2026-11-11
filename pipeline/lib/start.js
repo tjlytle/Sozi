@@ -16,7 +16,8 @@ import {stillLoggedOut} from "./logins.js";
 import {personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
 import {pickRoute, routeFor} from "./stage-route.js";
-import {ceiling, dueIssues, promptFor, scope} from "./state.js";
+import {dueIssues, scope} from "./due.js";
+import {ceiling, promptFor} from "./state.js";
 import {moveStage, writeComment, writeLabel} from "./sync.js";
 
 /**

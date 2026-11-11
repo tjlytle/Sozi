@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {LABELS, stageToColumn, columnToStage, decide, main, sync} from "../../bin/board.js";
-import {emptyState, applyIssue, dueIssues} from "../../pipeline/lib/state.js";
+import {emptyState, applyIssue} from "../../pipeline/lib/state.js";
+import {dueIssues} from "../../pipeline/lib/due.js";
 
 /**
  * A fake runner that replays canned replies by command prefix and records every command.

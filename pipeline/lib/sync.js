@@ -6,7 +6,8 @@
 // stage moves, the timed sync, and unblocking issues whose blockers closed.
 
 import {RateLimited, blockedBy} from "./github.js";
-import {applyIssue, queueLabel, scope, setStage, stageOf, takeQueuedLabels, wake} from "./state.js";
+import {scope} from "./due.js";
+import {applyIssue, queueLabel, setStage, stageOf, takeQueuedLabels, wake} from "./state.js";
 import {linkSubIssues} from "./subissues.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
