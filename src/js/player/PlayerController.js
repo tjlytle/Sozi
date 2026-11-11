@@ -5,6 +5,7 @@
 /** @module */
 
 import {EventEmitter} from "events";
+import {isEditableTarget} from "../protocol/editable.js";
 
 /** @typedef {import("../model/Presentation.js").Frame} Frame */
 
@@ -641,6 +642,7 @@ export class PlayerController extends EventEmitter {
      * This method handles the navigation keys if they are enabled in the
      * current presentation:
      * Arrows, Page-Up/Down, Home, End, Enter, and Space.
+     * A key typed into a field in the deck is left to the field.
      *
      * @param {KeyboardEvent} evt - The DOM event to process.
      *
@@ -648,7 +650,7 @@ export class PlayerController extends EventEmitter {
      */
     onKeyDown(evt) {
         // Keys with Alt/Ctrl/Meta modifiers are ignored
-        if (evt.altKey || evt.ctrlKey || evt.metaKey) {
+        if (evt.altKey || evt.ctrlKey || evt.metaKey || isEditableTarget(evt.target)) {
             return;
         }
 
@@ -710,6 +712,7 @@ export class PlayerController extends EventEmitter {
     /** Process a keyboard event.
      *
      * This method handles character keys: "+", "-", "R", "P", "A", ".", "=".
+     * A key typed into a field in the deck is left to the field.
      *
      * @param {KeyboardEvent} evt - The DOM event to process.
      *
@@ -717,7 +720,7 @@ export class PlayerController extends EventEmitter {
      */
     onKeyPress(evt) {
         // Keys with modifiers are ignored
-        if (evt.altKey || evt.ctrlKey || evt.metaKey) {
+        if (evt.altKey || evt.ctrlKey || evt.metaKey || isEditableTarget(evt.target)) {
             return;
         }
 
