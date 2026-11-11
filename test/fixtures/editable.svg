@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   width="800"
+   height="600"
+   viewBox="0 0 800 600"
+   version="1.1"
+   id="svg1">
+  <title>Editable</title>
+  <sodipodi:namedview id="namedview1" inkscape:current-layer="layer1" />
+  <g inkscape:groupmode="layer" inkscape:label="Layer 1" id="layer1">
+    <rect id="r1" x="50" y="50" width="320" height="180" style="fill:#3366cc" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Layer 2" id="layer2">
+    <rect id="r2" x="430" y="370" width="320" height="180" style="fill:#cc6633" />
+    <!-- Every frame shows each layer around its reference element, r2 for this layer, and
+         this layer above the other. The fields sit after r2, so nothing is drawn over them,
+         in its top-left corner, so a click in the middle of a preview lands outside them. -->
+    <foreignObject id="fields" x="435" y="375" width="110" height="70">
+      <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:12px">
+        <input id="answer" type="text" style="width:100px;font-size:12px" />
+        <div id="scratch" contenteditable="true"
+             style="width:100px;height:24px;margin-top:4px;background:#fff"></div>
+      </div>
+    </foreignObject>
+  </g>
+</svg>

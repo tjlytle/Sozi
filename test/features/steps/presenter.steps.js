@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
 import {audienceWindow, builtDeck} from "../support/world.js";
+import {WORKSPACE} from "./workspace.steps.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.
 const WITHIN_A_FRAME = 250;
@@ -177,6 +178,27 @@ Then("every preview has the shape {int}:{int}", async function (width, height) {
             timeout: WITHIN_A_FRAME
         })
         .toEqual([]);
+});
+
+Then("the presenter page is as tall as its window", async function () {
+    // The layout settles after a resize or a maximise: look again until it has.
+    await expect
+        .poll(() =>
+            this.presenter.evaluate(() => document.documentElement.scrollHeight - innerHeight)
+        )
+        .toBe(0);
+});
+
+Then("the presenter page is not scrolled", async function () {
+    const scrolled = await this.presenter.evaluate(selector => {
+        const workspace = document.querySelector(selector);
+        return {
+            page: window.scrollY,
+            workspace: workspace?.scrollTop,
+            top: workspace?.getBoundingClientRect().top
+        };
+    }, WORKSPACE);
+    assert.deepEqual(scrolled, {page: 0, workspace: 0, top: 0});
 });
 
 Then("the presenter page shows the notice {string}", async function (text) {
