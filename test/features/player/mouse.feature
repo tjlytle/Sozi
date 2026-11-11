@@ -1,4 +1,4 @@
-# covers: src/js/player/PlayerController.js, src/js/player/PlayerMouse.js, src/js/player/controlSteps.js, src/js/player/Viewport.js, src/js/player/Camera.js
+# covers: src/js/player/PlayerController.js, src/js/player/PlayerMouse.js, src/js/player/PlayerDrag.js, src/js/player/controlSteps.js, src/js/player/Viewport.js, src/js/player/Camera.js
 Feature: The mouse in the player
 
   A left click on the slide goes to the next frame and a right click goes back. The
