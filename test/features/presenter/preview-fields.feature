@@ -10,8 +10,13 @@ Feature: Fields a person types into inside a preview
   again, as they do whenever a preview has the focus. What counts as a field is the rule
   the presenter page already applies to its own fields.
 
+  Editable content may hold markup of its own, a word in a span or in bold. A click on
+  that word gives the focus to the editable content around it, as a click on plain
+  editable content does.
+
   The "editable" deck is the "basic" deck with an input "answer" and editable content
-  "scratch" in the top-left corner of frame One, away from the preview's centre.
+  "scratch" and "notes" in the top-left corner of frame One, away from the preview's
+  centre. The text of "notes" is the word "nested" in a span, "notes-word".
 
   Background:
     Given the "editable" deck is built
@@ -38,6 +43,28 @@ Feature: Fields a person types into inside a preview
   @issue-280
   Scenario: Keys move the display again once the focus leaves the field
     When the field "answer" in the "Current" preview is clicked
+    And the "Current" preview is clicked
+    And the key " " is pressed on the presenter page
+    Then the frame counter reads "2 / 2"
+    And the audience window is on frame "Two"
+
+  @issue-412
+  Scenario: A click on text nested in editable content gives the content the focus
+    When the element "notes-word" in the "Current" preview is clicked
+    Then the field "notes" in the "Current" preview has the focus
+
+  @issue-412
+  Scenario: Keys typed after a click on nested text stay in the editable content
+    When the element "notes-word" in the "Current" preview is clicked
+    And the text "x y" is typed on the presenter page
+    And the key "ArrowRight" is pressed on the presenter page
+    Then the field "notes" in the "Current" preview contains "x y"
+    And the frame counter reads "1 / 2"
+    And the audience window is on frame "One"
+
+  @issue-412
+  Scenario: Keys move the display again once the focus leaves the nested content
+    When the element "notes-word" in the "Current" preview is clicked
     And the "Current" preview is clicked
     And the key " " is pressed on the presenter page
     Then the frame counter reads "2 / 2"
