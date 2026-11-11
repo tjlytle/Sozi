@@ -86,7 +86,9 @@ describe("stage prompts", () => {
             text.qa.includes("gh-as builder pr merge <pr> -R tjlytle/Sozi --squash --delete-branch")
         );
         assert.match(text.qa, /--json reviews/);
-        assert.match(text.qa, /reviewer\[bot\]/);
+        assert.match(text.qa, /author is a GitHub App[\s\S]*other than the PR's author/);
+        assert.match(text.qa, /Do not match the\s+author by name/);
+        assert.doesNotMatch(text.qa, /login ends in `reviewer\[bot\]`/);
         assert.doesNotMatch(text.qa, /reviewDecision/);
         assert.match(text.qa, /req-missing-evidence\.json/);
         assert.match(text.qa, /req-missing-digest\.json/);
