@@ -7,9 +7,10 @@
 // replaces a rule's whole configuration when a later block sets it again, which is how
 // these rules once switched each other off silently.
 
-import {test, describe} from "node:test";
+import {test, describe, before, after} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {ESLint} from "eslint";
 
@@ -48,8 +49,39 @@ describe("2.2 function modules do not touch the DOM", () => {
     test("quiet in an entry point", () => quiet("src/js/presenter.js", code, "2.2"));
 });
 
+/** Make a throwaway root the type-aware rules can lint a real file in, so a concurrent lint of
+ * the live tree never finds a fixture that is gone before it reads it. config/ is a copy, not a
+ * link: eslintrc.mjs sets tsconfigRootDir from its own directory, and a linked module resolves
+ * to the live tree.
+ *
+ * @returns {string} - The scratch root, with config/, tsconfig.json, node_modules and src/js.
+ */
+function scratchRoot() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-eslint-"));
+    for (const name of ["config", "tsconfig.json"]) {
+        fs.cpSync(path.join(root, name), path.join(dir, name), {recursive: true});
+    }
+    fs.symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"), "dir");
+    fs.mkdirSync(path.join(dir, "src", "js"), {recursive: true});
+    return dir;
+}
+
+/** The path the floating-promise test writes its TypeScript fixture to.
+ *
+ * @param {string} scratch - The scratch root from scratchRoot().
+ * @returns {string} - An absolute path under the scratch root's src/js.
+ */
+function floatingFixture(scratch) {
+    return path.join(scratch, "src", "js", "zz-floating.ts");
+}
+
 describe("2.7 no blocking dialogs, no floating promises", () => {
     const code = 'export function f() { alert("x"); }\n';
+    let scratch = "";
+    before(() => {
+        scratch = scratchRoot();
+    });
+    after(() => fs.rmSync(scratch, {recursive: true, force: true}));
     test("alert fires in a class module", () => fires("src/js/Panel.js", code, "2.7"));
     test("alert fires in a function module, alongside the DOM ban", async () => {
         const messages = await standardMessages(
@@ -61,14 +93,22 @@ describe("2.7 no blocking dialogs, no floating promises", () => {
             messages.join("\n")
         );
     });
+    test("the TypeScript fixture is written outside the live tree", () => {
+        const file = floatingFixture(scratch);
+        assert.ok(path.relative(root, file).startsWith(".."), file);
+    });
     test("an unawaited promise fires in a TypeScript file", async () => {
-        const file = path.join(root, "src", "js", "zz-floating.ts");
+        const file = floatingFixture(scratch);
+        const scratchLint = new ESLint({
+            cwd: scratch,
+            overrideConfigFile: path.join(scratch, "config", "eslintrc.mjs")
+        });
         fs.writeFileSync(
             file,
             "export async function f(): Promise<void> {}\nexport function g(): void { f(); }\n"
         );
         try {
-            const [result] = await eslint.lintFiles([file]);
+            const [result] = await scratchLint.lintFiles([file]);
             assert.ok(
                 result.messages.some(m => m.ruleId === "@typescript-eslint/no-floating-promises"),
                 JSON.stringify(result.messages)
