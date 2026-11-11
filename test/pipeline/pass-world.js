@@ -154,15 +154,7 @@ export function end(
     w,
     outbox,
     container,
-    {
-        exit = 0,
-        hooks = "ok",
-        status = "ok",
-        usage = {},
-        resumes = 0,
-        requests = {},
-        carry = undefined
-    } = {}
+    {exit = 0, hooks = "ok", status = "ok", usage = {}, resumes = 0, requests = {}, carry} = {}
 ) {
     fs.writeFileSync(
         path.join(outbox, "result.json"),
