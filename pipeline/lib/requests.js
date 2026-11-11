@@ -92,11 +92,6 @@ const NEVER_REMOVED = ["working"];
  */
 
 /**
- * @typedef {import("./outbox.js").Usage} Usage
- * @typedef {import("./outbox.js").Result} Result
- */
-
-/**
  * @param {unknown} value - A value from a request file.
  * @returns {value is Record<string, unknown>} Whether it is a plain object.
  */
