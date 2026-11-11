@@ -23,14 +23,18 @@
             /* The deck's aspect ratio until the display reports its own. */
             :root {
                 --sozi-display-aspect: {% if shell %}{{ 16 / 9 }}{% else %}{{ pres.aspectWidth / pres.aspectHeight }}{% endif %};
-                --sozi-rail-width: 2.5rem;
+                --sozi-bar-width: 2.5rem;
                 --sozi-space: 0.5rem;
                 --sozi-surface: rgb(245, 245, 245);
-                --sozi-rail-background: rgb(225, 225, 230);
+                --sozi-bar-background: rgb(225, 225, 230);
                 --sozi-button-background: rgb(255, 255, 255);
                 --sozi-button-border: rgb(170, 170, 180);
                 --sozi-notice-background: rgb(255, 236, 179);
                 --sozi-accent: rgb(25, 118, 210);
+                --sozi-drop-target: rgba(25, 118, 210, 0.25);
+                --sozi-menu-highlight: rgb(220, 232, 247);
+                --sozi-muted: rgb(100, 100, 110);
+                --sozi-shadow: rgba(0, 0, 0, 0.2);
                 --sozi-clock-near: rgb(140, 95, 0);
                 --sozi-clock-over: rgb(170, 50, 40);
             }
@@ -42,32 +46,25 @@
                 font-family: sans-serif;
             }
 
-            /* The rail on the left edge, the dock beside it. */
+            /* The bar on the left edge, the dock beside it. */
             .sozi-workspace {
                 display: flex;
                 height: 100vh;
             }
 
-            .sozi-rail {
+            .sozi-bar {
                 display: flex;
                 flex: none;
                 flex-direction: column;
                 align-items: center;
                 gap: var(--sozi-space);
-                width: var(--sozi-rail-width);
+                width: var(--sozi-bar-width);
                 padding: var(--sozi-space) 0;
                 box-sizing: border-box;
-                background: var(--sozi-rail-background);
+                background: var(--sozi-bar-background);
             }
 
-            .sozi-rail__panels {
-                display: flex;
-                flex: auto;
-                flex-direction: column;
-                gap: var(--sozi-space);
-            }
-
-            .sozi-rail button, .sozi-group-actions__button, .sozi-controls button, .sozi-notes__toolbar button, .sozi-clock button {
+            .sozi-bar button, .sozi-group-actions .sozi-menu__button, .sozi-controls button, .sozi-notes__toolbar button, .sozi-clock button {
                 min-width: 2rem;
                 min-height: 2rem;
                 border: 1px solid var(--sozi-button-border);
@@ -81,6 +78,22 @@
                 flex: auto;
                 min-width: 0;
                 height: 100%;
+            }
+
+            /* Over the stack the bar is a row, so the stack keeps the page's whole width. */
+            .sozi-workspace--stack {
+                flex-direction: column;
+            }
+
+            .sozi-workspace--stack .sozi-bar {
+                flex-direction: row;
+                width: auto;
+                padding: calc(var(--sozi-space) / 2) var(--sozi-space);
+            }
+
+            .sozi-workspace--stack .sozi-dock {
+                flex: 1 1 0;
+                min-height: 0;
             }
 
             .sozi-tab {
@@ -103,10 +116,68 @@
                 padding: 0 var(--sozi-space);
             }
 
-            .sozi-group-actions__button {
+            .sozi-group-actions .sozi-menu__button {
                 min-width: 1.5rem;
                 min-height: 1.5rem;
                 padding: 0;
+            }
+
+            /* A drag's drop targets: tinted and outlined, so the speaker sees where it docks. */
+            .sozi-dock .dockview-theme-light, .sozi-dock.dockview-theme-light {
+                --dv-drag-over-background-color: var(--sozi-drop-target);
+                --dv-drag-over-border: 2px solid var(--sozi-accent);
+            }
+
+            /* A menu opens over everything, under or beside what opened it. */
+            .sozi-menu__list {
+                min-width: 12rem;
+                max-width: 20rem;
+                margin: 0;
+                padding: calc(var(--sozi-space) / 2) 0;
+                inset: auto;
+                border: 1px solid var(--sozi-button-border);
+                border-radius: 4px;
+                background: var(--sozi-surface);
+                box-shadow: 0 2px 8px var(--sozi-shadow);
+                font: inherit;
+            }
+
+            .sozi-menu__item {
+                display: grid;
+                grid-template-columns: 1.5rem 1fr;
+                column-gap: var(--sozi-space);
+                padding: var(--sozi-space);
+                cursor: pointer;
+            }
+
+            .sozi-menu__item:hover, .sozi-menu__item:focus {
+                outline: none;
+                background: var(--sozi-menu-highlight);
+            }
+
+            .sozi-menu__item[aria-disabled="true"] {
+                color: var(--sozi-muted);
+                cursor: default;
+            }
+
+            .sozi-menu__icon {
+                text-align: center;
+            }
+
+            .sozi-menu__description {
+                grid-column: 2;
+                font-size: 0.85rem;
+                color: var(--sozi-muted);
+            }
+
+            .sozi-menu__empty {
+                padding: var(--sozi-space);
+                color: var(--sozi-muted);
+            }
+
+            /* A panel's window is its dock alone. */
+            .sozi-dock--window {
+                height: 100vh;
             }
 
             .sozi-panel-frame, .sozi-panel {
@@ -192,7 +263,7 @@
             }
 
             .sozi-notes__toolbar button[aria-pressed="true"] {
-                background: var(--sozi-rail-background);
+                background: var(--sozi-bar-background);
             }
 
             /* Hidden with visibility, so that showing it does not shift the text. */
@@ -386,7 +457,7 @@
             .sozi-frame-picker__thumbnail {
                 display: block;
                 aspect-ratio: var(--sozi-display-aspect);
-                background: var(--sozi-rail-background);
+                background: var(--sozi-bar-background);
             }
 
             .sozi-frame-picker__thumbnail img {
@@ -443,11 +514,6 @@
                 visibility: hidden;
             }
 
-            /* The stack of tabs has no rail and no header buttons; a dock on a phone keeps them. */
-            .sozi-workspace--stack .sozi-rail, .sozi-workspace--stack .sozi-group-actions {
-                display: none;
-            }
-
             /* Over the page, so showing it does not move the panels. */
             .sozi-notice {
                 position: fixed;
@@ -465,7 +531,7 @@
             .sozi-connection-notice {
                 position: fixed;
                 bottom: 0;
-                left: var(--sozi-rail-width);
+                left: var(--sozi-bar-width);
                 right: 0;
                 z-index: 2;
                 margin: 0;
@@ -474,11 +540,11 @@
                 background: var(--sozi-notice-background);
             }
 
-            /* At the bottom beside the rail, so it covers neither the tabs nor the rail's buttons. */
+            /* At the bottom beside the bar, so it covers neither the tabs nor the bar's buttons. */
             .sozi-layout-notice {
                 position: fixed;
                 bottom: 0;
-                left: var(--sozi-rail-width);
+                left: var(--sozi-bar-width);
                 right: 0;
                 z-index: 2;
                 display: flex;
@@ -501,7 +567,7 @@
             .sozi-preset-form {
                 position: fixed;
                 bottom: calc(2 * var(--sozi-space));
-                left: calc(var(--sozi-rail-width) + var(--sozi-space));
+                left: calc(var(--sozi-bar-width) + var(--sozi-space));
                 z-index: 3;
                 display: flex;
                 flex-direction: column;

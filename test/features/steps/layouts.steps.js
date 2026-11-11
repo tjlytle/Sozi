@@ -12,7 +12,7 @@ import {createRequire} from "node:module";
 import path from "node:path";
 import {expect} from "playwright/test";
 import {buildDeck, copyDeck} from "../support/world.js";
-import {RAIL, WAIT, savedLayout} from "./workspace.steps.js";
+import {WAIT, savedLayout} from "./workspace.steps.js";
 
 const require = createRequire(import.meta.url);
 const {runSozi} = require("../../cli/helpers.js");
@@ -35,7 +35,7 @@ const CLI_STEP = {timeout: 120000};
  * @returns {Promise<import("playwright").Locator>} - The form.
  */
 async function openPresetForm(page) {
-    await page.locator(RAIL).getByRole("button", {name: "Save as preset"}).click(WAIT);
+    await page.getByRole("button", {name: "Save as preset"}).click(WAIT);
     const form = page.locator(FORM);
     await expect(form).toBeVisible();
     return form;
