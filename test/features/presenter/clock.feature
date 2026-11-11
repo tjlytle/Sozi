@@ -1,4 +1,4 @@
-# covers: src/js/presenter/panels/ClockPanel.js, src/js/presenter/DisplayMirror.js, src/js/presenter/PresenterApi.js, src/js/presenter/Workspace.js, src/js/presenter.js, src/js/player/TalkTimer.js, src/js/player/DisplayChannel.js, src/js/player.js, src/js/protocol/timer.js, src/js/protocol/messages.js, src/templates/presenter.html
+# covers: src/js/presenter/panels/ClockPanel.js, src/js/presenter/clock.js, src/js/presenter/DisplayMirror.js, src/js/presenter/PresenterApi.js, src/js/presenter/Workspace.js, src/js/presenter.js, src/js/player/TalkTimer.js, src/js/player/DisplayChannel.js, src/js/player.js, src/js/protocol/timer.js, src/js/protocol/messages.js, src/templates/presenter.html
 Feature: The clock, the elapsed timer and the frame counter
 
   The speaker wants to know three things at a glance: what time it is, how long the talk has
@@ -104,6 +104,17 @@ Feature: The clock, the elapsed timer and the frame counter
     When "5" and Enter are typed into the clock's target field
     Then the audience window is on frame "One"
     And the clock's target is 5 minutes
+
+  @issue-316
+  Scenario: A target too long to time goes back to the target there was
+    When the clock's target is set to 5 minutes
+    And a target of 305 nines is entered in the clock's target field
+    Then the clock's target is 5 minutes
+
+  @issue-316
+  Scenario: A target too long to time with no target set leaves the field empty
+    When a target of 305 nines is entered in the clock's target field
+    Then the clock has no target
 
   @issue-32
   Scenario Outline: The elapsed time is readable at <width> by <height>

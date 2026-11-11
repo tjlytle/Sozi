@@ -199,6 +199,14 @@ When("{string} and Enter are typed into the clock's target field", async functio
     await this.presenter.waitForTimeout(SETTLE_MS);
 });
 
+When("a target of {int} nines is entered in the clock's target field", async function (count) {
+    // `fill`, not `pressSequentially`: hundreds of keystrokes would only slow the run.
+    const field = targetField(this.presenter);
+    await field.fill("9".repeat(count), WAIT);
+    await field.press("Enter", WAIT);
+    await this.presenter.waitForTimeout(SETTLE_MS);
+});
+
 When("the {string} panel is shown", async function (title) {
     // Dockview hides a panel behind another tab; on a phone-width page every panel is a tab.
     await tabOf(this.presenter, title).click(WAIT);
@@ -325,6 +333,18 @@ Then("the clock's target is {int} minute(s)", async function (minutes) {
         )
         .toBe(minutes * MINUTE_MS);
     await expect(targetField(this.presenter)).toHaveValue(String(minutes), WAIT);
+});
+
+Then("the clock has no target", async function () {
+    // On the display, as for a target that is set.
+    await expect
+        .poll(() =>
+            this.presenter.evaluate(
+                () => /** @type {any} */ (window).sozi.presenter.state.timer?.targetMs ?? null
+            )
+        )
+        .toBe(null);
+    await expect(targetField(this.presenter)).toHaveValue("", WAIT);
 });
 
 Then("the elapsed time is at least {int} pixels tall and fits its panel", async function (height) {
