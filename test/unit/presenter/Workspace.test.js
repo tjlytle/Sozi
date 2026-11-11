@@ -1,133 +1,18 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
-import {Workspace} from "../../../src/js/presenter/Workspace.js";
-import {FakeDock} from "./FakeDock.js";
-import {fakeElement, fakeWindow} from "./fakePage.js";
-
-const IDS = ["current", "notes"];
-const KEYS = {wide: "wide-key", narrow: "narrow-key"};
-
-/**
- * A preset for every width.
- *
- * @param {object} [grid] - Its grid.
- * @returns {object} The preset.
- */
-function preset(grid = {}) {
-    const dock = {grid, panels: {current: {group: "left"}, notes: {group: "right"}}};
-    return {match: {minWidth: 0}, layout: {version: 1, dock, rail: []}};
-}
-
-const REFUSED = {refused: true};
-
-/**
- * Open a workspace on a fake dock, a fake page and a fake storage.
- *
- * @param {object} [options] - The page.
- * @param {number} [options.width] - Its width.
- * @param {Record<string, string>} [options.stored] - What the storage holds.
- * @param {(workspace: Workspace) => void} [options.beforeOpen] - What happens before it opens.
- * @returns {Promise<object>} The workspace, its dock, the docks and windows of its panels'
- *   windows, and what it said and saved.
- */
-async function openWorkspace({width = 390, stored = {}, beforeOpen = () => {}} = {}) {
-    const windows = [];
-    const view = {
-        innerWidth: width,
-        screenX: 0,
-        screenY: 0,
-        addEventListener() {},
-        removeEventListener() {},
-        open: () => {
-            const opened = fakeWindow();
-            windows.push(opened);
-            return opened;
-        }
-    };
-    const doc = {defaultView: view, styleSheets: [], createElement: () => fakeElement(doc)};
-    Object.assign(view, {document: doc});
-    const element = fakeElement(doc);
-    const items = new Map(Object.entries(stored));
-    const storage = /** @type {any} */ ({
-        getItem: key => items.get(key) ?? null,
-        setItem: (key, value) => items.set(key, value),
-        removeItem: key => items.delete(key)
-    });
-    const media = /** @type {any} */ ({
-        matches: width <= 600,
-        addEventListener() {},
-        removeEventListener() {}
-    });
-    const notices = [];
-    const dock = new FakeDock();
-    // The first dock is the workspace's; the others are its windows'.
-    const docks = [];
-    const workspace = new Workspace(element, {
-        storage,
-        keys: KEYS,
-        media,
-        onNotice: text => notices.push(text),
-        onSavePreset() {},
-        createDock: () => {
-            docks.push(docks.length ? new FakeDock() : dock);
-            return /** @type {any} */ (docks.at(-1));
-        }
-    });
-    for (const id of IDS) {
-        workspace.addPanel({id, title: id, icon: id, render: () => () => {}});
-    }
-    beforeOpen(workspace);
-    workspace.open();
-    // A hello is a later message, never in the same turn as the opening.
-    await settled();
-    return {workspace, element, dock, docks, windows, notices, items};
-}
-
-/**
- * Let what the dock queued tell its listener, and the workspace end its guard.
- *
- * @returns {Promise<void>} Resolved when the queue is empty.
- */
-function settled() {
-    return new Promise(resolve => setTimeout(resolve));
-}
-
-/**
- * The ids of the groups the panels are in.
- *
- * @param {FakeDock} dock - The dock.
- * @returns {string[]} One id per panel, in order.
- */
-function groupsOf(dock) {
-    return IDS.map(id => dock.getPanel(id).group.id);
-}
-
-const POSITION = {referencePanel: "current", direction: "right"};
-
-/**
- * A panel that comes after the others, with a place in the default layout.
- *
- * @returns {object} The panel.
- */
-function latePanel() {
-    return {id: "late", title: "Late", icon: "L", position: POSITION, render: () => () => {}};
-}
-
-/**
- * Record where the dock is asked to add each panel from now on.
- *
- * @param {FakeDock} dock - The dock.
- * @returns {object[]} The positions, filled as they come.
- */
-function addedPositions(dock) {
-    const positions = [];
-    const add = dock.addPanel.bind(dock);
-    dock.addPanel = options => {
-        positions.push(options.position);
-        add(options);
-    };
-    return positions;
-}
+import {
+    IDS,
+    KEYS,
+    POSITION,
+    REFUSED,
+    REFUSED_LAYOUT,
+    preset,
+    openWorkspace,
+    settled,
+    groupsOf,
+    latePanel,
+    addedPositions
+} from "./openWorkspace.js";
 
 describe("Workspace", () => {
     test("a phone stays on the stack when dockview refuses its only preset", async () => {
@@ -201,6 +86,37 @@ describe("Workspace", () => {
         assert.equal(dock.loads.length, loads);
         assert.deepEqual(groupsOf(dock), ["left", "right"]);
         assert.deepEqual(JSON.parse(items.get(KEYS.narrow)), saved);
+    });
+
+    test("a saved layout dockview refuses gives way to the first offer", async () => {
+        const stored = {[KEYS.narrow]: REFUSED_LAYOUT};
+        const {workspace, dock, items} = await openWorkspace({stored});
+        workspace.offerPresets({phone: preset()});
+        await settled();
+        assert.equal(workspace.stacked, false);
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+        assert.equal(items.get(KEYS.narrow), REFUSED_LAYOUT);
+    });
+
+    test("a laptop's saved layout dockview refuses gives way to the first offer", async () => {
+        const stored = {[KEYS.wide]: REFUSED_LAYOUT};
+        const {workspace, dock, items} = await openWorkspace({width: 1280, stored});
+        workspace.offerPresets({laptop: preset()});
+        await settled();
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
+        assert.equal(items.get(KEYS.wide), REFUSED_LAYOUT);
+    });
+
+    test("a later offer still waits after a refused saved layout", async () => {
+        const stored = {[KEYS.narrow]: REFUSED_LAYOUT};
+        const {workspace, dock} = await openWorkspace({stored});
+        workspace.offerPresets({phone: preset()});
+        await settled();
+        const loads = dock.loads.length;
+        workspace.offerPresets({phone: preset({other: true})});
+        await settled();
+        assert.equal(dock.loads.length, loads);
+        assert.deepEqual(groupsOf(dock), ["left", "right"]);
     });
 
     test("only the first offer changes what is on the page", async () => {
@@ -383,6 +299,40 @@ describe("Workspace", () => {
             ["notes", "late"]
         );
         assert.equal(group.activePanel.id, "notes");
+    });
+
+    test("a change that throws still ends the guard", async () => {
+        const {workspace, dock, items} = await openWorkspace({width: 1280});
+        const refused = new Error("refused");
+        assert.throws(
+            () =>
+                workspace.whileArranging(() => {
+                    throw refused;
+                }),
+            error => error === refused
+        );
+        await settled();
+        dock.getPanel("notes").api.moveTo({group: dock.getPanel("current").group});
+        await settled();
+        assert.ok(items.has(KEYS.wide));
+    });
+
+    test("a throwing change followed by an arrangement that works", async () => {
+        const {workspace, dock, items} = await openWorkspace({width: 1280});
+        const refused = new Error("refused");
+        assert.throws(
+            () =>
+                workspace.whileArranging(() => {
+                    throw refused;
+                }),
+            error => error === refused
+        );
+        workspace.arrange();
+        await settled();
+        assert.equal(items.size, 0);
+        dock.getPanel("notes").api.moveTo({group: dock.getPanel("current").group});
+        await settled();
+        assert.ok(items.has(KEYS.wide));
     });
 
     test("a group that holds every docked panel cannot pop out", async () => {

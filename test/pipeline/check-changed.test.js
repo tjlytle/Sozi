@@ -4,30 +4,71 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync, spawnSync} from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {encoding: "utf8"}).trim();
 const script = path.join(root, "pipeline", "check-changed.py");
 
+/** What `bin/check FILE` reads from the root, plus the hook a copy of the script loads. */
+const SANDBOX_LINKS = [
+    "bin/check",
+    "config",
+    "node_modules",
+    ".prettierrc.json",
+    ".prettierignore",
+    ".claude"
+];
+
 /**
- * Run the script on a scratch file under src/js against a hand-written diff.
+ * Make a temporary root outside the checkout, linked to what `bin/check FILE` needs, so
+ * other commands scanning the real tree never meet a fixture while a test runs.
+ * @returns {string} - The new directory; the caller removes it.
+ */
+function sandbox() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-changed-"));
+    fs.mkdirSync(path.join(dir, "bin"));
+    for (const name of SANDBOX_LINKS) {
+        fs.symlinkSync(path.join(root, name), path.join(dir, name));
+    }
+    fs.mkdirSync(path.join(dir, "src", "js"), {recursive: true});
+    return dir;
+}
+
+/**
+ * Run the script on a scratch file under src/js of a sandbox against a hand-written diff.
  * @param {string} name - The file name.
  * @param {string} content - The file content.
  * @param {string} diffText - A unified diff of the file; its hunks are the changed lines.
- * @returns {{status: ?number, stdout: string}} - What the script printed.
+ * @param {string} [scriptPath] - The copy of the script to run; the checkout's by default.
+ * @returns {{status: ?number, stdout: string, stderr: string, inTree: boolean, sandbox: ?string}}
+ *     What the script printed, whether the fixture or its diff sat in the checkout while it
+ *     ran, and the sandbox it ran in.
  */
-function check(name, content, diffText) {
+function check(name, content, diffText, scriptPath = script) {
+    const dir = sandbox();
     const rel = path.join("src", "js", name);
-    const diff = path.join(root, ".agents", "tmp", `${name}.diff`);
-    fs.mkdirSync(path.dirname(diff), {recursive: true});
-    fs.writeFileSync(path.join(root, rel), content);
-    fs.writeFileSync(diff, diffText);
+    const diff = path.join(dir, `${name}.diff`);
     try {
-        const result = spawnSync("python3", [script, rel, diff], {cwd: root, encoding: "utf8"});
-        return {status: result.status, stdout: result.stdout};
+        fs.writeFileSync(path.join(dir, rel), content);
+        fs.writeFileSync(diff, diffText);
+        const result = spawnSync("python3", [scriptPath, rel, diff], {
+            cwd: dir,
+            encoding: "utf8"
+        });
+        const inTree = [
+            path.join(root, rel),
+            path.join(root, ".agents", "tmp", `${name}.diff`)
+        ].some(p => fs.existsSync(p));
+        return {
+            status: result.status,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            inTree,
+            sandbox: dir
+        };
     } finally {
-        fs.unlinkSync(path.join(root, rel));
-        fs.unlinkSync(diff);
+        fs.rmSync(dir, {recursive: true, force: true});
     }
 }
 
@@ -91,5 +132,26 @@ describe("check-changed: bin/check findings on changed lines only", () => {
         assert.match(out, /\(7,1\)/);
         assert.doesNotMatch(out, /\(3,5\)/);
         assert.match(out, /0:0 {2}warning/);
+    });
+    test("the fixture and its diff stay out of the checkout, and the sandbox goes", () => {
+        const r = check("zz-check-tree.js", OLD_AND_NEW, "--- a\n+++ b\n@@ -3,0 +4,1 @@\n+x\n");
+        assert.equal(r.inTree, false, "the fixture was written under the checkout");
+        assert.ok(r.sandbox, "the check did not run in a sandbox");
+        assert.equal(fs.existsSync(r.sandbox), false, "the sandbox was left behind");
+    });
+    test("a copy of the script outside the checkout loads the hook from the working directory", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-changed-"));
+        try {
+            const copy = path.join(dir, "check-changed.py");
+            fs.copyFileSync(script, copy);
+            const diff = "--- a\n+++ b\n@@ -3,0 +4,1 @@\n+x\n";
+            const r = check("zz-check-copy.js", OLD_AND_NEW, diff, copy);
+            assert.doesNotMatch(r.stdout + r.stderr, /Traceback|FileNotFoundError/);
+            assert.equal(r.status, 1, r.stdout + r.stderr);
+            assert.match(r.stdout, /4:\d+\s+error.*eqeqeq/);
+            assert.doesNotMatch(r.stdout, /no-var/);
+        } finally {
+            fs.rmSync(dir, {recursive: true, force: true});
+        }
     });
 });

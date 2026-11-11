@@ -19,6 +19,10 @@ Feature: The presenter arranges a workspace of panels
 
   The presentation keys move the display whichever panel has the focus, a preview included.
 
+  The page is exactly as tall as its window in every layout and never scrolls under the
+  workspace, so the bar on the left edge and the panels' toolbars stay on screen. Bringing something in a
+  panel into view scrolls that panel only.
+
   Background:
     Given the "basic" deck is built
     And the presenter page is open
@@ -173,3 +177,25 @@ Feature: The presenter arranges a workspace of panels
     Then the "Notes" panel is in a window of its own
     When the popped-out window is closed
     Then the workspace shows a panel "Notes"
+
+  @issue-286
+  Scenario: The page is as tall as its window with a tab behind another
+    When the presenter page is resized to 1280 by 800
+    Then the presenter page is as tall as its window
+
+  @issue-286
+  Scenario: Bringing a hidden panel into view leaves the workspace in place
+    When the presenter page is resized to 1280 by 800
+    And the "Connection" panel is scrolled into view
+    Then the presenter page is not scrolled
+    And a screenshot "presenter-workspace-not-scrolled" is saved
+
+  @issue-286
+  Scenario: A maximised panel leaves the page as tall as its window
+    When the "Current" panel is maximised
+    Then the presenter page is as tall as its window
+
+  @issue-286
+  Scenario: The phone-width stack is as tall as its window
+    When the presenter page is resized to 390 by 844
+    Then the presenter page is as tall as its window

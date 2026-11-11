@@ -86,7 +86,8 @@ write_usage() {
                   elif $r == null then "error"
                   elif ($text | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
                   elif (($x.subtype // "") | test("budget")) then "budget"
-                  elif $x.is_error == true then "error" else "ok" end)}' >"$OUT/usage.json"
+                  elif $x.is_error == true then "error" else "ok" end)} |
+        if .status == "rate-limited" then .limit = ($said | gsub("^\\s+|\\s+$"; "") | .[0:300]) else . end' >"$OUT/usage.json"
 }
 
 main() {

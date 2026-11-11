@@ -7,14 +7,14 @@
 import {EventEmitter} from "events";
 import {TransportEvents, TransportStatus} from "./LocalTransport.js";
 
-/** Every status a transport can have, best first; #28 names the two in the middle.
+/** Every status a transport can have, best first.
  *
  * @readonly
  */
 const STATUS_ORDER = Object.freeze([
     TransportStatus.connected,
-    "reconnecting",
-    "stale",
+    TransportStatus.reconnecting,
+    TransportStatus.stale,
     TransportStatus.closed
 ]);
 

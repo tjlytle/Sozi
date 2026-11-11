@@ -33,9 +33,9 @@ restyle, you do not edit, commit or push anything.
 1. **Read the trail.** You sit on the issue's branch, `{N}-<slug>`
    (`git branch --show-current`). Find its PR:
    `gh-as reviewer pr list -R tjlytle/Sozi --state open --head {N}-<slug>`.
-   Read the issue (`gh-as reviewer issue view {N} -R tjlytle/Sozi --comments`), its newest
-   **Implementation Plan** comment, QA's scenarios comment, the PR body and comments
-   (`gh-as reviewer pr view <pr> -R tjlytle/Sozi --comments`), the diff
+   Read the issue (`gh-as reviewer issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`), its newest
+   **Implementation Plan** comment, QA's scenarios comment, the PR body, comments and reviews
+   (`gh-as reviewer pr view <pr> -R tjlytle/Sozi --json title,body,comments,reviews`), the diff
    (`gh-as reviewer pr diff <pr> -R tjlytle/Sozi`), and the commits
    (`gh-as reviewer pr view <pr> -R tjlytle/Sozi --json commits`). If you reviewed this PR
    before, read what you asked for and check that it was done.
