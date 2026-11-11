@@ -242,7 +242,7 @@ describe("edit hook: advise on several files", () => {
         }
     }
 
-    test("gives the notes of every file, whichever order they are passed in", () => {
+    test("gives the notes of every file, in the order the files are passed", () => {
         withFiles(() => {
             for (const files of [
                 [big, wide],
@@ -257,6 +257,14 @@ describe("edit hook: advise on several files", () => {
                     notes.some(n => /ZzManyWide\.js: class `ZzWide` has 12 public methods/.test(n)),
                     notes.join("\n")
                 );
+                // A size or method-count note starts with its file's path; other notes
+                // may name the file further in, so only the leading path attributes one.
+                const [firstIdx, secondIdx] = files.map(file => {
+                    const rel = path.relative(root, file);
+                    return notes.flatMap((n, i) => (n.startsWith(rel) ? [i] : []));
+                });
+                assert.ok(firstIdx.length > 0 && secondIdx.length > 0, notes.join("\n"));
+                assert.ok(Math.max(...firstIdx) < Math.min(...secondIdx), notes.join("\n"));
             }
         });
     });

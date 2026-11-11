@@ -16,7 +16,7 @@
 //                                       log a persona in inside a container
 //   node bin/pipeline.js --copy-profile <from> <to>
 //                                       copy one persona's profile, without its login, to another
-//   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>
+//   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>  --on-limit wait|fallback
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
 // lives in var/pipeline/state.json. A first Ctrl-C or SIGTERM starts nothing more and waits,
@@ -47,6 +47,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const USAGE = [
     "usage: node bin/pipeline.js [watch | --once | <#> | --status | --digest | --build-image]",
     "                            [--until <6h|90m|07:00>] [--epic <#>] [--harness <name>]",
+    "                            [--on-limit wait|fallback]",
     "       node bin/pipeline.js --login <persona> [--harness claude|codex|agy|opencode]   log a persona in inside a container",
     "       node bin/pipeline.js --copy-profile <from> <to>   copy one persona's profile, without its login, to another"
 ];
@@ -118,7 +119,7 @@ export function parseUntil(text, now) {
 }
 
 /** Load the state, starting a new run when the last one stopped. The new run keeps what
- * is still alive: spawned sessions, queued spawns and the mint key the sessions hold.
+ * is still alive: spawned sessions, queued spawns, the sessions' mint key and harness pauses.
  *
  * @param {string} file - The state file.
  * @param {Date} now - The current time.
@@ -127,13 +128,14 @@ export function parseUntil(text, now) {
 function openState(file, now) {
     const state = loadState(file);
     if (!state.run.started || state.run.stopped) {
-        const {sessions, spawns, mintKey} = state.run;
+        const {sessions, spawns, mintKey, limits} = state.run;
         state.run = {
             ...emptyState().run,
             started: now.toISOString(),
             sessions,
             spawns,
-            mintKey: mintKey ?? null
+            mintKey: mintKey ?? null,
+            limits
         };
     }
     return state;
@@ -169,7 +171,8 @@ function parseCommand(argv) {
             "copy-profile": {type: "boolean"},
             until: {type: "string"},
             epic: {type: "string"},
-            harness: {type: "string"}
+            harness: {type: "string"},
+            "on-limit": {type: "string"}
         }
     });
     if (values["copy-profile"]) {
@@ -295,8 +298,11 @@ export async function main(
     let opt, target, settings, configEnv;
     try {
         ({opt, target} = parseCommand(argv));
-        configEnv =
-            opt.harness && opt.login === undefined ? {...env, PIPELINE_HARNESS: opt.harness} : env;
+        configEnv = {
+            ...env,
+            ...(opt.harness && opt.login === undefined ? {PIPELINE_HARNESS: opt.harness} : {}),
+            ...(opt["on-limit"] === undefined ? {} : {PIPELINE_ON_LIMIT: opt["on-limit"]})
+        };
         settings = loadConfig({root, env: configEnv});
         opt.until = opt.until ? parseUntil(opt.until, new Date()).toISOString() : null;
     } catch (error) {
@@ -331,7 +337,8 @@ export async function main(
 async function oneShot(opt, ctx) {
     const {file, settings, sandbox, root, env: runEnv, log, write, writeErr, deps} = ctx;
     if (opt.status) {
-        write(statusText(loadState(file)) + profilesText(await inspectAll(sandbox)));
+        const now = new Date(deps.now());
+        write(statusText(loadState(file), now) + profilesText(await inspectAll(sandbox)));
         return 0;
     }
     if (opt.digest) {

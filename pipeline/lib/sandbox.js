@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
 import {defaultRun} from "./github.js";
+import {copyCarry} from "./outbox.js";
 import {PERSONAS, inspectProfile, profileArgs, volumeName} from "./profile.js";
 
 /** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
@@ -63,6 +64,7 @@ function spawnInteractive(cmd) {
  * @property {boolean} [profile] - Whether to mount the persona's profile; nothing is mounted when absent.
  * @property {Date} [now] - The time the name carries; the current time when absent.
  * @property {Record<string, string>} [env] - Values for the names passed through, such as PIPELINE_ISSUE.
+ * @property {{session: string, carryFrom: string}} [resume] - The harness session to resume, passed as PIPELINE_RESUME_SESSION, and the outbox its carry came from.
  */
 
 /**
@@ -78,7 +80,7 @@ function spawnInteractive(cmd) {
  * @property {(opts: {persona: string, harness: string}) => string[]} loginArgs - The docker run arguments of an interactive login.
  * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
  * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume, without its Claude login, into a new volume for another; refuses when the source has no volume or the target has one, and removes the target when the copy fails.
- * @property {(opts: {issue: number, stage: string, prompt: string, allow: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path.
+ * @property {(opts: {issue: number, stage: string, prompt: string, allow: string, carryFrom?: string, resume?: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path. With carryFrom, the carry files of that stopped session's outbox are copied; with resume, the message is written as resume.md.
  */
 
 /**
@@ -117,6 +119,27 @@ export function copyIdentities(from, to) {
             fs.writeFileSync(path.join(to, persona, "bot-env"), `${lines.join("\n")}\n`);
         }
     }
+}
+
+/**
+ * The docker run arguments that cap a stage container's memory, CPUs and /dev/shm, for each
+ * of them the settings set.
+ *
+ * @param {any} settings - The loop settings from loadConfig.
+ * @returns {string[]} The arguments.
+ */
+function resourceArgs(settings) {
+    const args = [];
+    if (settings.memory) {
+        args.push("--memory", settings.memory);
+    }
+    if (settings.cpus > 0) {
+        args.push("--cpus", String(settings.cpus));
+    }
+    if (settings.shmSize) {
+        args.push("--shm-size", settings.shmSize);
+    }
+    return args;
 }
 
 /**
@@ -173,21 +196,13 @@ export function createSandbox({
         tag,
         now,
         persona,
-        profile
+        profile,
+        resume
     }) {
         const at = now ?? new Date();
         const name = `factory-${issue}-${stage}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
         const args = ["run", "-d", "--name", tag ? `${name}-${tag}` : name];
-        args.push("--add-host=host.docker.internal:host-gateway");
-        if (settings.memory) {
-            args.push("--memory", settings.memory);
-        }
-        if (settings.cpus > 0) {
-            args.push("--cpus", String(settings.cpus));
-        }
-        if (settings.shmSize) {
-            args.push("--shm-size", settings.shmSize);
-        }
+        args.push("--add-host=host.docker.internal:host-gateway", ...resourceArgs(settings));
         args.push("-v", `${mirror}:/mirror:ro`, "-v", `${outbox}:/outbox`);
         // With a profile no token name is passed: docker would read it from its own
         // environment, and a token takes precedence over the profile login.
@@ -205,7 +220,8 @@ export function createSandbox({
             PIPELINE_MAX_RESUMES: MAX_RESUMES,
             GH_BOT_CONFIG_DIR: "/outbox/gh-bot",
             // What stage.sh signs gh-as bodies and commits with (#166).
-            ...(persona ? {PIPELINE_PERSONA: persona} : {})
+            ...(persona ? {PIPELINE_PERSONA: persona} : {}),
+            ...(resume ? {PIPELINE_RESUME_SESSION: resume.session} : {})
         };
         for (const [key, value] of Object.entries(values)) {
             args.push("-e", `${key}=${value}`);
@@ -344,7 +360,7 @@ export function createSandbox({
         async remove(container) {
             await run(["docker", "rm", "-f", container]);
         },
-        prepareOutbox({issue, stage, prompt, allow}) {
+        prepareOutbox({issue, stage, prompt, allow, carryFrom, resume}) {
             const at = new Date();
             const time = `${at.getUTCFullYear()}${pad(at.getUTCMonth() + 1)}${pad(at.getUTCDate())}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
             const base = path.join(varDir, `out-${issue}-${stage}-${time}`);
@@ -364,6 +380,12 @@ export function createSandbox({
             fs.writeFileSync(path.join(dir, "prompt.md"), prompt);
             fs.writeFileSync(path.join(dir, "allow.txt"), allow);
             copyIdentities(botConfigDir, path.join(dir, "gh-bot"));
+            if (carryFrom) {
+                copyCarry(carryFrom, dir);
+            }
+            if (resume !== undefined) {
+                fs.writeFileSync(path.join(dir, "resume.md"), resume);
+            }
             return dir;
         }
     };
