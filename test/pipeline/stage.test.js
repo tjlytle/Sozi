@@ -1,44 +1,10 @@
 import {test, describe, after} from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync, spawn, spawnSync} from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
-const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {encoding: "utf8"}).trim();
-/** @type {string[]} */
-const dirs = [];
-
-const FAKE_HARNESS = `#!/usr/bin/env bash
-mode="$1"; all="$*"; out=""; checkout=""
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --out) out="$2"; shift ;;
-        --checkout) checkout="$2"; shift ;;
-    esac
-    shift
-done
-echo "fake harness ran"
-echo "$all" >>"$out/calls"
-if [ "$mode" = resume ] && [ -n "\${FAKE_RESUME_EXIT:-}" ]; then
-    echo '{"tokensIn": 0, "tokensOut": 0, "costUsd": 0, "turns": 0, "status": "error"}' >"$out/usage.json"
-    exit "$FAKE_RESUME_EXIT"
-fi
-echo "display=\${DISPLAY:-}" >>"$out/display"
-env | grep '^GH_AS_' | sort >"$out/gh-as-env"
-[ -z "\${FAKE_NO_SESSION:-}" ] && echo "fake-session-1" >"$out/session"
-echo '{"tokensIn": 10, "tokensOut": 5, "costUsd": 0.25, "turns": 2, "status": "ok"}' >"$out/usage.json"
-[ -n "\${FAKE_SLEEP:-}" ] && sleep "$FAKE_SLEEP"
-if [ -n "\${FAKE_MERGE:-}" ]; then
-    g() { git -C "$checkout" -c user.name=t -c user.email=t@t "$@"; }
-    echo "mine" >"$checkout/own.txt"
-    g add own.txt && g commit -q -m own && g merge -q --no-ff -m merge "origin/$FAKE_MERGE"
-fi
-[ -n "\${FAKE_TOUCH:-}" ] && echo "changed" >"$checkout/$FAKE_TOUCH"
-[ -n "\${FAKE_SCRIPT:-}" ] && (cd "$checkout" && bash -ec "$FAKE_SCRIPT")
-exit "\${FAKE_EXIT:-0}"
-`;
+import {cleanUp, dirs, mirrorOf, result, root, runStage, stage, world} from "./stage-world.js";
 
 /** A stand-in for Xvfb: logs its arguments, creates the display socket, logs when stopped. */
 const FAKE_XVFB = `#!/usr/bin/env bash
@@ -46,12 +12,6 @@ echo "args $*" >>"$XVFB_LOG"
 touch "$X11_DIR/X$DISPLAY_NUM"
 trap 'echo stopped >>"$XVFB_LOG"; exit 0' TERM
 while true; do sleep 0.1; done
-`;
-
-const FAKE_HOOKS = `#!/usr/bin/env bash
-echo "called" >>"$HOOKS_LOG"
-: >"$3"
-exit 0
 `;
 
 const RESUMING_HOOKS = `#!/usr/bin/env bash
@@ -87,119 +47,7 @@ echo "$@" >>"$NPM_LOG"
 mkdir -p node_modules
 `;
 
-/**
- * Make a bare mirror of a repository: the mirror has master and only the branches the test asks for.
- * @param {string} source - The repository to mirror.
- * @param {string} tmp - The directory the mirror goes in.
- * @param {boolean} issueBranch - Whether the mirror also has a 25-slug branch.
- * @returns {{mirror: string, sha: string}} - The mirror's path and the commit its branches point at.
- */
-function mirrorOf(source, tmp, issueBranch) {
-    const mirror = path.join(tmp, "mirror.git");
-    execFileSync("git", ["clone", "-q", "--bare", "--shared", source, mirror]);
-    const sha = execFileSync(
-        "sh",
-        ["-c", "git rev-parse --verify master 2>/dev/null || git rev-parse HEAD"],
-        {cwd: source, encoding: "utf8"}
-    ).trim();
-    const git = (/** @type {string[]} */ ...args) =>
-        execFileSync("git", ["-C", mirror, ...args], {encoding: "utf8"});
-    for (const ref of git("for-each-ref", "--format=%(refname)", "refs/heads/").split("\n")) {
-        if (ref) {
-            git("update-ref", "-d", ref);
-        }
-    }
-    git("branch", "master", sha);
-    git("symbolic-ref", "HEAD", "refs/heads/master");
-    if (issueBranch) {
-        git("branch", "25-slug", sha);
-    }
-    return {mirror, sha};
-}
-
-/**
- * Seed a node_modules cache whose lock-sha matches the lockfile at a commit.
- * @param {string} tmp - The directory the cache goes in.
- * @param {string} sha - The commit whose package-lock.json the cache matches.
- * @returns {string} - The cache's path.
- */
-function seedCache(tmp, sha) {
-    const cache = path.join(tmp, "cache");
-    fs.mkdirSync(cache);
-    const lock = execFileSync("git", ["show", `${sha}:package-lock.json`], {
-        cwd: root,
-        maxBuffer: 1 << 28
-    });
-    fs.writeFileSync(
-        path.join(cache, "lock-sha"),
-        crypto.createHash("sha256").update(lock).digest("hex") + "\n"
-    );
-    fs.symlinkSync(path.join(root, "node_modules"), path.join(cache, "node_modules"));
-    return cache;
-}
-
-/**
- * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
- * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
- * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
- */
-function world(issueBranch = false) {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-run-"));
-    dirs.push(tmp);
-    const {mirror, sha} = mirrorOf(root, tmp, issueBranch);
-    const harnessDir = path.join(tmp, "harness");
-    fs.mkdirSync(harnessDir);
-    fs.writeFileSync(path.join(harnessDir, "fake"), FAKE_HARNESS, {mode: 0o755});
-    const hooks = path.join(tmp, "hooks.sh");
-    fs.writeFileSync(hooks, FAKE_HOOKS, {mode: 0o755});
-    const outbox = path.join(tmp, "outbox");
-    fs.mkdirSync(outbox);
-    fs.writeFileSync(path.join(outbox, "prompt.md"), "do the thing\n");
-    fs.writeFileSync(path.join(outbox, "allow.txt"), "Read\n");
-    const cache = seedCache(tmp, sha);
-    return {
-        tmp,
-        outbox,
-        env: {
-            ...process.env,
-            PIPELINE_REPO: "tjlytle/Sozi",
-            PIPELINE_HARNESS: "fake",
-            PIPELINE_MODEL: "m",
-            PIPELINE_OFFLINE: "1",
-            MIRROR: mirror,
-            OUTBOX: outbox,
-            WORK: path.join(tmp, "work"),
-            CACHE: cache,
-            HARNESS_DIR: harnessDir,
-            HOOKS_OUTSIDE: hooks,
-            CHANGED_FILES: path.join(root, "pipeline/changed-files.sh"),
-            HOOKS_LOG: path.join(tmp, "hooks.log"),
-            XVFB_BIN: "no-such-xvfb"
-        }
-    };
-}
-
-/**
- * Read the outbox's result.json.
- * @param {string} outbox - The outbox directory.
- * @returns {any} - The parsed result.
- */
-const result = outbox => JSON.parse(fs.readFileSync(path.join(outbox, "result.json"), "utf8"));
-
-const stage = path.join(root, "pipeline/stage.sh");
-/**
- * Run the stage runner to completion.
- * @param {Record<string, string>} env - The environment.
- * @returns {Buffer} - Standard output.
- */
-const runStage = env =>
-    execFileSync("bash", [stage, "25", "build"], {cwd: root, env, stdio: "pipe"});
-
-after(() => {
-    for (const dir of dirs) {
-        fs.rmSync(dir, {recursive: true, force: true});
-    }
-});
+after(cleanUp);
 
 describe("the in-container stage runner", () => {
     test("a normal session: result.json carries the harness outcome", () => {
@@ -535,119 +383,5 @@ merge_side() { git fetch -q "$MIRROR" side; git -c user.name=t -c user.email=t@t
         child.kill("SIGTERM");
         await new Promise(r => child.on("exit", r));
         assert.equal(result(w.outbox).exit, 143);
-    });
-});
-
-describe("a session stopped at a usage limit carries its work", () => {
-    const LIMITED_WORK = [
-        "echo carried >carried.txt",
-        "git add carried.txt",
-        "git -c user.name=t -c user.email=t@t commit -q -m 'Add carried.txt'",
-        "echo loose >loose.txt"
-    ].join(" && ");
-    /**
-     * Run a session that commits a file, leaves another untracked, and stops at its limit.
-     * @returns {string} - The outbox holding its carry files.
-     */
-    function limited() {
-        const w = world(true);
-        runStage({...w.env, FAKE_EXIT: "75", FAKE_SCRIPT: LIMITED_WORK});
-        return w.outbox;
-    }
-    /**
-     * A fresh world whose outbox holds the carry of an earlier session and the resume message.
-     * @param {string} from - The outbox of the stopped session.
-     * @returns {ReturnType<typeof world>} - The world.
-     */
-    function resumed(from) {
-        const w = world(true);
-        for (const name of ["carry.bundle", "carry.patch"]) {
-            fs.copyFileSync(path.join(from, name), path.join(w.outbox, name));
-        }
-        fs.writeFileSync(path.join(w.outbox, "resume.md"), "carry on\n");
-        return w;
-    }
-    /**
-     * The adapter calls the session made, one line of arguments each.
-     * @param {string} outbox - The outbox.
-     * @returns {string[]} - The lines.
-     */
-    const calls = outbox =>
-        fs.readFileSync(path.join(outbox, "calls"), "utf8").trimEnd().split("\n");
-
-    test("exit 75 leaves the unpushed commits and the uncommitted files", () => {
-        const outbox = limited();
-        assert.equal(result(outbox).exit, 75);
-        assert.ok(fs.statSync(path.join(outbox, "carry.bundle")).size > 0);
-        assert.match(fs.readFileSync(path.join(outbox, "carry.patch"), "utf8"), /loose\.txt/);
-    });
-    test("exit 75 with nothing done leaves no carry files", () => {
-        const w = world(true);
-        runStage({...w.env, FAKE_EXIT: "75"});
-        assert.equal(fs.existsSync(path.join(w.outbox, "carry.bundle")), false);
-        assert.equal(fs.existsSync(path.join(w.outbox, "carry.patch")), false);
-    });
-    test("a resumed container applies the carry and resumes the session", () => {
-        const w = resumed(limited());
-        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1"});
-        const work = w.env.WORK;
-        const git = (/** @type {string[]} */ ...args) =>
-            execFileSync("git", ["-C", work, ...args], {encoding: "utf8"}).trim();
-        assert.equal(git("rev-parse", "--abbrev-ref", "HEAD"), "25-slug");
-        assert.equal(git("log", "-1", "--format=%s"), "Add carried.txt");
-        assert.equal(fs.readFileSync(path.join(work, "loose.txt"), "utf8"), "loose\n");
-        const [first] = calls(w.outbox);
-        assert.match(first, /^resume --session s1 --message \S+\/resume\.md /);
-        assert.ok(
-            result(w.outbox).commits.some((/** @type {string} */ c) => /Add carried/.test(c))
-        );
-    });
-    test("a second limit after discarding the edits and pushing the commits carries nothing", () => {
-        const w = resumed(limited());
-        const script = "rm loose.txt && git update-ref refs/remotes/origin/25-slug HEAD";
-        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1", FAKE_EXIT: "75", FAKE_SCRIPT: script});
-        assert.equal(result(w.outbox).exit, 75);
-        assert.equal(fs.existsSync(path.join(w.outbox, "carry.bundle")), false);
-        assert.equal(fs.existsSync(path.join(w.outbox, "carry.patch")), false);
-    });
-    test("a second limit carries the tree as it is then, not the first carry", () => {
-        const w = resumed(limited());
-        const script = "rm loose.txt && echo fresh >fresh.txt";
-        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1", FAKE_EXIT: "75", FAKE_SCRIPT: script});
-        const patch = fs.readFileSync(path.join(w.outbox, "carry.patch"), "utf8");
-        assert.match(patch, /fresh\.txt/);
-        assert.doesNotMatch(patch, /loose\.txt/);
-        assert.ok(fs.statSync(path.join(w.outbox, "carry.bundle")).size > 0);
-    });
-    test("a patch that does not apply stops the session before the harness runs", () => {
-        const w = resumed(limited());
-        const patch = path.join(w.outbox, "carry.patch");
-        fs.writeFileSync(
-            patch,
-            "--- a/no-such-file\n+++ b/no-such-file\n@@ -1 +1 @@\n-old\n+new\n"
-        );
-        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1"});
-        assert.equal(fs.existsSync(path.join(w.outbox, "calls")), false);
-        assert.equal(result(w.outbox).carry, "failed");
-        assert.notEqual(result(w.outbox).exit, 0);
-        assert.match(fs.readFileSync(patch, "utf8"), /no-such-file/);
-        assert.match(fs.readFileSync(path.join(w.outbox, "log"), "utf8"), /carry: patch failed/);
-    });
-    test("a bundle that does not restore stops the session before the harness runs", () => {
-        const w = resumed(limited());
-        fs.writeFileSync(path.join(w.outbox, "carry.bundle"), "not a bundle\n");
-        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1"});
-        assert.equal(fs.existsSync(path.join(w.outbox, "calls")), false);
-        assert.equal(result(w.outbox).carry, "failed");
-        assert.ok(fs.existsSync(path.join(w.outbox, "carry.patch")));
-    });
-    test("a resume that fails with no tokens falls back to a run", () => {
-        const w = resumed(limited());
-        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1", FAKE_RESUME_EXIT: "1"});
-        const lines = calls(w.outbox);
-        assert.equal(lines.length, 2);
-        assert.match(lines[0], /^resume --session s1 /);
-        assert.match(lines[1], /^run --prompt /);
-        assert.equal(result(w.outbox).usage.status, "ok");
     });
 });
