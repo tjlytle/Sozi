@@ -14,7 +14,8 @@ import {consult} from "./consults.js";
 import {isQuiet, scope} from "./due.js";
 import {ceiling} from "./state.js";
 import {finishIssue, finishSpawn} from "./finish.js";
-import {running, start} from "./start.js";
+import {running} from "./running.js";
+import {start} from "./start.js";
 import {drainIfFree, syncIfDue, unblock, writeComment} from "./sync.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");

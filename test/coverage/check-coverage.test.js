@@ -13,6 +13,7 @@ import {
     coveredSources,
     entryCovers,
     isSource,
+    missingCovers,
     stem,
     waivers
 } from "../../bin/check-coverage.js";
@@ -109,5 +110,49 @@ describe("coverage by annotation", () => {
         assert.deepEqual(report.together, [
             {test: "test/cli/naming.test.js", sources: ["src/js/naming.js"]}
         ]);
+    });
+    describe("covers entries that name nothing in the tree", () => {
+        const paths = [
+            "src/js/presenter.js",
+            "src/js/presenter/noteLinks.js",
+            "src/js/presenter/panels/NotesPanel.js"
+        ];
+        const feature = covers => [{path: "test/features/presenter/x.feature", covers}];
+        test("an existing file entry and an existing directory entry are not reported", () => {
+            assert.deepEqual(
+                missingCovers(feature(["src/js/presenter.js", "src/js/presenter/panels/"]), paths),
+                []
+            );
+        });
+        test("a missing file entry is reported with its feature path", () => {
+            assert.deepEqual(missingCovers(feature(["src/js/gone.js"]), paths), [
+                {
+                    feature: "test/features/presenter/x.feature",
+                    entry: "src/js/gone.js",
+                    problem: "is not in the tree"
+                }
+            ]);
+        });
+        test("a directory entry with no file under it is reported", () => {
+            assert.deepEqual(
+                missingCovers(feature(["src/js/gone/"]), paths).map(m => m.entry),
+                ["src/js/gone/"]
+            );
+        });
+        test("a case-only mismatch is reported", () => {
+            assert.deepEqual(
+                missingCovers(feature(["src/js/presenter/NoteLinks.js"]), paths).map(m => m.entry),
+                ["src/js/presenter/NoteLinks.js"]
+            );
+        });
+        test("a directory named without its trailing slash is reported", () => {
+            assert.deepEqual(missingCovers(feature(["src/js/presenter/panels"]), paths), [
+                {
+                    feature: "test/features/presenter/x.feature",
+                    entry: "src/js/presenter/panels",
+                    problem: "names a directory; end it with /"
+                }
+            ]);
+        });
     });
 });
