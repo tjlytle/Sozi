@@ -17,12 +17,16 @@
     <rect id="r2" x="430" y="370" width="320" height="180" style="fill:#cc6633" />
     <!-- Every frame shows each layer around its reference element, r2 for this layer, and
          this layer above the other. The fields sit after r2, so nothing is drawn over them,
-         in its top-left corner, so a click in the middle of a preview lands outside them. -->
-    <foreignObject id="fields" x="435" y="375" width="110" height="70">
+         in its top-left corner, so a click in the middle of a preview lands outside them.
+         The text of "notes" sits in a span, so a click can land on a child of the field. -->
+    <foreignObject id="fields" x="435" y="375" width="110" height="100">
       <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:12px">
         <input id="answer" type="text" style="width:100px;font-size:12px" />
         <div id="scratch" contenteditable="true"
              style="width:100px;height:24px;margin-top:4px;background:#fff"></div>
+        <div id="notes" contenteditable="true"
+             style="width:100px;height:24px;margin-top:4px;background:#fff"><span
+             id="notes-word">nested</span></div>
       </div>
     </foreignObject>
   </g>
