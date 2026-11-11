@@ -15,6 +15,7 @@ import {pausedUntil} from "./limits.js";
 import {stillLoggedOut} from "./logins.js";
 import {personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
+import {atPersonaLimit, running, runningFor} from "./running.js";
 import {pickRoute, routeFor} from "./stage-route.js";
 import {dueIssues, scope} from "./due.js";
 import {ceiling, promptFor} from "./state.js";
@@ -35,47 +36,6 @@ import {moveStage, writeComment, writeLabel} from "./sync.js";
  */
 function read(ctx, name) {
     return fs.readFileSync(path.join(ctx.root, "pipeline", name), "utf8");
-}
-
-/**
- * Count the sessions running now, for issues and spawned ones.
- *
- * @param {PassContext} ctx - The pass context.
- * @returns {number} The count.
- */
-export function running(ctx) {
-    const issues = Object.values(ctx.state.issues).filter(r => r.session).length;
-    return issues + ctx.state.run.sessions.length;
-}
-
-/**
- * Count the sessions of one persona running now; an issue session recorded before
- * sessions carried a persona counts for none.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @returns {number} The count.
- */
-export function runningFor(ctx, persona) {
-    const issues = Object.values(ctx.state.issues).filter(
-        r => /** @type {{persona?: string} | null} */ (r.session)?.persona === persona
-    ).length;
-    const spawns = ctx.state.run.sessions.filter(
-        (/** @type {{persona: string}} */ s) => s.persona === persona
-    ).length;
-    return issues + spawns;
-}
-
-/**
- * Tell whether a persona has as many sessions as it may run at once.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @returns {boolean} True when another session of it must wait.
- */
-function atPersonaLimit(ctx, persona) {
-    const limit = ctx.settings.perPersona;
-    return limit > 0 && runningFor(ctx, persona) >= limit;
 }
 
 /**
