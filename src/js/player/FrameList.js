@@ -54,7 +54,7 @@ let animator;
  */
 let startOffset = -1;
 
-/** The start location of the frame list with respect to the left border of the viewport.
+/** The target location of the frame list with respect to the left border of the viewport.
  *
  * 1 represents the width of the frame list.
  *
