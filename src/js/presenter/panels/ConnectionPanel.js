@@ -38,7 +38,7 @@ export class ConnectionPanel {
         this.show(mirror.status);
     }
 
-    /** Show a status.
+    /** Show a status in the words `statusText` gives it, the words the shell's notice also uses.
      *
      * @param {string} status - One of `TransportStatus`.
      */
