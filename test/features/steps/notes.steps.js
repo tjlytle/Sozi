@@ -9,7 +9,7 @@
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
-import {rebuildWithoutNotesFile} from "../support/world.js";
+import {rebuildWithoutNotesFile} from "../support/decks.js";
 
 /** @typedef {import("../support/world.js").SoziWorld} SoziWorld */
 
