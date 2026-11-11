@@ -14,7 +14,8 @@
 # A session stopped at a usage limit (harness exit 75) leaves its work in the outbox:
 # carry.bundle (its unpushed commits) and carry.patch (its uncommitted and untracked
 # files). When the loop copies them into the next session's outbox, they are applied
-# on top of the issue's branch before the harness runs. With PIPELINE_RESUME_SESSION
+# on top of the issue's branch before the harness runs; when they do not apply, the
+# harness never runs and result.json says carry "failed". With PIPELINE_RESUME_SESSION
 # that harness session is resumed with resume.md instead of a fresh run; a resume
 # that fails before any model call (0 tokens) falls back to the run.
 #
@@ -41,7 +42,7 @@ CHANGED_FILES="${CHANGED_FILES:-/pipeline/changed-files.sh}"
 max_resumes="${PIPELINE_MAX_RESUMES:-3}"
 XVFB_BIN="${XVFB_BIN:-Xvfb}"; DISPLAY_NUM="${DISPLAY_NUM:-99}"; X11_DIR="${X11_DIR:-/tmp/.X11-unix}"
 PROFILE="${PROFILE:-/profile}"; AGY_HOME_LINK="${AGY_HOME_LINK:-$HOME/.gemini}"
-start=""; harness_exit=1; resumes=0; hooks_state=skipped; child=""; xvfb_pid=""
+start=""; harness_exit=1; resumes=0; hooks_state=skipped; carry_state=""; child=""; xvfb_pid=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
@@ -60,10 +61,12 @@ to_array() {
 
 # After a usage limit (exit 75), leave the session's work for the next one: the commits
 # on no remote branch as carry.bundle, the uncommitted and untracked files as carry.patch.
-# Neither file is written when there is nothing to carry.
+# The carry this session started from is removed first, so the files hold the tree as it is
+# now; neither is written when there is nothing to carry.
 write_carry() {
     local ref patch="$OUTBOX/carry.patch"
     [ "$harness_exit" -eq 75 ] && [ -n "$start" ] || return 0
+    rm -f "$OUTBOX/carry.bundle" "$patch"
     ref=$(git -C "$WORK" symbolic-ref -q HEAD) || ref=HEAD
     if [ -n "$(git -C "$WORK" rev-list "$ref" --not --remotes -- 2>/dev/null | head -1)" ]; then
         git -C "$WORK" bundle create "$OUTBOX/carry.bundle" "$ref" --not --remotes 2>/dev/null
@@ -74,31 +77,32 @@ write_carry() {
 }
 
 # Put back the work of a session a usage limit stopped: its commits, on the branch they
-# were made on, then its uncommitted and untracked files. A carry that does not apply is
-# logged, and the session starts from the branch as it is.
+# were made on, then its uncommitted and untracked files. Fails, with a log line, when any
+# of it does not apply; the carry files stay in the outbox for the loop to keep.
 apply_carry() {
     local bundle="$OUTBOX/carry.bundle" patch="$OUTBOX/carry.patch" head
     if [ -s "$bundle" ]; then
         step carry
-        head=$(git -C "$WORK" bundle list-heads "$bundle" | head -1 | cut -d' ' -f2)
-        if git -C "$WORK" fetch -q "$bundle" "$head"; then
-            case "$head" in
-                refs/heads/*) git -C "$WORK" checkout -q -B "${head#refs/heads/}" FETCH_HEAD ;;
-                *) git -C "$WORK" checkout -q --detach FETCH_HEAD ;;
-            esac || step "carry: checkout failed"
-        else
+        head=$(git -C "$WORK" bundle list-heads "$bundle" 2>/dev/null | head -1 | cut -d' ' -f2)
+        if [ -z "$head" ] || ! git -C "$WORK" fetch -q "$bundle" "$head"; then
             step "carry: bundle failed"
+            return 1
         fi
+        case "$head" in
+            refs/heads/*) git -C "$WORK" checkout -q -B "${head#refs/heads/}" FETCH_HEAD ;;
+            *) git -C "$WORK" checkout -q --detach FETCH_HEAD ;;
+        esac || { step "carry: checkout failed"; return 1; }
     fi
     if [ -s "$patch" ]; then
         step carry-files
-        git -C "$WORK" apply --binary "$patch" || step "carry: patch failed"
+        git -C "$WORK" apply --binary "$patch" || { step "carry: patch failed"; return 1; }
     fi
     return 0
 }
 
 # Write result.json from whatever state exists; runs on every exit. Its commits are the
-# session's own: first parents only, no merge commits, so a merge of master adds none.
+# session's own: first parents only, no merge commits, so a merge of master adds none. Its
+# carry is "failed" when the carried work did not apply and the harness never ran.
 write_result() {
     local sfile=/dev/null usage changed commits out="$OUTBOX/result.json"
     write_carry
@@ -112,13 +116,13 @@ write_result() {
     if command -v jq >/dev/null && echo "$usage" | jq -e . >/dev/null 2>&1; then
         jq -n --argjson exit "$harness_exit" --rawfile session "$sfile" --argjson usage "$usage" \
             --argjson changed "$changed" --argjson commits "$commits" --argjson resumes "$resumes" \
-            --arg hooks "$hooks_state" \
-            '{exit: $exit, session: (if $session == "" then null else ($session | rtrimstr("\n")) end), usage: $usage, changed: $changed, commits: $commits, resumes: $resumes, hooks: $hooks}' \
+            --arg hooks "$hooks_state" --arg carry "$carry_state" \
+            '{exit: $exit, session: (if $session == "" then null else ($session | rtrimstr("\n")) end), usage: $usage, changed: $changed, commits: $commits, resumes: $resumes, hooks: $hooks} + (if $carry == "" then {} else {carry: $carry} end)' \
             >"$out.tmp"
     else
         node -e 'const a=process.argv;let u;try{u=JSON.parse(a[4])}catch{u={tokensIn:0,tokensOut:0,costUsd:0,turns:0,status:"error"}}
-console.log(JSON.stringify({exit:+a[1],session:require("fs").readFileSync(a[2],"utf8").trim()||null,usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3],hooks:a[7]}))' \
-            "$harness_exit" "$sfile" "$resumes" "$usage" "$changed" "$commits" "$hooks_state" >"$out.tmp"
+console.log(JSON.stringify({exit:+a[1],session:require("fs").readFileSync(a[2],"utf8").trim()||null,usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3],hooks:a[7],...(a[8]?{carry:a[8]}:{})}))' \
+            "$harness_exit" "$sfile" "$resumes" "$usage" "$changed" "$commits" "$hooks_state" "$carry_state" >"$out.tmp"
     fi
     mv "$out.tmp" "$out"
 }
@@ -257,7 +261,9 @@ main() {
     link_agy
     export_signature
     step start; start=$(git -C "$WORK" rev-parse HEAD)
-    apply_carry
+    # A carry that does not apply ends the session before the harness: none of the tree is
+    # the session's work, and its outbox still holds the carry.
+    apply_carry || { carry_state=failed; start=""; exit 0; }
     step harness; first_call
     resume_loop
     step result

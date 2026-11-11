@@ -44,7 +44,9 @@ A session stopped at a usage limit is carried on by the next one (design: "Usage
 limits" in `docs/software-factory/loop-design.md`). On exit 75, `stage.sh` writes
 `DIR/carry.bundle` (the commits on no remote branch) and `DIR/carry.patch` (the
 uncommitted and untracked files); the loop copies both into the next session's outbox,
-and `stage.sh` applies them after checking out the branch. When that session resumes
+and `stage.sh` applies them after checking out the branch. Each limit replaces both with
+the tree as it is then. When they do not apply, `stage.sh` never runs the adapter and
+`result.json` says `"carry": "failed"`. When that session resumes
 the same one, the loop sets `PIPELINE_RESUME_SESSION` and writes `DIR/resume.md`, and
 `stage.sh` calls `resume --session $PIPELINE_RESUME_SESSION --message DIR/resume.md`
 instead of `run`, falling back to `run` when the resume fails with 0 tokens.

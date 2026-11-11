@@ -40,6 +40,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string} [model] - The model it runs on; absent with the harness.
  * @property {boolean} [planned] - Whether the plan's Harness line chose the harness, not the stage setting.
  * @property {boolean} [profile] - Whether the persona's profile was mounted; absent on sessions saved before resumes.
+ * @property {Interrupted | null} [carried] - The interrupted session whose work it carries, kept so that a carry that does not apply is not lost.
  */
 
 /**

@@ -98,6 +98,14 @@ describe("result.json", () => {
         fs.writeFileSync(path.join(dir, "result.json"), JSON.stringify({exit: 1, usage}));
         assert.equal(readResult(dir)?.usage.status, "auth");
     });
+    test("a carry that failed to apply is kept; any other carry value is dropped", () => {
+        const dir = scratch();
+        const file = path.join(dir, "result.json");
+        fs.writeFileSync(file, JSON.stringify({exit: 1, carry: "failed"}));
+        assert.equal(readResult(dir)?.carry, "failed");
+        fs.writeFileSync(file, JSON.stringify({exit: 1, carry: "maybe"}));
+        assert.equal(readResult(dir)?.carry, undefined);
+    });
 });
 
 describe("the log tail", () => {

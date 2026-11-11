@@ -289,7 +289,8 @@ function interruption(ctx, session, result) {
  * Judge an issue's ended session: usage, requests, and a try when it moved nothing,
  * unless it asked to wait for a person or the model's usage limit stopped it. A session the
  * usage limit stopped is recorded as interrupted, for the next session of its stage to carry
- * on. A session whose login died marks its persona logged out. A session on a stub harness
+ * on; one whose carried work did not apply puts back the interruption it carried, and counts a
+ * try. A session whose login died marks its persona logged out. A session on a stub harness
  * parks the issue at once.
  *
  * @param {PassContext} ctx - The pass context.
@@ -302,6 +303,10 @@ async function judgeIssue(ctx, n, outcome) {
     const {outbox, stage, harness = ctx.settings.harnessFor(stage)} = record.session;
     const who = `#${n}`;
     const result = takeResult(ctx, outbox, who, harness);
+    if (result?.carry === "failed") {
+        record.interrupted = record.session.carried ?? null;
+        ctx.log(`${who}: the carried work did not apply; it is kept for the next session`);
+    }
     const unverified = unverifiedReason(result, outcome);
     if (unverified) {
         ctx.log(`${who}: unverified session: ${unverified}`);

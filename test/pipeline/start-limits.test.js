@@ -148,6 +148,21 @@ describe("a harness at its usage limit", () => {
         assert.deepEqual(s.started, []);
         assert.ok(!w.calls.some(c => c[0] === "comment"));
     });
+    test("fallback with profiles off: no entry has a logged-in profile, so the issue waits", async () => {
+        const w = world({
+            issues: [issue(25, ["stage:in-progress"])],
+            env: {
+                PIPELINE_ON_LIMIT: "fallback",
+                PIPELINE_FALLBACK_CLAUDE: "codex:gpt-5.5",
+                PIPELINE_PROFILES: "off"
+            }
+        });
+        const until = pause(w, "claude");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, []);
+        assert.ok(w.logs.includes("fallback codex skipped: no logged-in profile for builder"));
+        assert.ok(w.logs.includes(`#25: waits, claude is at its usage limit until ${until}`));
+    });
     test("a spawn waits while its harness is paused, then starts", async () => {
         const w = world();
         const spawn = {persona: "advocate", prompt: "File Y", issue: null, harness: null};

@@ -602,6 +602,45 @@ describe("a session stopped at a usage limit carries its work", () => {
             result(w.outbox).commits.some((/** @type {string} */ c) => /Add carried/.test(c))
         );
     });
+    test("a second limit after discarding the edits and pushing the commits carries nothing", () => {
+        const w = resumed(limited());
+        const script = "rm loose.txt && git update-ref refs/remotes/origin/25-slug HEAD";
+        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1", FAKE_EXIT: "75", FAKE_SCRIPT: script});
+        assert.equal(result(w.outbox).exit, 75);
+        assert.equal(fs.existsSync(path.join(w.outbox, "carry.bundle")), false);
+        assert.equal(fs.existsSync(path.join(w.outbox, "carry.patch")), false);
+    });
+    test("a second limit carries the tree as it is then, not the first carry", () => {
+        const w = resumed(limited());
+        const script = "rm loose.txt && echo fresh >fresh.txt";
+        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1", FAKE_EXIT: "75", FAKE_SCRIPT: script});
+        const patch = fs.readFileSync(path.join(w.outbox, "carry.patch"), "utf8");
+        assert.match(patch, /fresh\.txt/);
+        assert.doesNotMatch(patch, /loose\.txt/);
+        assert.ok(fs.statSync(path.join(w.outbox, "carry.bundle")).size > 0);
+    });
+    test("a patch that does not apply stops the session before the harness runs", () => {
+        const w = resumed(limited());
+        const patch = path.join(w.outbox, "carry.patch");
+        fs.writeFileSync(
+            patch,
+            "--- a/no-such-file\n+++ b/no-such-file\n@@ -1 +1 @@\n-old\n+new\n"
+        );
+        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1"});
+        assert.equal(fs.existsSync(path.join(w.outbox, "calls")), false);
+        assert.equal(result(w.outbox).carry, "failed");
+        assert.notEqual(result(w.outbox).exit, 0);
+        assert.match(fs.readFileSync(patch, "utf8"), /no-such-file/);
+        assert.match(fs.readFileSync(path.join(w.outbox, "log"), "utf8"), /carry: patch failed/);
+    });
+    test("a bundle that does not restore stops the session before the harness runs", () => {
+        const w = resumed(limited());
+        fs.writeFileSync(path.join(w.outbox, "carry.bundle"), "not a bundle\n");
+        runStage({...w.env, PIPELINE_RESUME_SESSION: "s1"});
+        assert.equal(fs.existsSync(path.join(w.outbox, "calls")), false);
+        assert.equal(result(w.outbox).carry, "failed");
+        assert.ok(fs.existsSync(path.join(w.outbox, "carry.patch")));
+    });
     test("a resume that fails with no tokens falls back to a run", () => {
         const w = resumed(limited());
         runStage({...w.env, PIPELINE_RESUME_SESSION: "s1", FAKE_RESUME_EXIT: "1"});

@@ -280,8 +280,11 @@ for each limit in a row on that harness, up to two hours. A session on the harne
 ends ok clears its pause. The limited session costs no try, and its work comes along: on
 exit 75 the stage runner writes its unpushed commits (`carry.bundle`) and its uncommitted
 and untracked files (`carry.patch`) to the outbox, and the next session of the stage
-applies both on top of the issue's branch. `PIPELINE_ON_LIMIT` (or `--on-limit` for one
-run) decides what happens meanwhile:
+applies both on top of the issue's branch. A second limit writes them again from the tree as
+it is then, so work the session discarded or pushed is not carried twice. When the carry
+does not apply (the branch moved under the patch), the harness never runs: the session
+counts a try and the loop keeps the interruption for the next one. `PIPELINE_ON_LIMIT` (or
+`--on-limit` for one run) decides what happens meanwhile:
 
 - `wait` (the default): the stage waits for the reset, then resumes the same harness
   session (`PIPELINE_RESUME_SESSION`) with `pipeline/resume.md`, which tells it to carry
@@ -290,7 +293,8 @@ run) decides what happens meanwhile:
   any model call falls back to a fresh run.
 - `fallback`: the stage starts on the first entry of `PIPELINE_FALLBACK_<HARNESS>`
   (`codex:gpt-5.5,agy:gemini-3-pro`; model names do not carry across harnesses, so each
-  entry names one) that is not paused and that the persona's profile is logged in to. It is
+  entry names one) that is not paused and that the persona's profile is logged in to (with
+  `PIPELINE_PROFILES=off` or a token there is no profile to prove a login, so none is). It is
   a fresh session with the carry applied, since no CLI resumes another's transcript, and
   ops comments on the issue which harness took the stage and why. With no entry that fits,
   the stage waits as under `wait`.

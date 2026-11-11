@@ -41,6 +41,7 @@ const NON_BLOCK = fs.constants.O_NONBLOCK ?? 0;
  * @property {string[]} commits - Commits made.
  * @property {number} resumes - How many times the session was resumed.
  * @property {"ok" | "error" | "skipped"} hooks - Whether the outside hooks ran: "error" when they crashed, "skipped" when they never ran.
+ * @property {"failed"} [carry] - Set when the work carried from a session a usage limit stopped did not apply, so the harness never ran.
  */
 
 /**
@@ -155,8 +156,8 @@ function isObject(value) {
 
 /**
  * Read the result.json the stage runner wrote, filling in defaults; `hooks` is "ok"
- * unless the runner wrote "error" or "skipped", and a usage `limit` message is kept only
- * as a string, cut to 300 characters.
+ * unless the runner wrote "error" or "skipped", a usage `limit` message is kept only
+ * as a string, cut to 300 characters, and `carry` only when it is "failed".
  *
  * @param {string} dir - The outbox directory.
  * @param {{log?: (line: string) => void}} [options] - Where to say why a file was not read.
@@ -213,6 +214,7 @@ export function readResult(dir, {log = () => {}} = {}) {
                 : 0,
         hooks: HOOKS.includes(/** @type {string} */ (raw.hooks))
             ? /** @type {Result["hooks"]} */ (raw.hooks)
-            : "ok"
+            : "ok",
+        ...(raw.carry === "failed" ? {carry: /** @type {const} */ ("failed")} : {})
     };
 }

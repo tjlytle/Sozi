@@ -243,7 +243,8 @@ function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
 
 /**
  * Start the stage session of an issue, labelled working while it runs. It carries on the work of
- * a session of the same stage a usage limit stopped, resuming that session when it can.
+ * a session of the same stage a usage limit stopped, resuming that session when it can, and keeps
+ * that interruption in its session record so that a carry that does not apply is not lost.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -285,7 +286,8 @@ async function startIssue(ctx, n, who) {
         throw error;
     }
     const started = new Date(ctx.clock.now()).toISOString();
-    record.session = {container, started, stage, outbox, persona, profile, ...route};
+    const carried = carry.carryFrom ? {carried: record.interrupted} : {};
+    record.session = {container, started, stage, outbox, persona, profile, ...route, ...carried};
     record.interrupted = null;
     ctx.summary.started.push(n);
     ctx.log(`#${n}: ${stage} ${resume ? "resumed" : "started"}: ${container}`);
@@ -355,11 +357,13 @@ async function pickRoute(ctx, persona, route) {
         if (!("fallbackFrom" in choice)) {
             return {route, verdict};
         }
-        if (!("refused" in verdict)) {
+        // A profile left unmounted (PIPELINE_PROFILES=off, or a token) proves no login.
+        if ("profile" in verdict && verdict.profile) {
             const {harness, model, fallbackFrom} = choice;
             return {route: {harness, model, planned: false}, verdict, fallbackFrom};
         }
-        ctx.log(`fallback ${choice.harness} skipped: ${verdict.refused}`);
+        const why = "refused" in verdict ? verdict.refused : `no logged-in profile for ${persona}`;
+        ctx.log(`fallback ${choice.harness} skipped: ${why}`);
         fallbacks = fallbacks.filter(f => f.harness !== choice.harness);
     }
 }
