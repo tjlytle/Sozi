@@ -125,3 +125,10 @@ Feature: A deck carries named layouts for the presenter
     Then the "Current" panel is to the left of "Notes"
     When the layout "laptop" is chosen from the Layouts menu
     Then the "Notes" panel is to the left of "Current"
+
+  @issue-291
+  Scenario: A saved layout dockview refuses gives way to the preset
+    Given the presenter page is open at 1280 by 800
+    And the saved layout for the deck is "{\"version\":1,\"dock\":{\"grid\":{},\"panels\":{}},\"rail\":[]}"
+    When the presenter page is reloaded
+    Then the "Notes" panel is to the left of "Current"
