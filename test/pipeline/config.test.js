@@ -54,6 +54,43 @@ describe("pipeline settings", () => {
             /PIPELINE_MAX_TRIES/
         );
     });
+    test("PIPELINE_ON_LIMIT is wait by default, fallback when set, nothing else", () => {
+        assert.equal(loadConfig({root: "/nonexistent", env: {}}).onLimit, "wait");
+        const s = loadConfig({root: "/nonexistent", env: {PIPELINE_ON_LIMIT: "fallback"}});
+        assert.equal(s.onLimit, "fallback");
+        assert.throws(
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_ON_LIMIT: "retry"}}),
+            /PIPELINE_ON_LIMIT must be one of wait\|fallback/
+        );
+    });
+    test("a harness's fallbacks are read in order from PIPELINE_FALLBACK_<HARNESS>", () => {
+        const s = loadConfig({
+            root: "/nonexistent",
+            env: {PIPELINE_FALLBACK_CLAUDE: "codex:gpt-5.5, agy:gemini-3-pro"}
+        });
+        assert.deepEqual(s.fallbackFor("claude"), [
+            {harness: "codex", model: "gpt-5.5"},
+            {harness: "agy", model: "gemini-3-pro"}
+        ]);
+        assert.deepEqual(s.fallbackFor("codex"), []);
+    });
+    test("a fallback with an unknown harness or no model is an error at load", () => {
+        const load = (/** @type {Record<string, string>} */ env) =>
+            loadConfig({root: "/nonexistent", env});
+        assert.throws(
+            () => load({PIPELINE_FALLBACK_CLAUDE: "cursor:m"}),
+            /PIPELINE_FALLBACK_CLAUDE: "cursor:m" is not <harness>:<model> with a harness of claude\|codex\|agy\|opencode/
+        );
+        assert.throws(() => load({PIPELINE_FALLBACK_CLAUDE: "codex"}), /PIPELINE_FALLBACK_CLAUDE/);
+        assert.throws(
+            () => load({PIPELINE_FALLBACK_CLAUDE: "codex:gpt-5.5,"}),
+            /PIPELINE_FALLBACK_CLAUDE/
+        );
+        assert.throws(
+            () => load({PIPELINE_FALLBACK_CURSOR: "codex:gpt-5.5"}),
+            /PIPELINE_FALLBACK_CURSOR names no harness/
+        );
+    });
     test("tests defaults to the QA model and the stage key beats the general key", () => {
         const s = loadConfig({
             root: "/nonexistent",

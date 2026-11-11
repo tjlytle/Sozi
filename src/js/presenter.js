@@ -38,7 +38,8 @@ import {ThumbnailSource} from "./presenter/ThumbnailSource";
  */
 const THUMBNAIL_WIDTH = 320;
 
-/** The eight panels, in the order the default layout adds them, and their place in it.
+/** The eight panels, in the order the default layout adds them, their place in it, and the
+ * line the + menu shows under each title.
  *
  * Current over Controls over Previous and Next, on the left; Notes right, with Frames and
  * Connection as tabs behind it, over Clock.
@@ -46,17 +47,19 @@ const THUMBNAIL_WIDTH = 320;
  * @readonly
  */
 const PANELS = Object.freeze([
-    {id: "current", title: "Current", icon: "◉"},
+    {id: "current", title: "Current", icon: "◉", description: "The frame the audience sees"},
     {
         id: "notes",
         title: "Notes",
         icon: "✎",
+        description: "The notes of the current frame",
         position: {referencePanel: "current", direction: "right"}
     },
     {
         id: "frames",
         title: "Frames",
         icon: "▦",
+        description: "Every frame, to go to any of them",
         position: {referencePanel: "notes", direction: "within"},
         inactive: true
     },
@@ -64,6 +67,7 @@ const PANELS = Object.freeze([
         id: "connection",
         title: "Connection",
         icon: "⇄",
+        description: "The link to the audience window",
         position: {referencePanel: "notes", direction: "within"},
         inactive: true
     },
@@ -71,12 +75,14 @@ const PANELS = Object.freeze([
         id: "clock",
         title: "Clock",
         icon: "◷",
+        description: "The time of day and the talk timer",
         position: {referencePanel: "notes", direction: "below"}
     },
     {
         id: "controls",
         title: "Controls",
         icon: "⏯",
+        description: "Previous, next, the frame counter and the blank screen",
         position: {referencePanel: "current", direction: "below"},
         initialHeight: 96
     },
@@ -84,12 +90,14 @@ const PANELS = Object.freeze([
         id: "previous",
         title: "Previous",
         icon: "◀",
+        description: "The frame before this one",
         position: {referencePanel: "controls", direction: "below"}
     },
     {
         id: "next",
         title: "Next",
         icon: "▶",
+        description: "The frame after this one",
         position: {referencePanel: "previous", direction: "right"}
     }
 ]);
@@ -224,10 +232,11 @@ function panelSpecs(presenter, mirror, send, src) {
             }
         }
     };
-    return PANELS.map(({id, title, icon, ...defaults}) => ({
+    return PANELS.map(({id, title, icon, description, ...defaults}) => ({
         id,
         title,
         icon,
+        description,
         defaults,
         render: element => {
             const drawn = create(id, element);

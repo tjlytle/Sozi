@@ -6,7 +6,7 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 ## Rules for this session
 
 - Every `gh` command goes through `gh-as architect` and passes `-R tjlytle/Sozi`, reads
-  included: `gh-as architect issue view {N} -R tjlytle/Sozi --comments`.
+  included: `gh-as architect issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`.
 - `.agents/tmp/` is the only place for temporary files. Write every comment and issue body
   there first and pass it with `--body-file`.
 - Questions do not stop the line. Where the issue leaves a real fork, pick the better route,
@@ -26,7 +26,7 @@ cannot load skills, read `.claude/skills/code-standard/SKILL.md`). Cite its rule
 
 ## Steps
 
-1. **Read the trail.** `gh-as architect issue view {N} -R tjlytle/Sozi --comments`. If it has
+1. **Read the trail.** `gh-as architect issue view {N} -R tjlytle/Sozi --json title,labels,body,comments`. If it has
    a `Part of #<epic>` line, read the epic the same way. List the open issues
    (`gh-as architect issue list -R tjlytle/Sozi --state open --limit 100`) to see what this
    one depends on and what already covers part of it. Then read the code the ask touches,

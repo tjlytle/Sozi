@@ -245,8 +245,11 @@ function computedLook(page, selector) {
 
 Then("the deck is shown", async function () {
     await expect
-        .poll(async () => (await computedLook(this.deck, "body > svg"))?.display)
-        .not.toBe("none");
+        .poll(async () => {
+            const look = await computedLook(this.deck, "body > svg");
+            return look !== null && look.display !== "none";
+        })
+        .toBe(true);
 });
 
 Then("the loading spinner is hidden", async function () {
