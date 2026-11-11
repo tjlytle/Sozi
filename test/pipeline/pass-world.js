@@ -148,13 +148,13 @@ export const issue = (
  * @param {any} w - The world.
  * @param {string} outbox - The outbox.
  * @param {string} container - The container id.
- * @param {{exit?: number, hooks?: string, status?: string, usage?: Record<string, any> | null, resumes?: number, requests?: Record<string, any>}} [result] - What the session left; usage replaces some usage fields, or is null for a session without usage.json.
+ * @param {{exit?: number, hooks?: string, status?: string, usage?: Record<string, any> | null, resumes?: number, requests?: Record<string, any>, carry?: string}} [result] - What the session left; usage replaces some usage fields, or is null for a session without usage.json; carry "failed" when its carried work did not apply.
  */
 export function end(
     w,
     outbox,
     container,
-    {exit = 0, hooks = "ok", status = "ok", usage = {}, resumes = 0, requests = {}} = {}
+    {exit = 0, hooks = "ok", status = "ok", usage = {}, resumes = 0, requests = {}, carry} = {}
 ) {
     fs.writeFileSync(
         path.join(outbox, "result.json"),
@@ -168,7 +168,8 @@ export function end(
             changed: [],
             commits: [],
             resumes,
-            hooks
+            hooks,
+            carry
         })
     );
     for (const [name, body] of Object.entries(requests)) {

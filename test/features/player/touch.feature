@@ -1,11 +1,12 @@
-# covers: src/js/player/TouchGestures.js, src/js/player/PlayerController.js, src/js/player/Viewport.js
+# covers: src/js/player/TouchGestures.js, src/js/player/PlayerController.js, src/js/player/Viewport.js, src/js/player/FrameList.js
 Feature: Touch in the player
 
   On a tablet or a phone, the audience page answers to fingers. A quick swipe to the
   left goes to the next frame and a quick swipe to the right goes back; a tap goes
   forward like a click. A slow drag moves one frame once it has crossed half the screen,
   and never two. Two fingers spread apart zoom in, two fingers moved together pan the
-  view. A finger held still does nothing.
+  view. A finger held still does nothing. When the frame list is open, a finger on the
+  slide closes it, and a finger on a title in the list goes to that frame.
 
   The touches are real ones, sent through Chromium's touch input, not events built in
   the page.
@@ -46,3 +47,17 @@ Feature: Touch in the player
   Scenario: A finger held still for half a second does nothing
     When a finger touches the slide for 500 milliseconds
     Then the player is on frame "One"
+
+  @issue-245
+  Scenario: A tap on the slide closes the open frame list
+    When the key "t" is pressed
+    Then the frame list is open
+    When a finger taps the slide
+    Then the frame list is closed
+
+  @issue-245
+  Scenario: A tap on a title in the open frame list goes to that frame
+    When the key "t" is pressed
+    And a finger taps the frame list entry "Two"
+    Then the player is on frame "Two"
+    And the frame list is open

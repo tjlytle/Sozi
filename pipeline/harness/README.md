@@ -40,7 +40,20 @@ has written:
   larger of the previous cost and this call's, status from the latest call. `status` is one of `ok`, `error`,
   `rate-limited`, `auth`, `budget`, `unsupported`. `auth` means the call failed to
   authenticate before any model call; the loop then starts nothing more as that
-  persona until its credentials change.
+  persona until its credentials change. With `rate-limited` the file also has `limit`:
+  the CLI's own limit message, up to 300 characters, which the loop reads the reset
+  time from (`pipeline/lib/resets.js`); the adapter does not parse it.
+
+A session stopped at a usage limit is carried on by the next one (design: "Usage
+limits" in `docs/software-factory/loop-design.md`). On exit 75, `stage.sh` writes
+`DIR/carry.bundle` (the commits on no remote branch) and `DIR/carry.patch` (the
+uncommitted and untracked files); the loop copies both into the next session's outbox,
+and `stage.sh` applies them after checking out the branch. Each limit replaces both with
+the tree as it is then. When they do not apply, `stage.sh` never runs the adapter and
+`result.json` says `"carry": "failed"`. When that session resumes
+the same one, the loop sets `PIPELINE_RESUME_SESSION` and writes `DIR/resume.md`, and
+`stage.sh` calls `resume --session $PIPELINE_RESUME_SESSION --message DIR/resume.md`
+instead of `run`, falling back to `run` when the resume fails with 0 tokens.
 
 Exit status: 0 when the session ended on its own, 64 on a bad call, 69 when the
 adapter is a stub (`status: unsupported`), 75 when rate-limited. Any other
