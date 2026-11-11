@@ -9,16 +9,18 @@ import {TransportStatus} from "../../protocol/LocalTransport.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
 
-/** What the panel says for each status of the transport to the audience window.
+/** What the panel says for each status of a transport.
  *
  * @readonly
  */
 const STATUS_TEXT = Object.freeze({
     [TransportStatus.connected]: "Connected",
+    [TransportStatus.reconnecting]: "Reconnecting",
+    [TransportStatus.stale]: "Stale",
     [TransportStatus.closed]: "Closed"
 });
 
-/** The Connection panel: can the presenter still reach the audience window? */
+/** The Connection panel: can the presenter still reach the display? */
 export class ConnectionPanel {
     /** Draw the panel and follow the transport's status.
      *
