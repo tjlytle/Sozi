@@ -31,7 +31,8 @@ function preset(grid) {
  * A stage that records what it is asked to show, in place of the workspace and its dock.
  *
  * @param {number} width - The page's width.
- * @returns {object} The stage; `shown` lists each layout, "default" or "stack" it showed.
+ * @returns {object} The stage; `shown` lists the grid of each layout it showed, "refused",
+ *   "default" or "stack".
  */
 function fakeStage(width) {
     return {
@@ -47,7 +48,7 @@ function fakeStage(width) {
         },
         showLayout(shown) {
             this.stacked = false;
-            this.shown.push(shown.dock.grid.refused ? "refused" : shown);
+            this.shown.push(shown.dock.grid.refused ? "refused" : shown.dock.grid);
             return !shown.dock.grid.refused;
         },
         showDefault() {
@@ -124,14 +125,14 @@ describe("LayoutChooser", () => {
         const {layouts, stage} = chooser({stored: {[KEYS.wide]: JSON.stringify(saved)}});
         layouts.offerPresets({laptop: preset()});
         layouts.open();
-        assert.deepEqual(stage.shown, [saved]);
+        assert.deepEqual(stage.shown, [saved.dock.grid]);
     });
 
     test("with nothing saved, the page opens on the deck's preset", () => {
         const {layouts, stage} = chooser({width: 390});
         layouts.offerPresets({phone: preset({phone: true})});
         layouts.open();
-        assert.deepEqual(stage.shown, [layout({phone: true})]);
+        assert.deepEqual(stage.shown, [{phone: true}]);
     });
 
     test("with nothing saved and no preset, a narrow page shows the stack", () => {
@@ -166,7 +167,7 @@ describe("LayoutChooser", () => {
         const {layouts, stage} = chooser({stored: {[KEYS.wide]: JSON.stringify(saved)}});
         layouts.open();
         layouts.offerPresets({laptop: preset()});
-        assert.deepEqual(stage.shown, [saved]);
+        assert.deepEqual(stage.shown, [saved.dock.grid]);
     });
 
     test("a saved layout the stage refuses gives way to the first offer", () => {
@@ -174,14 +175,14 @@ describe("LayoutChooser", () => {
         const {layouts, stage} = chooser({stored});
         layouts.open();
         layouts.offerPresets({laptop: preset()});
-        assert.deepEqual(stage.shown, ["refused", "refused", layout()]);
+        assert.deepEqual(stage.shown, ["refused", "refused", {}]);
     });
 
     test("a refused preset falls through to the next one, with a notice", () => {
         const {layouts, stage, notices} = chooser();
         layouts.open();
         layouts.offerPresets({bad: preset(REFUSED), good: preset({good: true})});
-        assert.deepEqual(stage.shown, ["refused", layout({good: true})]);
+        assert.deepEqual(stage.shown, ["refused", {good: true}]);
         assert.deepEqual(notices, ["This page cannot use the deck's layout: bad."]);
     });
 
@@ -275,7 +276,7 @@ describe("LayoutChooser", () => {
         assert.deepEqual(stage.shown, []);
         layouts.open();
         media.fire(true);
-        assert.deepEqual(stage.shown, [narrowSaved]);
+        assert.deepEqual(stage.shown, [narrowSaved.dock.grid]);
         await settled();
         layouts.save();
         assert.deepEqual(JSON.parse(items.get(KEYS.narrow)), stage.current);
