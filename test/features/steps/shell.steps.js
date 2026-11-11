@@ -134,6 +134,13 @@ When("the shell is reloaded", async function () {
     await this.presenter.reload();
 });
 
+When("the shell's relay reports {string}", async function (status) {
+    const page = this.presenter;
+    // The fixture registers the relay once the page has loaded.
+    await page.waitForFunction(() => Boolean(/** @type {any} */ (window).fakeRelay), null, WAIT);
+    await page.evaluate(next => /** @type {any} */ (window).fakeRelay.report(next), status);
+});
+
 When("the next button is pressed on the {word}", async function (device) {
     const page = this.shells[device];
     // On a phone the panels are tabs, and the button is behind the Controls tab.
@@ -177,6 +184,10 @@ Then("the shell shows {string}", async function (text) {
     const notice = this.presenter.locator(NOTICE);
     await expect(notice).toBeVisible();
     await expect(notice).toContainText(text);
+});
+
+Then("the shell's notice is hidden", async function () {
+    await expect(this.presenter.locator(NOTICE)).toBeHidden(WAIT);
 });
 
 Then("the page title is the shell's", async function () {

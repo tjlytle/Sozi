@@ -15,6 +15,7 @@ import {pausedUntil} from "./limits.js";
 import {stillLoggedOut} from "./logins.js";
 import {personaFor} from "./profile.js";
 import {renderPrompt} from "./prompt.js";
+import {atPersonaLimit, running, runningFor} from "./running.js";
 import {pickRoute, routeFor} from "./stage-route.js";
 import {dueIssues, scope} from "./due.js";
 import {ceiling, promptFor} from "./state.js";
@@ -35,47 +36,6 @@ import {moveStage, writeComment, writeLabel} from "./sync.js";
  */
 function read(ctx, name) {
     return fs.readFileSync(path.join(ctx.root, "pipeline", name), "utf8");
-}
-
-/**
- * Count the sessions running now, for issues and spawned ones.
- *
- * @param {PassContext} ctx - The pass context.
- * @returns {number} The count.
- */
-export function running(ctx) {
-    const issues = Object.values(ctx.state.issues).filter(r => r.session).length;
-    return issues + ctx.state.run.sessions.length;
-}
-
-/**
- * Count the sessions of one persona running now; an issue session recorded before
- * sessions carried a persona counts for none.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @returns {number} The count.
- */
-export function runningFor(ctx, persona) {
-    const issues = Object.values(ctx.state.issues).filter(
-        r => /** @type {{persona?: string} | null} */ (r.session)?.persona === persona
-    ).length;
-    const spawns = ctx.state.run.sessions.filter(
-        (/** @type {{persona: string}} */ s) => s.persona === persona
-    ).length;
-    return issues + spawns;
-}
-
-/**
- * Tell whether a persona has as many sessions as it may run at once.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {string} persona - The persona.
- * @returns {boolean} True when another session of it must wait.
- */
-function atPersonaLimit(ctx, persona) {
-    const limit = ctx.settings.perPersona;
-    return limit > 0 && runningFor(ctx, persona) >= limit;
 }
 
 /**
@@ -182,34 +142,22 @@ function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
 }
 
 /**
- * Start the stage session of an issue, labelled working while it runs. It carries on the work of
- * a session of the same stage a usage limit stopped, resuming that session when it can, and keeps
- * that interruption in its session record so that a carry that does not apply is not lost.
- * The session records its harness, model and try now, since the settings may change before
- * it ends.
+ * Launch the container of an issue's stage session, labelled working on GitHub and in its record
+ * while it starts; when the start throws, the label comes off in both places and the error goes on.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
- * @param {{persona: string, profile: boolean, route: StageRoute, fallbackFrom?: string}} who - The persona, whether to mount its profile, the harness and model to run on, and the harness at its limit when it is a fallback.
- * @returns {Promise<void>}
+ * @param {import("./state.js").IssueRecord} record - The issue record.
+ * @param {{stage: string, outbox: string, who: {persona: string, profile: boolean, route: StageRoute}, resume?: object}} session - The stage, its outbox, who runs it, and the session to resume.
+ * @returns {Promise<string>} The container id.
  */
-async function startIssue(ctx, n, who) {
-    const {state, sandbox} = ctx;
+async function launch(ctx, n, record, {stage, outbox, who, resume}) {
     const {persona, profile, route} = who;
-    const record = state.issues[n];
-    const stage = stageOfIssue(record);
-    if (record.stage === "stage:blocked") {
-        await moveStage(ctx, n, "stage:tests");
-    }
-    const carry = carryOf(record.interrupted, stage, who);
-    const {resume} = carry;
-    const outbox = issueOutbox(ctx, n, stage, carry);
     await writeLabel(ctx, {issue: n, add: ["working"], remove: []});
     record.labels = [...record.labels.filter(l => l !== "working"), "working"];
-    let container;
     try {
-        const {mintUrl, mintKey} = state.run;
-        container = await sandbox.start({
+        const {mintUrl, mintKey} = ctx.state.run;
+        return await ctx.sandbox.start({
             issue: n,
             stage,
             outbox,
@@ -227,6 +175,32 @@ async function startIssue(ctx, n, who) {
         await writeLabel(ctx, {issue: n, add: [], remove: ["working"]});
         throw error;
     }
+}
+
+/**
+ * Start the stage session of an issue, labelled working while it runs. It carries on the work of
+ * a session of the same stage a usage limit stopped, resuming that session when it can, and keeps
+ * that interruption in its session record so that a carry that does not apply is not lost.
+ * The session records its harness, model and try now, since the settings may change before
+ * it ends.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {{persona: string, profile: boolean, route: StageRoute, fallbackFrom?: string}} who - The persona, whether to mount its profile, the harness and model to run on, and the harness at its limit when it is a fallback.
+ * @returns {Promise<void>}
+ */
+async function startIssue(ctx, n, who) {
+    const {state} = ctx;
+    const {persona, profile, route} = who;
+    const record = state.issues[n];
+    const stage = stageOfIssue(record);
+    if (record.stage === "stage:blocked") {
+        await moveStage(ctx, n, "stage:tests");
+    }
+    const carry = carryOf(record.interrupted, stage, who);
+    const {resume} = carry;
+    const outbox = issueOutbox(ctx, n, stage, carry);
+    const container = await launch(ctx, n, record, {stage, outbox, who, resume});
     const started = new Date(ctx.clock.now()).toISOString();
     const carried = carry.carryFrom ? {carried: record.interrupted} : {};
     const attempt = record.tries + 1;

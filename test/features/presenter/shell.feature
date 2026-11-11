@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulp/templates.js, gulp/shell.js
+# covers: src/js/presenter.js, src/js/presenter/ShellJoin.js, src/js/presenter/statusText.js, src/js/presenter/shellLink.js, src/js/presenter/panels/ConnectionPanel.js, src/templates/presenter.html, src/templates/sw.js, src/shell/manifest.webmanifest, gulp/templates.js, gulp/shell.js
 Feature: The presenter as a hosted shell that joins a talk from a link
 
   The shell is the presenter page as static files, which any host can serve under any path.
@@ -7,7 +7,7 @@ Feature: The presenter as a hosted shell that joins a talk from a link
   both follow, and either can move the talk. The shell opens no audience window.
 
   The shell can be installed. Opened offline or with no link, it shows the workspace with a
-  notice that says it is not connected, never a browser error. A link whose deck is not a web
+  notice that says it is not connected or reconnecting, never a browser error. A link whose deck is not a web
   address is refused.
 
   The "relay" deck is the two frames of "basic" with the display's end of a stand-in relay. The
@@ -17,6 +17,9 @@ Feature: The presenter as a hosted shell that joins a talk from a link
 
   The Connection panel names the shell's link to the talk in the same voice as the presenter's
   own: "Reconnecting" while the shell waits for the display to answer, "Connected" once it has.
+  The notice bar uses the same words: "Reconnecting" and "Stale" tell the speaker the link is
+  waiting, not gone. It says "Not connected" only when the link is closed, and it hides while
+  the link is connected.
 
   Background:
     Given the "relay" deck is built and served
@@ -35,12 +38,12 @@ Feature: The presenter as a hosted shell that joins a talk from a link
     And the laptop's frame counter reads "2 / 2"
     And a screenshot "shell-phone-joined" is saved
 
-  @issue-29
-  Scenario: The installed shell opened offline says it is not connected
+  @issue-29 @issue-431
+  Scenario: The installed shell opened offline says it is reconnecting
     Given the shell has been opened once with the pairing link for session "s1"
     When the browser goes offline
     And the shell is reloaded
-    Then the shell shows "Not connected"
+    Then the shell shows "Reconnecting"
     And the page title is the shell's
     And a screenshot "shell-offline" is saved
 
@@ -70,3 +73,21 @@ Feature: The presenter as a hosted shell that joins a talk from a link
     When the deck page is open on the fake relay session "s3"
     Then within 5 seconds the laptop's frame counter reads "1 / 2"
     And the "Connection" panel reads "Connected"
+
+  @issue-431
+  Scenario: The notice bar names each status of the shell's link
+    Given the shell is opened on a laptop with the pairing link for session "s4"
+    When the shell's relay reports "stale"
+    Then the shell shows "Stale"
+    And a screenshot "shell-notice-stale" is saved
+    When the shell's relay reports "reconnecting"
+    Then the shell shows "Reconnecting"
+    When the shell's relay reports "connected"
+    Then the shell's notice is hidden
+    When the shell's relay reports "closed"
+    Then the shell shows "Not connected"
+
+  @issue-431
+  Scenario: A link that has not reached the display yet says it is reconnecting
+    When the shell is opened on a laptop with the pairing link for session "s5"
+    Then the shell shows "Reconnecting"
