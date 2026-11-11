@@ -16,7 +16,9 @@ const script = path.join(root, "pipeline", "check-changed.py");
  * @param {string} content - The file content.
  * @param {string} diffText - A unified diff of the file; its hunks are the changed lines.
  * @param {string} [scriptPath] - The copy of the script to run; the checkout's by default.
- * @returns {{status: ?number, stdout: string, stderr: string}} - What the script printed.
+ * @returns {{status: ?number, stdout: string, stderr: string, inTree: boolean, sandbox: ?string}}
+ *     What the script printed, whether the fixture or its diff sat in the checkout while it
+ *     ran, and the directory it ran in.
  */
 function check(name, content, diffText, scriptPath = script) {
     const rel = path.join("src", "js", name);
@@ -29,7 +31,14 @@ function check(name, content, diffText, scriptPath = script) {
             cwd: root,
             encoding: "utf8"
         });
-        return {status: result.status, stdout: result.stdout, stderr: result.stderr};
+        const inTree = [path.join(root, rel), diff].some(p => fs.existsSync(p));
+        return {
+            status: result.status,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            inTree,
+            sandbox: null
+        };
     } finally {
         fs.unlinkSync(path.join(root, rel));
         fs.unlinkSync(diff);
@@ -96,6 +105,12 @@ describe("check-changed: bin/check findings on changed lines only", () => {
         assert.match(out, /\(7,1\)/);
         assert.doesNotMatch(out, /\(3,5\)/);
         assert.match(out, /0:0 {2}warning/);
+    });
+    test("the fixture and its diff stay out of the checkout, and the sandbox goes", () => {
+        const r = check("zz-check-tree.js", OLD_AND_NEW, "--- a\n+++ b\n@@ -3,0 +4,1 @@\n+x\n");
+        assert.equal(r.inTree, false, "the fixture was written under the checkout");
+        assert.ok(r.sandbox, "the check did not run in a sandbox");
+        assert.equal(fs.existsSync(r.sandbox), false, "the sandbox was left behind");
     });
     test("a copy of the script outside the checkout loads the hook from the working directory", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-changed-"));
