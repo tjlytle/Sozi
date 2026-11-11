@@ -7,11 +7,11 @@
 #     (GH_AS_MODEL), each only when its variable is set.
 #
 # A signed copy of a body file goes in the directory `sig_dir`, which bin/gh-as makes with
-# `sig_tmpdir` and removes when it exits, whether gh succeeded or not.
+# `gh_as_tmpdir` and removes when it exits, whether gh succeeded or not.
 
-# sig_tmpdir → a new directory for this run's signed copies.
-sig_tmpdir() {
-  mktemp -d "${TMPDIR:-/tmp}/gh-as-signed.XXXXXX"
+# gh_as_tmpdir → a new directory for this run's body copies, signed or marked.
+gh_as_tmpdir() {
+  mktemp -d "${TMPDIR:-/tmp}/gh-as-run.XXXXXX"
 }
 
 # sig_applies <gh args…> → success when the command's body is signed.
@@ -43,7 +43,7 @@ sig_file() {
   local src="$1" body tmp
   if [ "$src" = "-" ]; then body=$(cat); else body=$(cat "$src"); fi
   if [ "$src" != "-" ] && sig_signed "$body"; then printf '%s' "$src"; return; fi
-  tmp=$(mktemp "${sig_dir:?sig_tmpdir first}/body.XXXXXX")
+  tmp=$(mktemp "${sig_dir:?gh_as_tmpdir first}/body.XXXXXX")
   sig_append "$body" > "$tmp"
   printf '%s' "$tmp"
 }
