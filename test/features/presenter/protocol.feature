@@ -1,4 +1,4 @@
-# covers: src/js/presenter.js, src/js/player.js, src/js/player/DisplayChannel.js, src/js/player/PreviewMode.js, src/js/player/Player.js, src/js/protocol/LocalTransport.js, src/js/protocol/messages.js, src/js/protocol/hello.js
+# covers: src/js/presenter.js, src/js/player.js, src/js/player/DisplayChannel.js, src/js/player/DisplayCommands.js, src/js/player/PreviewMode.js, src/js/player/Player.js, src/js/protocol/LocalTransport.js, src/js/protocol/messages.js, src/js/protocol/hello.js
 Feature: The presenter and the display talk one protocol
 
   The speaker sees no change: the presenter page opens the audience window, Next,
