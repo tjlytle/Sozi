@@ -92,7 +92,8 @@ async function judgeProfile(ctx, persona, harness) {
     }
     /** @type {import("./profile.js").ProfileInfo | null} */
     const info = await sandbox.inspectProfile(persona);
-    const login = `npm run pipeline -- --login ${persona}${harness === "claude" ? "" : ` --harness ${harness}`}`;
+    const harnessFlag = harness === "claude" ? "" : ` --harness ${harness}`;
+    const login = `npm run pipeline -- --login ${persona}${harnessFlag}`;
     if (info === null) {
         // Only Claude has a token that stands in for a profile.
         if (harness === "claude" && (env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY)) {
