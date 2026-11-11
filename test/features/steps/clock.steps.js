@@ -148,6 +148,19 @@ function targetField(page) {
     return page.locator(CLOCK).getByLabel(TARGET_LABEL);
 }
 
+/** The target the display last reported to the presenter page.
+ *
+ * The state a surface holds is what the display reported, so this is the display's target.
+ *
+ * @param {import("playwright").Page} page - The presenter page.
+ * @returns {Promise<number | null>} - The target in milliseconds, or null for none.
+ */
+function displayTargetMs(page) {
+    return page.evaluate(
+        () => /** @type {any} */ (window).sozi.presenter.state.timer?.targetMs ?? null
+    );
+}
+
 /** A button of the Clock panel.
  *
  * @param {import("playwright").Page} page - The surface.
@@ -184,6 +197,8 @@ When("the clock's target is set to {int} minute(s)", async function (minutes) {
     const field = targetField(this.presenter);
     await field.fill(String(minutes), WAIT);
     await field.press("Enter", WAIT);
+    // Set means the display has it: a step that types next must not overtake its report.
+    await expect.poll(() => displayTargetMs(this.presenter)).toBe(minutes * MINUTE_MS);
 });
 
 When("the clock's target is cleared", async function () {
@@ -324,26 +339,12 @@ Then("nothing in the clock panel is animated", async function () {
 });
 
 Then("the clock's target is {int} minute(s)", async function (minutes) {
-    // On the display: the state a surface holds is what the display reported.
-    await expect
-        .poll(() =>
-            this.presenter.evaluate(
-                () => /** @type {any} */ (window).sozi.presenter.state.timer?.targetMs
-            )
-        )
-        .toBe(minutes * MINUTE_MS);
+    await expect.poll(() => displayTargetMs(this.presenter)).toBe(minutes * MINUTE_MS);
     await expect(targetField(this.presenter)).toHaveValue(String(minutes), WAIT);
 });
 
 Then("the clock has no target", async function () {
-    // On the display, as for a target that is set.
-    await expect
-        .poll(() =>
-            this.presenter.evaluate(
-                () => /** @type {any} */ (window).sozi.presenter.state.timer?.targetMs ?? null
-            )
-        )
-        .toBe(null);
+    await expect.poll(() => displayTargetMs(this.presenter)).toBe(null);
     await expect(targetField(this.presenter)).toHaveValue("", WAIT);
 });
 
