@@ -79,13 +79,15 @@ function fakeSandbox({containers, calls, outboxes, starts, profiles}) {
 }
 
 /**
- * A fake advisor that answers nothing and records each question it is asked.
+ * A fake advisor that answers nothing and records each question it is asked in `asks`.
  *
- * @param {any[]} asks - Where the questions are recorded.
- * @returns {{ask: (job: any) => Promise<void>, dispose: () => Promise<void>}} - The advisor.
+ * @returns {{asks: any[], ask: (job: any) => Promise<void>, dispose: () => Promise<void>}} - The advisor.
  */
-function fakeAdvisor(asks) {
+function fakeAdvisor() {
+    /** @type {any[]} */
+    const asks = [];
     return {
+        asks,
         ask: async job => void asks.push(job),
         dispose: async () => {}
     };
@@ -145,9 +147,7 @@ export function world({
     const board = {sync: async () => ({failed: []})};
     const digest = {add: async () => {}, finish: async () => {}};
     const clock = fakeClock(now);
-    /** @type {any[]} */
-    const asks = [];
-    const advisor = fakeAdvisor(asks);
+    const advisor = fakeAdvisor();
     const p = createPass({
         advisor,
         settings,
@@ -177,7 +177,7 @@ export function world({
         settings,
         board,
         sandbox,
-        asks
+        asks: advisor.asks
     };
 }
 
