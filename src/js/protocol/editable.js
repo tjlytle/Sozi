@@ -51,7 +51,8 @@ export function isEditableTarget(target) {
  * The element that takes the focus for a click on this target, if the click lands in a field.
  *
  * A click on text nested in editable content gives the focus to the editing host, the
- * outermost editable ancestor, since a span inside it cannot take the focus itself.
+ * outermost editable ancestor, since a span inside it cannot take the focus itself. A text
+ * field, a text area or a list box takes the focus itself, even inside editable content.
  *
  * @param {any} target - The target of a pointer event, or null.
  * @returns {any} The target itself for a text field, a text area or a list box, the editing
@@ -60,6 +61,9 @@ export function isEditableTarget(target) {
 export function editableField(target) {
     if (!isEditableTarget(target)) {
         return null;
+    }
+    if (["input", "textarea", "select"].includes(target.localName)) {
+        return target;
     }
     let host = target;
     while (host.parentElement && host.parentElement.isContentEditable === true) {
