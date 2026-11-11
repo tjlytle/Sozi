@@ -8,7 +8,8 @@ import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
-import {audienceWindow, builtDeck} from "../support/world.js";
+import {builtDeck} from "../support/decks.js";
+import {audienceWindow} from "../support/world.js";
 import {WORKSPACE} from "./workspace.steps.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.

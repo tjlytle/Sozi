@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {expect} from "playwright/test";
 import {applyExample, exampleFiles} from "../support/docExample.js";
-import {buildDeck, copyDeck, registerBuiltDeck} from "../support/world.js";
+import {buildDeck, copyDeck, registerBuiltDeck} from "../support/decks.js";
 
 // The repository, where a guide's path starts.
 const ROOT = path.resolve(import.meta.dirname, "..", "..", "..");

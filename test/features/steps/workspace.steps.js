@@ -8,7 +8,6 @@
 
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
-import {errors} from "playwright";
 import {expect} from "playwright/test";
 import {
     DROP_TARGET,
@@ -17,6 +16,9 @@ import {
     SASH,
     TAB,
     WAIT,
+    contentOf,
+    drawnTextNow,
+    groupBoxNow,
     groupOf,
     savedAfter,
     tabOf,
@@ -26,7 +28,6 @@ import {
 
 // What the workspace draws around dockview.
 export const WORKSPACE = ".sozi-workspace";
-const CONNECTION = ".sozi-connection";
 
 // The smallest side of a drop target a person can hit, in pixels.
 const DROP_TARGET_SIDE = 48;
@@ -36,10 +37,6 @@ const URL_PANEL_PAGE = "page.html";
 
 // How far a width or an edge may be from the expected one, in pixels.
 const TOLERANCE = 2;
-
-// One look inside a poll: short, so that a group that is not there yet leaves the poll time
-// to look again.
-const GLANCE = {timeout: 1000};
 
 /** The box of the group that holds a panel's tab.
  *
@@ -51,27 +48,6 @@ async function groupBox(page, title) {
     const box = await groupOf(page, title).boundingBox(WAIT);
     assert.ok(box, `the group of "${title}" is visible`);
     return box;
-}
-
-/** The box of the group that holds a panel's tab right now, for use inside a poll.
- *
- * A dock that is being rebuilt has no box for a moment. This returns null then, where
- * groupBox would throw, because a throw ends expect.poll instead of letting it look again.
- *
- * @param {import("playwright").Page} page - The presenter page.
- * @param {string} title - The panel's title.
- * @returns {Promise<{x: number, y: number, width: number, height: number} | null>} - The
- *   box, or null when the group has none at this moment.
- */
-async function groupBoxNow(page, title) {
-    try {
-        return await groupOf(page, title).boundingBox(GLANCE);
-    } catch (error) {
-        if (error instanceof errors.TimeoutError) {
-            return null;
-        }
-        throw error;
-    }
 }
 
 /** How far one panel's group reaches past another's, measured inside a poll.
@@ -89,56 +65,6 @@ async function overlapNow(page, title, other, overlap) {
     const otherBox = await groupBoxNow(page, other);
     // A dock that is being rebuilt has no box for a moment: look again.
     return box && otherBox ? overlap(box, otherBox) : Infinity;
-}
-
-/** What a panel drew.
- *
- * With `renderer: "always"` dockview keeps a panel's content in an overlay, away from its
- * tab, so a tab does not lead to its content: the Connection panel is found by its own
- * class, an add-on's by the attribute the test/fixtures/addons panels draw.
- *
- * @param {import("playwright").Page} page - The presenter page.
- * @param {string} title - The panel's title.
- * @returns {import("playwright").Locator} - The content.
- */
-function contentOf(page, title) {
-    return page.locator(title === "Connection" ? CONNECTION : `[data-addon-panel="${title}"]`);
-}
-
-/** The text of what the panels drew where a panel's group is, right now, for use in a poll.
- *
- * An add-on written as a person writes one, like the worked example of
- * docs/presenter-addons.md, draws no attribute for the steps to find. Its content is the
- * visible panel whose middle is inside the group of its tab.
- *
- * @param {import("playwright").Page} page - The presenter page.
- * @param {string} title - The panel's title.
- * @returns {Promise<string>} - The text, or "" while the group has no box.
- */
-async function drawnTextNow(page, title) {
-    const box = await groupBoxNow(page, title);
-    if (!box) {
-        return "";
-    }
-    return page.locator(".sozi-panel").evaluateAll(
-        (panels, group) =>
-            panels
-                .filter(panel => {
-                    const rect = panel.getBoundingClientRect();
-                    const x = rect.x + rect.width / 2;
-                    const y = rect.y + rect.height / 2;
-                    return (
-                        panel.checkVisibility({visibilityProperty: true}) &&
-                        x >= group.x &&
-                        x <= group.x + group.width &&
-                        y >= group.y &&
-                        y <= group.y + group.height
-                    );
-                })
-                .map(panel => panel.textContent)
-                .join("\n"),
-        box
-    );
 }
 
 /** Drag from one point to another with the mouse, as a person does.

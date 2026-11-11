@@ -35,7 +35,8 @@ export function exampleFiles(markdown) {
             try {
                 presentation = JSON.parse(text);
             } catch (error) {
-                throw new Error(`the ${PRESENTATION} block is not JSON: ${error.message}`, {
+                const reason = error instanceof Error ? error.message : String(error);
+                throw new Error(`the ${PRESENTATION} block is not JSON: ${reason}`, {
                     cause: error
                 });
             }
