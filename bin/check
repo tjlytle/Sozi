@@ -11,6 +11,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# In a stage container, the runner's nudge (once) reaches a harness with no hooks here.
+nudge="${PIPELINE_NUDGE:-/pipeline/nudge.sh}"
+[ -f "$nudge" ] && bash "$nudge"
+
 fix=0
 if [ "${1:-}" = "--fix" ]; then fix=1; shift; fi
 

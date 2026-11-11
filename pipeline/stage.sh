@@ -31,10 +31,11 @@
 # XVFB_BIN (Xvfb), DISPLAY_NUM (99), X11_DIR (/tmp/.X11-unix) for the session display;
 # PROFILE (/profile) and AGY_HOME_LINK ($HOME/.gemini) for the agy login.
 # The adapter reads its own credentials and PIPELINE_SESSION_BUDGET_USD. No
-# value of the environment is ever printed.
+# value of the environment is ever printed. PIPELINE_STAGE is exported for bin/advise.
 set -u
 
 issue="$1"
+export PIPELINE_STAGE="${2:-}"
 MIRROR="${MIRROR:-/mirror}"; OUTBOX="${OUTBOX:-/outbox}"; WORK="${WORK:-/work}"
 CACHE="${CACHE:-/cache}"; HARNESS_DIR="${HARNESS_DIR:-/pipeline/harness}"
 HOOKS_OUTSIDE="${HOOKS_OUTSIDE:-/pipeline/hooks-outside.sh}"

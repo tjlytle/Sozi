@@ -228,7 +228,7 @@ async function inspectAll(sandbox) {
  * @param {(line: string) => void} parts.log - The log.
  * @param {() => void} parts.save - Writes the state.
  * @param {Deps} parts.deps - The outside world.
- * @returns {{pass: (options?: {start?: boolean}) => Promise<any>}} - The pass.
+ * @returns {{pass: (options?: {start?: boolean}) => Promise<any>, dispose: () => Promise<void>}} - The pass, and what waits for its advisor consults.
  */
 function loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps}) {
     const ctx = {repo: settings.repo, run: deps.run, out: log, err: log};
@@ -368,8 +368,8 @@ async function oneShot(opt, ctx) {
     return null;
 }
 
-/** Run the loop: open the state and the run, pass once or watch, drain the sessions, then
- * close the mint and unhook the signals.
+/** Run the loop: open the state and the run, pass once or watch, drain the sessions and the
+ * advisor's consults, then close the mint and unhook the signals.
  *
  * @param {any} opt - The parsed options.
  * @param {string} target - "watch" or the one issue to run.
@@ -386,7 +386,17 @@ async function runLoop(opt, target, ctx) {
     const save = () => saveState(file, state);
     const mint = await openRun(state, settings, runEnv, log, deps);
     save();
-    const {pass} = loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save, deps});
+    const {pass, dispose} = loopPass({
+        state,
+        settings,
+        sandbox,
+        runEnv,
+        configEnv,
+        root,
+        log,
+        save,
+        deps
+    });
     const control = createControl({
         sleep: deps.sleep,
         save,
@@ -416,6 +426,7 @@ async function runLoop(opt, target, ctx) {
             }
         }
         await drain(pass, state, control, log);
+        await dispose();
         save();
         return code;
     } finally {
