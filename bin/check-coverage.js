@@ -16,12 +16,17 @@
 // case to look at twice: was the behaviour meant to change (then the feature file
 // changed first), and what other test still covers the related behaviour unchanged?
 //
+// On every run, whatever the diff, it checks the "# covers:" header of every feature
+// file against git's file list: an entry that names nothing in the tree covers nothing,
+// so a renamed or misspelled path fails the check.
+//
 //   node bin/check-coverage.js [--base REF] [--files PATH...] [--body-file FILE] [--json]
 //
 // With --base (default origin/master) the changed files come from the diff; with
 // --files they are given, and the working tree's modified files count as "changed
 // together". Exit status is non-zero when a changed source file is uncovered and not
-// waived.
+// waived, or when a covers entry names nothing in the tree. --json adds those entries
+// as "missing".
 
 import {execFileSync, spawnSync} from "node:child_process";
 import fs from "node:fs";
@@ -66,6 +71,22 @@ function filesUnder(base, dir) {
     return out;
 }
 
+/** Every file in the tree: tracked, plus new files git does not ignore. Built output and
+ * other ignored files do not count. Git's list keeps the case of each name, so a covers
+ * entry that differs only in case is caught on a case-insensitive disk too.
+ *
+ * @param {string} base - The repository root.
+ * @returns {string[]} - Repository-relative paths.
+ */
+function treePaths(base) {
+    return execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
+        cwd: base,
+        encoding: "utf8"
+    })
+        .split("\n")
+        .filter(Boolean);
+}
+
 /** Whether a path is a source file the standard expects a test for.
  *
  * @param {string} p - A repository-relative path.
@@ -98,6 +119,36 @@ export function coversOf(text) {
  */
 export function entryCovers(entry, source) {
     return entry.endsWith("/") ? source.startsWith(entry) : entry === source;
+}
+
+/** The covers entries that name nothing in the tree, so they cover nothing.
+ *
+ * A file entry must be one of the paths, case included; a directory entry (ending in
+ * "/") must have a path under it. An entry without "/" that names a directory is
+ * reported too, because entryCovers reads it as a file.
+ *
+ * @param {{path: string, covers: string[]}[]} features - The feature files and their entries.
+ * @param {string[]} paths - Every file in the tree, repository-relative.
+ * @returns {{feature: string, entry: string, problem: string}[]} - One per bad entry.
+ */
+export function missingCovers(features, paths) {
+    const files = new Set(paths);
+    const under = dir => paths.some(p => p.startsWith(dir));
+    const problem = entry => {
+        if (entry.endsWith("/")) {
+            return under(entry) ? null : "is not in the tree";
+        }
+        if (files.has(entry)) {
+            return null;
+        }
+        return under(`${entry}/`) ? "names a directory; end it with /" : "is not in the tree";
+    };
+    return features.flatMap(f =>
+        f.covers.flatMap(entry => {
+            const why = problem(entry);
+            return why === null ? [] : [{feature: f.path, entry, problem: why}];
+        })
+    );
 }
 
 /** The base name a unit test and a source file share.
@@ -236,9 +287,26 @@ export function main(argv) {
     );
     const report = assess({idx, sources, changed, waived: waivers(body)});
     const uncovered = report.sources.filter(s => s.covered.length === 0 && !s.waived);
+    const missing = missingCovers(idx.features, treePaths(base));
+    const failed = uncovered.length + missing.length ? 1 : 0;
     if (json) {
-        console.log(JSON.stringify(report));
-        return uncovered.length ? 1 : 0;
+        console.log(JSON.stringify({...report, missing}));
+    } else {
+        printReport({report, uncovered, missing});
+    }
+    return failed;
+}
+
+/** Print the report as text, one line per finding, then a summary.
+ *
+ * @param {object} args - The findings.
+ * @param {ReturnType<typeof assess>} args.report - The assessment of the changed files.
+ * @param {ReturnType<typeof assess>["sources"]} args.uncovered - The sources without a test or a waiver.
+ * @param {ReturnType<typeof missingCovers>} args.missing - The covers entries naming nothing.
+ */
+function printReport({report, uncovered, missing}) {
+    for (const m of missing) {
+        console.log(`${m.feature}: covers ${m.entry}, which ${m.problem}`);
     }
     for (const s of report.sources) {
         const how = s.covered.length
@@ -253,12 +321,19 @@ export function main(argv) {
             `changed together: ${t.test} and ${t.sources.join(", ")}. Was the behaviour meant to change? Which other test still covers the related behaviour unchanged?`
         );
     }
-    console.log(
-        uncovered.length
-            ? `${uncovered.length} source file(s) without a test; add a scenario or a unit test, or a "No test: <path> - <reason>" line in the PR body`
-            : "ok"
-    );
-    return uncovered.length ? 1 : 0;
+    if (missing.length) {
+        console.log(
+            `${missing.length} covers entr(y/ies) naming nothing in the tree; correct them`
+        );
+    }
+    if (uncovered.length) {
+        console.log(
+            `${uncovered.length} source file(s) without a test; add a scenario or a unit test, or a "No test: <path> - <reason>" line in the PR body`
+        );
+    }
+    if (!uncovered.length && !missing.length) {
+        console.log("ok");
+    }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
