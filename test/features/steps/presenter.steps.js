@@ -8,7 +8,8 @@ import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {expect} from "playwright/test";
-import {audienceWindow, builtDeck} from "../support/world.js";
+import path from "node:path";
+import {audienceWindow, buildDeck, builtDeck, copyDeck} from "../support/world.js";
 
 // "Within a frame" in the plan: the previews have this long to take a new shape.
 const WITHIN_A_FRAME = 250;
@@ -45,6 +46,27 @@ function previewShapeProblems(page, ratio) {
         }
         return problems;
     }, ratio);
+}
+
+// How long a presenter page has to open its audience window before a step says it opened none.
+const POPUP_WAIT = 5000;
+
+/** The title of the frame an audience window shows.
+ *
+ * @param {import("playwright").Page} audience - The audience window.
+ * @returns {Promise<string>} - The current frame's title.
+ */
+function frameTitle(audience) {
+    return audience.evaluate(() => window.sozi.player.currentFrame.title);
+}
+
+/** Whether an audience window shows its blank screen.
+ *
+ * @param {import("playwright").Page} audience - The audience window.
+ * @returns {Promise<boolean>} - True when it is blank.
+ */
+function isBlank(audience) {
+    return audience.evaluate(() => window.sozi.player.blankScreenIsVisible);
 }
 
 Given("the {string} deck is built", function (fixture) {
@@ -146,22 +168,16 @@ Then("the frame counter reads {string}", async function (text) {
 });
 
 Then("the audience window is on frame {string}", async function (title) {
-    await expect
-        .poll(() => this.audience.evaluate(() => window.sozi.player.currentFrame.title))
-        .toBe(title);
+    await expect.poll(() => frameTitle(this.audience)).toBe(title);
     assert.ok(this.audience, "the audience window is open");
 });
 
 Then("the audience window is blank", async function () {
-    await expect
-        .poll(() => this.audience.evaluate(() => window.sozi.player.blankScreenIsVisible))
-        .toBe(true);
+    await expect.poll(() => isBlank(this.audience)).toBe(true);
 });
 
 Then("the audience window is not blank", async function () {
-    await expect
-        .poll(() => this.audience.evaluate(() => window.sozi.player.blankScreenIsVisible))
-        .toBe(false);
+    await expect.poll(() => isBlank(this.audience)).toBe(false);
 });
 
 Then("every preview has the audience window's shape", async function () {
@@ -203,4 +219,56 @@ Given("the {string} deck is served over http", async function (fixture) {
 When("the presenter page is opened from the server", async function () {
     await this.openPresenterAt(this.served.presenter);
     await expect(this.presenter.locator(".sozi-current-index")).not.toBeEmpty();
+});
+
+Given("a second copy of the {string} deck is built in another folder", function (fixture) {
+    this.secondDeck = buildDeck(copyDeck(fixture));
+    const first = builtDeck(fixture);
+    assert.notEqual(this.secondDeck.dir, first.dir, "the copy is in another folder");
+    assert.equal(
+        path.basename(this.secondDeck.presenter),
+        path.basename(first.presenter),
+        "the two presenter pages share a file name"
+    );
+});
+
+When("the second deck's presenter page is opened in the same tab", async function () {
+    // No popup means the page reused a window already open; the Then steps say which.
+    const popup = this.presenter
+        .waitForEvent("popup", {timeout: POPUP_WAIT})
+        .then(page => audienceWindow(Promise.resolve(page)))
+        .catch(() => null);
+    await this.presenter.goto(pathToFileURL(this.secondDeck.presenter).href);
+    this.firstAudience = this.audience;
+    this.audience = (await popup) ?? this.audience;
+    await this.presenterIsReady();
+});
+
+When("the first deck's presenter page is opened again in the same tab", async function () {
+    this.pagesBeforeReturning = this.context.pages().length;
+    // By its address, not Back: Back on a presenter page only steps through the previews' frame
+    // changes, which their players write again, so it never leaves the page (#395).
+    await this.presenter.goto(pathToFileURL(builtDeck(this.fixture).presenter).href);
+    await this.presenterIsReady();
+    this.audience = this.firstAudience;
+});
+
+Then("no new audience window was opened", function () {
+    assert.equal(this.context.pages().length, this.pagesBeforeReturning);
+});
+
+Then("the audience window shows the second deck", function () {
+    const expected = pathToFileURL(this.secondDeck.html).href;
+    assert.ok(
+        this.audience.url().startsWith(expected),
+        `the audience window shows ${this.audience.url()}, not ${expected}`
+    );
+});
+
+Then("the first deck's audience window is still on frame {string}", async function (title) {
+    await expect.poll(() => frameTitle(this.firstAudience)).toBe(title);
+});
+
+Then("the first deck's audience window is not blank", async function () {
+    await expect.poll(() => isBlank(this.firstAudience)).toBe(false);
 });

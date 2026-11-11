@@ -143,7 +143,8 @@ function recordAddedIframes() {
     }).observe(document, {childList: true, subtree: true});
 }
 
-/** What a scenario can reach: the browser context, the pages it opened, the dialogs they
+/** What a scenario can reach: the browser context, the pages it opened (a second deck's among
+ * them), the dialogs they
  * showed, the deck's first view, the notes' font size before a change and what a click in them
  * left, the deck and the shell it serves over http and Cucumber's attach.
  */
@@ -161,6 +162,22 @@ export class SoziWorld extends World {
         this.presenter = null;
         /** @type {?import("playwright").Page} */
         this.audience = null;
+        /** The audience window of the deck opened first, once another deck's presenter page
+         * has taken over the tab.
+         *
+         * @type {?import("playwright").Page}
+         */
+        this.firstAudience = null;
+        /** A second built copy of the scenario's deck, in a folder of its own.
+         *
+         * @type {?BuiltDeck}
+         */
+        this.secondDeck = null;
+        /** How many pages the context had before the first deck's presenter page came back.
+         *
+         * @type {number}
+         */
+        this.pagesBeforeReturning = 0;
         /** @type {?import("playwright").Page} */
         this.deck = null;
         /** @type {string} */
