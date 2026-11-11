@@ -5,13 +5,8 @@
 /** @module */
 
 import {nextToRender} from "./framePicker.js";
-import {
-    MessageNames,
-    Roles,
-    helloMessage,
-    previewMessage,
-    readMessage
-} from "../protocol/messages.js";
+import {Roles, helloMessage} from "../protocol/hello.js";
+import {MessageNames, previewMessage, readMessage} from "../protocol/messages.js";
 import {thumbnailRequestMessage} from "../protocol/thumbnails.js";
 
 /** @typedef {import("./ThumbnailCache.js").ThumbnailCache} ThumbnailCache */

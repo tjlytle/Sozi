@@ -74,8 +74,17 @@ function onHashChange() {
 
 /** Update the URL hash in the location bar on frame change.
  *
+ * A player in its own window adds a history entry, so Back returns to the frame before.
+ * A player in a frame (a presenter preview, a thumbnail deck, a deck embedded in a page)
+ * replaces its entry instead: it must not take over the Back button of the page around it.
+ *
  * @listens module:player/Player.frameChange
  */
 function onFrameChange() {
-    window.location.hash = "#" + player.currentFrame.frameId;
+    const hash = "#" + player.currentFrame.frameId;
+    if (window.parent === window) {
+        window.location.hash = hash;
+    } else {
+        window.location.replace(hash);
+    }
 }
