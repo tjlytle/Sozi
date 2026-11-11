@@ -114,7 +114,7 @@ describe("3.3 inline styles only for computed geometry", () => {
             'export function f(el, w) { el.style.width = w + "px"; }\n',
             "3.3"
         ));
-    test("quiet in Electron glue too? no: it applies everywhere", () =>
+    test("fires in Electron glue too", () =>
         fires(
             "src/js/index-electron.js",
             'export function f(el) { el.style.background = "x"; }\n',
