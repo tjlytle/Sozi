@@ -797,35 +797,45 @@ export async function openExportWindow(htmlPath, opts) {
             ew.timeoutMs,
             `the Sozi player did not start within ${ew.timeoutMs / 1000} s in ${htmlPath}; is it a Sozi presentation HTML file?`
         );
-        // Stop the player and remove the blank screen, whose fade-out is a CSS transition.
-        await ew.run(`(() => {
-            sozi.player.disableMedia();
-            sozi.player.pause();
-            const blankScreen = document.querySelector(".sozi-blank-screen");
-            if (blankScreen) {
-                blankScreen.style.display = "none";
-            }
-            // The player sets the visibility of the frame number at each frame change, not its display.
-            const frameNumber = document.querySelector(".sozi-frame-number");
-            if (frameNumber && ${!opts.frameNumber}) {
-                frameNumber.style.display = "none";
-            }
-            return true;
-        })()`);
-        if (transparent) {
-            const dbg = await ew.attachDebugger();
-            await ew.bounded(
-                dbg.sendCommand("Emulation.setDefaultBackgroundColorOverride", {
-                    color: {r: 0, g: 0, b: 0, a: 0}
-                }),
-                "background override"
-            );
-        }
+        await prepareCapture(ew, opts);
     } catch (err) {
         ew.close();
         throw err;
     }
     return ew;
+}
+
+/** Prepare a started player for capture, as {@linkcode module:exporter.openExportWindow|openExportWindow} describes.
+ *
+ * @param {ExportWindow} ew - The capture window, with the player started.
+ * @param {object} opts - `{transparent, frameNumber}`.
+ * @returns {Promise<void>} - Resolved when the page is ready to capture.
+ */
+async function prepareCapture(ew, opts) {
+    // Stop the player and remove the blank screen, whose fade-out is a CSS transition.
+    await ew.run(`(() => {
+        sozi.player.disableMedia();
+        sozi.player.pause();
+        const blankScreen = document.querySelector(".sozi-blank-screen");
+        if (blankScreen) {
+            blankScreen.style.display = "none";
+        }
+        // The player sets the visibility of the frame number at each frame change, not its display.
+        const frameNumber = document.querySelector(".sozi-frame-number");
+        if (frameNumber && ${!opts.frameNumber}) {
+            frameNumber.style.display = "none";
+        }
+        return true;
+    })()`);
+    if (opts.transparent) {
+        const dbg = await ew.attachDebugger();
+        await ew.bounded(
+            dbg.sendCommand("Emulation.setDefaultBackgroundColorOverride", {
+                color: {r: 0, g: 0, b: 0, a: 0}
+            }),
+            "background override"
+        );
+    }
 }
 
 /** Open a capture window, run an operation with it and destroy it.
