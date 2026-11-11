@@ -64,7 +64,8 @@ write_usage() {
          status: (if $r == null then "error"
                   elif $x.status == "SUCCESS" then "ok"
                   elif ($text | test("rate.?limit|usage limit|quota|RESOURCE_EXHAUSTED|429|overloaded"; "i")) then "rate-limited"
-                  else "error" end)}' >"$OUT/usage.json"
+                  else "error" end)} |
+        if .status == "rate-limited" then .limit = ((($x.error // $x.status) | tostring) | .[0:300]) else . end' >"$OUT/usage.json"
 }
 
 main() {

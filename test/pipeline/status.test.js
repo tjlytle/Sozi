@@ -69,4 +69,47 @@ describe("statusText", () => {
         assert.ok(lines.includes(`#124 review: c124 since ${since}`));
         assert.ok(lines.includes(`spawn advocate: cs since ${since}`));
     });
+    test("a paused harness and an interrupted issue get a line each", () => {
+        const state = opened();
+        const now = new Date("2026-11-10T12:00:00.000Z");
+        state.run.limits = {
+            claude: {until: "2026-11-10T15:00:00.000Z", streak: 1, reported: true},
+            codex: {until: "2026-11-10T13:00:00.000Z", streak: 2, reported: false},
+            agy: {until: "2026-11-10T11:00:00.000Z", streak: 1, reported: false}
+        };
+        state.issues[125] = {
+            stage: "stage:in-progress",
+            tries: 0,
+            session: null,
+            interrupted: {harness: "claude", model: "m", session: "s", outbox: "o", stage: "build"}
+        };
+        const lines = statusText(state, now).split("\n");
+        assert.ok(
+            lines.includes("harness claude: paused until 2026-11-10T15:00:00Z (reset reported)")
+        );
+        assert.ok(
+            lines.includes(
+                "harness codex: paused until 2026-11-10T13:00:00Z (back-off, 2 in a row)"
+            )
+        );
+        assert.ok(!lines.some(l => l.startsWith("harness agy")), "a pause that ended is not shown");
+        assert.ok(
+            lines.includes(
+                "#125 stage:in-progress: interrupted on claude, resumes 2026-11-10T15:00:00Z"
+            )
+        );
+    });
+    test("an interrupted issue whose harness is free resumes at the next pass", () => {
+        const state = opened();
+        state.issues[125] = {
+            stage: "stage:in-progress",
+            tries: 0,
+            session: null,
+            interrupted: {harness: "claude", model: "m", session: "s", outbox: "o", stage: "build"}
+        };
+        const lines = statusText(state, new Date("2026-11-10T12:00:00.000Z")).split("\n");
+        assert.ok(
+            lines.includes("#125 stage:in-progress: interrupted on claude, resumes next pass")
+        );
+    });
 });

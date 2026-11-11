@@ -5,10 +5,13 @@
 // What an ended session's result allows: its usage (and the back-off a rate limit
 // brings), whether its requests can be trusted, and which moves its stage may make.
 
+import {clearHarness, pauseHarness} from "./limits.js";
 import {readResult} from "./outbox.js";
+import {resetTime} from "./resets.js";
 import {addUsage} from "./state.js";
 
-const MAX_BACKOFF_MINUTES = 120;
+/** The zone of the containers the CLIs run in, which a reset time with no zone is read in. */
+const CONTAINER_ZONE = "UTC";
 
 /** The moves each stage's session may ask for with a done request, by prompt name. */
 const TRANSITIONS = {
@@ -73,15 +76,17 @@ export function stubHarness(result) {
 
 /**
  * Read a session's result and add its usage to the run: input, cache reads, cache writes
- * and output all count toward the tokens the ceilings measure. A rate-limited session backs the
- * loop off; each one in a row doubles the back-off, up to two hours.
+ * and output all count toward the tokens the ceilings measure. A rate-limited session pauses
+ * its harness until the reset its CLI named, else for the back-off (limits.js); a session
+ * that ended ok clears its harness's pause. GitHub's back-off is not touched.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {string} outbox - The outbox directory.
  * @param {string} who - The session, for the log.
+ * @param {string} harness - The harness the session ran on.
  * @returns {Result | null} The result, or null when there is none.
  */
-export function takeResult(ctx, outbox, who) {
+export function takeResult(ctx, outbox, who, harness) {
     const result = readResult(outbox, {log: line => ctx.log(`${who}: ${line}`)});
     if (!result) {
         ctx.log(`${who}: no result.json`);
@@ -89,20 +94,24 @@ export function takeResult(ctx, outbox, who) {
     }
     const {tokensIn, cacheRead, cacheWrite, tokensOut, costUsd} = result.usage;
     addUsage(ctx.state, {tokens: tokensIn + cacheRead + cacheWrite + tokensOut, costUsd});
-    const sync = ctx.state.sync;
+    const run = ctx.state.run;
+    if (result.usage.status === "ok") {
+        run.limits = clearHarness(run.limits, harness);
+    }
     if (result.usage.status !== "rate-limited") {
-        sync.backoffStreak = 0;
         return result;
     }
-    sync.backoffStreak = (sync.backoffStreak ?? 0) + 1;
-    const minutes = Math.min(
-        ctx.settings.rateLimitBackoffMinutes * 2 ** (sync.backoffStreak - 1),
-        MAX_BACKOFF_MINUTES
+    const now = ctx.clock.now();
+    const pause = pauseHarness(run.limits, harness, {
+        resetAt: resetTime(result.usage.limit ?? "", new Date(now), CONTAINER_ZONE),
+        backoffMinutes: ctx.settings.rateLimitBackoffMinutes,
+        now
+    });
+    run.limits = {...run.limits, [harness]: pause};
+    const why = pause.reported ? "reset reported" : `back-off, ${pause.streak} in a row`;
+    ctx.log(
+        `${who}: ${harness} is at its usage limit; no ${harness} starts until ${pause.until} (${why})`
     );
-    const until = new Date(ctx.clock.now() + minutes * 60 * 1000).toISOString();
-    sync.backoffUntil = until;
-    ctx.state.run.startsPausedUntil = until;
-    ctx.log(`${who}: the model is rate limited; no starts until ${until}`);
     return result;
 }
 

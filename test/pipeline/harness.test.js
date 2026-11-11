@@ -179,7 +179,8 @@ describe("harness adapters", () => {
             cacheWrite: 50,
             costUsd: 0.12,
             turns: 6,
-            status: "rate-limited"
+            status: "rate-limited",
+            limit: "API rate limit reached"
         });
     });
 
@@ -195,7 +196,8 @@ describe("harness adapters", () => {
             cacheWrite: 50,
             costUsd: 0.12,
             turns: 4,
-            status: "rate-limited"
+            status: "rate-limited",
+            limit: "You've hit your limit · resets 3pm"
         });
     });
 
@@ -246,6 +248,7 @@ describe("harness adapters", () => {
         const r = adapter("claude", runArgs(out), {FAKE_MODE: "usagelimit"});
         assert.equal(r.status, 75);
         assert.equal(usageOf(out).status, "rate-limited");
+        assert.equal(usageOf(out).limit, "You've hit your limit · resets 3pm");
     });
 
     test("claude: a failed login before any model call is auth, with the CLI's exit", () => {
@@ -477,6 +480,7 @@ describe("harness adapters", () => {
         const r = adapter("codex", runArgs(out), {FAKE_MODE: "ratelimit"});
         assert.equal(r.status, 75);
         assert.equal(usageOf(out).status, "rate-limited");
+        assert.equal(usageOf(out).limit, "You have hit your usage limit. Try again at 3pm.");
     });
 
     test("codex: a failed turn is an error", () => {
@@ -560,6 +564,7 @@ describe("harness adapters", () => {
         const r = adapter("agy", runArgs(out), {FAKE_MODE: "ratelimit"});
         assert.equal(r.status, 75);
         assert.equal(usageOf(out).status, "rate-limited");
+        assert.equal(usageOf(out).limit, "RESOURCE_EXHAUSTED: quota exceeded (429)");
     });
 
     test("agy: a failed result is an error", () => {

@@ -62,7 +62,8 @@ write_usage() {
          tokensOut: ($done.usage.output_tokens // 0),
          costUsd: 0, turns: (map(select(.type == "item.completed")) | length),
          status: (if ($failure | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
-                  elif $failure != "" or $done == null then "error" else "ok" end)}' >"$OUT/usage.json"
+                  elif $failure != "" or $done == null then "error" else "ok" end)} |
+        if .status == "rate-limited" then .limit = ($failure | .[0:300]) else . end' >"$OUT/usage.json"
 }
 
 main() {
