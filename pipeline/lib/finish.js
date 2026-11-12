@@ -8,7 +8,7 @@
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
 import {readResult} from "./outbox.js";
-import {countTry, parkStub} from "./park.js";
+import {countTry, parkBranches, parkStub} from "./park.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
 import {stageOf} from "./state.js";
@@ -257,7 +257,8 @@ function interruption(ctx, session, result) {
  * usage limit stopped is recorded as interrupted, for the next session of its stage to carry
  * on; one whose carried work did not apply puts back the interruption it carried, and counts a
  * try. A session whose login died marks its persona logged out. A session on a stub harness
- * parks the issue at once.
+ * parks the issue at once, and so does one that found several issue branches and no PR head,
+ * keeping the interruption it carried.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -273,6 +274,10 @@ async function judgeIssue(ctx, n, outcome) {
         record.interrupted = record.session.carried ?? null;
         ctx.log(`${who}: the carried work did not apply; it is kept for the next session`);
     }
+    if (result?.branches) {
+        // The harness never ran, so the carried work was never applied: keep it.
+        record.interrupted = record.session.carried ?? null;
+    }
     const unverified = unverifiedReason(result, outcome);
     if (unverified) {
         ctx.log(`${who}: unverified session: ${unverified}`);
@@ -283,7 +288,9 @@ async function judgeIssue(ctx, n, outcome) {
     if (moved) {
         return;
     }
-    if (stubHarness(result)) {
+    if (result?.branches) {
+        await parkBranches(ctx, n, result.branches);
+    } else if (stubHarness(result)) {
         await parkStub(ctx, n);
     } else if (costsNoTry(result)) {
         if (loggedOut(result)) {

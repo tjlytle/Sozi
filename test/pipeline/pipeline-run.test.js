@@ -251,6 +251,96 @@ describe("bin/pipeline.js run", () => {
         );
         assert.equal(saved.issues[25].session.container, "c25", "the next start adopts it");
     });
+    test("a watch end whose summary posts stops the run", async () => {
+        const h = host({statuses: []});
+        const file = writeState(h.root, runningState());
+        h.deps.digest = async () => 0;
+        const env = {NOTION_TOKEN: "nt"};
+        let text = "";
+        await main(["--epic", "999"], {root: h.root, env, out: t => (text += t), deps: h.deps});
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.stopped, true);
+        assert.equal(run.closing, null);
+        assert.match(text, /stopped: nothing is due\n/);
+    });
+    test("a watch end whose summary fails leaves the run open and closing", async () => {
+        const h = host({statuses: []});
+        const file = writeState(h.root, runningState());
+        h.deps.digest = async () => 1;
+        const env = {NOTION_TOKEN: "nt"};
+        let text = "";
+        await main(["--epic", "999"], {root: h.root, env, out: t => (text += t), deps: h.deps});
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.stopped, false);
+        assert.equal(run.closing, "nothing is due");
+        assert.match(text, /stopped: nothing is due \(closing summary not posted; the next start/);
+    });
+    test("the next start retries the closing summary, then opens a new run", async () => {
+        const h = host({statuses: []});
+        const state = runningState();
+        state.run.closing = "until reached";
+        const file = writeState(h.root, state);
+        /** @type {string[][]} */
+        const argvs = [];
+        h.deps.digest = async (/** @type {string[]} */ argv) => {
+            argvs.push(argv);
+            return 0;
+        };
+        const env = {NOTION_TOKEN: "nt"};
+        const code = await main(["--once"], {root: h.root, env, out: () => {}, deps: h.deps});
+        assert.equal(code, 0);
+        assert.equal(argvs[0][0], "finish");
+        assert.match(argvs[0].join(" "), /Stopped: until reached\./);
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.notEqual(run.started, "2026-10-21T19:00:00Z", "a new run");
+        assert.equal(run.stopped, false);
+        assert.equal(run.closing, null);
+        assert.equal(run.tokens, 0);
+    });
+    test("a next start whose retry fails exits 1 and leaves the state alone", async () => {
+        const h = host({statuses: []});
+        const state = runningState();
+        state.run.closing = "until reached";
+        const file = writeState(h.root, state);
+        const before = fs.readFileSync(file, "utf8");
+        h.deps.digest = async () => 1;
+        let mints = 0;
+        h.deps.startMint = async () => {
+            mints++;
+            return {url: "u", port: 7311, close: async () => {}};
+        };
+        let text = "";
+        const env = {NOTION_TOKEN: "nt"};
+        const code = await main(["--once"], {
+            root: h.root,
+            env,
+            out: () => {},
+            err: t => (text += t),
+            deps: h.deps
+        });
+        assert.equal(code, 1);
+        assert.equal(mints, 0, "no mint started");
+        assert.equal(fs.readFileSync(file, "utf8"), before);
+        assert.match(text, /summary of the last run could not be posted/);
+    });
+    test("--digest on a closing run posts the stored reason", async () => {
+        const h = host({statuses: []});
+        const state = runningState();
+        state.run.closing = "until reached";
+        const file = writeState(h.root, state);
+        /** @type {string[][]} */
+        const argvs = [];
+        h.deps.digest = async (/** @type {string[]} */ argv) => {
+            argvs.push(argv);
+            return 0;
+        };
+        const env = {NOTION_TOKEN: "nt"};
+        await main(["--digest"], {root: h.root, env, out: () => {}, deps: h.deps});
+        assert.match(argvs[0].join(" "), /Stopped: until reached\./);
+        const run = JSON.parse(fs.readFileSync(file, "utf8")).run;
+        assert.equal(run.stopped, true);
+        assert.equal(run.closing, null);
+    });
     test("Ctrl-C stops the watch after the pass; a second one leaves at once", async () => {
         let t = 0;
         const h = host({

@@ -217,14 +217,11 @@ export function issue(number, labels, extra = {}) {
  * @param {any} w - The world.
  * @param {string} outbox - The outbox.
  * @param {string} container - The container id.
- * @param {{exit?: number, hooks?: string, status?: string, usage?: Record<string, any> | null, resumes?: number, requests?: Record<string, any>, carry?: string}} [result] - What the session left; usage replaces some usage fields, or is null for a session without usage.json; carry "failed" when its carried work did not apply.
+ * @param {{exit?: number, hooks?: string, status?: string, usage?: Record<string, any> | null, resumes?: number, requests?: Record<string, any>, carry?: string, branches?: string[]}} [result] - What the session left; usage replaces some usage fields, or is null for a session without usage.json; carry "failed" when its carried work did not apply; branches the issue branches it could not choose between.
  */
-export function end(
-    w,
-    outbox,
-    container,
-    {exit = 0, hooks = "ok", status = "ok", usage = {}, resumes = 0, requests = {}, carry} = {}
-) {
+export function end(w, outbox, container, result = {}) {
+    const {exit = 0, hooks = "ok", status = "ok", usage = {}, resumes = 0} = result;
+    const {requests = {}, carry, branches} = result;
     fs.writeFileSync(
         path.join(outbox, "result.json"),
         JSON.stringify({
@@ -238,7 +235,8 @@ export function end(
             commits: [],
             resumes,
             hooks,
-            carry
+            carry,
+            branches
         })
     );
     for (const [name, body] of Object.entries(requests)) {

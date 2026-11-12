@@ -117,7 +117,11 @@ describe("persona profiles at start", () => {
             requests: {done: {done: {issue: 25, to: "stage:review"}}}
         });
         const next = await w.p.pass();
-        assert.deepEqual(next.started, [25, 26], "the waiting builder starts once one is free");
+        assert.deepEqual(
+            next.started,
+            [26, 25],
+            "the waiting builder starts once one is free, before #25 that only now entered review"
+        );
     });
     test("PIPELINE_PER_PERSONA=0 lifts the limit", async () => {
         const w = world({
@@ -310,5 +314,71 @@ describe("choosing the next issue", () => {
         running(w, "architect", "ca");
         const s = await w.p.pass();
         assert.deepEqual(s.started, [11]);
+    });
+    test("a priority issue of the least-busy persona starts before a lower number", async () => {
+        const w = world({
+            issues: [
+                issue(5, ["stage:in-progress", "priority"]),
+                issue(10, ["stage:todo"]),
+                issue(11, ["stage:todo", "priority"])
+            ],
+            env: {PIPELINE_PARALLEL: "2", PIPELINE_PER_PERSONA: "0"}
+        });
+        running(w, "builder", "cb");
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [11]);
+    });
+    test("a long-waiting stage:qa issue starts before newer stage:tests issues (#318)", async () => {
+        const newer = {updatedAt: "2026-10-21T12:00:00Z"};
+        const w = world({
+            issues: [
+                issue(301, ["stage:tests"], newer),
+                issue(302, ["stage:tests"], newer),
+                issue(303, ["stage:tests"], newer),
+                issue(318, ["stage:qa"], {updatedAt: "2026-10-21T10:00:00Z"})
+            ],
+            env: {PIPELINE_PARALLEL: "1"}
+        });
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [318]);
+    });
+});
+
+describe("the branch a session works on", () => {
+    test("an issue with an open closing PR starts with PIPELINE_BRANCH set to its head", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.github.openPrFor = async (/** @type {number} */ n) =>
+            n === 25 ? {number: 40, headRefName: "25-renamed"} : null;
+        await w.p.pass();
+        assert.equal(w.starts[0].env.PIPELINE_BRANCH, "25-renamed");
+        assert.equal(w.starts[0].env.PIPELINE_ISSUE, "25");
+    });
+    test("an issue without one starts without PIPELINE_BRANCH", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        await w.p.pass();
+        assert.equal(w.starts.length, 1);
+        assert.ok(!("PIPELINE_BRANCH" in w.starts[0].env));
+    });
+    test("a lookup that throws is logged and the stage still starts without it", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        w.github.openPrFor = async () => {
+            throw new Error("gh down");
+        };
+        const s = await w.p.pass();
+        assert.deepEqual(s.started, [25]);
+        assert.ok(!("PIPELINE_BRANCH" in w.starts[0].env));
+        assert.ok(w.logs.some((/** @type {string} */ l) => /#25: .*gh down/.test(l)));
+    });
+    test("a spawn does not look up a PR", async () => {
+        const w = world();
+        let asked = 0;
+        w.github.openPrFor = async () => {
+            asked++;
+            return {number: 40, headRefName: "25-x"};
+        };
+        w.state.run.spawns.push({persona: "advocate", prompt: "File Y", issue: 25, harness: null});
+        await w.p.pass();
+        assert.equal(asked, 0);
+        assert.ok(!("PIPELINE_BRANCH" in w.starts[0].env));
     });
 });
