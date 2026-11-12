@@ -44,3 +44,20 @@ export function leftoverNote(paths) {
         ""
     ].join("\n");
 }
+
+/**
+ * What a start of a stage takes over from the patches the last try left: the files to copy
+ * under the new outbox's carried/, and the note on their paths that ends the prompt. Nothing
+ * when the last try was of another stage, or no try left patches.
+ *
+ * @param {import("./state.js").Leftover | null | undefined} leftover - The issue's record.
+ * @param {string} stage - The stage starting.
+ * @returns {{patches: {from: string, names: string[]}, note: string} | null} - The handover.
+ */
+export function handover(leftover, stage) {
+    if (leftover?.stage !== stage) {
+        return null;
+    }
+    const paths = leftover.patches.map(name => `/outbox/carried/${name}`);
+    return {patches: {from: leftover.outbox, names: leftover.patches}, note: leftoverNote(paths)};
+}

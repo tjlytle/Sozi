@@ -11,7 +11,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {carryOf, fallbackNote} from "./carry.js";
-import {leftoverNote} from "./leftover.js";
+import {handover} from "./leftover.js";
 import {pausedUntil} from "./limits.js";
 import {stillLoggedOut} from "./logins.js";
 import {personaFor} from "./profile.js";
@@ -157,19 +157,14 @@ async function startSpawn(ctx, spawn, {profile, route}) {
  * @returns {string} The outbox.
  */
 function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
-    const leftover = ctx.state.issues[n].leftover;
-    const patches =
-        leftover?.stage === stage ? {from: leftover.outbox, names: leftover.patches} : null;
-    let prompt = render(ctx, read(ctx, `${stage}.md`), n, stage);
-    if (patches) {
-        const paths = patches.names.map(name => `/outbox/carried/${name}`);
-        prompt = `${prompt.trimEnd()}\n\n${leftoverNote(paths)}`;
-    }
+    const taken = handover(ctx.state.issues[n].leftover, stage);
+    const rendered = render(ctx, read(ctx, `${stage}.md`), n, stage);
+    const prompt = taken ? `${rendered.trimEnd()}\n\n${taken.note}` : rendered;
     const allow = read(ctx, "allow.txt");
     const message = resume && read(ctx, "resume.md");
     return ctx.sandbox.prepareOutbox({
         ...{issue: n, stage, prompt, allow, carryFrom, resume: message},
-        ...(patches && {patches})
+        ...(taken && {patches: taken.patches})
     });
 }
 

@@ -11,7 +11,7 @@ import {listPatches, readResult} from "./outbox.js";
 import {countTry, parkBranches, parkStub} from "./park.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
-import {stageOf} from "./state.js";
+import {keepLeftover, stageOf} from "./state.js";
 import {
     applyLabels,
     backOff,
@@ -183,23 +183,6 @@ async function movedByHand(ctx, n) {
 }
 
 /**
- * Record the patches a try left in its outbox for the next try of its stage. A try that left
- * none keeps the record of an earlier one.
- *
- * @param {PassContext} ctx - The pass context.
- * @param {number} n - The issue number.
- * @param {{stage: string, outbox: string}} session - The try's session.
- * @returns {void}
- */
-function keepLeftover(ctx, n, {stage, outbox}) {
-    const patches = listPatches(outbox);
-    if (patches.length > 0) {
-        ctx.state.issues[n].leftover = {stage, outbox, patches};
-        ctx.log(`#${n}: ${patches.length} patch(es) kept for the next try`);
-    }
-}
-
-/**
  * Apply the requests of an issue's session. A done request must name a move the stage
  * the session ran may make; any other is refused and the session moved nothing.
  *
@@ -324,7 +307,10 @@ async function judgeIssue(ctx, n, outcome) {
             ctx.log(`${who}: digest note failed: ${String(error)}`);
         });
     } else if (unverified || !(await movedByHand(ctx, n))) {
-        keepLeftover(ctx, n, record.session);
+        const kept = keepLeftover(ctx.state, n, {stage, outbox, patches: listPatches(outbox)});
+        if (kept > 0) {
+            ctx.log(`${who}: ${kept} patch(es) kept for the next try`);
+        }
         await countTry(ctx, n, outbox);
     }
 }

@@ -252,6 +252,21 @@ export function setStage(state, n, stage) {
     record.waiting = false;
 }
 
+/** Records the patches a try left in its outbox for the next try of its stage. A try that
+ * left none keeps the record of an earlier one.
+ *
+ * @param {State} state - The state.
+ * @param {number} n - The issue number.
+ * @param {Leftover} left - The try's stage, outbox and the patches found there.
+ * @returns {number} - How many patches were kept.
+ */
+export function keepLeftover(state, n, left) {
+    if (left.patches.length > 0) {
+        state.issues[n].leftover = left;
+    }
+    return left.patches.length;
+}
+
 /** Parks an issue, remembering the stage it came from.
  *
  * @param {State} state - The state.
