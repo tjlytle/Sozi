@@ -63,6 +63,19 @@ describe("the supervised label from a plan", () => {
         assert.ok(!w.state.issues[25].labels.includes("supervised"));
         assert.equal(supervisedAdds(w).length, 0);
     });
+    test("a plan that cannot be read labels supervised, so the loop does not run it", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        w.github.planComment = async () => {
+            throw new Error("502 Bad Gateway");
+        };
+        await w.p.pass();
+        end(w, w.state.issues[25].session.outbox, "c25", {
+            requests: {done: {done: {issue: 25, to: "stage:tests"}}}
+        });
+        await w.p.pass();
+        assert.ok(w.state.issues[25].labels.includes("supervised"));
+        assert.equal(supervisedAdds(w).length, 1);
+    });
 });
 
 describe("a protected patch", () => {

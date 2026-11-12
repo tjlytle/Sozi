@@ -42,25 +42,33 @@ async function addSupervised(ctx, n) {
 }
 
 /**
- * Label an issue supervised when its plan's Shape changes the pipeline or .claude/. While
- * GitHub backs the loop off the plan is not read, and the label waits for a person.
+ * Label an issue supervised when its plan's Shape changes the pipeline or .claude/. When the
+ * plan cannot be read (GitHub backs the loop off, or the read fails) the issue is labelled
+ * too, so the loop never runs a pipeline change; the supervisor or a person removes it.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue whose plan session moved it on.
  * @returns {Promise<void>}
  */
 export async function labelIfPlanned(ctx, n) {
-    if (inBackoff(ctx)) {
-        return;
-    }
     let plan;
     try {
+        if (inBackoff(ctx)) {
+            throw new Error("GitHub is backing the loop off");
+        }
         plan = await ctx.github.planComment(n);
     } catch (error) {
         if (error instanceof RateLimited) {
             backOff(ctx, error);
         }
-        ctx.log(`#${n}: plan not read for the ${SUPERVISED} label: ${String(error)}`);
+        ctx.log(`#${n}: plan not read, labelled ${SUPERVISED} to be safe: ${String(error)}`);
+        await addSupervised(ctx, n);
+        const why = "The plan could not be read to check its Shape, so the loop will not run it.";
+        await writeComment(
+            ctx,
+            n,
+            `Labelled \`${SUPERVISED}\`: ${why} Remove the label if the plan stays outside \`.claude/\` and \`pipeline/\`.`
+        );
         return;
     }
     if (planNeedsSupervision(plan ?? "")) {
