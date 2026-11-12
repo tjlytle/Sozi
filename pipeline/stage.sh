@@ -21,7 +21,12 @@
 #
 # Usage: pipeline/stage.sh <issue> <stage>   (the container's main process)
 #
+# The branch worked on is PIPELINE_BRANCH, the head of the issue's open PR, when the remote has
+# it; else the issue's one <issue>-* branch; else master. With no PR head and two or more
+# <issue>-* branches, the harness never runs and result.json names them in branches.
+#
 # Env read: PIPELINE_REPO, PIPELINE_HARNESS, PIPELINE_MODEL (required);
+# PIPELINE_BRANCH (the open PR's head, when there is one);
 # PIPELINE_MAX_RESUMES (3); PIPELINE_OFFLINE (skip GitHub, for tests);
 # PIPELINE_RESUME_SESSION (the session to resume);
 # PIPELINE_PERSONA (when set, exported to gh-as as GH_AS_SIGNATURE, GH_AS_HARNESS, GH_AS_MODEL);
@@ -44,6 +49,7 @@ max_resumes="${PIPELINE_MAX_RESUMES:-3}"
 XVFB_BIN="${XVFB_BIN:-Xvfb}"; DISPLAY_NUM="${DISPLAY_NUM:-99}"; X11_DIR="${X11_DIR:-/tmp/.X11-unix}"
 PROFILE="${PROFILE:-/profile}"; AGY_HOME_LINK="${AGY_HOME_LINK:-$HOME/.gemini}"
 start=""; harness_exit=1; resumes=0; hooks_state=skipped; carry_state=""; child=""; xvfb_pid=""
+branches=""
 
 step() { echo "== $1" | tee -a "$OUTBOX/log"; }
 
@@ -105,9 +111,10 @@ apply_carry() {
 # session's own: first parents only, no merge commits, so a merge of master adds none.
 # Its usage is null when the harness left no usage.json (or one that is not JSON), so
 # the host can tell a missing report from a real one. Its carry is "failed" when the
-# carried work did not apply and the harness never ran.
+# carried work did not apply and the harness never ran; its branches, only when set, name
+# the issue branches checkout_branch could not choose between.
 write_result() {
-    local sfile=/dev/null usage=null changed commits out="$OUTBOX/result.json"
+    local sfile=/dev/null usage=null changed commits blist='[]' out="$OUTBOX/result.json"
     write_carry
     [ -s "$OUTBOX/session" ] && sfile="$OUTBOX/session"
     [ -s "$OUTBOX/usage.json" ] && usage=$(cat "$OUTBOX/usage.json")
@@ -115,16 +122,17 @@ write_result() {
     commits='[]'
     [ -n "$start" ] && commits=$(git -C "$WORK" log --oneline --first-parent --no-merges \
         "$start..HEAD" 2>/dev/null | to_array)
+    [ -n "$branches" ] && blist=$(printf '%s\n' "$branches" | to_array)
     if command -v jq >/dev/null && echo "$usage" | jq . >/dev/null 2>&1; then
         jq -n --argjson exit "$harness_exit" --rawfile session "$sfile" --argjson usage "$usage" \
             --argjson changed "$changed" --argjson commits "$commits" --argjson resumes "$resumes" \
-            --arg hooks "$hooks_state" --arg carry "$carry_state" \
-            '{exit: $exit, session: (if $session == "" then null else ($session | rtrimstr("\n")) end), usage: $usage, changed: $changed, commits: $commits, resumes: $resumes, hooks: $hooks} + (if $carry == "" then {} else {carry: $carry} end)' \
+            --arg hooks "$hooks_state" --arg carry "$carry_state" --argjson branches "$blist" \
+            '{exit: $exit, session: (if $session == "" then null else ($session | rtrimstr("\n")) end), usage: $usage, changed: $changed, commits: $commits, resumes: $resumes, hooks: $hooks} + (if $carry == "" then {} else {carry: $carry} end) + (if $branches == [] then {} else {branches: $branches} end)' \
             >"$out.tmp"
     else
-        node -e 'const a=process.argv;let u;try{u=JSON.parse(a[4])}catch{u=null}
-console.log(JSON.stringify({exit:+a[1],session:require("fs").readFileSync(a[2],"utf8").trim()||null,usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3],hooks:a[7],...(a[8]?{carry:a[8]}:{})}))' \
-            "$harness_exit" "$sfile" "$resumes" "$usage" "$changed" "$commits" "$hooks_state" "$carry_state" >"$out.tmp"
+        node -e 'const a=process.argv;let u;try{u=JSON.parse(a[4])}catch{u=null};const b=JSON.parse(a[9])
+console.log(JSON.stringify({exit:+a[1],session:require("fs").readFileSync(a[2],"utf8").trim()||null,usage:u,changed:JSON.parse(a[5]),commits:JSON.parse(a[6]),resumes:+a[3],hooks:a[7],...(a[8]?{carry:a[8]}:{}),...(b.length?{branches:b}:{})}))' \
+            "$harness_exit" "$sfile" "$resumes" "$usage" "$changed" "$commits" "$hooks_state" "$carry_state" "$blist" >"$out.tmp"
     fi
     mv "$out.tmp" "$out"
 }
@@ -140,14 +148,32 @@ clone_repo() {
     [ "${PIPELINE_OFFLINE:-}" = 1 ] || git -C "$WORK" fetch -q origin
 }
 
-# Check out the issue's branch when it exists, else master.
+# Check out the branch to work on: PIPELINE_BRANCH (the head of the issue's open PR) when the
+# remote has it, else the issue's one <issue>-* branch, else master. With two or more such
+# branches and no PR head, log their names, keep them in branches for result.json and fail,
+# so the harness never runs on a branch picked by sort order.
 checkout_branch() {
     step branch
-    local remote=origin b
+    local remote=origin list
+    local -a found
     [ "${PIPELINE_OFFLINE:-}" = 1 ] && remote="$MIRROR"
-    b=$(git -C "$WORK" ls-remote --heads "$remote" "refs/heads/${issue}-*" | head -1 | sed 's#.*refs/heads/##')
-    if [ -n "$b" ]; then git -C "$WORK" checkout -q -B "$b" "origin/$b"
-    else git -C "$WORK" checkout -q -B master origin/master; fi
+    if [ -n "${PIPELINE_BRANCH:-}" ] &&
+        [ -n "$(git -C "$WORK" ls-remote --heads "$remote" "refs/heads/$PIPELINE_BRANCH")" ]; then
+        git -C "$WORK" checkout -q -B "$PIPELINE_BRANCH" "origin/$PIPELINE_BRANCH"
+        return
+    fi
+    mapfile -t found < <(git -C "$WORK" ls-remote --heads "$remote" "refs/heads/${issue}-*" |
+        sed 's#.*refs/heads/##')
+    case "${#found[@]}" in
+        0) git -C "$WORK" checkout -q -B master origin/master ;;
+        1) git -C "$WORK" checkout -q -B "${found[0]}" "origin/${found[0]}" ;;
+        *)
+            branches=$(printf '%s\n' "${found[@]}")
+            list=$(printf '%s, ' "${found[@]}")
+            step "branch: ${#found[@]} branches match ${issue}-*: ${list%, }"
+            return 1
+            ;;
+    esac
 }
 
 # Link the cached node_modules when the lockfile matches, else install.
