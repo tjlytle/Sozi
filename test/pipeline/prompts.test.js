@@ -93,6 +93,14 @@ describe("stage prompts", () => {
         assert.match(text.qa, /req-missing-evidence\.json/);
         assert.match(text.qa, /req-missing-digest\.json/);
     });
+    test("work is pushed as it turns green, and at once when the runner warns of the stop", () => {
+        assert.match(text.build, /each time a step turns its tests green/);
+        assert.match(text.build, /not held for the end/);
+        for (const name of ["build", "tests"]) {
+            assert.match(text[name], /runner warns that the session will stop/, name);
+            assert.match(text[name], /commit and push what you have at once/, name);
+        }
+    });
     test("the PR is found by its branch", () => {
         for (const name of ["build", "review", "qa"]) {
             assert.ok(text[name].includes("--head {N}-<slug>"), name);
