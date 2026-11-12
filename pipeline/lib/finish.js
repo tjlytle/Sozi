@@ -5,6 +5,7 @@
 // Judging a session that ended: its usage, its requests, and whether it moved its
 // issue. A session that moved nothing is a try; park.js counts it and parks the issue.
 
+import {keepProtected, labelIfPlanned} from "./finish-supervised.js";
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
 import {listPatches, readResult} from "./outbox.js";
@@ -184,7 +185,8 @@ async function movedByHand(ctx, n) {
 
 /**
  * Apply the requests of an issue's session. A done request must name a move the stage
- * the session ran may make; any other is refused and the session moved nothing.
+ * the session ran may make; any other is refused and the session moved nothing. A plan's
+ * done labels its issue supervised when the plan changes the pipeline or .claude/.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -216,6 +218,9 @@ async function applyRequests(ctx, n, accepted, unverified) {
             moved = true;
             if (request.to === "stage:blocked") {
                 await readBlockers(ctx, n);
+            }
+            if (stage === "plan") {
+                await labelIfPlanned(ctx, n);
             }
         } else if (request.kind === "label") {
             const changed = await applyLabels(ctx, request);
@@ -259,7 +264,7 @@ function interruption(ctx, session, result) {
  * try. A session whose login died marks its persona logged out. A session on a stub harness
  * parks the issue at once, and so does one that found several issue branches and no PR head,
  * keeping the interruption it carried. A try that counts keeps the patches it left for the next
- * one.
+ * one. A protected patch is kept for the supervisor, and the issue waits for a person.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -284,7 +289,9 @@ async function judgeIssue(ctx, n, outcome) {
         ctx.log(`${who}: unverified session: ${unverified}`);
     }
     const {accepted, refused} = readRequests(outbox, {issue: n});
-    const {moved, wait} = await applyRequests(ctx, n, accepted, unverified);
+    const {moved, wait: asked} = await applyRequests(ctx, n, accepted, unverified);
+    const kept = unverified ? null : await keepProtected(ctx, n, outbox);
+    const wait = asked ?? kept;
     await notesAndRefusals(ctx, accepted, refused, n, who);
     if (moved) {
         return;

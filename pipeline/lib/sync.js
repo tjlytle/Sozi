@@ -36,6 +36,7 @@ const STAGE_LABELS = /^stage:/;
  * @property {{now: () => number}} clock - The clock, in epoch milliseconds.
  * @property {(line: string) => void} log - The log.
  * @property {string} root - The repository root, where the prompts live.
+ * @property {string} protectedDir - Where protected patches are kept for the supervisor.
  * @property {Set<number>} changed - Issues whose stage changed since the last board sync, or whose board sync failed.
  * @property {number} syncs - GitHub syncs since the loop started; the first and every boardFullEvery-th sync the whole board.
  * @property {Set<number>} tried - Issues that used a try, or whose persona is busy or profile refused, this pass; they wait for the next.
