@@ -299,3 +299,18 @@ describe("the priority label", () => {
         assert.ok(w.state.issues[26].labels.includes("priority"));
     });
 });
+
+describe("the cap warning", () => {
+    test("a session past sessionMinutes - warnMinutes has nudge-cap.md after one pass", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        const first = await w.p.pass();
+        assert.equal(first.wakeIn, 40 * 60);
+        const outbox = w.state.issues[25].session.outbox;
+        w.clock.advance(40 * 60 * 1000);
+        const s = await w.p.pass();
+        const text = fs.readFileSync(path.join(outbox, "nudge-cap.md"), "utf8");
+        assert.match(text, /about 5 minutes/);
+        assert.ok(w.logs.includes("#25: warned 5 minutes before the cap"));
+        assert.equal(s.wakeIn, null);
+    });
+});

@@ -123,3 +123,24 @@ test("a pass that handed a question to the advisor is busy: the next comes after
     );
     assert.deepEqual(pauses, [60, 30, 60]);
 });
+
+test("a pass with a warning due in 40 s cuts an idle 600 s pause to 40 s, and the back-off goes on", async () => {
+    const h = fakeControl(emptyState());
+    /** @type {number[]} */
+    const pauses = [];
+    h.control.pause = async (/** @type {number} */ seconds) => {
+        pauses.push(seconds);
+        h.control.stopping = pauses.length === 8;
+    };
+    const quiet = {started: [], finished: [], moved: [], parked: [], spawns: 0, stopped: null};
+    const summaries = [quiet, quiet, quiet, quiet, quiet, {...quiet, wakeIn: 40}];
+    summaries.push({...quiet, wakeIn: 5}, quiet);
+    const pass = async () => /** @type {any} */ (summaries.shift());
+    await watch(
+        pass,
+        h.control,
+        () => {},
+        () => {}
+    );
+    assert.deepEqual(pauses, [60, 120, 240, 480, 600, 40, 30, 600]);
+});

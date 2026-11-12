@@ -22,7 +22,7 @@ export function loggedIn() {
 
 /**
  * A fake GitHub that serves the given issues and labels from the state, and records each
- * write in calls.
+ * write in calls. Every CI run it reads is a finished one on issue 25's branch.
  *
  * @param {any} state - The pass state; labelsOf reads an issue's labels from it.
  * @param {any[]} issues - What searchIssues returns.
@@ -44,7 +44,20 @@ function fakeGithub(state, issues, calls) {
         openPrFor: async () => null,
         parentOf: async () => /** @type {number | null} */ (null),
         linkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["linkSubIssue", ...a]),
-        unlinkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["unlinkSubIssue", ...a])
+        unlinkSubIssue: async (/** @type {number[]} */ ...a) =>
+            calls.push(["unlinkSubIssue", ...a]),
+        // Every run is a finished one on issue 25's branch, so a rerun of it is allowed.
+        runView: async (/** @type {number} */ id) => ({
+            databaseId: id,
+            status: "completed",
+            conclusion: "failure",
+            createdAt: "2026-10-21T18:00:00Z",
+            headBranch: "25-fake",
+            jobs: [{name: "check"}]
+        }),
+        recentRuns: async () => [],
+        cancelRun: async (/** @type {number} */ id) => calls.push(["cancelRun", id]),
+        rerunRun: async (/** @type {number} */ id) => calls.push(["rerunRun", id])
     };
 }
 

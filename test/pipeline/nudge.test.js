@@ -58,6 +58,43 @@ describe("nudge.sh", () => {
         assert.equal(nudge(outbox, ["--hook"]).stdout, "");
     });
 
+    test("prints nudge.md and nudge-cap.md once each, in name order", () => {
+        const outbox = withNudge();
+        fs.writeFileSync(path.join(outbox, "nudge-cap.md"), "this session is stopped soon\n");
+        const first = nudge(outbox);
+        assert.equal(first.status, 0, first.stderr);
+        assert.equal(
+            first.stdout,
+            "this session is stopped soon\nyou have spent 23 minutes on this\n"
+        );
+        assert.ok(fs.existsSync(path.join(outbox, "nudge-cap.seen")));
+        assert.ok(fs.existsSync(path.join(outbox, "nudge.seen")));
+        assert.equal(nudge(outbox).stdout, "");
+    });
+
+    test("with --hook, every nudge comes as one additional context", () => {
+        const outbox = withNudge();
+        fs.writeFileSync(path.join(outbox, "nudge-cap.md"), "this session is stopped soon\n");
+        const r = nudge(outbox, ["--hook"]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(
+            JSON.parse(r.stdout).hookSpecificOutput.additionalContext,
+            "this session is stopped soon\nyou have spent 23 minutes on this"
+        );
+        assert.equal(nudge(outbox, ["--hook"]).stdout, "");
+    });
+
+    test("a nudge that is a link is skipped and left alone", () => {
+        const outbox = fs.mkdtempSync(path.join(os.tmpdir(), "nudge-"));
+        const target = path.join(outbox, "elsewhere.txt");
+        fs.writeFileSync(target, "not a nudge\n");
+        fs.symlinkSync(target, path.join(outbox, "nudge-x.md"));
+        const r = nudge(outbox);
+        assert.equal(r.status, 0);
+        assert.equal(r.stdout, "");
+        assert.ok(fs.lstatSync(path.join(outbox, "nudge-x.md")).isSymbolicLink());
+    });
+
     test("with no outbox, prints nothing and succeeds", () => {
         const r = nudge("/nonexistent-outbox");
         assert.equal(r.status, 0);

@@ -36,6 +36,9 @@ const USAGE = [
 /** The title of the board. */
 const TITLE = "Sozi pipeline";
 
+/** The most issues a full sync lists; reaching it is reported, as the walk may miss some. */
+const ISSUE_LIMIT = 1000;
+
 /** The board columns in order, with the colour of each. */
 const COLUMNS = [
     ["Triage", "RED"],
@@ -236,6 +239,42 @@ function itemRow(node) {
     };
 }
 
+/** Every card on the board, read page by page.
+ *
+ * @param {Context} ctx - The context.
+ * @param {string} projectId - The board id.
+ * @returns {Promise<Map<number, {id: string, status: string, at: string}>>} - The card of each issue by number.
+ */
+async function boardItems({run}, projectId) {
+    /** @type {Map<number, {id: string, status: string, at: string}>} */
+    const cards = new Map();
+    /** @type {string | null} */
+    let cursor = null;
+    do {
+        const reply = JSON.parse(
+            await exec(run, [
+                "gh-as",
+                "-",
+                "api",
+                "graphql",
+                "-f",
+                `id=${projectId}`,
+                ...(cursor ? ["-f", `cursor=${cursor}`] : []),
+                "-f",
+                `query=query($id: ID!, $cursor: String) { node(id: $id) { ... on ProjectV2 { items(first: 100, after: $cursor) { nodes { ${ITEM_FIELDS} } pageInfo { hasNextPage endCursor } } } } }`
+            ])
+        );
+        const items = reply.data?.node?.items;
+        for (const node of items?.nodes ?? []) {
+            if (node.content?.number !== undefined && node.content.number !== null) {
+                cards.set(node.content.number, itemRow(node));
+            }
+        }
+        cursor = items?.pageInfo?.hasNextPage ? (items.pageInfo.endCursor ?? null) : null;
+    } while (cursor);
+    return cards;
+}
+
 /** When the issue stage, triage or idea label was last set.
  *
  * @param {Context} ctx - The context.
@@ -384,27 +423,11 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
     const {local, save} = stateAccess({state, book}, ctx);
     let meta = await boardMeta(ctx, local, save);
     /** @type {Map<number, {id: string, status: string, at: string}>} */
-    const cards = new Map();
+    let cards = new Map();
     /** @type {any[]} */
     let list = [];
     if (all) {
-        const reply = JSON.parse(
-            await exec(run, [
-                "gh-as",
-                "-",
-                "api",
-                "graphql",
-                "-f",
-                `id=${meta.project.id}`,
-                "-f",
-                `query=query($id: ID!) { node(id: $id) { ... on ProjectV2 { items(first: 100) { nodes { ${ITEM_FIELDS} } } } } }`
-            ])
-        );
-        for (const node of reply.data?.node?.items?.nodes ?? []) {
-            if (node.content?.number !== undefined && node.content.number !== null) {
-                cards.set(node.content.number, itemRow(node));
-            }
-        }
+        cards = await boardItems(ctx, meta.project.id);
         list = JSON.parse(
             await exec(run, [
                 "gh-as",
@@ -416,11 +439,16 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
                 "--state",
                 "all",
                 "--limit",
-                "200",
+                String(ISSUE_LIMIT),
                 "--json",
                 "number,url,state,labels"
             ])
         );
+        if (list.length >= ISSUE_LIMIT) {
+            (ctx.err ?? (() => {}))(
+                `warning: the issue list hit its limit of ${ISSUE_LIMIT}; the walk may have missed issues\n`
+            );
+        }
     }
     /** @type {number[]} */
     const failed = [];
@@ -451,6 +479,10 @@ export async function sync({issues = [], all = false, state, book}, ctx) {
                 triage: names.includes("triage")
             };
             const have = card?.status ?? "";
+            if (issue.state === "CLOSED" && have === stageToColumn("closed")) {
+                // Most of a full walk: a closed issue already in Done costs no call.
+                continue;
+            }
             const boardAt = card?.at ?? "";
             let decision = decide({...facts, have, boardAt, labelAt: ""});
             if (decision?.label) {
