@@ -141,7 +141,8 @@ function fakeClock(now) {
  * A pass over fakes. Its advisor answers nothing; it records each question in `asks`.
  *
  * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void, configRoot?: string, reload?: () => void}} [options] - The world; configRoot is where the settings files are read.
- * @returns {any} - The pass, the state, the fakes, the records they write (`Records`) and `asks`.
+ * @returns {any} - The pass, the state, the fakes, the records they write (`Records`, with
+ *     `protectedDir`, where the pass keeps protected patches) and `asks`.
  */
 export function world({
     issues = [],
