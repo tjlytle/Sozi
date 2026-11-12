@@ -49,22 +49,47 @@ export function planNeedsSupervision(planText) {
     return quoted.some(p => SUPERVISED_PATHS.some(rule => rule.test(p.replace(/^\.\//, ""))));
 }
 
-/** The paths a git diff names: both sides of each file header, renames and copies, but not
- * /dev/null.
+/** A line that may name a path git applies to. Lines inside hunks can look like one too; they
+ * are read the same way, which can refuse a good patch but never passes a bad one.
+ */
+const HEADER = /^(?:diff |--- |\+\+\+ |rename |copy )/;
+
+/** The paths one header line names: both sides of `diff --git`, one side of `---` or `+++`
+ * (none for /dev/null), the path of a rename or copy line.
+ *
+ * @param {string} line - A line HEADER matches.
+ * @returns {string[]} - The paths as written.
+ * @throws {Error} - When the line does not have that plain form: a Git-quoted path, a space
+ *     in a path, a side without its a/ or b/ prefix, a combined diff.
+ */
+function headerPaths(line) {
+    const header = /^diff --git a\/(\S+) b\/(\S+)$/.exec(line);
+    if (header) {
+        return header.slice(1);
+    }
+    const side = /^(?:---|\+\+\+) (?:\/dev\/null|[ab]\/(\S+))$/.exec(line);
+    if (side) {
+        return side[1] ? [side[1]] : [];
+    }
+    const moved = /^(?:rename|copy) (?:from|to) (\S+)$/.exec(line);
+    if (moved) {
+        return [moved[1]];
+    }
+    throw new Error(`the patch has a header it cannot read: ${JSON.stringify(line)}`);
+}
+
+/** The paths a git diff names. Every line that may name a path must have the plain form, so
+ * the paths found cover every file git would apply the patch to.
  *
  * @param {string} patchText - The diff.
  * @returns {string[]} - The paths as written, in order, each once.
+ * @throws {Error} - When a header line has a form not read here.
  */
 function diffPaths(patchText) {
     const found = new Set();
     for (const line of patchText.split("\n")) {
-        const header = /^diff --git a\/(\S+) b\/(\S+)$/.exec(line);
-        const side = /^(?:---|\+\+\+) [ab]\/(\S+)/.exec(line);
-        const moved = /^(?:rename|copy) (?:from|to) (\S+)$/.exec(line);
-        for (const p of header ? header.slice(1) : [side?.[1], moved?.[1]]) {
-            if (p) {
-                found.add(p);
-            }
+        if (HEADER.test(line)) {
+            headerPaths(line).forEach(p => found.add(p));
         }
     }
     return [...found];
@@ -74,8 +99,8 @@ function diffPaths(patchText) {
  *
  * @param {string} patchText - The patch, a git diff.
  * @returns {string[]} - The paths, each once.
- * @throws {Error} - When the patch names no path, or one outside `.claude/`; the message
- *     names the path.
+ * @throws {Error} - When the patch names no path, one outside `.claude/`, or has a header
+ *     line it cannot read; the message names the path or the line.
  */
 export function protectedPatchPaths(patchText) {
     const paths = diffPaths(patchText);

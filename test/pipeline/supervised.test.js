@@ -90,4 +90,17 @@ describe("protectedPatchPaths", () => {
     test("throws on a patch that names no path", () => {
         assert.throws(() => protectedPatchPaths("nothing here\n"), /no path/);
     });
+    test("throws on a Git-quoted path beside a good one (review of #536)", () => {
+        const quoted =
+            'diff --git "a/src/a\\tb.js" "b/src/a\\tb.js"\n' +
+            '--- "a/src/a\\tb.js"\n+++ "b/src/a\\tb.js"\n@@ -1 +1 @@\n-a\n+b\n';
+        const text = diff([".claude/x"]) + quoted;
+        assert.throws(() => protectedPatchPaths(text), /cannot read/);
+    });
+    test("throws on a header with a space in its path or no a/ and b/ prefix", () => {
+        const spaced = "diff --git a/src/a b.js b/src/a b.js\nold mode 100644\nnew mode 100755\n";
+        assert.throws(() => protectedPatchPaths(diff([".claude/x"]) + spaced), /cannot read/);
+        const bare = "--- src/a.js\n+++ src/a.js\n@@ -1 +1 @@\n-a\n+b\n";
+        assert.throws(() => protectedPatchPaths(diff([".claude/x"]) + bare), /cannot read/);
+    });
 });
