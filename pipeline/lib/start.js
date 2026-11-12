@@ -242,8 +242,8 @@ async function startIssue(ctx, n, who) {
 
 /**
  * The next issue to start: due, in scope, not tried this pass, the only one when set. Of
- * those, the one whose persona has the fewest sessions running now; on a tie, the lowest
- * number.
+ * those, the one whose persona has the fewest sessions running now; on a tie, the first in
+ * start order (priority, then longest waiting in its stage, then lowest number).
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {number | undefined} The issue number.
@@ -259,7 +259,7 @@ function nextIssue(ctx) {
     );
     let next;
     let fewest = Infinity;
-    // dueIssues sorts by number, so a strict < keeps the lowest number on a tie.
+    // dueIssues sorts in start order, so a strict < keeps the first in that order on a tie.
     for (const n of due) {
         const count = runningFor(ctx, personaFor(stageOfIssue(state.issues[n])));
         if (count < fewest) {

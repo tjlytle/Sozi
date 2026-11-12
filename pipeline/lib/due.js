@@ -38,8 +38,25 @@ function isStartable(state, r) {
     return startable && blockersClosed(state, r);
 }
 
-/** Lists the issues a session can start for now, by number. A blocked issue whose
- * blockers are all closed counts; the pass moves it on before starting it.
+/** Compares two issues in the order they start: one a person marked priority first, then
+ * the one that has waited longest in its stage, then the lower number. A record with no
+ * stage time, saved before the loop kept one, counts as the longest waiting.
+ *
+ * @param {[number, IssueRecord]} a - An issue number and its record.
+ * @param {[number, IssueRecord]} b - The other.
+ * @returns {number} - Negative when a starts first, positive when b does.
+ */
+export function startOrder([an, a], [bn, b]) {
+    const priority = Number(b.labels.includes("priority")) - Number(a.labels.includes("priority"));
+    if (priority !== 0) {
+        return priority;
+    }
+    const waited = Date.parse(a.stageSince ?? "0") - Date.parse(b.stageSince ?? "0");
+    return waited !== 0 ? waited : an - bn;
+}
+
+/** Lists the issues a session can start for now, in start order (startOrder). A blocked
+ * issue whose blockers are all closed counts; the pass moves it on before starting it.
  *
  * @param {State} state - The state.
  * @param {object} _settings - The settings (unused so far).
@@ -49,8 +66,9 @@ function isStartable(state, r) {
 export function dueIssues(state, _settings, _now) {
     return Object.entries(state.issues)
         .filter(([, r]) => isStartable(state, r))
-        .map(([n]) => Number(n))
-        .sort((a, b) => a - b);
+        .map(([n, r]) => /** @type {[number, IssueRecord]} */ ([Number(n), r]))
+        .sort(startOrder)
+        .map(([n]) => n);
 }
 
 /** Selects the issues a run covers.

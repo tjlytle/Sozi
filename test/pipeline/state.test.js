@@ -35,6 +35,8 @@ const issue = (number, labels, extra = {}) => ({
     updatedAt: "2026-10-21T00:00:00Z",
     ...extra
 });
+/** A stage time for tests that do not look at it. */
+const at = "2026-10-21T01:00:00.000Z";
 
 describe("state", () => {
     test("labels map to stages and prompts", () => {
@@ -57,9 +59,9 @@ describe("state", () => {
         assert.deepEqual(recordTry(s, 25), {tries: 1, park: false});
         recordTry(s, 25);
         assert.deepEqual(recordTry(s, 25), {tries: 3, park: true});
-        park(s, 25);
+        park(s, 25, at);
         assert.equal(s.issues[25].stage, "stage:parked");
-        assert.equal(wake(s, 25), "stage:review");
+        assert.equal(wake(s, 25, at), "stage:review");
         assert.equal(s.issues[25].tries, 0);
     });
     test("label operations queue and drain", () => {
@@ -79,7 +81,7 @@ describe("state", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["enhancement", "stage:review"]));
         recordTry(s, 25);
-        setStage(s, 25, "stage:in-progress");
+        setStage(s, 25, "stage:in-progress", at);
         assert.equal(s.issues[25].tries, 0);
         assert.deepEqual(s.issues[25].labels, ["enhancement", "stage:in-progress"]);
         assert.equal(s.issues[25].stage, "stage:in-progress");
@@ -87,9 +89,9 @@ describe("state", () => {
     test("park and wake update labels", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:review"]));
-        park(s, 25);
+        park(s, 25, at);
         assert.deepEqual(s.issues[25].labels, ["stage:parked"]);
-        wake(s, 25);
+        wake(s, 25, at);
         assert.deepEqual(s.issues[25].labels, ["stage:review"]);
     });
     test("refreshing keeps tries at the same stage and resets them at a new one", () => {
@@ -170,11 +172,11 @@ describe("state", () => {
     test("waking without a remembered stage gives stage:todo; parking twice keeps the first", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:parked"]));
-        assert.equal(wake(s, 25), "stage:todo");
+        assert.equal(wake(s, 25, at), "stage:todo");
         applyIssue(s, issue(26, ["stage:qa"]));
-        park(s, 26);
-        park(s, 26);
-        assert.equal(wake(s, 26), "stage:qa");
+        park(s, 26, at);
+        park(s, 26, at);
+        assert.equal(wake(s, 26, at), "stage:qa");
     });
     test("the try limit can be given", () => {
         const s = emptyState();
@@ -194,5 +196,24 @@ describe("state", () => {
         assert.equal(s.issues[25].parkedAt, "2026-10-21T19:00:00Z");
         applyIssue(s, issue(25, ["stage:todo"]));
         assert.equal(s.issues[25].parkedAt, null);
+    });
+    test("a stage change records when the issue entered the stage", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:review"]));
+        setStage(s, 25, "stage:in-progress", "2026-11-12T10:00:00.000Z");
+        assert.equal(s.issues[25].stageSince, "2026-11-12T10:00:00.000Z");
+        park(s, 25, "2026-11-12T11:00:00.000Z");
+        assert.equal(s.issues[25].stageSince, "2026-11-12T11:00:00.000Z");
+        wake(s, 25, "2026-11-12T12:00:00.000Z");
+        assert.equal(s.issues[25].stageSince, "2026-11-12T12:00:00.000Z");
+    });
+    test("refreshing keeps stageSince while the stage holds and takes updatedAt when it changes", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:review"], {updatedAt: "2026-11-10T09:00:00Z"}));
+        assert.equal(s.issues[25].stageSince, "2026-11-10T09:00:00Z");
+        applyIssue(s, issue(25, ["stage:review"], {updatedAt: "2026-11-10T10:00:00Z"}));
+        assert.equal(s.issues[25].stageSince, "2026-11-10T09:00:00Z");
+        applyIssue(s, issue(25, ["stage:qa"], {updatedAt: "2026-11-10T11:00:00Z"}));
+        assert.equal(s.issues[25].stageSince, "2026-11-10T11:00:00Z");
     });
 });
