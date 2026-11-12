@@ -2,6 +2,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {
     checkAllowlist,
+    copyProfile,
     inspectProfile,
     personaFor,
     profileArgs,
@@ -108,4 +109,50 @@ test("checkAllowlist also names the Codex and agy servers, with their harness", 
     };
     assert.deepEqual(checkAllowlist(info, ["mobbin"]), ["github (agy)", "github (codex)"]);
     assert.deepEqual(checkAllowlist(info, ["mobbin", "github"]), []);
+});
+
+/** A runner that records each command and answers from a table.
+ *
+ * @param {(cmd: string[]) => {code: number, stderr?: string}} answer - The reply per command.
+ * @returns {{run: import("../../pipeline/lib/github.js").Runner, calls: string[][]}} - The runner and its calls.
+ */
+function recordingRun(answer) {
+    /** @type {string[][]} */
+    const calls = [];
+    /** @type {import("../../pipeline/lib/github.js").Runner} */
+    const run = async cmd => {
+        calls.push(cmd);
+        const a = answer(cmd);
+        return {code: a.code, stdout: "", stderr: a.stderr ?? ""};
+    };
+    return {run, calls};
+}
+
+const COPY = {image: "img", from: "builder", to: "qa"};
+
+test("copyProfile refuses a source with no volume", async () => {
+    const {run, calls} = recordingRun(() => ({code: 1}));
+    await assert.rejects(copyProfile(run, COPY), /no profile for builder/);
+    assert.equal(calls.length, 1);
+});
+
+test("copyProfile refuses a target that exists", async () => {
+    const {run, calls} = recordingRun(() => ({code: 0}));
+    await assert.rejects(copyProfile(run, COPY), /profile of qa exists/);
+    assert.ok(!calls.some(cmd => cmd[2] === "create"));
+});
+
+test("copyProfile copies into /profile in the image, and removes the target when that fails", async () => {
+    const {run, calls} = recordingRun(cmd => {
+        if (cmd[2] === "inspect") {
+            return {code: cmd[3] === "sozi-factory-profile-builder" ? 0 : 1};
+        }
+        return cmd[1] === "run" ? {code: 1, stderr: "Permission denied"} : {code: 0};
+    });
+    await assert.rejects(copyProfile(run, COPY), /Permission denied/);
+    const copy = calls.find(cmd => cmd[1] === "run") ?? [];
+    assert.ok(copy.includes("sozi-factory-profile-builder:/from:ro"));
+    assert.ok(copy.includes("sozi-factory-profile-qa:/profile"));
+    assert.deepEqual(copy.slice(-2), ["img", "/pipeline/profile-copy.sh"]);
+    assert.deepEqual(calls.at(-1), ["docker", "volume", "rm", "sozi-factory-profile-qa"]);
 });

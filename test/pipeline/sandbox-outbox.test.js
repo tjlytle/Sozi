@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {copyIdentities, createSandbox} from "../../pipeline/lib/sandbox.js";
+import {createSandbox} from "../../pipeline/lib/sandbox.js";
 import {recording, sandboxSettings} from "./sandbox-world.js";
 
 describe("sandbox: outbox", () => {
@@ -45,21 +45,6 @@ describe("sandbox: outbox", () => {
         assert.equal(fs.readFileSync(path.join(dir, "carried", "75-x.patch"), "utf8"), "D");
         const plain = s.prepareOutbox(base);
         assert.equal(fs.existsSync(path.join(plain, "carried")), false);
-    });
-    test("copyIdentities keeps only the commit name and email, and skips a missing persona (#80)", () => {
-        const from = fs.mkdtempSync(path.join(os.tmpdir(), "ghbot-"));
-        const to = fs.mkdtempSync(path.join(os.tmpdir(), "ghbot-out-"));
-        fs.mkdirSync(path.join(from, "qa"));
-        fs.writeFileSync(
-            path.join(from, "qa", "bot-env"),
-            'BOT_GIT_NAME="ll-qa[bot]"\nAPP_ID=123\n  BOT_GIT_EMAIL="1+ll-qa[bot]@users.noreply.github.com"\nPRIVATE_KEY=/keys/qa.pem\n'
-        );
-        copyIdentities(from, to);
-        assert.equal(
-            fs.readFileSync(path.join(to, "qa", "bot-env"), "utf8"),
-            'BOT_GIT_NAME="ll-qa[bot]"\nBOT_GIT_EMAIL="1+ll-qa[bot]@users.noreply.github.com"\n'
-        );
-        assert.ok(!fs.existsSync(path.join(to, "builder")), "no host file, nothing written");
     });
     test("each outbox gets the identities and stages are pointed at them (#80)", () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-root-"));
