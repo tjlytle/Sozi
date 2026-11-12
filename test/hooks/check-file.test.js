@@ -288,6 +288,65 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
             notes.join("\n")
         );
     });
+    const twoAdders =
+        "/** Adds one. */\nfunction addOne(n) {\n    return n + 1;\n}\n\n" +
+        "/** Adds two. */\nfunction addTwo(n) {\n    return n + 2;\n}\n";
+    const oneAdder =
+        "/** Adds one. */\nfunction addOne(n) {\n    const m = n;\n    return m + 1;\n}\n";
+    /** The names the stale-comment notes of a diff blame.
+     *
+     * @param {string} content - The file content.
+     * @param {string} hunks - The hunks of a unified diff of the file.
+     * @returns {string[]} - The names, in the order of the notes.
+     */
+    function blamed(content, hunks) {
+        return adviseOnDiff(content, `--- a\n+++ b\n${hunks}`)
+            .map(n => /code of `(\w+)` changed/.exec(n)?.[1])
+            .filter(Boolean);
+    }
+    test("a hunk's context lines do not count: an edit after a documented function does not blame it", () => {
+        const names = blamed(
+            "/** Adds one. */\nfunction addOne(n) {\n    return n + 1;\n}\n\nconst x = 1;\nconsole.log(x);\n",
+            "@@ -3,5 +3,5 @@\n     return n + 1;\n }\n \n-const x = 0;\n+const x = 1;\n console.log(x);\n"
+        );
+        assert.deepEqual(names, []);
+    });
+    test("an edit in a body gets its note when the summary sits in the hunk's leading context", () => {
+        const names = blamed(
+            twoAdders,
+            "@@ -5,5 +5,5 @@\n \n /** Adds two. */\n function addTwo(n) {\n-    return n + 3;\n+    return n + 2;\n }\n"
+        );
+        assert.deepEqual(names, ["addTwo"]);
+    });
+    test("an edit in a body blames only that function when the next summary sits in the trailing context", () => {
+        const names = blamed(
+            twoAdders,
+            "@@ -1,6 +1,6 @@\n /** Adds one. */\n function addOne(n) {\n-    return n + 0;\n+    return n + 1;\n }\n \n /** Adds two. */\n"
+        );
+        assert.deepEqual(names, ["addOne"]);
+    });
+    test("a line deleted inside a body gets a note, with context lines or without", () => {
+        const withContext =
+            "@@ -1,6 +1,5 @@\n /** Adds one. */\n function addOne(n) {\n     const m = n;\n-    const k = 0;\n     return m + 1;\n }\n";
+        assert.deepEqual(blamed(oneAdder, withContext), ["addOne"]);
+        assert.deepEqual(blamed(oneAdder, "@@ -4,1 +3,0 @@\n-    const k = 0;\n"), ["addOne"]);
+    });
+    test("a function deleted after a documented one does not blame it", () => {
+        const deleted = "-/** Adds three. */\n-function addThree(n) {\n-    return n + 3;\n-}\n";
+        assert.deepEqual(blamed(twoAdders, `@@ -10,5 +9,0 @@\n-\n${deleted}`), []);
+        assert.deepEqual(blamed(twoAdders, `@@ -5,5 +4,0 @@\n-\n${deleted}`), []);
+        assert.deepEqual(blamed(twoAdders, `@@ -6,5 +5,0 @@\n${deleted}-\n`), []);
+    });
+    test("a comment line deleted inside a body gives no note", () => {
+        assert.deepEqual(blamed(oneAdder, "@@ -4,1 +3,0 @@\n-    // An old remark.\n"), []);
+    });
+    test("a line deleted from a summary counts as a change to the summary", () => {
+        const names = blamed(
+            "/** Adds one.\n *\n * @returns {number} - More.\n */\nfunction addOne(n) {\n    return n + 1;\n}\n",
+            "@@ -3,1 +2,0 @@\n- * @param {number} n - A number.\n@@ -7,1 +6,1 @@\n-    return n;\n+    return n + 1;\n"
+        );
+        assert.deepEqual(names, []);
+    });
 });
 
 describe("edit hook: advise on several files", () => {

@@ -50,7 +50,7 @@ DECLARATION = re.compile(
 )
 METHOD = re.compile(r"^    (?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z$][\w$]*)\s*\([^)]*\)\s*(?::\s*[^{]+)?\{")
 CLASS = re.compile(r"^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)")
-HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
 
 def run(cmd, cwd):
@@ -123,15 +123,51 @@ def body_end(lines, start, indent):
     return last
 
 
-def changed_lines(diff_text):
-    changed = set()
-    for line in diff_text.splitlines():
+def diff_changes(diff_text):
+    """What a unified diff changed, as (added, deletions).
+
+    `added` holds the new-side number of each line a hunk adds or rewrites. A hunk's
+    context lines do not count. `deletions` holds a (line, code) pair for each run of
+    removed lines that no added line replaces: the new-side line the run sat after (0 at
+    the top of the file), and whether any removed line was code, not a comment or blank.
+    """
+    added, deletions, removed = set(), set(), []
+    old_left = new_left = line_no = 0
+
+    def end_run():
+        if removed:
+            deletions.add((line_no - 1, any(t.strip() and not is_comment_line(t) for t in removed)))
+            removed.clear()
+
+    for line in diff_text.splitlines() + [""]:
         m = HUNK.match(line)
         if m:
-            start = int(m.group(1))
-            count = int(m.group(2)) if m.group(2) is not None else 1
-            changed.update(range(start, start + max(count, 1)))
-    return changed
+            end_run()
+            old_left, new_left = int(m.group(1) or 1), int(m.group(3) or 1)
+            line_no = int(m.group(2)) + (0 if new_left else 1)
+        elif old_left <= 0 and new_left <= 0:
+            end_run()
+        elif line.startswith("-"):
+            removed.append(line[1:])
+            old_left -= 1
+        elif line.startswith("+"):
+            removed.clear()
+            added.add(line_no)
+            line_no += 1
+            new_left -= 1
+        elif not line.startswith("\\"):
+            end_run()
+            line_no += 1
+            old_left -= 1
+            new_left -= 1
+    return added, deletions
+
+
+def changed_lines(diff_text):
+    """The new-side line numbers a unified diff touches: each line it adds or rewrites, and
+    the line each deletion sits after. pipeline/check-changed.py keeps findings by them."""
+    added, deletions = diff_changes(diff_text)
+    return added | {line for line, _ in deletions}
 
 
 def is_comment_line(text):
@@ -139,37 +175,45 @@ def is_comment_line(text):
     return text.strip().startswith(("/*", "*", "//"))
 
 
-def session_changed_lines(root, rel):
-    """The line numbers of `rel` in the working tree that the session changed.
+def session_changes(root, rel):
+    """What the session changed in `rel` in the working tree, as diff_changes() gives it.
 
     Outside a merge that is the diff against HEAD. During a merge (MERGE_HEAD exists) the
     lines the merged branch brought in also differ from HEAD but are not the session's, so
-    only the lines that differ from both parents count. An untracked file has none.
+    only what differs from both parents counts. An untracked file has none.
     """
     if run(["git", "ls-files", "--error-unmatch", rel], root).returncode != 0:
-        return set()
-    changed = changed_lines(run(["git", "diff", "-U0", "HEAD", "--", rel], root).stdout)
+        return set(), set()
+    added, deletions = diff_changes(run(["git", "diff", "-U0", "HEAD", "--", rel], root).stdout)
     if run(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], root).returncode == 0:
-        changed &= changed_lines(run(["git", "diff", "-U0", "MERGE_HEAD", "--", rel], root).stdout)
-    return changed
+        theirs = diff_changes(run(["git", "diff", "-U0", "MERGE_HEAD", "--", rel], root).stdout)
+        added, deletions = added & theirs[0], deletions & theirs[1]
+    return added, deletions
 
 
-def stale_comments(lines, changed):
+def stale_comments(lines, changed, deletions=()):
     """Names whose body changed while the doc comment above them did not.
 
     `changed` is the set of changed line numbers. Only changed code lines count as a
     change to a body: a changed comment line inside it, such as a member's summary or a
-    `//` line, leaves the code as it was.
+    `//` line, leaves the code as it was. `deletions` holds the (line, code) pairs of
+    diff_changes(). A deletion counts for a body or a comment when the lines on both
+    sides of it are inside, so one between two declarations changes neither; a deletion
+    of comment lines only is not a change to a body.
     """
-    if not changed:
+    if not changed and not deletions:
         return []
+
+    def cut(span, code_only):
+        return any(span[0] <= n and n + 1 <= span[1] and (code or not code_only) for n, code in deletions)
+
     code_changed = {n for n in changed if n <= len(lines) and not is_comment_line(lines[n - 1])}
     stale = []
     for name, doc, body in declarations(lines):
         if not doc:
             continue
-        body_changed = any(body[0] <= n <= body[1] for n in code_changed)
-        doc_changed = any(doc[0] <= n <= doc[1] for n in changed)
+        body_changed = any(body[0] <= n <= body[1] for n in code_changed) or cut(body, True)
+        doc_changed = any(doc[0] <= n <= doc[1] for n in changed) or cut(doc, False)
         if body_changed and not doc_changed:
             stale.append((name, doc[0]))
     return stale
@@ -261,9 +305,9 @@ def advice(root, rel, diff_text=None):
             notes.append(f"{rel}: class `{cls}` has {n} public methods; the guideline is "
                          f"{MAX_PUBLIC_METHODS} (standard 2.8). Consider whether it has "
                          f"more than one job.")
-    changed = changed_lines(diff_text) if diff_text is not None else session_changed_lines(root, rel)
+    changed, deletions = diff_changes(diff_text) if diff_text is not None else session_changes(root, rel)
     notes.extend(coverage_notes(root, rel))
-    for name, doc_line in stale_comments(lines, changed):
+    for name, doc_line in stale_comments(lines, changed, deletions):
         notes.append(f"{rel}: the code of `{name}` changed but the summary comment above it "
                      f"(line {doc_line}) did not. Consider whether the comment still describes "
                      f"it (standard 2.8).")
