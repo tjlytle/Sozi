@@ -23,6 +23,7 @@ const STAGE_LABELS = /^stage:/;
  * @property {number} spawns - Spawned sessions started or finished this pass.
  * @property {number} consults - Advisor questions handed over or answered this pass.
  * @property {string | null} stopped - Why the run stops, or null while it goes on.
+ * @property {number | null} [wakeIn] - Seconds until the next cap warning is due; null when none is left.
  */
 
 /**
