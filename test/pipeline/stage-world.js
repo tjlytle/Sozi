@@ -53,9 +53,10 @@ exit 0
  * @param {string} source - The repository to mirror.
  * @param {string} tmp - The directory the mirror goes in.
  * @param {boolean} issueBranch - Whether the mirror also has a 25-slug branch.
+ * @param {string[]} [extra] - More branches the mirror has, at the same commit.
  * @returns {{mirror: string, sha: string}} - The mirror's path and the commit its branches point at.
  */
-export function mirrorOf(source, tmp, issueBranch) {
+export function mirrorOf(source, tmp, issueBranch, extra = []) {
     const mirror = path.join(tmp, "mirror.git");
     execFileSync("git", ["clone", "-q", "--bare", "--shared", source, mirror]);
     const sha = execFileSync(
@@ -72,8 +73,8 @@ export function mirrorOf(source, tmp, issueBranch) {
     }
     git("branch", "master", sha);
     git("symbolic-ref", "HEAD", "refs/heads/master");
-    if (issueBranch) {
-        git("branch", "25-slug", sha);
+    for (const name of issueBranch ? ["25-slug", ...extra] : extra) {
+        git("branch", name, sha);
     }
     return {mirror, sha};
 }
@@ -102,12 +103,13 @@ function seedCache(tmp, sha) {
 /**
  * Build a scratch world for one stage run: mirror, outbox, cache and fake scripts.
  * @param {boolean} [issueBranch] - Whether the mirror has a 25-slug branch.
+ * @param {string[]} [extra] - More branches the mirror has.
  * @returns {{tmp: string, outbox: string, env: Record<string, string>}} - The paths and the environment.
  */
-export function world(issueBranch = false) {
+export function world(issueBranch = false, extra = []) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-run-"));
     dirs.push(tmp);
-    const {mirror, sha} = mirrorOf(root, tmp, issueBranch);
+    const {mirror, sha} = mirrorOf(root, tmp, issueBranch, extra);
     const harnessDir = path.join(tmp, "harness");
     fs.mkdirSync(harnessDir);
     fs.writeFileSync(path.join(harnessDir, "fake"), FAKE_HARNESS, {mode: 0o755});

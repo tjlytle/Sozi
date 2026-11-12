@@ -28,6 +28,7 @@ const BY_NAME = [
     "PIPELINE_EVIDENCE_URL",
     "PIPELINE_RUN",
     "PIPELINE_ISSUE",
+    "PIPELINE_BRANCH",
     "GH_MINT_KEY"
 ];
 
