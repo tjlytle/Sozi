@@ -66,6 +66,39 @@ export function runArgs(dir) {
 }
 
 /**
+ * The arguments for a resume of session in dir.
+ * @param {string} dir scratch dir
+ * @param {string} session the session id to resume
+ * @returns {string[]} the arguments
+ */
+export function resumeArgs(dir, session) {
+    return [
+        "resume",
+        "--session",
+        session,
+        "--message",
+        path.join(dir, "message.md"),
+        "--model",
+        "m",
+        "--allow",
+        path.join(dir, "allow.txt"),
+        "--checkout",
+        dir,
+        "--out",
+        dir
+    ];
+}
+
+/**
+ * The path of a stream recorded from a real CLI, for FAKE_STREAM.
+ * @param {string} name file name under test/fixtures/pipeline
+ * @returns {string} the path
+ */
+export function recorded(name) {
+    return path.join(root, "test/fixtures/pipeline", name);
+}
+
+/**
  * Parse usage.json in dir.
  * @param {string} dir scratch dir
  * @returns {any} the parsed usage
