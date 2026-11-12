@@ -17,8 +17,8 @@ const CONTAINER_ZONE = "UTC";
 const TRANSITIONS = {
     plan: ["stage:tests", "stage:blocked", "triage"],
     tests: ["stage:in-progress"],
-    build: ["stage:review"],
-    review: ["stage:qa", "stage:in-progress"],
+    build: ["stage:review", "stage:tests"],
+    review: ["stage:qa", "stage:in-progress", "stage:tests"],
     qa: ["stage:done", "stage:in-progress"]
 };
 

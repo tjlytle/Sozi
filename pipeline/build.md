@@ -48,6 +48,10 @@ the policy for this session; obey them.
    back. Read the newest reviewer or qa comment on the issue and the PR
    (`gh-as builder pr view <pr> -R tjlytle/Sozi --json title,body,comments,reviews`); it says what to fix. Fix
    exactly that on this branch and PR, run the checks in step 5, then continue at step 6.
+   When QA's comment is a scenario change made per review, the review before it names the
+   code part, which is yours. A requested change to a scenario or a feature file you still
+   may not edit (the rule above): fix and push the code part, then hand the scenario
+   request to `stage:tests` with one issue comment that quotes it for QA.
 4. **Unit tests first.** For each function or class the Shape names, write the
    unit test before the function it pins, named after the module (standard 6.1). Run
    `npm test 2>&1 | tee .agents/tmp/red-{N}.txt` and see the new tests fail for the right
@@ -87,6 +91,8 @@ the policy for this session; obey them.
      .agents/tmp/pr-{N}.md` if the body changed, and one PR comment saying what you fixed.
 8. **Finish.** Post one short comment on the issue with the PR link:
    `gh-as builder issue comment {N} -R tjlytle/Sozi --body-file <file>`. The issue goes to
-   `stage:review`.
+   `stage:review`, or to `stage:tests` when step 3 left a scenario request for QA.
 
-Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "stage:review"}}`
+Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`
+where `<label>` is `stage:tests` when step 3 handed a scenario request to QA, else
+`stage:review`.
