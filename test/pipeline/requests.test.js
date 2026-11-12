@@ -154,6 +154,17 @@ describe("outbox request details", () => {
         });
         assert.throws(() => validateRequest({note: ""}, {issue: 25}), /note/);
     });
+    test("rerun names one CI run by its id and nothing else", () => {
+        assert.deepEqual(validateRequest({rerun: {run: 43095929857}}, {issue: 25}), {
+            kind: "rerun",
+            run: 43095929857
+        });
+        assert.throws(() => validateRequest({rerun: {run: "43095929857"}}, {issue: 25}), /rerun/);
+        assert.throws(() => validateRequest({rerun: {run: 0}}, {issue: 25}), /rerun/);
+        assert.throws(() => validateRequest({rerun: {}}, {issue: 25}), /rerun/);
+        assert.throws(() => validateRequest({rerun: {run: 5, branch: "x"}}, {issue: 25}), /rerun/);
+        assert.throws(() => validateRequest({rerun: 5}, {issue: 25}), /rerun/);
+    });
     test("wait needs a reason, and a session with an issue", () => {
         assert.deepEqual(validateRequest({wait: "plan posted"}, {issue: 25}), {
             kind: "wait",
