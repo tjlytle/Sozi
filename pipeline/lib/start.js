@@ -71,6 +71,25 @@ function sessionEnv(ctx, issue) {
 }
 
 /**
+ * The branch an issue's session works on, as PIPELINE_BRANCH: the head of the open PR that
+ * closes the issue. Empty when there is no such PR, or when the lookup fails (logged), so
+ * stage.sh falls back to listing the issue's branches.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @returns {Promise<Record<string, string>>} The value when there is one.
+ */
+async function branchEnv(ctx, n) {
+    try {
+        const pr = await ctx.github.openPrFor(n);
+        return pr ? {PIPELINE_BRANCH: pr.headRefName} : {};
+    } catch (error) {
+        ctx.log(`#${n}: open PR lookup failed, the stage lists branches: ${String(error)}`);
+        return {};
+    }
+}
+
+/**
  * Render a prompt with the run's settings block.
  *
  * @param {PassContext} ctx - The pass context.
@@ -156,7 +175,8 @@ function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
 
 /**
  * Launch the container of an issue's stage session, labelled working on GitHub and in its record
- * while it starts; when the start throws, the label comes off in both places and the error goes on.
+ * while it starts, with the head of the issue's open PR as the branch to work on; when the start
+ * throws, the label comes off in both places and the error goes on.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -170,13 +190,14 @@ async function launch(ctx, n, record, {stage, outbox, who, resume}) {
     record.labels = [...record.labels.filter(l => l !== "working"), "working"];
     try {
         const {mintUrl, mintKey} = ctx.state.run;
+        const env = {...sessionEnv(ctx, n), ...(await branchEnv(ctx, n))};
         return await ctx.sandbox.start({
             issue: n,
             stage,
             outbox,
             mintUrl,
             mintKey,
-            env: sessionEnv(ctx, n),
+            env,
             persona,
             profile,
             harness: route.harness,

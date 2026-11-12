@@ -194,6 +194,16 @@ describe("result.json", () => {
         fs.writeFileSync(file, JSON.stringify({exit: 1, carry: "maybe"}));
         assert.equal(readResult(dir)?.carry, undefined);
     });
+    test("branches are kept as a list of names; anything else is dropped", () => {
+        const dir = scratch();
+        const file = path.join(dir, "result.json");
+        fs.writeFileSync(file, JSON.stringify({exit: 1, branches: ["25-a", "25-b"]}));
+        assert.deepEqual(readResult(dir)?.branches, ["25-a", "25-b"]);
+        for (const branches of [[], ["25-a", 3], "25-a", null, {a: 1}]) {
+            fs.writeFileSync(file, JSON.stringify({exit: 1, branches}));
+            assert.equal(readResult(dir)?.branches, undefined, JSON.stringify(branches));
+        }
+    });
     test("the cache counts are read, 0 when absent", () => {
         const dir = scratch();
         const usage = {tokensIn: 4, cacheRead: 136247, cacheWrite: 9933, status: "ok"};
