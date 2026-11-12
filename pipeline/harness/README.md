@@ -162,9 +162,11 @@ the outbox (design: "A stuck session can ask the advisor" in
   `OUT/advise/a-<n>.json`: `{"advice"}` (printed, exit 0), `{"refused"}` or `{"error"}`
   (exit 1), nothing within `PIPELINE_ADVISOR_WAIT_MINUTES` (exit 2). It reads
   `PIPELINE_ISSUE` and `PIPELINE_STAGE`, which `stage.sh` exports.
-- `pipeline/nudge.sh` prints `OUT/nudge.md` once and renames it to `nudge.seen`. The claude
-  adapter runs it as a PostToolUse hook with `--hook`, which wraps the text as
-  `additionalContext`; `bin/check` runs it plain, which reaches a harness with no hook.
+- `pipeline/nudge.sh` prints every `OUT/nudge*.md` once, in name order, and renames each to
+  `.seen`: `nudge.md` is the advisor nudge, `nudge-cap.md` the warning before the session
+  cap. A link is skipped. The claude adapter runs it as a PostToolUse hook with `--hook`,
+  which joins the texts into one `additionalContext`; `bin/check` runs it plain, which
+  reaches a harness with no hook.
 - The advisor's own calls run the claude adapter in a short container: `OUT` is the
   consult's outbox at `/consult`, the checkout `/advisor`, the allow list empty.
 

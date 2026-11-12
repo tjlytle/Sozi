@@ -80,7 +80,13 @@ const NEVER_REMOVED = ["working"];
  */
 
 /**
- * @typedef {DoneRequest | LabelRequest | SpawnRequest | NoteRequest | WaitRequest} Request
+ * @typedef {object} RerunRequest
+ * @property {"rerun"} kind - Request kind.
+ * @property {number} run - The CI run to rerun; the loop checks it against GitHub (rerun.js).
+ */
+
+/**
+ * @typedef {DoneRequest | LabelRequest | SpawnRequest | NoteRequest | WaitRequest | RerunRequest} Request
  */
 
 /**
@@ -280,6 +286,21 @@ function checkSpawn(body) {
 }
 
 /**
+ * Check a rerun request: a run id and nothing else.
+ *
+ * @param {unknown} body - The request body.
+ * @returns {RerunRequest} The normalised request.
+ * @throws {Error} When the body is not exactly `{run: <positive integer>}`.
+ */
+function checkRerun(body) {
+    const request = objectBody("rerun", body);
+    if (!isIssue(request.run) || Object.keys(request).length !== 1) {
+        throw new Error("rerun must be {run: <CI run id>} and nothing else");
+    }
+    return {kind: "rerun", run: request.run};
+}
+
+/**
  * Check one parsed request object and return its normalised form.
  *
  * @param {unknown} obj - The parsed request file.
@@ -308,6 +329,8 @@ export function validateRequest(obj, {issue}) {
             return checkLabel(body, issue);
         case "spawn":
             return checkSpawn(body);
+        case "rerun":
+            return checkRerun(body);
         default:
             throw new Error(`unknown request kind ${kind}`);
     }

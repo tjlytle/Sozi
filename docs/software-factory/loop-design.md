@@ -265,7 +265,8 @@ changed lines too (#91).
 limit). A fixed number of containers at a time (`PIPELINE_PARALLEL`, default two; a build
 or QA stage runs an Electron build and Chromium, so the default is sized for a laptop).
 Each session has a wall-clock cap (`PIPELINE_SESSION_MINUTES`, default 45; the container
-is stopped and the run counts as a failed try) and, on an API key, `--max-budget-usd` per
+is stopped and the run counts as a failed try; `PIPELINE_SESSION_WARN_MINUTES`, default 5,
+before that the session is warned to push its work) and, on an API key, `--max-budget-usd` per
 session. The loop reads every session's result line (tokens and cost from the stream)
 and keeps a running total per run: past a soft limit it drops to one container, past a
 hard limit it starts nothing more and stops as if the stop condition were met. The limits are per-run settings (`PIPELINE_SOFT_TOKENS`,
@@ -411,6 +412,13 @@ there, plain JSON, one per request, and the loop acts on them when the session e
 - `{"wait": "..."}`: the session stops for a person (`Plans: review`, `Merge: review`);
   the issue waits at its stage, costs no try, and starts again when its stage changes.
   It is the only way to wait: a session that ends with neither a move nor a wait is a try.
+- `{"rerun": {"run": 43095929857}}`: rerun the PR's CI run (#502). Only a `stage:qa`
+  session may ask, and the loop does not take its word: it reads the run as ops
+  (`pipeline/lib/rerun.js`). A run on the issue's branch that has completed is rerun; one
+  `queued` with no jobs for more than 20 minutes, while a newer run in the repository has
+  started, is cancelled and rerun. Anything else is refused and logged, and so is a 4th
+  rerun in one visit to `stage:qa`. An applied rerun costs no try and the issue stays at
+  `stage:qa`; a refused one leaves the session a try.
 
 A `done` request must name a move the stage the session ran may make (the "Moves to"
 column above; any stage may also go to `stage:parked` or `triage`); any other is refused
@@ -448,7 +456,15 @@ Two things go through the outbox while a session runs, not after it ends:
   `PIPELINE_SESSION_MINUTES` gets `nudge.md` once. `pipeline/nudge.sh` prints it once and
   renames it to `nudge.seen`: the claude adapter runs it as a PostToolUse hook (through
   `--settings`, since stages cannot edit `.claude/`, #213), and `bin/check` runs it, which
-  reaches Codex and agy. #405's "the cap is near" warning can use the same channel.
+  reaches Codex and agy.
+- **Cap warning** (`pipeline/lib/cap-warning.js`, #405). `PIPELINE_SESSION_WARN_MINUTES`
+  (5) before `PIPELINE_SESSION_MINUTES` stops a running issue session, the pass writes
+  `nudge-cap.md` into its outbox once: commit and push what you have now. It goes through
+  the same channel, since `nudge.sh` prints every `nudge*.md`, and in its own file so it
+  never replaces an unread advisor nudge. The pass returns `wakeIn`, the seconds until the
+  next warning is due, and the watch loop cuts its idle pause to that (no less than 30 s),
+  so a warning is not late behind a 10-minute back-off. Spawned sessions are not warned.
+  Either setting at 0 turns it off.
 
 The loop writes into the outbox only through a fresh temporary file and a rename, and never
 into an `advise` directory that is a link, since the session controls what is there.

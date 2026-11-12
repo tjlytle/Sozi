@@ -116,7 +116,9 @@ export function createControl({sleep, save, exit, log, state, now = Date.now}) {
 /**
  * Pass after pass until the stop condition holds or a signal, backing off while nothing
  * happens: no session started, finished or spawned, and no advisor question handed over or
- * answered. A pass that throws is logged and the state saved; the loop goes on.
+ * answered. A cap warning due sooner (`wakeIn`) cuts the pause short, to no less than the
+ * first delay, and the back-off it grows from is kept. A pass that throws is logged and the
+ * state saved; the loop goes on.
  *
  * @param {Pass} pass - The pass.
  * @param {Control} control - The control.
@@ -128,11 +130,13 @@ export async function watch(pass, control, log, save) {
     let delay = FIRST_DELAY_S;
     while (!control.stopping) {
         let busy = false;
+        let wakeIn = Infinity;
         try {
             const s = await pass();
             if (s.stopped) {
                 return s.stopped;
             }
+            wakeIn = s.wakeIn ?? Infinity;
             busy = s.started.length + s.finished.length + s.spawns + (s.consults ?? 0) > 0;
         } catch (error) {
             log(`pass failed: ${String(error)}`);
@@ -142,7 +146,7 @@ export async function watch(pass, control, log, save) {
             break;
         }
         delay = busy ? FIRST_DELAY_S : Math.min(delay * 2, MAX_DELAY_S);
-        await control.pause(delay);
+        await control.pause(Math.min(delay, Math.max(FIRST_DELAY_S, wakeIn)));
     }
     return null;
 }
