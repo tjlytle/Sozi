@@ -31,6 +31,8 @@ the policy for this session; obey them.
   the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 - Never merge. Never commit to or push `master`.
+- When the runner warns that the session will stop, commit and push what you have at once,
+  with step 6's commands; a work-in-progress commit is fine, say so in the PR body.
 - Work you cannot push is saved as `/outbox/{N}-<slug>.patch`
   (`git format-patch --stdout origin/master..HEAD`, then `git diff HEAD` for uncommitted
   work). End the session without a done or wait request: the next try of this stage is
@@ -63,7 +65,9 @@ the policy for this session; obey them.
    (standard 5).
 5. **Build it.** Make the smallest change that turns the unit tests and QA's scenarios
    green, inside the boundaries of the standard. Touch only what the issue needs (standard
-   5). Then, before you commit:
+   5). Commit and push (step 6's commands) each time a step turns its tests green and
+   `bin/check` is clean on its files; commits are not held for the end, so a session stopped
+   at its time cap loses at most the step in progress. Then, before the last commit:
    - `bin/check --fix <file>`, then `bin/check <file>`, for every file you changed, until
      nothing it reports is on a line you wrote; `python3 .claude/hooks/check-file.py
      --advise <file>` for the size and comment notes, which are yours to judge (standard
