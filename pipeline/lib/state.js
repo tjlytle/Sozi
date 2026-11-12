@@ -102,6 +102,7 @@ export function emptyState() {
             tokens: 0,
             costUsd: 0,
             stopped: false,
+            closing: null,
             notionPage: null,
             mintKey: null,
             limits: {},
