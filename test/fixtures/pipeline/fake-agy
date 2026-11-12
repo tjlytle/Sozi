@@ -2,11 +2,13 @@
 # A fake `agy` for the harness adapter tests: records its arguments, prints the
 # events of `agy -p --output-format stream-json` and exits like the real CLI would.
 #
-# Env: FAKE_ARGS (file; one line of arguments appended per call),
+# Env: FAKE_ARGS (file; one line of arguments appended per call), FAKE_STREAM (file; a
+# stream recorded from the real CLI, printed instead of the built-in events),
 # FAKE_MODE (ratelimit | failed | noresult; default is a clean success).
 set -u
 
 echo "$*" >>"${FAKE_ARGS:-/dev/null}"
+if [ -n "${FAKE_STREAM:-}" ]; then cat "$FAKE_STREAM"; exit 0; fi
 
 id="ab168d05-1b6a-41bc-b545-d843922f1f70"
 while [ $# -gt 0 ]; do
