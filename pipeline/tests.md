@@ -44,6 +44,15 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
    without `origin/`, then `git merge --ff-only origin/<branch>`). Otherwise create it from
    master: `git switch -c {N}-<slug> origin/master --no-track`, the slug three or four
    words of the issue title, lowercase, joined by hyphens.
+   **Returned for a scenario change?** If an open PR exists for the branch
+   (`gh-as qa pr list -R tjlytle/Sozi --state open --head {N}-<slug>`), a review asked for
+   a scenario change. Read the newest reviewer or builder comment on the issue and the PR
+   (`gh-as qa pr view <pr> -R tjlytle/Sozi --json title,body,comments,reviews`) and change
+   only the scenarios it names. Run the feature file and keep the output in
+   `.agents/tmp/red-{N}.txt`; it does not have to fail, since the code may already turn the
+   changed scenario green. Commit as "Scenarios for #{N}, per review", push, post one comment
+   naming the change and pasting the result, and go to step 8. Steps 4 to 7 are for a first
+   visit.
 4. **Write the feature file.** Copy the shape of `test/features/presenter/previews.feature`:
    - The file named under Tests, under `test/features/` by topic. If it exists, add your
      scenarios to it and add any missing path to its first line.

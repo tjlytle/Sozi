@@ -68,8 +68,8 @@ the label. What changes is below.
 | `stage:todo` | architect | `pipeline/plan.md`: triage and plan | `stage:tests`, or `stage:blocked`, or `triage` |
 | `stage:blocked` | nobody | waits for the issues its plan names | `stage:tests` when they are closed (the loop checks each pass) |
 | `stage:tests` | qa | `pipeline/tests.md`: the feature file from the plan's Scenarios, red, pushed (standard 6.6) | `stage:in-progress` |
-| `stage:in-progress` | builder | `pipeline/build.md`: makes the scenarios green, unit tests first | `stage:review` |
-| `stage:review` | reviewer | `pipeline/review.md` | `stage:qa`, or back to `stage:in-progress` |
+| `stage:in-progress` | builder | `pipeline/build.md`: makes the scenarios green, unit tests first | `stage:review`, or `stage:tests` for a requested scenario change |
+| `stage:review` | reviewer | `pipeline/review.md` | `stage:qa`, back to `stage:in-progress`, or to `stage:tests` for a scenario change |
 | `stage:qa` | qa | `pipeline/qa.md`: scenarios, evidence, merge | `stage:done` (closed by the merge), or back to `stage:in-progress` |
 | `stage:done` | | merged | |
 | `stage:parked` | | mechanical blocker only (a missing credential, a push the lock denied); `@tjlytle` in one comment | `stage:in-progress` when the newest comment is from a human |
@@ -79,7 +79,10 @@ the label. What changes is below.
 
 There is no `stage:planned`: `Plans: auto` (interview decision), the architect moves a
 planned issue straight to `stage:tests`. A return from review or QA goes to
-`stage:in-progress`, not back through tests; the scenarios already exist.
+`stage:in-progress`, not back through tests; the scenarios already exist. The exception is a
+review that asks for a scenario or feature file change: it goes back through tests, because
+only QA edits feature files (standard 6.6), and a builder who finds such a request hands it
+to `stage:tests` with the review quoted (#403). On that return QA's run need not be red.
 
 **The board is a projection of the labels, not a copy** (Tim, 2026-10-21). The labels
 are the loop's state machine and can be as fine as the loop needs; the board shows what

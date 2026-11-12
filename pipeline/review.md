@@ -67,7 +67,11 @@ restyle, you do not edit, commit or push anything.
    `gh-as reviewer pr review <pr> -R tjlytle/Sozi --request-changes --body-file <file>`,
    naming each defect with its file and line, what is wrong and the standard rule, in plain
    words. Then one comment on the issue (`gh-as reviewer issue comment {N} -R tjlytle/Sozi
-   --body-file <file>`) saying what to fix. The issue goes to `stage:in-progress`.
+   --body-file <file>`) saying what to fix. The issue goes to `stage:in-progress`. When any
+   defect asks for a change to a scenario, a step in a feature file, or the feature file's
+   `# covers:` line, the issue goes to `stage:tests` instead: only QA edits feature files
+   (standard 6.6). The issue comment then says which part is for QA (the scenario) and
+   which is for the builder (the code); QA goes first, the builder after.
 6. **File the findings** from the rules above, one issue each:
    `gh-as reviewer issue create -R tjlytle/Sozi --label <label> --title "..." --body-file
    <file>`.
@@ -75,5 +79,6 @@ restyle, you do not edit, commit or push anything.
 One review per visit, terse, lead with the verdict.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`
-where `<label>` is `stage:qa` after an approval and `stage:in-progress` after a request for
-changes.
+where `<label>` is `stage:qa` after an approval, `stage:tests` after a request for changes
+that asks for any scenario or feature file change, and `stage:in-progress` after any other
+request for changes.
