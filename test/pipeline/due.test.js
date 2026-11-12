@@ -111,6 +111,16 @@ describe("due", () => {
         delete s.issues[21].stageSince;
         assert.deepEqual(dueIssues(s, settings, new Date()), [20, 21, 10]);
     });
+    test("a supervised issue is not due, and is quiet, unless it is the run's only issue", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:in-progress", "supervised"]));
+        applyIssue(s, issue(26, ["stage:todo"]));
+        assert.deepEqual(dueIssues(s, settings, new Date()), [26]);
+        assert.equal(isQuiet(s, [25]), true);
+        s.run.only = 25;
+        assert.deepEqual(dueIssues(s, settings, new Date()), [25, 26]);
+        assert.equal(isQuiet(s, [25]), false);
+    });
     test("startOrder compares priority, then stageSince, then number", () => {
         /** @type {(n: number, since: string | null, labels?: string[]) => [number, any]} */
         const entry = (n, since, labels = []) => [n, {labels, stageSince: since}];
