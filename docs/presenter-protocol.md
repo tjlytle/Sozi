@@ -43,6 +43,14 @@ the message.
 | `cameraMove`  | surface → display | `x`, `y`, `zoom`, `atX`, `atY`                            |
 | `cameraReset` | surface → display | none                                                      |
 | `camera`      | display → surface | `offFrame`, `zoom`, `x`, `y`                              |
+| `strokeBegin` | both ways         | `id`, `tool`, `color`, `width`, `points`                  |
+| `strokePoints` | both ways        | `id`, `points`                                            |
+| `strokeEnd`   | both ways         | `id`                                                      |
+| `strokeErase` | both ways         | `id`                                                      |
+| `drawingUndo` | both ways         | none                                                      |
+| `drawingClear` | both ways        | none                                                      |
+| `drawingVisible` | both ways      | `visible`                                                 |
+| `drawings`    | surface → preview deck | `visible`, `strokes`                                 |
 | `custom`      | both ways         | `type`, `data`                                            |
 
 ### Notes
@@ -72,6 +80,7 @@ lays it over the stored notes itself.
 | `layouts`    | object of presets, by name      | The deck's layout presets, in the deck's order.   |
 | `timer`      | `{elapsedMs, running, targetMs}` | The talk timer as it is now (see [`timer`](#timer)). |
 | `camera`     | `{offFrame, zoom, x, y}`        | Where the camera looks (see [`camera`](#cameramove-camerareset-camera)). |
+| `drawings`   | `{visible, strokes}`            | The drawings on the deck, every stroke (see [Drawings](#drawings)). |
 
 `readMessage` refuses a `hello` whose `frames` is not a list or holds a malformed entry. A
 display from the release before this field sends none, which reads as an empty list; a
@@ -95,6 +104,9 @@ join an older deck. A malformed one refuses the `hello`.
 
 `camera` is new. A `hello` without it reads as the camera on its frame,
 `{offFrame: false, zoom: 1, x: 0, y: 0}`. A malformed one refuses the `hello`.
+
+`drawings` is new. A `hello` without it reads as no strokes, shown,
+`{visible: true, strokes: []}`. A malformed one refuses the `hello`.
 
 A preset's name starts with a letter and holds only letters, digits, `-` and `_`: a numeric
 key would jump to the front of a JSON object, and the order decides which preset wins. A
@@ -208,6 +220,46 @@ sends `camera` after each pan, zoom or rotation, its own mouse's included, and w
 change puts the camera back on a frame. A rotation sets `offFrame` and leaves the rest, as
 previews do not draw one. The presenter sends the same message to its current preview deck,
 which goes back to its frame and shows the view. A preview sends no `camera`.
+
+### Drawings
+
+The display holds the drawings on the deck, as it holds the frame and the camera. They live in
+the display's memory for the session: nothing is written to the deck's SVG or `.sozi.json`.
+The display paints them in a layer above the deck that moves with the bottom layer's camera (the
+first layer with SVG groups, where a deck usually holds its artwork), so a
+stroke stays on the artwork it marks through zoom, pan, rotation, transitions and frame
+changes. The layer lets the pointer through, so a link under a stroke still works.
+
+A stroke is `{id, tool, color, width, points, done}`:
+
+| Field    | Type                       | Meaning                                                   |
+| -------- | -------------------------- | --------------------------------------------------------- |
+| `id`     | string of 1 to 64 characters | Chosen by the surface that draws it, as `crypto.randomUUID()` gives. |
+| `tool`   | `"pen"` or `"highlighter"` | The pen swells and thins with pressure; the highlighter keeps its width, is see-through and is always painted under every pen stroke. |
+| `color`  | `"#rrggbb"`                | Its colour; any other form refuses the message.           |
+| `width`  | number above 0             | Its base width, in the canvas units below.                |
+| `points` | array of `[x, y, pressure]` | `x` and `y` finite, in the user units of the bottom layer's camera; `pressure` from 0 to 1. A constant pressure, as a mouse or a finger gives, draws a constant width. |
+| `done`   | boolean                    | Has its surface ended it? Only in `hello` and `drawings`. |
+
+A surface draws a stroke with `strokeBegin`, then `strokePoints` as the points come, then
+`strokeEnd`. One message carries at most 1000 points, and a stroke takes at most 10 000; the
+points past that are dropped. `strokePoints` and `strokeEnd` for an unknown id or a finished
+stroke change nothing, and so does a `strokeBegin` with an id already taken. The display shows
+a stroke as soon as it begins, not only when it ends.
+
+`strokeErase` removes one stroke, finished or not. `drawingUndo` removes the last finished
+stroke; a stroke still being drawn stays, so an undo from one surface never cuts a stroke
+another surface is drawing. `drawingClear` removes every stroke. `drawingVisible` hides the
+drawings (`visible: false`) and keeps them, or shows them again.
+
+The display carries out each command, then relays the same message to every surface, so a
+surface applies it to its own copy (`applyDrawing` in `src/js/protocol/strokes.js`). A command
+that changes nothing is not relayed. The whole drawings go only in the display's `hello`. A
+presenter sends them as `drawings` to each of its preview decks when the deck is ready and each
+time they change; a deck takes `drawings` in preview mode only. A preview relays nothing.
+
+The messages are additive: a display that does not know them ignores them, and a surface that
+does not know them ignores the relayed ones and the `hello` field.
 
 ### `custom`
 
