@@ -7,7 +7,7 @@
 
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
-import {readResult} from "./outbox.js";
+import {listPatches, readResult} from "./outbox.js";
 import {countTry, parkStub} from "./park.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
@@ -183,6 +183,23 @@ async function movedByHand(ctx, n) {
 }
 
 /**
+ * Record the patches a try left in its outbox for the next try of its stage. A try that left
+ * none keeps the record of an earlier one.
+ *
+ * @param {PassContext} ctx - The pass context.
+ * @param {number} n - The issue number.
+ * @param {{stage: string, outbox: string}} session - The try's session.
+ * @returns {void}
+ */
+function keepLeftover(ctx, n, {stage, outbox}) {
+    const patches = listPatches(outbox);
+    if (patches.length > 0) {
+        ctx.state.issues[n].leftover = {stage, outbox, patches};
+        ctx.log(`#${n}: ${patches.length} patch(es) kept for the next try`);
+    }
+}
+
+/**
  * Apply the requests of an issue's session. A done request must name a move the stage
  * the session ran may make; any other is refused and the session moved nothing.
  *
@@ -257,7 +274,7 @@ function interruption(ctx, session, result) {
  * usage limit stopped is recorded as interrupted, for the next session of its stage to carry
  * on; one whose carried work did not apply puts back the interruption it carried, and counts a
  * try. A session whose login died marks its persona logged out. A session on a stub harness
- * parks the issue at once.
+ * parks the issue at once. A try that counts keeps the patches it left for the next one.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -299,6 +316,7 @@ async function judgeIssue(ctx, n, outcome) {
             ctx.log(`${who}: digest note failed: ${String(error)}`);
         });
     } else if (unverified || !(await movedByHand(ctx, n))) {
+        keepLeftover(ctx, n, record.session);
         await countTry(ctx, n, outbox);
     }
 }

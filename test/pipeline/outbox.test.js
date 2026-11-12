@@ -9,7 +9,14 @@ import {spawnSync} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {copyCarry, logTail, readResult, writeNew} from "../../pipeline/lib/outbox.js";
+import {
+    copyCarry,
+    copyPatches,
+    listPatches,
+    logTail,
+    readResult,
+    writeNew
+} from "../../pipeline/lib/outbox.js";
 import {readRequests} from "../../pipeline/lib/requests.js";
 
 /**
@@ -257,6 +264,35 @@ describe("the log tail", () => {
             return;
         }
         assert.equal(logTail(pipe), "(no log)");
+    });
+});
+
+describe("patches left for the next try", () => {
+    test("listPatches keeps regular patch files, never a link, a pipe or one over 5 MiB", () => {
+        const dir = scratch();
+        fs.writeFileSync(path.join(dir, "75-x.patch"), "diff");
+        fs.writeFileSync(path.join(dir, "carry.patch"), "carry");
+        fs.writeFileSync(path.join(dir, "log"), "log");
+        const secret = path.join(scratch(), "secret");
+        fs.writeFileSync(secret, "do not copy");
+        fs.symlinkSync(secret, path.join(dir, "link.patch"));
+        fs.writeFileSync(path.join(dir, "huge.patch"), Buffer.alloc(5 * 1024 * 1024 + 1));
+        fifo(path.join(dir, "pipe.patch"));
+        assert.deepEqual(listPatches(dir), ["75-x.patch"]);
+    });
+    test("listPatches finds nothing in a missing outbox", () => {
+        assert.deepEqual(listPatches(path.join(scratch(), "gone")), []);
+    });
+    test("copyPatches writes the regular files into carried/", () => {
+        const from = scratch();
+        const to = scratch();
+        fs.writeFileSync(path.join(from, "75-x.patch"), "diff");
+        const secret = path.join(scratch(), "secret");
+        fs.writeFileSync(secret, "do not copy");
+        fs.symlinkSync(secret, path.join(from, "link.patch"));
+        copyPatches(from, ["75-x.patch", "link.patch", "../escape.patch"], to);
+        assert.equal(fs.readFileSync(path.join(to, "carried", "75-x.patch"), "utf8"), "diff");
+        assert.deepEqual(fs.readdirSync(path.join(to, "carried")), ["75-x.patch"]);
     });
 });
 

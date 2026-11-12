@@ -84,6 +84,21 @@ describe("state", () => {
         assert.deepEqual(s.issues[25].labels, ["enhancement", "stage:in-progress"]);
         assert.equal(s.issues[25].stage, "stage:in-progress");
     });
+    test("a stage change drops the patches left for the next try; a refresh keeps them", () => {
+        const s = emptyState();
+        const leftover = {stage: "build", outbox: "/old", patches: ["75-x.patch"]};
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        s.issues[25].leftover = leftover;
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        assert.deepEqual(s.issues[25].leftover, leftover);
+        setStage(s, 25, "stage:in-progress");
+        assert.deepEqual(s.issues[25].leftover, leftover);
+        setStage(s, 25, "stage:review");
+        assert.equal(s.issues[25].leftover, null);
+        s.issues[25].leftover = leftover;
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        assert.equal(s.issues[25].leftover ?? null, null);
+    });
     test("park and wake update labels", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:review"]));

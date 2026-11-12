@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
 import {defaultRun} from "./github.js";
-import {copyCarry} from "./outbox.js";
+import {copyCarry, copyPatches} from "./outbox.js";
 import {PERSONAS, inspectProfile, profileArgs, volumeName} from "./profile.js";
 
 /** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
@@ -81,7 +81,7 @@ function spawnInteractive(cmd) {
  * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
  * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume, without its Claude login, into a new volume for another; refuses when the source has no volume or the target has one, and removes the target when the copy fails.
  * @property {(opts: {key: string, checkout: string, out: string, session: string | null, model: string}) => Promise<number>} consult - Runs one advisor call in a short container under the architect's profile: the claude adapter, with checkout as its working directory and out as its outbox, resuming the session when one is named; resolves to the exit status.
- * @property {(opts: {issue: number, stage: string, prompt: string, allow: string, carryFrom?: string, resume?: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path. With carryFrom, the carry files of that stopped session's outbox are copied; with resume, the message is written as resume.md.
+ * @property {(opts: {issue: number, stage: string, prompt: string, allow: string, carryFrom?: string, resume?: string, patches?: {from: string, names: string[]}}) => string} prepareOutbox - Writes a fresh outbox; returns its path. With carryFrom, the carry files of that stopped session's outbox are copied; with resume, the message is written as resume.md; with patches, the last try's patch files are copied into carried/.
  */
 
 /**
@@ -398,7 +398,7 @@ export function createSandbox({
         async remove(container) {
             await run(["docker", "rm", "-f", container]);
         },
-        prepareOutbox({issue, stage, prompt, allow, carryFrom, resume}) {
+        prepareOutbox({issue, stage, prompt, allow, carryFrom, resume, patches}) {
             const at = new Date();
             const time = `${at.getUTCFullYear()}${pad(at.getUTCMonth() + 1)}${pad(at.getUTCDate())}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
             const base = path.join(varDir, `out-${issue}-${stage}-${time}`);
@@ -420,6 +420,9 @@ export function createSandbox({
             copyIdentities(botConfigDir, path.join(dir, "gh-bot"));
             if (carryFrom) {
                 copyCarry(carryFrom, dir);
+            }
+            if (patches) {
+                copyPatches(patches.from, patches.names, dir);
             }
             if (resume !== undefined) {
                 fs.writeFileSync(path.join(dir, "resume.md"), resume);
