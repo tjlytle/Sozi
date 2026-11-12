@@ -50,6 +50,7 @@ describe("sandbox: arguments", () => {
         assert.ok(args.includes("PIPELINE_HARNESS=claude"));
         assert.ok(args.includes("--add-host=host.docker.internal:host-gateway"));
         assert.ok(args.includes("PIPELINE_ISSUE") && args.includes("NOTION_TOKEN"));
+        assert.ok(args.includes("PIPELINE_BRANCH"), "the PR head goes by name");
     });
     test("an empty PIPELINE_SHM_SIZE leaves Docker's /dev/shm default", () => {
         const plain = createSandbox({
