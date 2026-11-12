@@ -92,12 +92,12 @@ Feature: A deck carries named layouts for the presenter
     And the presenter page is open at 390 by 844
     Then the panels are tabs "Current, Previous, Next, Notes, Frames, Clock, Controls, Connection"
 
-  @issue-33
+  @issue-33 @issue-527
   Scenario: Save as preset downloads the layout and says what to do next
     Given the presenter page is open at 1280 by 800
     When the "Current" panel is dragged to the left of "Notes"
     And the layout is saved as the preset "mine" for "laptop"
-    Then the file "layouts.mine.layout.json" is downloaded
+    Then the preset file "layouts.mine.layout.json" is downloaded
     And the presenter page says to run "--layout mine=layouts.mine.layout.json"
     And a screenshot "presenter-save-preset" is saved
 
