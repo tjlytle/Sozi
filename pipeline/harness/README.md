@@ -35,8 +35,10 @@ has written:
   inside it. `cacheRead` is input read from the prompt cache, `cacheWrite` input written to
   it (0 for a harness that does not report it), `tokensOut` the output. The run total adds
   all four. These are
-  the session's totals over every call of this OUT dir: tokens and turns summed
-  (a `resume` adds to the file it finds, a `run` starts from zero), cost the
+  the session's totals over every call of this OUT dir (a `resume` starts from the file
+  it finds, a `run` from zero): tokens and turns summed when the CLI reports them per
+  call, the larger of the previous count and this call's when it reports the whole
+  session (codex and agy tokens, agy turns), so a call with no usage keeps them; cost the
   larger of the previous cost and this call's, status from the latest call. `status` is one of `ok`, `error`,
   `rate-limited`, `auth`, `budget`, `unsupported`. `auth` means the call failed to
   authenticate before any model call; the loop then starts nothing more as that
@@ -97,7 +99,11 @@ Codex equivalent and is only checked to exist. The session id is the `thread_id`
 `turn.completed` (`input_tokens`, `cached_input_tokens`, `output_tokens`). Codex counts
 the cached input inside `input_tokens`, so it is split out: `cacheRead` is
 `cached_input_tokens`, `tokensIn` is `input_tokens` minus it, and `cacheWrite` is 0, since
-Codex reports none. `turns` counts the completed items;
+Codex reports none. `turn.completed` counts the whole thread, not the call: in the run and
+resume recorded on 2026-11-12 (`test/fixtures/pipeline/codex-run.jsonl`,
+`codex-resume.jsonl`) the resume reports input 38,685 and output 10 against the run's
+19,335 and 5. So on `resume` each token count keeps the larger of the previous value and
+this call's. `turns` counts this call's completed items and is added;
 `costUsd` is 0, since a subscription reports no cost. `rate-limited` when a `turn.failed`
 or `error` message matches `rate limit|usage limit|hit your … limit|429|overloaded`,
 `error` for any other failure or no completed turn. `CODEX_BIN` overrides the binary;
@@ -114,9 +120,13 @@ Every tool call is approved, because the container is the sandbox; the allow lis
 checked to exist. The session id is the `conversation_id` of the `init` event. Usage comes
 from the `result` event (`usage.input_tokens`, `usage.cache_read_tokens` as `cacheRead`, 0
 when absent, `usage.output_tokens`, `num_turns`); `cacheWrite` is 0, since agy reports
-none. `cache_read_tokens` is read as separate from `input_tokens`, as the `total_tokens` of
-the fake's stream implies; no real agy stream with a cache read was at hand to check this
-against (2026-11-10). `costUsd` is 0. `ok` when its `status` is `SUCCESS`, `rate-limited` when its error or
+none. The `result` counts the whole conversation, `num_turns` included: in the run and
+resume recorded on 2026-11-12 (`test/fixtures/pipeline/agy-run.jsonl`, `agy-resume.jsonl`)
+the resume reports input 12,197, output 10 and 2 turns against the run's 9,935, 5 and 1.
+So on `resume` each count keeps the larger of the previous value and this call's.
+`cache_read_tokens` is separate from `input_tokens`: the resume's second call read 2,262
+fresh and 7,881 from the cache, and its `total_tokens` (2,267) is input plus output
+without the cache read. `costUsd` is 0. `ok` when its `status` is `SUCCESS`, `rate-limited` when its error or
 status matches `rate limit|usage limit|quota|RESOURCE_EXHAUSTED|429|overloaded`, `error`
 otherwise or with no result. Model names are agy's own (`agy models`), and include Gemini
 and Claude models. `AGY_BIN` overrides the binary. agy keeps its login in `~/.gemini` and

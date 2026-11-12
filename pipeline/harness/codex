@@ -50,17 +50,25 @@ launch() {
     return "${PIPESTATUS[1]}"
 }
 
-# Write OUT/usage.json from the last N lines of the stream (this call's).
+# Write OUT/usage.json from the last N lines of the stream (this call's). On resume it
+# starts from the usage.json it finds: turn.completed counts the whole thread, so each
+# token count keeps the larger of the two, and turns (this call's items) are added.
 write_usage() {
+    local prev='{}'
+    if [ "$MODE" = resume ]; then
+        prev=$(jq -c 'select(type == "object")' "$OUT/usage.json" 2>/dev/null) || prev='{}'
+        [ -n "$prev" ] || prev='{}'
+    fi
     tail -n "$1" "$OUT/stream.jsonl" | jq -R -c 'fromjson? | select(type == "object")' 2>/dev/null |
-        jq -s '
+        jq -s --argjson prev "$prev" '
         (map(select(.type == "turn.completed")) | last) as $done |
         (map(select(.type == "turn.failed" or .type == "error")) |
             map((.error.message // .message // "") | tostring) | join(" ")) as $failure |
         ($done.usage.cached_input_tokens // 0) as $cached |
-        {tokensIn: (($done.usage.input_tokens // 0) - $cached), cacheRead: $cached, cacheWrite: 0,
-         tokensOut: ($done.usage.output_tokens // 0),
-         costUsd: 0, turns: (map(select(.type == "item.completed")) | length),
+        {tokensIn: ([$prev.tokensIn // 0, ($done.usage.input_tokens // 0) - $cached] | max),
+         cacheRead: ([$prev.cacheRead // 0, $cached] | max), cacheWrite: 0,
+         tokensOut: ([$prev.tokensOut // 0, $done.usage.output_tokens // 0] | max),
+         costUsd: 0, turns: (($prev.turns // 0) + (map(select(.type == "item.completed")) | length)),
          status: (if ($failure | test("rate.?limit|usage limit|hit your .*limit|429|overloaded"; "i")) then "rate-limited"
                   elif $failure != "" or $done == null then "error" else "ok" end)} |
         if .status == "rate-limited" then .limit = ($failure | .[0:300]) else . end' >"$OUT/usage.json"
