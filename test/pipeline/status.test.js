@@ -22,6 +22,18 @@ describe("statusText", () => {
         const line = "builder: logged out; run npm run pipeline -- --login builder";
         assert.ok(statusText(state).split("\n").includes(line));
     });
+    test("a run whose closing summary waits shows it is closing, and why", () => {
+        const state = opened();
+        state.run.closing = "until reached";
+        const lines = statusText(state).split("\n");
+        assert.ok(lines.includes("run: started 2026-10-23T10:00:00.000Z (closing: until reached)"));
+        state.run.stopped = true;
+        assert.ok(
+            statusText(state)
+                .split("\n")
+                .includes("run: started 2026-10-23T10:00:00.000Z (stopped)")
+        );
+    });
     test("shows no logged-out line when every persona is logged in", () => {
         assert.doesNotMatch(statusText(opened()), /logged out/);
     });

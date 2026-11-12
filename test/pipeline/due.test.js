@@ -1,7 +1,7 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import {emptyState, applyIssue, setStage} from "../../pipeline/lib/state.js";
-import {dueIssues, scope, isQuiet} from "../../pipeline/lib/due.js";
+import {dueIssues, scope, isQuiet, startOrder} from "../../pipeline/lib/due.js";
 import {loadConfig} from "../../pipeline/lib/config.js";
 
 const settings = loadConfig({
@@ -91,7 +91,34 @@ describe("due", () => {
         applyIssue(s, issue(25, ["stage:tests"]));
         assert.deepEqual(dueIssues(s, settings, new Date()), [25]);
         s.issues[25].waiting = true;
-        setStage(s, 25, "stage:in-progress");
+        setStage(s, 25, "stage:in-progress", "2026-10-21T01:00:00.000Z");
         assert.equal(s.issues[25].waiting, false);
+    });
+    test("due issues start in order: priority, then the longest wait in the stage, then number", () => {
+        const s = emptyState();
+        applyIssue(s, issue(10, ["stage:tests"], {updatedAt: "2026-11-10T12:00:00Z"}));
+        applyIssue(s, issue(11, ["stage:tests"], {updatedAt: "2026-11-10T09:00:00Z"}));
+        applyIssue(s, issue(12, ["stage:qa"], {updatedAt: "2026-11-10T09:00:00Z"}));
+        applyIssue(s, issue(30, ["stage:qa", "priority"], {updatedAt: "2026-11-10T13:00:00Z"}));
+        assert.deepEqual(dueIssues(s, settings, new Date()), [30, 11, 12, 10]);
+    });
+    test("a record saved before stageSince was kept sorts as the oldest", () => {
+        const s = emptyState();
+        applyIssue(s, issue(10, ["stage:tests"], {updatedAt: "2026-10-01T00:00:00Z"}));
+        applyIssue(s, issue(20, ["stage:tests"]));
+        applyIssue(s, issue(21, ["stage:tests"]));
+        delete s.issues[20].stageSince;
+        delete s.issues[21].stageSince;
+        assert.deepEqual(dueIssues(s, settings, new Date()), [20, 21, 10]);
+    });
+    test("startOrder compares priority, then stageSince, then number", () => {
+        /** @type {(n: number, since: string | null, labels?: string[]) => [number, any]} */
+        const entry = (n, since, labels = []) => [n, {labels, stageSince: since}];
+        const early = "2026-11-10T09:00:00Z";
+        const late = "2026-11-10T12:00:00Z";
+        assert.ok(startOrder(entry(9, early), entry(5, late, ["priority"])) > 0);
+        assert.ok(startOrder(entry(9, early), entry(5, late)) < 0);
+        assert.ok(startOrder(entry(9, null), entry(5, early)) < 0);
+        assert.ok(startOrder(entry(5, early), entry(9, early)) < 0);
     });
 });

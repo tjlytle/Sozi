@@ -135,7 +135,7 @@ export async function moveStage(ctx, n, to) {
         record.tries = 0;
         record.waiting = false;
     } else {
-        setStage(ctx.state, n, to);
+        setStage(ctx.state, n, to, new Date(ctx.clock.now()).toISOString());
     }
     await writeLabel(ctx, {issue: n, add: [to], remove: from && from !== to ? [from] : []});
     ctx.summary.moved.push([n, from, to]);
@@ -163,6 +163,7 @@ export async function applyLabels(ctx, op) {
         return false;
     }
     record.stage = to;
+    record.stageSince = new Date(ctx.clock.now()).toISOString();
     record.tries = 0;
     record.waiting = false;
     ctx.summary.moved.push([op.issue, from, to ?? "none"]);
@@ -227,8 +228,8 @@ export function hasQueued(ctx, n) {
 
 /**
  * Take one issue from a GitHub search into the state: read the blockers of a newly
- * blocked issue, and wake a parked one whose newest comment is a person's and, when the
- * loop parked it, came after the parking.
+ * blocked issue, wake a parked one whose newest comment is a person's and, when the
+ * loop parked it, came after the parking, and take priority off a closed one.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {import("./github.js").Issue} issue - The issue as GitHub has it.
@@ -259,11 +260,17 @@ async function readIssue(ctx, issue) {
         ctx.changed.add(n);
     }
     if (answered) {
-        const to = wake(state, n);
+        const to = wake(state, n, new Date(ctx.clock.now()).toISOString());
         await writeLabel(ctx, {issue: n, add: [to], remove: ["stage:parked"]});
         ctx.summary.moved.push([n, "stage:parked", to]);
         ctx.changed.add(n);
         ctx.log(`#${n}: a person answered; back to ${to}`);
+    }
+    const record = state.issues[n];
+    if (record.closed && record.labels.includes("priority")) {
+        record.labels = record.labels.filter(l => l !== "priority");
+        await writeLabel(ctx, {issue: n, add: [], remove: ["priority"]});
+        ctx.log(`#${n}: closed; priority removed`);
     }
 }
 
