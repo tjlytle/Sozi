@@ -119,6 +119,19 @@ describe("state", () => {
         wake(s, 25, at);
         assert.deepEqual(s.issues[25].labels, ["stage:review"]);
     });
+    test("reruns hold while the stage holds; a stage change resets them", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:qa"]));
+        assert.equal(s.issues[25].reruns ?? 0, 0);
+        s.issues[25].reruns = 2;
+        applyIssue(s, issue(25, ["stage:qa"]));
+        assert.equal(s.issues[25].reruns, 2);
+        setStage(s, 25, "stage:in-progress", at);
+        assert.equal(s.issues[25].reruns, 0);
+        s.issues[25].reruns = 1;
+        applyIssue(s, issue(25, ["stage:qa"]));
+        assert.equal(s.issues[25].reruns ?? 0, 0);
+    });
     test("refreshing keeps tries at the same stage and resets them at a new one", () => {
         const s = emptyState();
         applyIssue(s, issue(25, ["stage:review"]));
