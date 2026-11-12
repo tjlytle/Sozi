@@ -5,8 +5,8 @@
 // One pass of the factory loop, as a function the watch loop, --once and a single issue
 // all call: reread changed settings, write queued label changes, reap ended sessions, hand
 // questions to the advisor and nudge, warn the sessions near the cap, refresh the mirror,
-// sync with GitHub when due, unblock, test the stop condition, start what is due, save and
-// say when the next cap warning is due.
+// sync with GitHub when due, unblock, test the stop condition, start what is due, sync the
+// board when GitHub was read, save and say when the next cap warning is due.
 
 import path from "node:path";
 import {fileURLToPath} from "node:url";
@@ -18,7 +18,7 @@ import {ceiling} from "./state.js";
 import {finishIssue, finishSpawn} from "./finish.js";
 import {running} from "./running.js";
 import {start} from "./start.js";
-import {drainIfFree, syncIfDue, unblock, writeComment} from "./sync.js";
+import {drainIfFree, syncBoard, syncIfDue, unblock, writeComment} from "./sync.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -164,11 +164,15 @@ export function createPass({
             } catch (error) {
                 ctx.log(`mirror refresh failed: ${String(error)}`);
             }
-            await syncIfDue(ctx);
+            const synced = await syncIfDue(ctx);
             await unblock(ctx);
             const {noStarts, stopped} = stopCheck(ctx);
             if (starts && !stopped && !noStarts) {
                 await start(ctx);
+            }
+            // After the starts, so a full board walk never holds up a free slot.
+            if (synced) {
+                await syncBoard(ctx);
             }
             ctx.summary.stopped = stopped;
             ctx.summary.wakeIn = secondsToNextWarning(ctx.state, ctx.settings, ctx.clock.now());

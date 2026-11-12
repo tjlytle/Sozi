@@ -279,21 +279,22 @@ async function readIssue(ctx, issue) {
  * Read GitHub when the sync timer is due and the loop is not backed off: queued label
  * changes first (so the read sees them), then the issues, blockers of blocked issues,
  * parked issues a person answered; then stale working labels go, sub-issue links follow
- * the `Part of` lines, blocked issues with no blockers are logged, and the board syncs.
+ * the `Part of` lines, and blocked issues with no blockers are logged. The board is left to
+ * syncBoard, which the pass calls once it has started what is due.
  *
  * @param {PassContext} ctx - The pass context.
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} True when it read GitHub; false when backed off, not due, the queue would not drain, or the read failed.
  */
 export async function syncIfDue(ctx) {
     const {state, settings, github} = ctx;
     const now = ctx.clock.now();
     const last = state.sync.last === null ? null : Date.parse(state.sync.last);
     if ((last !== null && now < last + settings.syncMinutes * 60 * 1000) || inBackoff(ctx)) {
-        return;
+        return false;
     }
     try {
         if (!(await drainQueue(ctx))) {
-            return;
+            return false;
         }
         const since = state.sync.last ?? new Date(now - FIRST_SYNC_DAYS * DAY_MS).toISOString();
         for (const issue of await github.searchIssues({since})) {
@@ -306,7 +307,7 @@ export async function syncIfDue(ctx) {
         } else {
             ctx.log(`sync failed: ${String(error)}`);
         }
-        return;
+        return false;
     }
     await sweepWorking(ctx);
     await linkSubIssues(ctx).catch(error => {
@@ -316,7 +317,7 @@ export async function syncIfDue(ctx) {
         backOff(ctx, error);
     });
     blockedByNothing(ctx);
-    await syncBoard(ctx);
+    return true;
 }
 
 /**
@@ -355,12 +356,12 @@ function blockedByNothing(ctx) {
 
 /**
  * Sync the board for the issues whose stage changed, or the whole board on the first
- * sync and every boardFullEvery-th; the issues it failed on wait for the next sync.
+ * sync and every boardFullEvery-th, after the pass's starts; failed issues wait for the next.
  *
  * @param {PassContext} ctx - The pass context.
  * @returns {Promise<void>}
  */
-async function syncBoard(ctx) {
+export async function syncBoard(ctx) {
     ctx.syncs += 1;
     const every = ctx.settings.boardFullEvery;
     const all = ctx.syncs === 1 || (every > 0 && (ctx.syncs - 1) % every === 0);

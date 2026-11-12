@@ -1,12 +1,19 @@
 // test/pipeline/verdict.test.js: which results cost no try, which are logged out, which come
-// from a stub harness, and the harness pause a usage limit brings.
+// from a stub harness, the moves each stage may ask for, and the harness pause a usage
+// limit brings.
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {emptyState} from "../../pipeline/lib/state.js";
-import {costsNoTry, loggedOut, stubHarness, takeResult} from "../../pipeline/lib/verdict.js";
+import {
+    allowedMoves,
+    costsNoTry,
+    loggedOut,
+    stubHarness,
+    takeResult
+} from "../../pipeline/lib/verdict.js";
 
 /**
  * A result with the given usage status.
@@ -37,6 +44,23 @@ describe("verdict", () => {
         assert.equal(stubHarness(withStatus("rate-limited")), false);
         assert.equal(stubHarness(withStatus("ok")), false);
         assert.equal(stubHarness(null), false);
+    });
+});
+
+describe("allowedMoves", () => {
+    test("a review can send the issue to tests, to qa or back to the builder", () => {
+        const moves = allowedMoves("review");
+        for (const to of ["stage:tests", "stage:qa", "stage:in-progress"]) {
+            assert.ok(moves.includes(to), to);
+        }
+    });
+    test("a builder can hand a scenario change to tests, or the issue to review", () => {
+        const moves = allowedMoves("build");
+        assert.ok(moves.includes("stage:tests"));
+        assert.ok(moves.includes("stage:review"));
+    });
+    test("tests still hands only to the builder, plus the any-stage moves", () => {
+        assert.deepEqual(allowedMoves("tests"), ["stage:in-progress", "stage:parked", "triage"]);
     });
 });
 

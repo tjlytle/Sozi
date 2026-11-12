@@ -2,7 +2,7 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import {scratch, adapter, runArgs, usageOf} from "./harness-adapter.js";
+import {scratch, adapter, runArgs, resumeArgs, recorded, usageOf} from "./harness-adapter.js";
 
 describe("agy adapter", () => {
     test("agy: run writes the conversation id and usage, and passes the prompt", () => {
@@ -66,6 +66,62 @@ describe("agy adapter", () => {
         const line = fs.readFileSync(args, "utf8");
         assert.match(line, /^-p fix the lint /);
         assert.match(line, / --conversation abc-123/);
+    });
+
+    // The recorded streams report usage per thread: the resume's result holds both calls
+    // (input 12,197, cache read 7,881, output 10, num_turns 2).
+    test("agy: resume over the recorded streams reports the session total", () => {
+        const out = scratch();
+        adapter("agy", runArgs(out), {FAKE_STREAM: recorded("agy-run.jsonl")});
+        const r = adapter("agy", resumeArgs(out, "abc-123"), {
+            FAKE_STREAM: recorded("agy-resume.jsonl")
+        });
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(usageOf(out), {
+            tokensIn: 12197,
+            tokensOut: 10,
+            cacheRead: 7881,
+            cacheWrite: 0,
+            costUsd: 0,
+            turns: 2,
+            status: "ok"
+        });
+    });
+
+    test("agy: a rate-limited resume keeps the session's totals and exits 75", () => {
+        const out = scratch();
+        adapter("agy", runArgs(out), {FAKE_STREAM: recorded("agy-run.jsonl")});
+        const r = adapter("agy", resumeArgs(out, "abc-123"), {FAKE_MODE: "ratelimit"});
+        assert.equal(r.status, 75);
+        const usage = usageOf(out);
+        assert.equal(usage.status, "rate-limited");
+        assert.equal(usage.tokensIn, 9935);
+        assert.equal(usage.tokensOut, 20);
+        assert.equal(usage.turns, 2);
+    });
+
+    test("agy: resume over a usage.json that is not JSON counts from zero", () => {
+        const out = scratch();
+        fs.writeFileSync(path.join(out, "usage.json"), "not json");
+        const r = adapter("agy", resumeArgs(out, "abc-123"), {
+            FAKE_STREAM: recorded("agy-resume.jsonl")
+        });
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(usageOf(out).tokensIn, 12197);
+        assert.equal(usageOf(out).turns, 2);
+    });
+
+    test("agy: run ignores an existing usage.json", () => {
+        const out = scratch();
+        fs.writeFileSync(
+            path.join(out, "usage.json"),
+            JSON.stringify({tokensIn: 99999, cacheRead: 99999, tokensOut: 99999, turns: 9})
+        );
+        adapter("agy", runArgs(out), {FAKE_STREAM: recorded("agy-run.jsonl")});
+        assert.equal(usageOf(out).tokensIn, 9935);
+        assert.equal(usageOf(out).cacheRead, 0);
+        assert.equal(usageOf(out).tokensOut, 5);
+        assert.equal(usageOf(out).turns, 1);
     });
 
     test("agy: a quota error is rate-limited and exits 75", () => {

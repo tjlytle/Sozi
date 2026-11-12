@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {carryOf, fallbackNote} from "./carry.js";
+import {handover} from "./leftover.js";
 import {pausedUntil} from "./limits.js";
 import {stillLoggedOut} from "./logins.js";
 import {personaFor} from "./profile.js";
@@ -146,6 +147,8 @@ async function startSpawn(ctx, spawn, {profile, route}) {
 /**
  * Write the outbox of an issue's stage session: the prompt, the allow list, and what it
  * carries over from a session a usage limit stopped, with the resume message when it resumes.
+ * When the last try of this stage left patches, they are copied under carried/ and the prompt
+ * ends with the note that hands them over.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -154,10 +157,15 @@ async function startSpawn(ctx, spawn, {profile, route}) {
  * @returns {string} The outbox.
  */
 function issueOutbox(ctx, n, stage, {carryFrom, resume}) {
-    const prompt = render(ctx, read(ctx, `${stage}.md`), n, stage);
+    const taken = handover(ctx.state.issues[n].leftover, stage);
+    const rendered = render(ctx, read(ctx, `${stage}.md`), n, stage);
+    const prompt = taken ? `${rendered.trimEnd()}\n\n${taken.note}` : rendered;
     const allow = read(ctx, "allow.txt");
     const message = resume && read(ctx, "resume.md");
-    return ctx.sandbox.prepareOutbox({issue: n, stage, prompt, allow, carryFrom, resume: message});
+    return ctx.sandbox.prepareOutbox({
+        ...{issue: n, stage, prompt, allow, carryFrom, resume: message},
+        ...(taken && {patches: taken.patches})
+    });
 }
 
 /**

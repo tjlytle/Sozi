@@ -50,8 +50,8 @@ describe("stage prompts", () => {
     const labels = {
         plan: ["triage", "stage:blocked", "stage:tests"],
         tests: ["stage:in-progress"],
-        build: ["stage:review"],
-        review: ["stage:qa", "stage:in-progress"],
+        build: ["stage:review", "stage:tests"],
+        review: ["stage:qa", "stage:in-progress", "stage:tests"],
         qa: ["stage:done", "stage:in-progress"]
     };
     for (const [name, who] of Object.entries(persona)) {
@@ -62,6 +62,14 @@ describe("stage prompts", () => {
             }
         });
     }
+    test("a requested scenario change goes through tests, not back and forth (#403)", () => {
+        assert.match(text.review, /scenario[^.]*feature file[^.]*goes to `stage:tests`/);
+        assert.match(text.build, /scenario[^.]*may not edit[^.]*`stage:tests`[^.]*quot/);
+        const from = text.tests.indexOf("**Returned for a scenario change?**");
+        assert.ok(from > 0, "tests.md has the returned step");
+        const step = text.tests.slice(from, text.tests.indexOf("\n4. ", from));
+        assert.match(step, /does not have to fail/);
+    });
     test("findings: every one is filed, obvious ones to stage:todo, the rest to triage", () => {
         for (const [name, body] of [...prompts, ["spawn", spawn]]) {
             assert.match(body, /file every finding/i, name);

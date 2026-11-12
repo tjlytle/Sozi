@@ -146,6 +146,51 @@ describe("the board", () => {
         }
         assert.deepEqual(full, [true, false, true]);
     });
+    test("a due issue's session starts before the board syncs", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        w.board.sync = async () => {
+            w.calls.push(["board.sync"]);
+            return {failed: []};
+        };
+        await w.p.pass();
+        const order = w.calls.map(c => c[0]).filter(name => ["start", "board.sync"].includes(name));
+        assert.deepEqual(order, ["start", "board.sync"]);
+    });
+    test("a pass with start: false still syncs the board", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        let syncs = 0;
+        w.board.sync = async () => {
+            syncs += 1;
+            return {failed: []};
+        };
+        const s = await w.p.pass({start: false});
+        assert.deepEqual(s.started, []);
+        assert.equal(syncs, 1);
+    });
+    test("a pass whose GitHub read fails does not sync the board", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        let syncs = 0;
+        w.board.sync = async () => {
+            syncs += 1;
+            return {failed: []};
+        };
+        w.github.searchIssues = async () => {
+            throw new Error("HTTP 502");
+        };
+        await w.p.pass();
+        assert.equal(syncs, 0);
+    });
+    test("a backed-off pass does not sync the board", async () => {
+        const w = world({issues: [issue(25, ["stage:todo"])]});
+        let syncs = 0;
+        w.board.sync = async () => {
+            syncs += 1;
+            return {failed: []};
+        };
+        w.state.sync.backoffUntil = new Date(w.clock.now() + MIN).toISOString();
+        await w.p.pass();
+        assert.equal(syncs, 0);
+    });
 });
 
 describe("a logged-out persona", () => {

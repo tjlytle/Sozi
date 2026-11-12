@@ -35,6 +35,17 @@ describe("sandbox: outbox", () => {
         assert.equal(fs.readFileSync(path.join(resumed, "resume.md"), "utf8"), "carry on");
         assert.equal(fs.readFileSync(path.join(resumed, "prompt.md"), "utf8"), "p");
     });
+    test("prepareOutbox copies the patches left by the last try into carried/", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "sb-"));
+        const {sb: s} = recording(() => ({code: 0}), root);
+        const old = fs.mkdtempSync(path.join(os.tmpdir(), "old-"));
+        fs.writeFileSync(path.join(old, "75-x.patch"), "D");
+        const base = {issue: 25, stage: "build", prompt: "p", allow: "a"};
+        const dir = s.prepareOutbox({...base, patches: {from: old, names: ["75-x.patch"]}});
+        assert.equal(fs.readFileSync(path.join(dir, "carried", "75-x.patch"), "utf8"), "D");
+        const plain = s.prepareOutbox(base);
+        assert.equal(fs.existsSync(path.join(plain, "carried")), false);
+    });
     test("copyIdentities keeps only the commit name and email, and skips a missing persona (#80)", () => {
         const from = fs.mkdtempSync(path.join(os.tmpdir(), "ghbot-"));
         const to = fs.mkdtempSync(path.join(os.tmpdir(), "ghbot-out-"));
