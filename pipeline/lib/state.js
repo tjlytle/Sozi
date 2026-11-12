@@ -61,6 +61,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string | null} seen - The issue's updatedAt when last read.
  * @property {boolean} [waiting] - A session ended asking a person to act; cleared by a stage change.
  * @property {Interrupted | null} [interrupted] - The session a usage limit stopped, whose work the next session of its stage carries on; cleared when that one starts.
+ * @property {Leftover | null} [leftover] - The patches the last try of the stage left in its outbox for the next one; cleared by a stage change.
  */
 
 /**
@@ -71,6 +72,13 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string} outbox - Its outbox, which holds carry.bundle and carry.patch.
  * @property {string} persona - The persona it ran as.
  * @property {string} stage - The prompt stage it ran.
+ */
+
+/**
+ * @typedef {object} Leftover
+ * @property {string} stage - The prompt stage the try ran.
+ * @property {string} outbox - Its outbox, which holds the patches.
+ * @property {string[]} patches - The patch file names, as listPatches found them.
  */
 
 /**
@@ -173,8 +181,9 @@ export function promptFor(stage) {
 
 /** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
  * waiting while its stage holds and it stays open; a parked one keeps its park time; the
- * board card, the sub-issue link and an interrupted session carry over. A new issue, or one
- * whose stage changed, entered its stage at its updatedAt; otherwise that time holds.
+ * board card, the sub-issue link and an interrupted session carry over, and the patches
+ * the last try left while the stage holds. A new issue, or one whose stage changed, entered
+ * its stage at its updatedAt; otherwise that time holds.
  *
  * @param {State} state - The state.
  * @param {object} issue - The issue.
@@ -206,6 +215,8 @@ export function applyIssue(state, issue) {
         board: existing?.board ?? null,
         ...(existing?.linked !== undefined && {linked: existing.linked}),
         ...(existing?.interrupted && {interrupted: existing.interrupted}),
+        ...(existing?.leftover &&
+            existing.stage === stageOf(issue.labels) && {leftover: existing.leftover}),
         seen: issue.updatedAt ?? null,
         waiting:
             issue.state !== "CLOSED" && existing?.stage === stageOf(issue.labels)
@@ -228,7 +239,8 @@ export function recordTry(state, n, maxTries = DEFAULT_MAX_TRIES) {
 }
 
 /** Sets an issue's stage: the stage field, the stage label, when it entered the stage, a
- * fresh count of tries, and no person awaited.
+ * fresh count of tries, and no person awaited. A change of stage drops the patches the last
+ * try left.
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
@@ -238,11 +250,29 @@ export function recordTry(state, n, maxTries = DEFAULT_MAX_TRIES) {
  */
 export function setStage(state, n, stage, since) {
     const record = state.issues[n];
+    if (record.stage !== stage) {
+        record.leftover = null;
+    }
     record.labels = [...record.labels.filter(l => !STAGES.includes(l)), stage];
     record.stage = stage;
     record.stageSince = since;
     record.tries = 0;
     record.waiting = false;
+}
+
+/** Records the patches a try left in its outbox for the next try of its stage. A try that
+ * left none keeps the record of an earlier one.
+ *
+ * @param {State} state - The state.
+ * @param {number} n - The issue number.
+ * @param {Leftover} left - The try's stage, outbox and the patches found there.
+ * @returns {number} - How many patches were kept.
+ */
+export function keepLeftover(state, n, left) {
+    if (left.patches.length > 0) {
+        state.issues[n].leftover = left;
+    }
+    return left.patches.length;
 }
 
 /** Parks an issue, remembering the stage it came from.

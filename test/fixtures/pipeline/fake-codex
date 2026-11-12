@@ -3,12 +3,14 @@
 # prints the events of `codex exec --json` and exits like the real CLI would.
 #
 # Env: FAKE_ARGS (file; one line of arguments appended per call), FAKE_STDIN (file;
-# the prompt read from stdin), FAKE_MODE (ratelimit | failed | noturn; default is a
-# clean success).
+# the prompt read from stdin), FAKE_STREAM (file; a stream recorded from the real CLI,
+# printed instead of the built-in events), FAKE_MODE (ratelimit | failed | noturn;
+# default is a clean success).
 set -u
 
 echo "$*" >>"${FAKE_ARGS:-/dev/null}"
 cat >"${FAKE_STDIN:-/dev/null}"
+if [ -n "${FAKE_STREAM:-}" ]; then cat "$FAKE_STREAM"; exit 0; fi
 
 id="01a168dc-712c-7cc1-82fc-6f3dfe62bcf2"
 while [ $# -gt 0 ]; do

@@ -4,15 +4,19 @@
 
 // Reading what a session left in its outbox without trusting it: the session could
 // write any file there, so only regular files are read (never a symlink or a named
-// pipe), and only up to a size cap. The result file, the log tail and the carry files
-// live here; the request files are checked in requests.js. What the loop writes back
+// pipe), and only up to a size cap. The result file, the log tail, the carry files and the
+// patches left for the next try live here; the request files are checked in requests.js. What the loop writes back
 // (an advisor answer, a nudge) goes through writeNew.
 
 import fs from "node:fs";
 import path from "node:path";
+import {leftoverPatches} from "./leftover.js";
 
 /** The work a session a usage limit stopped leaves for the next one (stage.sh writes them). */
 const CARRY_FILES = ["carry.bundle", "carry.patch"];
+
+/** The largest patch handed to the next try, in bytes. */
+const MAX_PATCH_BYTES = 5 * 1024 * 1024;
 
 const MAX_RESULT_BYTES = 256 * 1024;
 const LOG_TAIL_BYTES = 64 * 1024;
@@ -147,6 +151,49 @@ export function copyCarry(from, to) {
         const file = path.join(from, name);
         if (fs.lstatSync(file, {throwIfNoEntry: false})?.isFile()) {
             fs.copyFileSync(file, path.join(to, name));
+        }
+    }
+}
+
+/**
+ * The patches a session left in its outbox for the next try (leftover.js picks them): regular
+ * files only, never a link or a named pipe, none over 5 MiB. Nothing when the outbox is gone.
+ *
+ * @param {string} outbox - The session's outbox.
+ * @returns {string[]} - The file names.
+ */
+export function listPatches(outbox) {
+    let names;
+    try {
+        names = fs.readdirSync(outbox);
+    } catch {
+        return [];
+    }
+    return leftoverPatches(
+        names.filter(name => {
+            const stat = fs.lstatSync(path.join(outbox, name), {throwIfNoEntry: false});
+            return stat?.isFile() && stat.size <= MAX_PATCH_BYTES;
+        })
+    );
+}
+
+/**
+ * Copy the patches the last try left into `carried/` of the next session's outbox, the way
+ * copyCarry copies: regular files only, never read here. A name that is not a plain file name
+ * is skipped.
+ *
+ * @param {string} from - The last try's outbox.
+ * @param {string[]} names - The patch file names listPatches found.
+ * @param {string} to - The new outbox.
+ * @returns {void}
+ */
+export function copyPatches(from, names, to) {
+    const carried = path.join(to, "carried");
+    fs.mkdirSync(carried, {recursive: true});
+    for (const name of names) {
+        const file = path.join(from, name);
+        if (path.basename(name) === name && fs.lstatSync(file, {throwIfNoEntry: false})?.isFile()) {
+            fs.copyFileSync(file, path.join(carried, name));
         }
     }
 }
