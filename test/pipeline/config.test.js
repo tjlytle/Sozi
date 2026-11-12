@@ -40,6 +40,17 @@ describe("pipeline settings", () => {
             /PIPELINE_ADVISOR_MAX/
         );
     });
+    test("the supervisor runs on Fable unless PIPELINE_MODEL_SUPERVISOR says otherwise", () => {
+        assert.equal(
+            loadConfig({root: "/nonexistent", env: {}}).supervisorModel,
+            "claude-fable-5-1"
+        );
+        const set = loadConfig({
+            root: "/nonexistent",
+            env: {PIPELINE_MODEL_SUPERVISOR: "claude-opus-5-5"}
+        });
+        assert.equal(set.supervisorModel, "claude-opus-5-5");
+    });
     test("file values override defaults and env overrides the file", () => {
         const file = parseConfigText(
             "# comment\nPIPELINE_PARALLEL=3\nPIPELINE_HARNESS_REVIEW=codex\n"

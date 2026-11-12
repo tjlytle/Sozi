@@ -19,7 +19,8 @@
 //   options: --until <6h|90m|07:00>  --epic <#>  --harness <name>  --on-limit wait|fallback
 //
 // Settings come from pipeline/config, var/pipeline/env and PIPELINE_* variables; the state
-// lives in var/pipeline/state.json. A first Ctrl-C or SIGTERM starts nothing more and waits,
+// lives in var/pipeline/state.json, or in PIPELINE_STATE_FILE (relative to the repository
+// root) for the supervisor (#516). A first Ctrl-C or SIGTERM starts nothing more and waits,
 // the mint still up, until every running session has ended and been judged. A second one
 // saves the state and leaves the sessions running; the next start adopts them.
 
@@ -221,7 +222,7 @@ export async function main(
     const deps = {...DEFAULT_DEPS, ...fakes};
     const write = out ?? (text => void process.stdout.write(text));
     const writeErr = err ?? (text => void process.stderr.write(text));
-    const file = path.join(root, "var", "pipeline", "state.json");
+    const file = path.resolve(root, env.PIPELINE_STATE_FILE || "var/pipeline/state.json");
     /**
      * Write a log line with the time.
      *

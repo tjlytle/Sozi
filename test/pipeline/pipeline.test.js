@@ -27,6 +27,21 @@ describe("bin/pipeline.js", () => {
         assert.match(text, /#25 comment as ops/);
         assert.match(text, /dead letters: 1\n.*HTTP 404/);
     });
+    test("PIPELINE_STATE_FILE names another state file, under the root (#516)", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pl-"));
+        const state = emptyState();
+        applyIssue(state, issue(31, ["stage:in-progress"]));
+        state.issues[31].session = {container: "c31", started: "t", stage: "build", outbox: "o"};
+        fs.mkdirSync(path.join(root, "var", "pipeline"), {recursive: true});
+        fs.writeFileSync(
+            path.join(root, "var", "pipeline", "supervisor.json"),
+            JSON.stringify(state)
+        );
+        let text = "";
+        const env = {PIPELINE_STATE_FILE: "var/pipeline/supervisor.json"};
+        assert.equal(await main(["--status"], {root, env, out: t => (text += t)}), 0);
+        assert.match(text, /#31 build: c31/);
+    });
     test("--status lists each persona profile without values", async () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "pl-"));
         fs.mkdirSync(path.join(root, "var", "pipeline"), {recursive: true});

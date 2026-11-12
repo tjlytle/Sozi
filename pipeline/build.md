@@ -35,6 +35,9 @@ the policy for this session; obey them.
   (`git format-patch --stdout origin/master..HEAD`, then `git diff HEAD` for uncommitted
   work). End the session without a done or wait request: the next try of this stage is
   handed the patch.
+- A write under `.claude/` is refused to you. Commit and push the rest, then write the
+  refused change as a git diff to `/outbox/protected.patch` and end with a wait request.
+  Do not reach the path some other way: the supervisor shows Tim the patch and applies it.
 
 ## Steps
 
