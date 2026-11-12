@@ -32,7 +32,7 @@ import {createGithub, defaultRun} from "../pipeline/lib/github.js";
 import {startMint} from "../pipeline/lib/mint.js";
 import {createControl, drain, hookSignals, watch} from "../pipeline/lib/loop.js";
 import {createPass} from "../pipeline/lib/pass.js";
-import {finishDigest, noteDigest, openRun} from "../pipeline/lib/run.js";
+import {closeRun, noteDigest, openRun} from "../pipeline/lib/run.js";
 import {SettingsWatch} from "../pipeline/lib/settings-watch.js";
 import {PERSONAS} from "../pipeline/lib/profile.js";
 import {createSandbox} from "../pipeline/lib/sandbox.js";
@@ -159,10 +159,11 @@ function loopPass({state, settings, sandbox, runEnv, configEnv, root, log, save,
 }
 
 /** Finish the run by hand: post its closing summary and mark it stopped, so the next start
- * opens a new run. A run already finished posts nothing; a failed post leaves it open.
+ * opens a new run. A closing run posts the reason its watch ended with. A run already
+ * finished posts nothing; a failed post leaves it open.
  *
  * @param {string} file - The state file.
- * @param {Omit<Parameters<typeof finishDigest>[0], "state" | "reason">} options - The run.
+ * @param {Omit<Parameters<typeof closeRun>[0], "state" | "reason">} options - The run.
  * @returns {Promise<void>}
  */
 async function digestByHand(file, options) {
@@ -171,10 +172,34 @@ async function digestByHand(file, options) {
         options.log("digest: this run is already finished");
         return;
     }
-    if (await finishDigest({...options, state, reason: "finished by hand"})) {
-        state.run.stopped = true;
+    if (await closeRun({...options, state, reason: state.run.closing ?? "finished by hand"})) {
         saveState(file, state);
     }
+}
+
+/** Retry the closing summary of a run whose watch ended without posting it, and mark that
+ * run stopped once it posts. A run that is not closing needs nothing.
+ *
+ * @param {Command} ctx - What the loop runs with.
+ * @returns {Promise<boolean>} - Whether the loop may open its run: false while the last
+ *     run's summary still waits, the state file left as it was.
+ */
+async function retryClose(ctx) {
+    const {file, settings, root, env, log, writeErr, deps} = ctx;
+    const state = loadState(file);
+    const reason = state.run.closing;
+    if (!reason || state.run.stopped) {
+        return true;
+    }
+    log(`digest: retrying the closing summary of the run started ${state.run.started}`);
+    if (await closeRun({state, reason, settings, root, env, log, deps})) {
+        saveState(file, state);
+        return true;
+    }
+    writeErr(
+        "the summary of the last run could not be posted: fix NOTION_TOKEN or run npm run pipeline -- --digest\n"
+    );
+    return false;
 }
 
 /** Run the command line.
@@ -277,8 +302,26 @@ async function oneShot(opt, ctx) {
     return null;
 }
 
-/** Run the loop: open the state and the run, pass once or watch, drain the sessions and the
- * advisor's consults, then close the mint and unhook the signals.
+/** End a watch that stopped for a reason: close the run and say why it stopped, and that
+ * the next start retries the closing summary when it could not be posted.
+ *
+ * @param {any} state - The loop state.
+ * @param {string} reason - Why the watch stopped.
+ * @param {() => void} save - Writes the state.
+ * @param {Command} ctx - What the loop runs with.
+ * @returns {Promise<void>}
+ */
+async function endWatch(state, reason, save, ctx) {
+    const {settings, root, env, log, write, deps} = ctx;
+    const closed = await closeRun({state, reason, settings, root, env, log, deps});
+    save();
+    const wait = "closing summary not posted; the next start retries it";
+    write(`stopped: ${reason}${closed ? "" : ` (${wait})`}\n`);
+}
+
+/** Run the loop: retry the last run's closing summary when it waits, open the state and the
+ * run, pass once or watch, drain the sessions and the advisor's consults, then close the
+ * mint and unhook the signals. A summary that still cannot be posted ends it with 1.
  *
  * @param {any} opt - The parsed options.
  * @param {string} target - "watch" or the one issue to run.
@@ -286,7 +329,10 @@ async function oneShot(opt, ctx) {
  * @returns {Promise<number>} - The exit status.
  */
 async function runLoop(opt, target, ctx) {
-    const {file, settings, configEnv, sandbox, root, env: runEnv, log, write, deps} = ctx;
+    const {file, settings, configEnv, sandbox, root, env: runEnv, log, deps} = ctx;
+    if (!(await retryClose(ctx))) {
+        return 1;
+    }
     const state = openState(file, new Date());
     // A restart keeps the run but not its limits: they hold only when given again.
     state.run.until = opt.until;
@@ -319,10 +365,7 @@ async function runLoop(opt, target, ctx) {
         } else {
             const reason = await watch(pass, control, log, save);
             if (reason !== null) {
-                state.run.stopped = true;
-                save();
-                await finishDigest({state, reason, settings, root, env: runEnv, log, deps});
-                write(`stopped: ${reason}\n`);
+                await endWatch(state, reason, save, ctx);
             }
         }
         await drain(pass, state, control, log);

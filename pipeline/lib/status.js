@@ -25,6 +25,18 @@ function seconds(iso) {
     return iso.replace(/\.\d{3}Z$/, "Z");
 }
 
+/** The mark after the run's start: stopped, closing while its summary waits, or nothing.
+ *
+ * @param {{stopped?: boolean, closing?: string | null}} run - The run.
+ * @returns {string} - The mark, with its leading space.
+ */
+function runMark(run) {
+    if (run.stopped) {
+        return " (stopped)";
+    }
+    return run.closing ? ` (closing: ${run.closing})` : "";
+}
+
 /** One line per harness paused at its usage limit, and per issue whose session it stopped.
  *
  * @param {any} state - The loop state.
@@ -65,7 +77,7 @@ function limitLines(state, now) {
 export function statusText(state, now = new Date()) {
     const run = state.run;
     const lines = [
-        `run: started ${run.started ?? "never"}${run.stopped ? " (stopped)" : ""}`,
+        `run: started ${run.started ?? "never"}${runMark(run)}`,
         `until: ${run.until ?? "-"}  epic: ${run.epic ? `#${run.epic}` : "-"}`,
         `totals: ${run.tokens} tokens, $${Number(run.costUsd).toFixed(2)}`
     ];

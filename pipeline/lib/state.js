@@ -48,6 +48,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {string} title - The issue title.
  * @property {string[]} labels - All labels on the issue.
  * @property {string | null} stage - The stage label, if any.
+ * @property {string | null} [stageSince] - When the issue entered its stage (ISO time); absent on records saved before it was kept.
  * @property {string | null} [parkedFrom] - The stage the issue was parked from.
  * @property {string | null} [parkedAt] - When the loop parked the issue; null when a person did.
  * @property {boolean} closed - Whether the issue is closed on GitHub.
@@ -110,6 +111,7 @@ export function emptyState() {
             tokens: 0,
             costUsd: 0,
             stopped: false,
+            closing: null,
             notionPage: null,
             mintKey: null,
             limits: {},
@@ -180,7 +182,8 @@ export function promptFor(stage) {
 /** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
  * waiting while its stage holds and it stays open; a parked one keeps its park time; the
  * board card, the sub-issue link and an interrupted session carry over, and the patches
- * the last try left while the stage holds.
+ * the last try left while the stage holds. A new issue, or one whose stage changed, entered
+ * its stage at its updatedAt; otherwise that time holds.
  *
  * @param {State} state - The state.
  * @param {object} issue - The issue.
@@ -196,10 +199,12 @@ export function promptFor(stage) {
 export function applyIssue(state, issue) {
     const existing = state.issues[issue.number];
     const epic = /^Part of #(\d+)\b/m.exec(issue.body ?? "");
+    const sameStage = existing !== undefined && existing.stage === stageOf(issue.labels);
     state.issues[issue.number] = {
         title: issue.title,
         labels: [...issue.labels],
         stage: stageOf(issue.labels),
+        stageSince: sameStage ? (existing.stageSince ?? null) : (issue.updatedAt ?? null),
         parkedFrom: existing?.parkedFrom ?? null,
         parkedAt: stageOf(issue.labels) === "stage:parked" ? (existing?.parkedAt ?? null) : null,
         closed: issue.state === "CLOSED",
@@ -233,21 +238,24 @@ export function recordTry(state, n, maxTries = DEFAULT_MAX_TRIES) {
     return {tries: record.tries, park: record.tries >= maxTries};
 }
 
-/** Sets an issue's stage: the stage field, the stage label, a fresh count of tries, and
- * no person awaited. A change of stage drops the patches the last try left.
+/** Sets an issue's stage: the stage field, the stage label, when it entered the stage, a
+ * fresh count of tries, and no person awaited. A change of stage drops the patches the last
+ * try left.
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
  * @param {string} stage - The new stage label.
+ * @param {string} since - When the issue entered the stage (ISO time).
  * @returns {void}
  */
-export function setStage(state, n, stage) {
+export function setStage(state, n, stage, since) {
     const record = state.issues[n];
     if (record.stage !== stage) {
         record.leftover = null;
     }
     record.labels = [...record.labels.filter(l => !STAGES.includes(l)), stage];
     record.stage = stage;
+    record.stageSince = since;
     record.tries = 0;
     record.waiting = false;
 }
@@ -271,28 +279,30 @@ export function keepLeftover(state, n, left) {
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
+ * @param {string} since - When the issue is parked (ISO time).
  * @returns {void}
  */
-export function park(state, n) {
+export function park(state, n, since) {
     const record = state.issues[n];
     if (record.stage !== "stage:parked") {
         record.parkedFrom = record.stage;
     }
-    setStage(state, n, "stage:parked");
+    setStage(state, n, "stage:parked", since);
 }
 
 /** Wakes a parked issue at the stage it parked from, with its tries reset and no park time.
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
+ * @param {string} since - When the issue wakes (ISO time).
  * @returns {string} - The restored stage.
  */
-export function wake(state, n) {
+export function wake(state, n, since) {
     const record = state.issues[n];
     const stage = record.parkedFrom ?? "stage:todo";
     record.parkedFrom = null;
     record.parkedAt = null;
-    setStage(state, n, stage);
+    setStage(state, n, stage, since);
     return stage;
 }
 

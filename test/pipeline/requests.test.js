@@ -120,6 +120,14 @@ describe("outbox request details", () => {
             /bug/
         );
     });
+    test("label never adds or removes priority: only a person sets it", () => {
+        for (const label of [{add: ["priority"]}, {remove: ["priority"]}]) {
+            assert.throws(
+                () => validateRequest({label: {issue: 25, ...label}}, {issue: 25}),
+                /priority/
+            );
+        }
+    });
     test("spawn needs a non-empty prompt and keeps optional fields", () => {
         assert.throws(
             () => validateRequest({spawn: {persona: "qa", prompt: "  "}}, {issue: 25}),
