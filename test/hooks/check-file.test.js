@@ -248,6 +248,40 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
         );
         assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
     });
+    const arrowThen = (/** @type {string} */ declaration) =>
+        "/** Runs the loop. */\nfunction main() {\n" +
+        "    /** Writes a line to the log. */\n" +
+        "    const log = line => console.log(line);\n" +
+        `    ${declaration}\n` +
+        "    try {\n        log(1);\n    } catch (e) {\n        log(e);\n    }\n}\n";
+    for (const declaration of [
+        "let a, b;",
+        "let a;",
+        "let a: number;",
+        "const {a, b} = obj;",
+        "const [a, b] = obj;"
+    ]) {
+        test(`a change after \`${declaration}\` does not blame the documented const above it`, () => {
+            const notes = adviseOnDiff(arrowThen(declaration), oneLineDiff(7));
+            assert.ok(!notes.some(n => /code of `log` changed/.test(n)), notes.join("\n"));
+        });
+    }
+    test("a change to a documented const before a let without an initialiser still gets a note", () => {
+        const notes = adviseOnDiff(arrowThen("let a, b;"), oneLineDiff(4));
+        assert.ok(
+            notes.some(n => /code of `log` changed but the summary comment/.test(n)),
+            notes.join("\n")
+        );
+    });
+    test("a doc block that documents no declaration, added after a documented const, does not blame the const", () => {
+        const notes = adviseOnDiff(
+            '/** The default timing. */\nconst TIMING = "ease";\n\n' +
+                "/** Signals that the blank screen changed.\n *\n * @event blankScreenChange\n */\n\n" +
+                "/** The player. */\nexport class Player {}\n",
+            "--- a\n+++ b\n@@ -3,0 +4,5 @@\n+x\n"
+        );
+        assert.ok(!notes.some(n => /summary comment/.test(n)), notes.join("\n"));
+    });
     const twoListeners =
         "/** Panels of the workspace. */\nclass Panels {\n" +
         "    /** Fires when the maximized group changes. */\n" +
