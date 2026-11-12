@@ -66,7 +66,9 @@ Working. Runs `claude -p` with `--permission-mode acceptEdits`, the allow list
 as `--allowedTools`, `--output-format stream-json --verbose`, saves the raw
 stream to `DIR/stream.jsonl` and prints a readable log (`▶` for a tool call,
 `■` for the result). `--max-budget-usd` is added only when
-`PIPELINE_SESSION_BUDGET_USD` is set and not `0`. No `--plugin-dir`: the container
+`PIPELINE_SESSION_BUDGET_USD` is set and not `0`. `--settings` adds a PostToolUse hook
+(matcher `.*`) that runs `pipeline/nudge.sh --hook`, so the runner's nudge reaches the
+session after its next tool call (see "Advice and nudges" below). No `--plugin-dir`: the container
 has no plugin, and `gh-as` is `/opt/gh-as` from `packages/gh-as/` for every harness. `CLAUDE_BIN` overrides the
 binary; it is one word, a path, not a command with arguments (the tests use `test/fixtures/pipeline/fake-claude`). Usage comes from
 the last `result` event of the call (`usage.input_tokens`,
@@ -139,6 +141,22 @@ Stub. A real adapter needs:
 - Session id and usage from the JSON events.
 - The allow list has no equivalent; the container is the boundary.
 - The hook-equivalent text below prepended to every prompt.
+
+## Advice and nudges
+
+Not part of the adapter contract, and the same for every harness, since both go through
+the outbox (design: "A stuck session can ask the advisor" in
+`docs/software-factory/loop-design.md`):
+
+- `bin/advise "<question>" [--output FILE]` writes `OUT/advise/q-<n>.json` and waits for
+  `OUT/advise/a-<n>.json`: `{"advice"}` (printed, exit 0), `{"refused"}` or `{"error"}`
+  (exit 1), nothing within `PIPELINE_ADVISOR_WAIT_MINUTES` (exit 2). It reads
+  `PIPELINE_ISSUE` and `PIPELINE_STAGE`, which `stage.sh` exports.
+- `pipeline/nudge.sh` prints `OUT/nudge.md` once and renames it to `nudge.seen`. The claude
+  adapter runs it as a PostToolUse hook with `--hook`, which wraps the text as
+  `additionalContext`; `bin/check` runs it plain, which reaches a harness with no hook.
+- The advisor's own calls run the claude adapter in a short container: `OUT` is the
+  consult's outbox at `/consult`, the checkout `/advisor`, the allow list empty.
 
 ## Hook-equivalent text
 

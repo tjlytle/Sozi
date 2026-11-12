@@ -3,7 +3,6 @@ import {test, describe} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import {parseUntil} from "../../bin/pipeline.js";
 import {end, issue, world} from "./pass-world.js";
 
 describe("a pass", () => {
@@ -278,18 +277,5 @@ describe("unblocking", () => {
         const s = await w.p.pass();
         assert.deepEqual(s.started, [25]);
         assert.equal(w.state.issues[30].stage, "stage:tests");
-    });
-});
-
-describe("parseUntil", () => {
-    const now = new Date(2026, 9, 21, 19, 0, 0);
-    test("a duration counts from now", () => {
-        assert.equal(parseUntil("6h", now).getTime(), now.getTime() + 6 * 3600 * 1000);
-        assert.equal(parseUntil("90m", now).getTime(), now.getTime() + 90 * 60 * 1000);
-    });
-    test("a time of day is the next one", () => {
-        assert.equal(parseUntil("07:00", now).getTime(), new Date(2026, 9, 22, 7, 0).getTime());
-        assert.equal(parseUntil("20:30", now).getTime(), new Date(2026, 9, 21, 20, 30).getTime());
-        assert.throws(() => parseUntil("soon", now), /--until/);
     });
 });

@@ -104,7 +104,8 @@ export function emptyState() {
             stopped: false,
             notionPage: null,
             mintKey: null,
-            limits: {}
+            limits: {},
+            advisors: {}
         },
         issues: {},
         sync: {last: null, backoffUntil: null},
@@ -113,7 +114,8 @@ export function emptyState() {
 }
 
 /** Reads the state file, or returns an empty state when it does not exist. A state saved
- * before limits were kept per harness drops the run-wide pause and streak it had.
+ * before limits were kept per harness drops the run-wide pause and streak it had; one saved
+ * before the advisor gets no advisor sessions.
  *
  * @param {string} file - The path.
  * @returns {State} - The state.
@@ -124,6 +126,7 @@ export function loadState(file) {
         delete state.run.startsPausedUntil;
         delete state.sync.backoffStreak;
         state.run.limits ??= {};
+        state.run.advisors ??= {};
         return state;
     } catch (error) {
         if (/** @type {{code?: string}} */ (error).code === "ENOENT") {

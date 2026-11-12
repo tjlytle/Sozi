@@ -114,3 +114,75 @@ describe("sandbox: arguments", () => {
         assert.ok(!sb.startArgs(base).some(a => a.startsWith("PIPELINE_PERSONA")));
     });
 });
+
+describe("sandbox: consult", () => {
+    const consult = {key: "123", checkout: "/repo/a/123", out: "/repo/a/out/1", model: "m"};
+
+    test("runs the claude adapter in a short container under the architect's profile", async () => {
+        const {sb, calls} = recording(() => ({code: 0}));
+        assert.equal(await sb.consult({...consult, session: null}), 0);
+        const cmd = calls[0].cmd;
+        assert.deepEqual(cmd.slice(0, 3), ["docker", "run", "--rm"]);
+        assert.ok(cmd.includes("/repo/a/123:/advisor"));
+        assert.ok(cmd.includes("/repo/a/out/1:/consult"));
+        assert.ok(cmd.includes("sozi-factory-profile-architect:/profile"));
+        assert.ok(!cmd.includes("CLAUDE_CODE_OAUTH_TOKEN"), "the profile's login, not a token");
+        assert.equal(cmd[cmd.indexOf("--entrypoint") + 1], "timeout");
+        assert.deepEqual(cmd.slice(cmd.indexOf("sozi-factory")), [
+            "sozi-factory",
+            "900",
+            "/pipeline/harness/claude",
+            "run",
+            "--prompt",
+            "/consult/prompt.md",
+            "--model",
+            "m",
+            "--allow",
+            "/consult/allow.txt",
+            "--checkout",
+            "/advisor",
+            "--out",
+            "/consult"
+        ]);
+        assert.match(cmd[cmd.indexOf("--name") + 1], /^factory-advisor-123-/);
+    });
+
+    test("a resume names the session; its exit status comes back", async () => {
+        const {sb, calls} = recording(() => ({code: 3}));
+        assert.equal(await sb.consult({...consult, session: "s-1"}), 3);
+        const cmd = calls[0].cmd;
+        const at = cmd.indexOf("/pipeline/harness/claude");
+        assert.deepEqual(cmd.slice(at + 1, at + 6), [
+            "resume",
+            "--session",
+            "s-1",
+            "--message",
+            "/consult/prompt.md"
+        ]);
+    });
+
+    test("with profiles off, the tokens are passed by name instead", async () => {
+        /** @type {string[][]} */
+        const calls = [];
+        const off = createSandbox({
+            settings: loadConfig({root: "/nonexistent", env: {PIPELINE_PROFILES: "off"}}),
+            root: "/repo",
+            env: {CLAUDE_CODE_OAUTH_TOKEN: "secret"},
+            run: async (cmd, opts) => {
+                calls.push(cmd);
+                assert.equal(opts?.env?.CLAUDE_CODE_OAUTH_TOKEN, "secret");
+                return {code: 0, stdout: "", stderr: ""};
+            }
+        });
+        await off.consult({...consult, session: null});
+        assert.ok(calls[0].includes("CLAUDE_CODE_OAUTH_TOKEN"));
+        assert.ok(!calls[0].some(a => a.includes("secret")));
+        assert.ok(!calls[0].some(a => a.endsWith(":/profile")));
+    });
+
+    test("a stage container learns how long bin/advise waits", () => {
+        const {sb} = recording(() => ({code: 0}));
+        const opts = {issue: 25, stage: "build", outbox: "/o", mintUrl: "u", mintKey: "k"};
+        assert.ok(sb.startArgs(opts).includes("PIPELINE_ADVISOR_WAIT_MINUTES=15"));
+    });
+});

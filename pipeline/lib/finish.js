@@ -119,7 +119,7 @@ async function readBlockers(ctx, n) {
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
- * @param {{started: string, outbox: string, persona?: string, harness?: string, model?: string}} session - The session.
+ * @param {{started: string, outbox: string, persona?: string, harness?: string, model?: string, advisor?: import("./advice.js").AdvisorTotal}} session - The session, with the advisor consults it made.
  * @param {{stage: string, try: number | null, outcome: Outcome}} how - Its stage, try and end.
  * @returns {Promise<void>}
  */
@@ -137,7 +137,8 @@ async function postUsage(ctx, n, session, {stage, try: attempt, outcome}) {
             startedAt: session.started,
             endedAt: new Date(ctx.clock.now()).toISOString(),
             outcome,
-            outbox: session.outbox
+            outbox: session.outbox,
+            advisor: session.advisor
         });
         await writeComment(ctx, n, body);
     } catch (error) {

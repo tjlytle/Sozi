@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The fixture decks the scenarios open: copied to a temp folder, built once by the real CLI,
-// shared between scenarios, and removed at the end of the run.
+// The decks scenarios open: fixtures copied to a temp folder, built once by the real CLI and
+// shared, the copies a scenario changes for itself, and their removal at the end of the run.
 
 import fs from "node:fs";
 import {createRequire} from "node:module";
@@ -71,6 +71,16 @@ export function rebuildWithoutNotesFile(name) {
     buildDeck(deck);
     decks.delete(name);
     decks.set(`${name} without its notes file`, deck);
+}
+
+/** Keep a deck a step built under a name, so that `builtDeck(name)` and the steps that open
+ * `this.fixture` find it.
+ *
+ * @param {string} name - The name the scenario gives the deck.
+ * @param {BuiltDeck} deck - The built deck.
+ */
+export function registerBuiltDeck(name, deck) {
+    decks.set(name, deck);
 }
 
 /** A copy of a fixture for one scenario that changes it; built decks are shared.

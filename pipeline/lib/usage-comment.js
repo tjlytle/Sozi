@@ -26,6 +26,7 @@ const OUTCOME_NOTES = {
  * @property {string} endedAt - When it was judged, as an ISO time.
  * @property {import("./verdict.js").Outcome} outcome - How it ended.
  * @property {string} outbox - Its outbox directory.
+ * @property {import("./advice.js").AdvisorTotal} [advisor] - The advisor consults it made, under the advisor's model; no Advisor row without.
  */
 
 /**
@@ -79,8 +80,29 @@ export function formatTurns(turns, resumes) {
 }
 
 /**
+ * Format the advisor consults of a session: the model, the consults, the tokens and the cost.
+ *
+ * @param {import("./advice.js").AdvisorTotal} advisor - The consults.
+ * @returns {string} The Advisor row's value.
+ */
+function advisorRow(advisor) {
+    const count = (/** @type {number} */ n) => n.toLocaleString("en-US");
+    const consults = `${advisor.consults} ${advisor.consults === 1 ? "consult" : "consults"}`;
+    return [
+        advisor.model,
+        consults,
+        `in ${count(advisor.tokensIn)}`,
+        `cache read ${count(advisor.cacheRead)}`,
+        `cache write ${count(advisor.cacheWrite)}`,
+        `out ${count(advisor.tokensOut)}`,
+        `$${advisor.costUsd.toFixed(2)}`
+    ].join(" · ");
+}
+
+/**
  * Build the usage comment of an ended session. With no result, or a result whose
- * harness wrote no usage.json, the counts and the status are unknown.
+ * harness wrote no usage.json, the counts and the status are unknown. A session that
+ * consulted the advisor gets an Advisor row with those consults under the advisor's model.
  *
  * @param {UsageFields} fields - The session.
  * @returns {string} The comment, in markdown.
@@ -122,7 +144,8 @@ export function usageComment(fields) {
                 ? `${usage?.status ?? UNKNOWN} · exit ${result.exit} · hooks ${result.hooks}`
                 : UNKNOWN) + OUTCOME_NOTES[outcome]
         ],
-        ["Outbox", fields.outbox.split("/").pop()]
+        ["Outbox", fields.outbox.split("/").pop()],
+        ...(fields.advisor ? [["Advisor", advisorRow(fields.advisor)]] : [])
     ];
     return [
         "<details>",

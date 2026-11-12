@@ -45,6 +45,18 @@ the message.
 | `camera`      | display → surface | `offFrame`, `zoom`, `x`, `y`                              |
 | `custom`      | both ways         | `type`, `data`                                            |
 
+### Notes
+
+`notes`, in `frameChange` and in `hello`'s `frame` and `frames`, is the frame's notes as
+stored in the deck: an HTML fragment. It may be empty, and it may be plain text with no tags,
+in which a blank line does not make a paragraph. It is never Markdown. It is **not
+sanitized**: a surface sanitizes it before it reaches a page, as the Notes panel does with
+`setSanitizedHTML` (`src/js/html/sanitize.js`), and a client that wants text takes the
+fragment's `textContent`. When a notes Markdown file was beside the deck as it was exported,
+`notes` holds that file's section for the frame, rendered to HTML. A notes file published
+beside the deck later, over http, is not in `notes`: the Notes panel fetches that file and
+lays it over the stored notes itself.
+
 ### `hello`
 
 | Field        | Type                            | Meaning                                           |
@@ -54,8 +66,8 @@ the message.
 | `version`    | string                          | The date of the deck's page (`document.lastModified`). |
 | `frameCount` | integer ≥ 0                     | How many frames the deck has.                     |
 | `viewport`   | `{width, height, pixelRatio}` or null | The display's size; null while it is minimised. |
-| `frame`      | `{index, id, title, notes}`     | The current frame.                                |
-| `frames`     | array of `{index, id, title, notes}` | Every frame, in deck order.                  |
+| `frame`      | `{index, id, title, notes}`     | The current frame; for `notes` see [Notes](#notes). |
+| `frames`     | array of `{index, id, title, notes}` | Every frame, in deck order; for `notes` see [Notes](#notes). |
 | `blank`      | boolean                         | Is the blank screen shown?                        |
 | `layouts`    | object of presets, by name      | The deck's layout presets, in the deck's order.   |
 | `timer`      | `{elapsedMs, running, targetMs}` | The talk timer as it is now (see [`timer`](#timer)). |
@@ -101,7 +113,7 @@ that it can use, unless the device has saved a layout of its own for that width.
 ### `frameChange`
 
 The display has moved to another frame. `index` counts from 0, `id` is the frame's id,
-`title` its title and `notes` the presenter's notes as HTML.
+`title` its title and `notes` the presenter's notes (see [Notes](#notes)).
 
 ### `viewport`
 
@@ -235,6 +247,8 @@ An add-on's transport has what `LocalTransport` has:
 | `dispose()`             | Closes it.                                                          |
 
 ## API
+
+To write a panel, start with [presenter-addons.md](presenter-addons.md).
 
 A deck's custom CSS or JS file has a target: `display` (the default), `presenter` or
 `both`. In the presentation file a `display` file is the plain string it always was, and

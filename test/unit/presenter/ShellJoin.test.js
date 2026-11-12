@@ -115,9 +115,41 @@ describe("ShellJoin", () => {
         mirror.setStatus(TransportStatus.connected);
         assert.equal(notice.hidden, true);
 
-        mirror.setStatus("reconnecting");
+        mirror.setStatus(TransportStatus.reconnecting);
+        assert.equal(notice.hidden, false);
+        assert.equal(notice.textContent, "Reconnecting");
+    });
+
+    test("names the stale and reconnecting statuses in the panel's words", () => {
+        const {notice, mirror} = startedShell(LINK);
+        mirror.setStatus(TransportStatus.stale);
+        assert.equal(notice.hidden, false);
+        assert.equal(notice.textContent, "Stale");
+
+        mirror.setStatus(TransportStatus.reconnecting);
+        assert.equal(notice.hidden, false);
+        assert.equal(notice.textContent, "Reconnecting");
+    });
+
+    test("hides the notice when connected and says not connected when closed", () => {
+        const {notice, mirror} = startedShell(LINK);
+        mirror.setStatus(TransportStatus.connected);
+        assert.equal(notice.hidden, true);
+
+        mirror.setStatus(TransportStatus.closed);
         assert.equal(notice.hidden, false);
         assert.equal(notice.textContent, "Not connected");
+    });
+
+    test("a status that arrives with no link leaves the way to join in place", () => {
+        const {notice, mirror} = startedShell("");
+        mirror.setStatus(TransportStatus.reconnecting);
+        assert.equal(notice.hidden, false);
+        assert.match(notice.textContent, /Open a pairing link to join a talk\./);
+
+        mirror.setStatus(TransportStatus.connected);
+        assert.equal(notice.hidden, false);
+        assert.match(notice.textContent, /Open a pairing link to join a talk\./);
     });
 
     test("with no link it says how to join and no preview gets a deck", () => {

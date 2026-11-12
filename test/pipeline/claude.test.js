@@ -337,4 +337,24 @@ describe("claude adapter", () => {
         adapter("claude", runArgs(out), {FAKE_ARGS: args});
         assert.ok(fs.readFileSync(args, "utf8").startsWith(`-p ${prompt} `));
     });
+
+    test("claude: a PostToolUse hook prints the runner's nudge; the allow list stays last", () => {
+        const out = scratch();
+        const args = path.join(out, "args");
+        adapter("claude", runArgs(out), {FAKE_ARGS: args});
+        const seen = fs.readFileSync(args, "utf8");
+        const settings = /--settings (\{.*\}) --/.exec(seen);
+        assert.ok(settings, seen);
+        assert.deepEqual(JSON.parse(settings[1]), {
+            hooks: {
+                PostToolUse: [
+                    {
+                        matcher: ".*",
+                        hooks: [{type: "command", command: `bash ${root}/pipeline/nudge.sh --hook`}]
+                    }
+                ]
+            }
+        });
+        assert.match(seen, /--allowedTools Read Bash\(npm \*\)\s*$/);
+    });
 });

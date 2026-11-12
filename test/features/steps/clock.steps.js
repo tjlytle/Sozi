@@ -7,7 +7,7 @@
 import {Given, Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
-import {tabOf, WAIT} from "../support/panels.js";
+import {WAIT} from "../support/panels.js";
 
 /** @typedef {import("../support/world.js").SoziWorld} SoziWorld */
 
@@ -220,11 +220,6 @@ When("a target of {int} nines is entered in the clock's target field", async fun
     await field.fill("9".repeat(count), WAIT);
     await field.press("Enter", WAIT);
     await this.presenter.waitForTimeout(SETTLE_MS);
-});
-
-When("the {string} panel is shown", async function (title) {
-    // Dockview hides a panel behind another tab; on a phone-width page every panel is a tab.
-    await tabOf(this.presenter, title).click(WAIT);
 });
 
 Then("the clock shows the time of day", async function () {

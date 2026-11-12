@@ -1,4 +1,4 @@
-import {test, describe} from "node:test";
+import {test, describe, afterEach} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -8,6 +8,27 @@ import {createRequire} from "node:module";
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 const require = createRequire(import.meta.url);
 const {templateFiles, makeTemplateTask} = require(path.join(ROOT, "gulp/templates.js"));
+const originalCwd = process.cwd();
+const scratchDirs = [];
+
+/**
+ * Make a scratch directory under the system temp directory, removed after the test.
+ *
+ * @returns {string} The path of the new directory.
+ */
+function scratchDir() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-templates-"));
+    scratchDirs.push(dir);
+    return dir;
+}
+
+// Leave the directory before removing it; rmSync removes the node_modules link, not its target.
+afterEach(() => {
+    process.chdir(originalCwd);
+    for (const dir of scratchDirs.splice(0)) {
+        fs.rmSync(dir, {recursive: true, force: true});
+    }
+});
 
 /**
  * Run a gulp task outside gulp: it returns a stream, a promise or nothing.
@@ -29,7 +50,7 @@ function runTask(task) {
 
 describe("templateFiles", () => {
     test("returns the script's bytes and the two inlined stylesheets", () => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-templates-"));
+        const dir = scratchDir();
         const jsPath = path.join(dir, "page.js");
         fs.writeFileSync(jsPath, "console.log('page');");
         const files = templateFiles(jsPath);
@@ -50,7 +71,7 @@ describe("templateFiles", () => {
 
 describe("makeTemplateTask", () => {
     test("writes the template with the page's script inlined", async () => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-templates-"));
+        const dir = scratchDir();
         fs.mkdirSync(path.join(dir, "src/templates"), {recursive: true});
         fs.mkdirSync(path.join(dir, "build/tmp"), {recursive: true});
         fs.symlinkSync(path.join(ROOT, "node_modules"), path.join(dir, "node_modules"));

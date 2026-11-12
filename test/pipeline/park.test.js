@@ -1,5 +1,5 @@
 // test/pipeline/park.test.js: parking an issue, its tries and the stub-harness park.
-import {test, describe} from "node:test";
+import {test, describe, after} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -35,14 +35,24 @@ function comments(w) {
     return w.calls.filter((/** @type {any[]} */ c) => c[0] === "comment").map(c => c.slice(1));
 }
 
+/** @type {string[]} */
+const outboxes = [];
+after(() => {
+    for (const dir of outboxes) {
+        fs.rmSync(dir, {recursive: true, force: true});
+    }
+});
+
 /**
  * An outbox whose log ends with the given lines.
+ * The outbox is removed after the file's tests have run.
  *
  * @param {string} text - The log.
  * @returns {string} The outbox directory.
  */
 function outboxWithLog(text) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "park-"));
+    outboxes.push(dir);
     fs.writeFileSync(path.join(dir, "log"), text);
     return dir;
 }

@@ -5,7 +5,8 @@
 // Reading what a session left in its outbox without trusting it: the session could
 // write any file there, so only regular files are read (never a symlink or a named
 // pipe), and only up to a size cap. The result file, the log tail and the carry files
-// live here; the request files are checked in requests.js.
+// live here; the request files are checked in requests.js. What the loop writes back
+// (an advisor answer, a nudge) goes through writeNew.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -225,4 +226,26 @@ export function readResult(dir, {log = () => {}} = {}) {
             : "ok",
         ...(raw.carry === "failed" ? {carry: /** @type {const} */ ("failed")} : {})
     };
+}
+
+/**
+ * Write a file into a directory of a session's outbox: a temporary file created afresh,
+ * then a rename over the name, so a link the session left in either place is replaced,
+ * never followed. Nothing is written when the directory is missing or is not a directory
+ * (a link to one included).
+ *
+ * @param {string} dir - The outbox directory, or one inside it.
+ * @param {string} name - The file name.
+ * @param {string} text - The contents.
+ * @returns {boolean} Whether the file was written.
+ */
+export function writeNew(dir, name, text) {
+    if (!fs.lstatSync(dir, {throwIfNoEntry: false})?.isDirectory()) {
+        return false;
+    }
+    const temporary = path.join(dir, `.${name}.tmp`);
+    fs.rmSync(temporary, {force: true});
+    fs.writeFileSync(temporary, text, {flag: "wx"});
+    fs.renameSync(temporary, path.join(dir, name));
+    return true;
 }

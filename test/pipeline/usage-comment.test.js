@@ -145,4 +145,25 @@ describe("formats", () => {
         assert.equal(formatTurns(41, 1), "41 (1 resume)");
         assert.equal(formatTurns(41, 2), "41 (2 resumes)");
     });
+    test("a session that consulted the advisor gets an Advisor row under its model", () => {
+        const comment = usageComment(
+            fields({
+                advisor: {
+                    model: "claude-fable-5-1",
+                    consults: 2,
+                    tokensIn: 30,
+                    cacheRead: 4000,
+                    cacheWrite: 1000,
+                    tokensOut: 900,
+                    costUsd: 1.5
+                }
+            })
+        );
+        assert.equal(
+            row(comment, "Advisor"),
+            "claude-fable-5-1 · 2 consults · in 30 · cache read 4,000 · cache write 1,000 · " +
+                "out 900 · $1.50"
+        );
+        assert.equal(row(usageComment(fields()), "Advisor"), undefined);
+    });
 });

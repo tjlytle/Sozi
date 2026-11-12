@@ -95,7 +95,7 @@ TypeScript (yes, gradually); "nightly" meant "a build per merge".
    - Stage labels, the project board, `pipeline/*.md`, `bin/pipeline`, `pipeline/allow.txt`.
 2. **Same shape on `tjlytle/sozi-channel`**, plus a preview Worker deployment per merge.
 3. **Run the backlog.** Tim starts the loop; the first issues are the presenter epic's
-   leaves (#25 protocol and transport interface first, since everything else depends on
+   leaves (#28 protocol and transport interface first, since everything else depends on
    it). Tim's job is the parked issues and the screenshots.
 4. **Later, with evidence:** triage before planning with a decision model (Jev or Clef),
    see the Future section of the standard.

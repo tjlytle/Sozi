@@ -5,8 +5,15 @@
 // Steps for add-ons (#27): a panel registered from the console, a fake transport on the
 // presenter page, which page loaded which custom file, and the pairing overlay.
 
-import {Then, When} from "@cucumber/cucumber";
+import {Given, Then, When} from "@cucumber/cucumber";
+import fs from "node:fs";
+import path from "node:path";
 import {expect} from "playwright/test";
+import {applyExample, exampleFiles} from "../support/docExample.js";
+import {buildDeck, copyDeck, registerBuiltDeck} from "../support/decks.js";
+
+// The repository, where a guide's path starts.
+const ROOT = path.resolve(import.meta.dirname, "..", "..", "..");
 
 // The element of src/templates/player.html that holds an add-on's pairing.
 const PAIRING = ".sozi-pairing";
@@ -62,6 +69,22 @@ export function installFakeTransport() {
         }
     };
 }
+
+Given("the {string} deck is built with the worked example of {string}", function (fixture, doc) {
+    const guide = path.join(ROOT, doc);
+    if (!fs.existsSync(guide)) {
+        throw new Error(`${doc} does not exist, so it has no worked example to build`);
+    }
+    const example = exampleFiles(fs.readFileSync(guide, "utf8"));
+    if (Object.keys(example.files).length === 0) {
+        throw new Error(`${doc} has no code block that names a file`);
+    }
+    const deck = copyDeck(fixture);
+    applyExample(deck, example);
+    const name = `${fixture} with the worked example`;
+    registerBuiltDeck(name, buildDeck(deck));
+    this.fixture = name;
+});
 
 When("a panel {string} is registered from the console", async function (title) {
     await this.presenter.evaluate(panelTitle => {

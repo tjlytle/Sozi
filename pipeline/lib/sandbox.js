@@ -80,6 +80,7 @@ function spawnInteractive(cmd) {
  * @property {(opts: {persona: string, harness: string}) => string[]} loginArgs - The docker run arguments of an interactive login.
  * @property {(opts: {persona: string, harness: string}) => Promise<number>} login - Runs the login container with the terminal attached; resolves to its exit status.
  * @property {(opts: {from: string, to: string}) => Promise<void>} copyProfile - Copies one persona's profile volume, without its Claude login, into a new volume for another; refuses when the source has no volume or the target has one, and removes the target when the copy fails.
+ * @property {(opts: {key: string, checkout: string, out: string, session: string | null, model: string}) => Promise<number>} consult - Runs one advisor call in a short container under the architect's profile: the claude adapter, with checkout as its working directory and out as its outbox, resuming the session when one is named; resolves to the exit status.
  * @property {(opts: {issue: number, stage: string, prompt: string, allow: string, carryFrom?: string, resume?: string}) => string} prepareOutbox - Writes a fresh outbox; returns its path. With carryFrom, the carry files of that stopped session's outbox are copied; with resume, the message is written as resume.md.
  */
 
@@ -218,6 +219,7 @@ export function createSandbox({
             PIPELINE_MODEL: model ?? settings.modelFor(stage),
             PIPELINE_SESSION_BUDGET_USD: String(settings.sessionBudgetUsd),
             PIPELINE_MAX_RESUMES: MAX_RESUMES,
+            PIPELINE_ADVISOR_WAIT_MINUTES: String(settings.advisor.waitMinutes),
             GH_BOT_CONFIG_DIR: "/outbox/gh-bot",
             // What stage.sh signs gh-as bodies and commits with (#166).
             ...(persona ? {PIPELINE_PERSONA: persona} : {}),
@@ -346,6 +348,42 @@ export function createSandbox({
                 env: {...env, ...opts.env, GH_MINT_KEY: opts.mintKey}
             });
             return out.trim();
+        },
+        async consult({key, checkout, out, session, model}) {
+            const call = session
+                ? ["resume", "--session", session, "--message", "/consult/prompt.md"]
+                : ["run", "--prompt", "/consult/prompt.md"];
+            const profile = settings.profiles !== "off";
+            const tokens = Object.fromEntries(
+                PROFILE_REPLACES.filter(name => !profile && loopEnv[name]).map(name => [
+                    name,
+                    String(loopEnv[name])
+                ])
+            );
+            const args = ["run", "--rm", "--name", `factory-advisor-${key}-${Date.now()}`];
+            args.push(
+                ...resourceArgs(settings),
+                "-v",
+                `${checkout}:/advisor`,
+                "-v",
+                `${out}:/consult`
+            );
+            args.push(
+                ...(profile ? profileArgs("architect") : PROFILE_REPLACES.flatMap(n => ["-e", n]))
+            );
+            // The image's entrypoint is bash; timeout bounds the call to how long bin/advise waits.
+            args.push("--entrypoint", "timeout", settings.image);
+            args.push(String(Math.ceil(settings.advisor.waitMinutes * 60)));
+            args.push("/pipeline/harness/claude", ...call, "--model", model);
+            args.push(
+                "--allow",
+                "/consult/allow.txt",
+                "--checkout",
+                "/advisor",
+                "--out",
+                "/consult"
+            );
+            return (await run(["docker", ...args], {env: tokens})).code;
         },
         async status(container) {
             const r = await run(["docker", "inspect", "-f", "{{.State.Status}}", container]);
