@@ -3,7 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // The persona profiles: which persona a stage runs as, the Docker volume that holds that
-// persona's logins and settings, and the arguments that mount it into a stage container.
+// persona's logins and settings, the arguments that mount it into a stage container, and
+// the docker runs that inspect and copy it.
 
 /** The personas, one profile volume each. */
 export const PERSONAS = Object.freeze([
@@ -110,6 +111,55 @@ export async function inspectProfile(run, {image, persona}) {
         return JSON.parse(r.stdout.trim().split("\n").pop() ?? "");
     } catch {
         throw new Error(`profile inspect failed for ${persona}`);
+    }
+}
+
+/** Copy one persona's profile volume, without its Claude login, into a new volume for
+ * another. Refuses when the source has no volume or the target has one, and removes the
+ * target when the copy fails.
+ *
+ * @param {import("./github.js").Runner} run - The command runner.
+ * @param {{image: string, from: string, to: string}} options - The stage image, and the
+ *     personas copied from and to.
+ * @returns {Promise<void>} - Resolves once the target holds the copy.
+ * @throws {Error} - When a check refuses or a docker command fails.
+ */
+export async function copyProfile(run, {image, from, to}) {
+    const source = volumeName(from);
+    const target = volumeName(to);
+    if ((await run(["docker", "volume", "inspect", source])).code !== 0) {
+        throw new Error(`no profile for ${from}: run npm run pipeline -- --login ${from}`);
+    }
+    if ((await run(["docker", "volume", "inspect", target])).code === 0) {
+        throw new Error(`profile of ${to} exists; remove the volume first`);
+    }
+    /** @type {(cmd: string[]) => Promise<void>} */
+    const must = async cmd => {
+        const r = await run(cmd);
+        if (r.code !== 0) {
+            throw new Error(
+                `${cmd.slice(0, 2).join(" ")} failed: ${r.stderr.trim().slice(0, 300)}`
+            );
+        }
+    };
+    await must(["docker", "volume", "create", target]);
+    // The target mounts at /profile, which the image creates for the factory user, so the
+    // fresh volume takes that owner. The script copies everything but the Claude login.
+    try {
+        await must([
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            `${source}:/from:ro`,
+            "-v",
+            `${target}:/profile`,
+            image,
+            "/pipeline/profile-copy.sh"
+        ]);
+    } catch (err) {
+        await run(["docker", "volume", "rm", target]);
+        throw err;
     }
 }
 
