@@ -412,6 +412,13 @@ there, plain JSON, one per request, and the loop acts on them when the session e
 - `{"wait": "..."}`: the session stops for a person (`Plans: review`, `Merge: review`);
   the issue waits at its stage, costs no try, and starts again when its stage changes.
   It is the only way to wait: a session that ends with neither a move nor a wait is a try.
+- `{"rerun": {"run": 43095929857}}`: rerun the PR's CI run (#502). Only a `stage:qa`
+  session may ask, and the loop does not take its word: it reads the run as ops
+  (`pipeline/lib/rerun.js`). A run on the issue's branch that has completed is rerun; one
+  `queued` with no jobs for more than 20 minutes, while a newer run in the repository has
+  started, is cancelled and rerun. Anything else is refused and logged, and so is a 4th
+  rerun in one visit to `stage:qa`. An applied rerun costs no try and the issue stays at
+  `stage:qa`; a refused one leaves the session a try.
 
 A `done` request must name a move the stage the session ran may make (the "Moves to"
 column above; any stage may also go to `stage:parked` or `triage`); any other is refused
