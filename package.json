@@ -41,6 +41,7 @@
         "nunjucks": "^3.2.4",
         "officegen": "^0.6.5",
         "pdf-lib": "^1.16.0",
+        "perfect-freehand": "1.2.3",
         "screenfull": "5.2",
         "tmp": "^0.2.7",
         "turndown": "7.2.5"
