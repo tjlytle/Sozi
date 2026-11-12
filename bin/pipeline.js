@@ -207,7 +207,8 @@ async function retryClose(ctx) {
  *
  * @param {string[]} argv - The arguments after the script name.
  * @param {object} [io] - Where things come from and go to.
- * @param {Record<string, string|undefined>} [io.env] - The environment.
+ * @param {Record<string, string|undefined>} [io.env] - The environment; PIPELINE_STATE_FILE,
+ *     relative to the root, replaces var/pipeline/state.json.
  * @param {string} [io.root] - The repository root.
  * @param {(text: string) => void} [io.out] - Standard output.
  * @param {(text: string) => void} [io.err] - Standard error.
