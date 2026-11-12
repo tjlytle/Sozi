@@ -5,6 +5,7 @@
 import {SVGDocumentWrapper} from "./svg/SVGDocumentWrapper";
 import {Presentation, Frame} from "./model/Presentation";
 import {Viewport} from "./player/Viewport";
+import {DrawingLayer} from "./player/DrawingLayer";
 import {Player} from "./player/Player";
 import {PlayerEvents} from "./player/playerEvents";
 import {PlayerController} from "./player/PlayerController";
@@ -39,6 +40,8 @@ function startPlayer(display, deck) {
 
     const viewport = new Viewport(presentation);
     viewport.onLoad();
+    // After onLoad, so the layer is above every layer group the cameras add.
+    viewport.drawingLayer = new DrawingLayer(svgRoot);
     presentation.setInitialCameraState();
 
     presentation.fromStorable(window.soziPresentationData);
@@ -113,7 +116,9 @@ function startDisplay(display, player, controller, presentation) {
             pairing.dispose();
             enterPreviewMode({player, presentation, ...options});
         },
-        renderThumbnail: (index, width) => thumbnails.render(index, width)
+        renderThumbnail: (index, width) => thumbnails.render(index, width),
+        // Cast: startPlayer gives the viewport its drawing layer.
+        drawingLayer: /** @type {DrawingLayer} */ (player.viewport.drawingLayer)
     });
     channel.start();
     display.start(channel, pairing);

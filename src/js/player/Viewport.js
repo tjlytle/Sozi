@@ -93,6 +93,29 @@ export class Viewport {
          * @type {boolean}
          */
         this.showHiddenElements = false;
+
+        /** The layer the drawings are painted in, which follows the bottom layer's camera; null
+         * in the editor.
+         *
+         * @type {?import("./DrawingLayer").DrawingLayer}
+         */
+        this.drawingLayer = null;
+    }
+
+    /** Move the drawing layer with the bottom layer's camera, after any camera's update.
+     *
+     * The bottom layer is the first one with SVG groups: a deck usually holds its artwork
+     * there, and a camera with no group (the one for elements outside any layer) moves
+     * nothing. A camera updates itself during a transition and on a pan or a zoom, not only
+     * through `update`, so it calls this every time.
+     *
+     * @param {module:player/Camera.Camera} camera - The camera that was updated.
+     */
+    cameraUpdated(camera) {
+        const bottom = this.cameras.find(c => c.svgTransformGroups.length > 0);
+        if (this.drawingLayer && camera === bottom) {
+            this.drawingLayer.follow(camera);
+        }
     }
 
     /** Create a unique SVG element ID.

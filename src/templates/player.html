@@ -130,6 +130,22 @@
                 display: none;
             }
 
+            /* The drawings (DrawingLayer): links under a stroke still take the click. */
+            .sozi-drawing {
+                --sozi-drawing-highlighter-opacity: 0.4;
+                pointer-events: none;
+            }
+
+            /* Visibility, not display: it reaches every path, which checkVisibility reads. */
+            .sozi-drawing--hidden {
+                visibility: hidden;
+            }
+
+            /* A highlight is see-through, so the artwork under it still shows. */
+            .sozi-drawing__highlighter {
+                opacity: var(--sozi-drawing-highlighter-opacity);
+            }
+
             /* The current-frame preview pans and zooms the display itself (PreviewGestures). */
             .sozi-preview-gestures {
                 touch-action: none;
