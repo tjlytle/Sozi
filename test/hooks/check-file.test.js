@@ -216,6 +216,40 @@ describe("edit hook: advice, not failure (standard 2.8)", () => {
             fs.unlinkSync(diff);
         }
     });
+    const castThenSecond =
+        "/** Rounds a. */\nfunction first(a) {\n    const b =\n        10 * Math.round(a / 10) +\n" +
+        "        /** @type {number} */ (a);\n    return b;\n}\n\n" +
+        "/** Doubles n. */\nfunction second(n) {\n    return n * 2;\n}\n";
+    /** The stale-comment notes of a diff, each as "name@line of the summary it cites".
+     *
+     * @param {string} content - The file content.
+     * @param {string} diffText - A unified diff of the file.
+     * @returns {string[]} - One entry per note.
+     */
+    function cited(content, diffText) {
+        return adviseOnDiff(content, diffText)
+            .map(n => /code of `(\w+)` changed .*\(line (\d+)\)/.exec(n))
+            .filter(Boolean)
+            .map(m => `${m[1]}@${m[2]}`);
+    }
+    test("a cast at the start of a line is not the next function's summary comment", () => {
+        assert.deepEqual(cited(castThenSecond, oneLineDiff(11)), ["second@9"]);
+    });
+    test("a change below a cast at the start of a line still blames the function that holds it", () => {
+        assert.deepEqual(
+            cited(
+                castThenSecond,
+                "--- a\n+++ b\n@@ -6,1 +6,1 @@\n-x\n+y\n@@ -11,1 +11,1 @@\n-x\n+y\n"
+            ),
+            ["first@1", "second@9"]
+        );
+    });
+    test("a one-line summary comment is still the summary of the function below it", () => {
+        assert.deepEqual(
+            cited("/** Adds one. */\nfunction addOne(n) {\n    return n + 1;\n}\n", oneLineDiff(3)),
+            ["addOne@1"]
+        );
+    });
     const helperThenDescribe =
         "/** Doubles a number.\n *\n * @param {number} n - A number.\n * @returns {number} - Twice n.\n */\n" +
         "function twice(n) {\n    return n * 2;\n}\n\n" +

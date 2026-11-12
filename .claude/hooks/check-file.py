@@ -42,6 +42,7 @@ MAX_PUBLIC_METHODS = 10
 KEYWORDS = {"if", "for", "while", "switch", "catch", "return", "constructor"}
 DOC_START = re.compile(r"^\s*/\*\*")
 DOC_END = re.compile(r"\*/\s*$")
+INLINE_DOC = re.compile(r"^\s*/\*\*.*?\*/\s*\S")
 DECLARATION = re.compile(
     r"^(?P<indent>\s*)(?:export\s+)?(?:default\s+)?(?:async\s+)?"
     r"(?:(?:function\s*\*?\s*|class\s+)(?P<name1>[A-Za-z_$][\w$]*)"
@@ -65,13 +66,14 @@ def declarations(lines):
     Ranges are 1-based and inclusive. doc_range is the `/** ... */` block right
     above the declaration, or None. A body ends where body_end() says, and never
     past the line before the next declaration at the same or lower indentation
-    (or its doc comment).
+    (or its doc comment). A `/** ... */` closed on its own line with code after it is a
+    cast, not a doc comment.
     """
     found = []
     i = 0
     while i < len(lines):
         doc = None
-        if DOC_START.match(lines[i]):
+        if DOC_START.match(lines[i]) and not INLINE_DOC.match(lines[i]):
             start = i
             while i < len(lines) and not DOC_END.search(lines[i]):
                 i += 1
