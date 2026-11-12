@@ -137,6 +137,24 @@ export async function finishDigest({state, reason, settings, root, env, log, dep
     return code === 0;
 }
 
+/** Close the run: mark it closing for a reason, post its closing summary, and mark it
+ * stopped only once that posts. A run whose summary fails stays open and closing, so the
+ * next start or --digest retries it with the same reason.
+ *
+ * @param {Parameters<typeof finishDigest>[0]} options - The run and why it ends.
+ * @returns {Promise<boolean>} - Whether the run is stopped.
+ */
+export async function closeRun(options) {
+    const run = options.state.run;
+    run.closing = options.reason;
+    if (!(await finishDigest(options))) {
+        return false;
+    }
+    run.stopped = true;
+    run.closing = null;
+    return true;
+}
+
 /** The digest the pass adds notes to: a plain paragraph on the run's page, no checkbox.
  *
  * @param {any} state - The loop state.
