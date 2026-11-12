@@ -178,6 +178,7 @@ async function movedByHand(ctx, n) {
     record.labels = [...labels];
     record.stage = stage;
     record.tries = 0;
+    record.reruns = 0;
     record.waiting = false;
     ctx.changed.add(n);
     return true;

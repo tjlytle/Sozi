@@ -45,6 +45,16 @@ describe("a rerun request", () => {
         assert.equal(w.state.issues[25].reruns ?? 0, 0);
         assert.ok(!w.calls.some((/** @type {any[]} */ c) => c[0] === "rerunRun"));
     });
+    test("a stage changed by hand resets the reruns with the tries", async () => {
+        const w = world({issues: [issue(25, ["stage:qa"])]});
+        await w.p.pass();
+        w.state.issues[25].reruns = 2;
+        w.state.issues[25].labels = ["stage:review"];
+        end(w, w.state.issues[25].session.outbox, "c25");
+        await w.p.pass();
+        assert.equal(w.state.issues[25].stage, "stage:review");
+        assert.equal(w.state.issues[25].reruns, 0);
+    });
     test("a rerun from a review session is refused and counts a try", async () => {
         const w = await rerunSession("stage:review");
         assert.equal(w.state.issues[25].stage, "stage:review");
