@@ -10,8 +10,11 @@ import {MessageNames} from "../protocol/messages.js";
 import {TransportStatus} from "../protocol/LocalTransport.js";
 import {STOPPED_TIMER, elapsedAfter} from "../protocol/timer.js";
 import {ON_FRAME} from "../protocol/camera.js";
+import {DRAWING_COMMANDS, EMPTY_DRAWINGS} from "../protocol/drawings.js";
+import {applyDrawing} from "../protocol/strokes.js";
 
 /** @typedef {import("../protocol/camera.js").CameraView} CameraView */
+/** @typedef {import("../protocol/drawings.js").Drawings} Drawings */
 /** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").Message} Message */
@@ -29,8 +32,9 @@ export const DisplayMirrorEvents = Object.freeze({change: "change"});
 /** What the display last reported, for every panel of the presenter to read.
  *
  * The presenter holds no frame state of its own: a panel in a tab, on the rail or in the
- * narrow stack reads this one object and listens for its changes. The timer is the one thing
- * it works out for itself: it counts on from the display's last report, by this device's clock.
+ * narrow stack reads this one object and listens for its changes. Two things it works out for
+ * itself: the timer counts on from the display's last report, by this device's clock, and the
+ * drawings take each command the display relays, applied to those of its last `hello`.
  *
  * @extends EventEmitter
  */
@@ -116,6 +120,13 @@ export class DisplayMirror extends EventEmitter {
          */
         this.camera = ON_FRAME;
 
+        /** The drawings on the display's deck: the display's `hello` gives them, and each
+         * command it relays changes them.
+         *
+         * @type {Readonly<Drawings>}
+         */
+        this.drawings = EMPTY_DRAWINGS;
+
         /** When the timer's last report arrived, by this device's clock.
          *
          * @type {number}
@@ -150,7 +161,8 @@ export class DisplayMirror extends EventEmitter {
                     deckId,
                     version,
                     ...this.timerPart(message.timer),
-                    camera: message.camera
+                    camera: message.camera,
+                    drawings: message.drawings
                 };
             },
             [MessageNames.frameChange]: ({index, id, title, notes}) => ({
@@ -163,7 +175,10 @@ export class DisplayMirror extends EventEmitter {
             [MessageNames.blank]: ({on}) => ({blank: on}),
             [MessageNames.timer]: ({elapsedMs, running, targetMs}) =>
                 this.timerPart({elapsedMs, running, targetMs}),
-            [MessageNames.camera]: ({offFrame, zoom, x, y}) => ({camera: {offFrame, zoom, x, y}})
+            [MessageNames.camera]: ({offFrame, zoom, x, y}) => ({camera: {offFrame, zoom, x, y}}),
+            ...Object.fromEntries(
+                DRAWING_COMMANDS.map(name => [name, command => this.drawingsPart(command)])
+            )
         });
     }
 
@@ -175,6 +190,17 @@ export class DisplayMirror extends EventEmitter {
     timerPart(timer) {
         this.timerArrivedAt = this.now();
         return {timer};
+    }
+
+    /** The drawings after a command the display relayed, as a part, or null when it changes
+     * nothing.
+     *
+     * @param {Message} command - The command.
+     * @returns {?{drawings: Drawings}} The part.
+     */
+    drawingsPart(command) {
+        const drawings = applyDrawing(this.drawings, command);
+        return drawings === this.drawings ? null : {drawings};
     }
 
     /** The time the timer has counted, as far as this surface can know: it stops counting
