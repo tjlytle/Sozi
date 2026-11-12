@@ -15,6 +15,7 @@ import {
     takeQueuedLabels,
     ceiling,
     setStage,
+    keepLeftover,
     addUsage,
     loadState,
     saveState
@@ -85,6 +86,30 @@ describe("state", () => {
         assert.equal(s.issues[25].tries, 0);
         assert.deepEqual(s.issues[25].labels, ["enhancement", "stage:in-progress"]);
         assert.equal(s.issues[25].stage, "stage:in-progress");
+    });
+    test("a stage change drops the patches left for the next try; a refresh keeps them", () => {
+        const s = emptyState();
+        const leftover = {stage: "build", outbox: "/old", patches: ["75-x.patch"]};
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        s.issues[25].leftover = leftover;
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        assert.deepEqual(s.issues[25].leftover, leftover);
+        setStage(s, 25, "stage:in-progress", at);
+        assert.deepEqual(s.issues[25].leftover, leftover);
+        setStage(s, 25, "stage:review", at);
+        assert.equal(s.issues[25].leftover, null);
+        s.issues[25].leftover = leftover;
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        assert.equal(s.issues[25].leftover ?? null, null);
+    });
+    test("a try's patches replace the leftover; a try with none keeps the earlier one", () => {
+        const s = emptyState();
+        applyIssue(s, issue(25, ["stage:in-progress"]));
+        const earlier = {stage: "build", outbox: "/old", patches: ["75-x.patch"]};
+        assert.equal(keepLeftover(s, 25, earlier), 1);
+        assert.deepEqual(s.issues[25].leftover, earlier);
+        assert.equal(keepLeftover(s, 25, {stage: "build", outbox: "/new", patches: []}), 0);
+        assert.deepEqual(s.issues[25].leftover, earlier);
     });
     test("park and wake update labels", () => {
         const s = emptyState();

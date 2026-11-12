@@ -7,11 +7,11 @@
 
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
-import {readResult} from "./outbox.js";
+import {listPatches, readResult} from "./outbox.js";
 import {countTry, parkBranches, parkStub} from "./park.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
-import {stageOf} from "./state.js";
+import {keepLeftover, stageOf} from "./state.js";
 import {
     applyLabels,
     backOff,
@@ -258,7 +258,8 @@ function interruption(ctx, session, result) {
  * on; one whose carried work did not apply puts back the interruption it carried, and counts a
  * try. A session whose login died marks its persona logged out. A session on a stub harness
  * parks the issue at once, and so does one that found several issue branches and no PR head,
- * keeping the interruption it carried.
+ * keeping the interruption it carried. A try that counts keeps the patches it left for the next
+ * one.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -306,6 +307,10 @@ async function judgeIssue(ctx, n, outcome) {
             ctx.log(`${who}: digest note failed: ${String(error)}`);
         });
     } else if (unverified || !(await movedByHand(ctx, n))) {
+        const kept = keepLeftover(ctx.state, n, {stage, outbox, patches: listPatches(outbox)});
+        if (kept > 0) {
+            ctx.log(`${who}: ${kept} patch(es) kept for the next try`);
+        }
         await countTry(ctx, n, outbox);
     }
 }

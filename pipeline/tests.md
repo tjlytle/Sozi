@@ -28,6 +28,10 @@ anyone builds it you write its scenarios and prove they fail (standard 6.6). Loa
   settings above (with none there, copy the `Part of` line of the issue you are on). Never
   the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
+- Work you cannot push is saved as `/outbox/{N}-<slug>.patch`
+  (`git format-patch --stdout origin/master..HEAD`, then `git diff HEAD` for uncommitted
+  work). End the session without a done or wait request: the next try of this stage is
+  handed the patch.
 
 ## Steps
 
