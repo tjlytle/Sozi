@@ -46,6 +46,7 @@ const NON_BLOCK = fs.constants.O_NONBLOCK ?? 0;
  * @property {number} resumes - How many times the session was resumed.
  * @property {"ok" | "error" | "skipped"} hooks - Whether the outside hooks ran: "error" when they crashed, "skipped" when they never ran.
  * @property {"failed"} [carry] - Set when the work carried from a session a usage limit stopped did not apply, so the harness never ran.
+ * @property {string[]} [branches] - Set when no PR head was given and several issue branches matched, so the harness never ran.
  */
 
 /**
@@ -159,11 +160,19 @@ function isObject(value) {
 }
 
 /**
+ * @param {unknown} value - A value from the file.
+ * @returns {value is string[]} Whether it is a non-empty list of strings.
+ */
+function isNameList(value) {
+    return Array.isArray(value) && value.length > 0 && value.every(x => typeof x === "string");
+}
+
+/**
  * Read the result.json the stage runner wrote, filling in defaults; `hooks` is "ok"
  * unless the runner wrote "error" or "skipped". A usage that is not an object (null when
  * the harness wrote no usage.json) reads as zeros with status "error" and `usageKnown`
- * false. A usage `limit` message is kept only as a string, cut to 300 characters, and
- * `carry` only when it is "failed".
+ * false. A usage `limit` message is kept only as a string, cut to 300 characters,
+ * `carry` only when it is "failed", and `branches` only when it is a non-empty list of strings.
  *
  * @param {string} dir - The outbox directory.
  * @param {{log?: (line: string) => void}} [options] - Where to say why a file was not read.
@@ -224,7 +233,8 @@ export function readResult(dir, {log = () => {}} = {}) {
         hooks: HOOKS.includes(/** @type {string} */ (raw.hooks))
             ? /** @type {Result["hooks"]} */ (raw.hooks)
             : "ok",
-        ...(raw.carry === "failed" ? {carry: /** @type {const} */ ("failed")} : {})
+        ...(raw.carry === "failed" ? {carry: /** @type {const} */ ("failed")} : {}),
+        ...(isNameList(raw.branches) ? {branches: raw.branches} : {})
     };
 }
 

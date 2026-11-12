@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {countTry, parkStub} from "../../pipeline/lib/park.js";
+import {countTry, parkBranches, parkStub} from "../../pipeline/lib/park.js";
 import {end, issue, world} from "./pass-world.js";
 
 /**
@@ -130,6 +130,25 @@ describe("parkStub", () => {
         const [[, , body]] = comments(w);
         assert.match(body, /set `PIPELINE_HARNESS_REVIEW`/);
         assert.doesNotMatch(body, /\*\*Harness\*\* line/);
+    });
+});
+
+describe("parkBranches", () => {
+    test("parks the issue at once, names the branches and counts no try", async () => {
+        const {ctx, w} = context("stage:in-progress");
+        w.state.issues[25].session = {stage: "build"};
+        await parkBranches(ctx, 25, ["25-a", "25-b"]);
+        assert.equal(w.state.issues[25].stage, "stage:parked");
+        assert.equal(w.state.issues[25].tries, 0);
+        assert.deepEqual(ctx.summary.parked, [25]);
+        const [[persona, n, body]] = comments(w);
+        assert.equal(persona, "ops");
+        assert.equal(n, 25);
+        assert.match(body, /no open PR closes this issue and 2 branches match `25-\*`/);
+        assert.match(body, /\(`25-a`, `25-b`\)/);
+        assert.match(body, /the `build` stage cannot tell which to work on; parking/);
+        assert.match(body, new RegExp(`@${w.settings.human}, delete the stale branch`));
+        assert.match(body, /comment to wake it\.$/);
     });
 });
 

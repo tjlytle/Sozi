@@ -330,6 +330,27 @@ describe("judging a session stopped at its usage limit", () => {
         assert.equal(w.state.issues[25].tries, 1);
         assert.ok(w.logs.some(l => /#25: the carried work did not apply/.test(l)));
     });
+    test("a session that found several issue branches parks, keeps its carry, no try", async () => {
+        const w = world({issues: [issue(25, ["stage:in-progress"])]});
+        const gone = {
+            harness: "claude",
+            model: "claude-opus-5-5",
+            session: "s0",
+            outbox: "/carry",
+            persona: "builder",
+            stage: "build"
+        };
+        w.state.issues[25].interrupted = gone;
+        await w.p.pass();
+        const outbox = w.state.issues[25].session.outbox;
+        const branches = ["25-a", "25-b"];
+        end(w, outbox, "c25", {exit: 1, status: "error", hooks: "skipped", branches});
+        await w.p.pass();
+        assert.equal(w.state.issues[25].stage, "stage:parked");
+        assert.deepEqual(w.state.issues[25].interrupted, gone);
+        assert.equal(w.state.issues[25].tries, 0);
+        assert.ok(w.calls.some(c => c[0] === "comment" && /`25-a`, `25-b`/.test(String(c.at(-1)))));
+    });
     test("a session that ended for another reason is not interrupted", async () => {
         const w = world({issues: [issue(25, ["stage:in-progress"])]});
         await w.p.pass();
