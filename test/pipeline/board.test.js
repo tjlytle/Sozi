@@ -602,3 +602,90 @@ describe("board", () => {
         assert.ok(errors.some(e => /missing\.json/.test(e)));
     });
 });
+
+describe("a full sync", () => {
+    /** @type {(number: number, status: string) => any} */
+    const card = (number, status) => ({
+        id: `I${number}`,
+        updatedAt: "2026-10-21T01:00:00Z",
+        content: {number},
+        status: {name: status, updatedAt: "2026-10-21T01:00:00Z"}
+    });
+    /** @type {(nodes: any[], next?: string) => string} */
+    const page = (nodes, next) =>
+        JSON.stringify({
+            data: {
+                node: {
+                    items: {
+                        nodes,
+                        pageInfo: {hasNextPage: next !== undefined, endCursor: next ?? null}
+                    }
+                }
+            }
+        });
+    /** @type {(number: number, state: string, labels: string[]) => any} */
+    const listed = (number, state, labels) => ({
+        number,
+        url: `https://github.com/tjlytle/Sozi/issues/${number}`,
+        state,
+        labels: labels.map(name => ({name}))
+    });
+    /**
+     * Run a full sync over a board and an issue list.
+     * @param {Record<string, string>} pages - Item pages by command prefix.
+     * @param {any[]} issues - The issue list.
+     * @returns {Promise<{calls: string[][], errors: string[]}>} - The commands and the error lines.
+     */
+    const fullSync = async (pages, issues) => {
+        const {run, calls} = fake({
+            ...pages,
+            "gh-as - issue list": JSON.stringify(issues),
+            "gh-as - project item-add": JSON.stringify({id: "NEW"})
+        });
+        /** @type {string[]} */
+        const errors = [];
+        const book = {boardMeta: META};
+        await sync({all: true, book}, {repo: REPO, run, out() {}, err: t => errors.push(t)});
+        return {calls, errors};
+    };
+    /** @type {(calls: string[][], n: number) => string[][]} */
+    const callsFor = (calls, n) =>
+        calls.filter(c => c.join(" ").includes(`issues/${n}`) || c.includes(`I${n}`));
+    test("reads every item page; a card on the second page costs no add and no edit", async () => {
+        const {calls} = await fullSync(
+            {
+                "gh-as - api graphql": page([card(25, "Review")], "C1"),
+                "gh-as - api graphql -f id=P1 -f cursor=C1": page([card(26, "Review")])
+            },
+            [listed(25, "OPEN", ["stage:review"]), listed(26, "OPEN", ["stage:review"])]
+        );
+        assert.equal(calls.filter(isGraphql).length, 2);
+        assert.equal(calls.filter(c => c[3] === "item-add").length, 0);
+        assert.equal(edits(calls).length, 0);
+    });
+    test("a closed issue whose card says Done makes no call", async () => {
+        const {calls} = await fullSync({"gh-as - api graphql": page([card(25, "Done")])}, [
+            listed(25, "CLOSED", ["stage:done"])
+        ]);
+        assert.deepEqual(callsFor(calls, 25), []);
+    });
+    test("a closed issue with no card is added and moved to Done", async () => {
+        const {calls} = await fullSync({"gh-as - api graphql": page([])}, [
+            listed(25, "CLOSED", ["stage:done"])
+        ]);
+        assert.equal(calls.filter(c => c[3] === "item-add").length, 1);
+        assert.deepEqual(
+            edits(calls).map(c => c.at(-1)),
+            ["o-Done"]
+        );
+    });
+    test("an issue list that comes back at the limit writes one line to err", async () => {
+        const issues = Array.from({length: 1000}, (_, i) => listed(i + 1, "CLOSED", []));
+        const done = issues.map(i => card(i.number, "Done"));
+        const {calls, errors} = await fullSync({"gh-as - api graphql": page(done)}, issues);
+        const list = calls.find(c => c[3] === "list" && c[2] === "issue") ?? [];
+        assert.equal(list[list.indexOf("--limit") + 1], "1000");
+        assert.equal(errors.length, 1);
+        assert.match(errors[0], /1000/);
+    });
+});
