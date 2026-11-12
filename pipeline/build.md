@@ -31,6 +31,10 @@ the policy for this session; obey them.
   the epic you are working in: Tim triages the backlog and moves an issue into an epic.
 - You do not change labels on #{N}. The loop moves it from your done request at the end.
 - Never merge. Never commit to or push `master`.
+- Work you cannot push is saved as `/outbox/{N}-<slug>.patch`
+  (`git format-patch --stdout origin/master..HEAD`, then `git diff HEAD` for uncommitted
+  work). End the session without a done or wait request: the next try of this stage is
+  handed the patch.
 
 ## Steps
 
