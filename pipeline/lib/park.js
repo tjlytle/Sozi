@@ -23,8 +23,9 @@ import {writeComment, writeLabel} from "./sync.js";
  */
 async function parkIssue(ctx, n, text) {
     const stage = ctx.state.issues[n].stage;
-    park(ctx.state, n);
-    ctx.state.issues[n].parkedAt = new Date(ctx.clock.now()).toISOString();
+    const now = new Date(ctx.clock.now()).toISOString();
+    park(ctx.state, n, now);
+    ctx.state.issues[n].parkedAt = now;
     await writeComment(ctx, n, text);
     await writeLabel(ctx, {issue: n, add: ["stage:parked"], remove: stage ? [stage] : []});
     ctx.summary.moved.push([n, stage, "stage:parked"]);

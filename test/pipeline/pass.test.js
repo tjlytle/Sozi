@@ -279,3 +279,23 @@ describe("unblocking", () => {
         assert.equal(w.state.issues[30].stage, "stage:tests");
     });
 });
+
+describe("the priority label", () => {
+    test("a closed issue loses priority at the next sync; an open one keeps it", async () => {
+        const w = world({
+            issues: [
+                issue(25, ["stage:done", "priority"], {state: "CLOSED"}),
+                issue(26, ["stage:todo", "priority"])
+            ]
+        });
+        await w.p.pass();
+        const labels = w.calls.filter(c => c[0] === "label").map(c => c[1]);
+        assert.deepEqual(
+            labels.filter(op => op.remove.includes("priority")),
+            [{issue: 25, add: [], remove: ["priority"]}]
+        );
+        assert.ok(w.logs.includes("#25: closed; priority removed"));
+        assert.ok(!w.state.issues[25].labels.includes("priority"));
+        assert.ok(w.state.issues[26].labels.includes("priority"));
+    });
+});
