@@ -9,7 +9,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {parseArgs, validateArgs, parseSize, fileArgument} = require("../../src/js/cli/args.js");
-const {runSozi, runSoziAsync, withTempDeck} = require("./helpers.js");
+const {runSozi, runSoziAsync, withTempDeck, runReport} = require("./helpers.js");
 
 const ELECTRON = "/path/to/electron";
 const APP = "/path/to/build/electron";
@@ -381,11 +381,11 @@ describe("electron entry", () => {
                     cwd: deck.dir,
                     env: {...process.env, XDG_CONFIG_HOME: config}
                 });
-                const {code, stdout, stderr, json} = await done;
-                assert.ok(json, `stdout is not JSON: ${stdout}\nstderr: ${stderr}`);
-                assert.equal(code, 0, `${stdout}\n${stderr}`);
-                assert.equal(json.ok, true);
-                assert.doesNotMatch(stdout, /changed/);
+                const run = await done;
+                assert.ok(run.json, `stdout is not JSON: ${runReport(run)}`);
+                assert.equal(run.code, 0, runReport(run));
+                assert.equal(run.json.ok, true);
+                assert.doesNotMatch(run.stdout, /changed/);
             } finally {
                 clearInterval(rewrite);
                 fs.rmSync(config, {recursive: true, force: true});
@@ -393,6 +393,19 @@ describe("electron entry", () => {
             }
         }
     );
+
+    test("a clean run reports no lost Chromium process and ends without a signal", () => {
+        const deck = withTempDeck("basic");
+        try {
+            const run = runSozi(["inspect", "basic.svg"], {cwd: deck.dir});
+            assert.ok(run.json, `stdout is not JSON: ${runReport(run)}`);
+            assert.equal(run.code, 0, runReport(run));
+            assert.equal(run.signal, null);
+            assert.doesNotMatch(run.stderr, /process gone/);
+        } finally {
+            deck.cleanup();
+        }
+    });
 
     test("no display exits 2", {skip: process.platform !== "linux"}, () => {
         const env = {...process.env};
