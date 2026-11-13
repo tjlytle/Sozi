@@ -6,16 +6,9 @@
 
 import {isPresetName} from "../protocol/layoutPresets.js";
 import {matchForWidth, presetFileName, presetFileText, setCommand} from "./presets.js";
+import {Downloads} from "./Downloads.js";
 
 /** @typedef {import("../protocol/layoutPresets.js").PresetLayout} PresetLayout */
-
-/** How long a download has to start before its URL goes away: some phones are slow to look.
- *
- * @readonly
- * @default
- * @type {number}
- */
-const REVOKE_DELAY_MS = 40000;
 
 /**
  * What a preset form saves, and whom it tells.
@@ -41,14 +34,13 @@ export class PresetForm {
      */
     constructor(doc, host, options) {
         this.doc = doc;
-        this.host = host;
         this.options = options;
 
-        /** The URL of each download that has not had its time yet, with its timer.
+        /** Where the preset file is saved from.
          *
-         * @type {Map<string, any>}
+         * @type {Downloads}
          */
-        this.downloads = new Map();
+        this.downloads = new Downloads(doc, host);
 
         this.element = doc.createElement("form");
         this.element.className = "sozi-preset-form";
@@ -138,9 +130,10 @@ export class PresetForm {
         }
         const {deckId, layout, onSaved} = this.options;
         const fileName = presetFileName(deckId, name);
-        this.download(
+        this.downloads.download(
             fileName,
-            presetFileText(/** @type {"phone" | "laptop"} */ (this.match.value), layout())
+            presetFileText(/** @type {"phone" | "laptop"} */ (this.match.value), layout()),
+            "application/json"
         );
         this.close();
         onSaved(
@@ -149,37 +142,9 @@ export class PresetForm {
         );
     }
 
-    /** Download a text file, and let its URL go once the download has had time to start.
-     *
-     * @param {string} fileName - The file's name.
-     * @param {string} text - Its content.
-     */
-    download(fileName, text) {
-        const {Blob, URL, setTimeout} = this.host;
-        const url = URL.createObjectURL(new Blob([text], {type: "application/json"}));
-        const anchor = this.doc.createElement("a");
-        anchor.href = url;
-        anchor.download = fileName;
-        anchor.click();
-        const timer = setTimeout(() => this.release(url), REVOKE_DELAY_MS);
-        this.downloads.set(url, timer);
-    }
-
-    /** Revoke a download's URL.
-     *
-     * @param {string} url - The URL.
-     */
-    release(url) {
-        this.host.clearTimeout(this.downloads.get(url));
-        this.downloads.delete(url);
-        this.host.URL.revokeObjectURL(url);
-    }
-
     /** Remove the listeners, the waiting URLs and the form from the page. */
     dispose() {
-        for (const url of [...this.downloads.keys()]) {
-            this.release(url);
-        }
+        this.downloads.dispose();
         this.element.removeEventListener("submit", this.onSubmit, false);
         this.element.removeEventListener("keydown", this.onKeyDown, false);
         this.cancel.removeEventListener("click", this.onCancel, false);

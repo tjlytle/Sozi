@@ -8,9 +8,9 @@
  */
 
 import {getStroke} from "perfect-freehand";
-import {Tools} from "../protocol/drawings.js";
+import {Tools} from "./drawings.js";
 
-/** @typedef {import("../protocol/drawings.js").Stroke} Stroke */
+/** @typedef {import("./drawings.js").Stroke} Stroke */
 
 /** How much each tool's width follows the pressure: the pen swells and thins, the highlighter
  * keeps its width.

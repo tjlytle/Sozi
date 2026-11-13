@@ -14,12 +14,14 @@ import {readPresets} from "./layoutPresets.js";
 import {STOPPED_TIMER, readTimerState} from "./timer.js";
 import {readViewport} from "./viewport.js";
 import {EMPTY_DRAWINGS, readDrawings} from "./drawings.js";
+import {readCanvas} from "./canvas.js";
 
 /** @typedef {import("./layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("./viewport.js").Viewport} Viewport */
 /** @typedef {import("./timer.js").TimerState} TimerState */
 /** @typedef {import("./camera.js").CameraView} CameraView */
 /** @typedef {import("./drawings.js").Drawings} Drawings */
+/** @typedef {import("./canvas.js").Canvas} Canvas */
 
 /** Who says `hello`: the deck that plays the presentation, or a surface that watches it.
  *
@@ -53,6 +55,8 @@ export const Roles = Object.freeze({display: "display", surface: "surface"});
  * @property {TimerState} [timer] - The talk timer as it is now.
  * @property {CameraView} [camera] - Where the camera looks, relative to the current frame.
  * @property {Drawings} [drawings] - The drawings on the deck, every stroke included.
+ * @property {?Canvas} [canvas] - The source SVG's `viewBox`, `width` and `height`, null for a
+ *     deck built before they were recorded.
  */
 
 /** @typedef {{name: "hello", role: "surface"}} SurfaceHelloMessage */
@@ -79,7 +83,8 @@ export function helloMessage(role, state) {
             layouts = {},
             timer = STOPPED_TIMER,
             camera = ON_FRAME,
-            drawings = EMPTY_DRAWINGS
+            drawings = EMPTY_DRAWINGS,
+            canvas = null
         } = /** @type {DisplayState} */ (state);
         return {
             name: "hello",
@@ -94,7 +99,8 @@ export function helloMessage(role, state) {
             layouts,
             timer,
             camera,
-            drawings
+            drawings,
+            canvas
         };
     }
     return {name: "hello", role: "surface"};
@@ -148,9 +154,9 @@ function readFrames(frames) {
  * Read a received `hello`.
  *
  * A missing `version`, `frames` or `layouts` reads as none, a missing `timer` as a stopped one, a
- * missing `camera` as on its frame and missing `drawings` as empty, so a newer surface can join an
- * older deck. A bad preset is dropped, never the whole message; a malformed `frames`, `timer`,
- * `camera` or `drawings` refuses it.
+ * missing `camera` as on its frame, missing `drawings` as empty and a missing `canvas` as null, so
+ * a newer surface can join an older deck. A bad preset is dropped, never the whole message; a
+ * malformed `frames`, `timer`, `camera`, `drawings` or `canvas` refuses it.
  *
  * @param {any} data - The message.
  * @returns {HelloMessage | null} The message, or null if it is malformed.
@@ -170,6 +176,8 @@ export function readHello(data) {
     const timer = data.timer === undefined ? STOPPED_TIMER : readTimerState(data.timer);
     const camera = data.camera === undefined ? ON_FRAME : readCameraView(data.camera);
     const drawings = data.drawings === undefined ? EMPTY_DRAWINGS : readDrawings(data.drawings);
+    const noCanvas = data.canvas === undefined || data.canvas === null;
+    const canvas = noCanvas ? null : readCanvas(data.canvas);
     const valid =
         typeof deckId === "string" &&
         typeof version === "string" &&
@@ -180,7 +188,8 @@ export function readHello(data) {
         typeof blank === "boolean" &&
         timer !== null &&
         camera !== null &&
-        drawings !== null;
+        drawings !== null &&
+        (canvas !== null || noCanvas);
     const layouts = readPresets(data.layouts).presets;
     return valid
         ? helloMessage(Roles.display, {
@@ -194,7 +203,8 @@ export function readHello(data) {
               layouts,
               timer,
               camera,
-              drawings
+              drawings,
+              canvas
           })
         : null;
 }

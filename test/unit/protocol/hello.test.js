@@ -16,6 +16,7 @@ const timer = {elapsedMs: 1500, running: true, targetMs: 60000};
 const camera = {offFrame: true, zoom: 2, x: -0.5, y: 0.25};
 const stroke = {id: "s1", tool: "pen", color: "#ff0000", width: 6, points: [[1, 2, 0.5]]};
 const drawings = {visible: false, strokes: [{...stroke, done: true}]};
+const canvas = {viewBox: [0, 0, 800, 600], width: "800", height: "600"};
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
 const frames = [{index: 0, id: "frame1", title: "One", notes: ""}, frame];
@@ -35,7 +36,8 @@ const displayState = {
     layouts,
     timer,
     camera,
-    drawings
+    drawings,
+    canvas
 };
 const hello = helloMessage(Roles.display, displayState);
 
@@ -156,6 +158,29 @@ describe("protocol hello", () => {
     test("a hello with malformed drawings is refused", () => {
         for (const bad of [null, {visible: true}, {...drawings, visible: "yes"}]) {
             assert.equal(readMessage({...hello, drawings: bad}), null, JSON.stringify(bad));
+        }
+    });
+
+    test("a display's hello carries the source SVG's canvas", () => {
+        const read = /** @type {any} */ (readMessage({...hello, canvas: {...canvas, extra: 1}}));
+        assert.deepEqual(read.canvas, canvas);
+    });
+
+    test("a hello without a canvas, from an older deck, reads as none", () => {
+        for (const older of [
+            {...hello, canvas: undefined},
+            {...hello, canvas: null}
+        ]) {
+            assert.equal(/** @type {any} */ (readMessage(older)).canvas, null);
+        }
+        const state = {...displayState, canvas: undefined};
+        assert.equal(/** @type {any} */ (helloMessage(Roles.display, state)).canvas, null);
+    });
+
+    test("a hello with a malformed canvas is refused", () => {
+        const bad = ["0 0 800 600", {...canvas, viewBox: [0, 0, 0, 600]}, {...canvas, width: "1%"}];
+        for (const data of bad) {
+            assert.equal(readMessage({...hello, canvas: data}), null, JSON.stringify(data));
         }
     });
 
