@@ -9,16 +9,13 @@
 const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 
-const {limit, runSozi, runReport, withTempDeck} = require("./helpers.js");
-const {decodePng} = require("./decode.ts");
-const {spawnKeepingOutput} = require("./spawn.ts");
+const {runSozi, runReport, withTempDeck} = require("./helpers.js");
+const {browserDom, browserScreenshot} = require("./chrome.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
-/** @typedef {import("node:test").TestContext} TestContext */
 
 /**
  * Run a command in the directory of a temp deck and check that it succeeded.
@@ -49,121 +46,6 @@ function soziUsageError(deck, ...args) {
     assert.equal(run.json.ok, false);
     assert.ok(!("exitCode" in run.json));
     return run;
-}
-
-const CHROME = "/usr/bin/google-chrome";
-
-/** Check the result of a headless Chrome run.
- *
- * Only a failure to spawn Chrome (ENOENT, EACCES) skips the test; any other spawn error
- * or a non-zero exit status fails it. A timeout never reaches here: `spawnKeepingOutput`
- * throws it with Chrome's output.
- *
- * @param {TestContext} t - The context of the running test, to skip it.
- * @param {import("node:child_process").SpawnSyncReturns<string>} result - The result of
- *  `spawnKeepingOutput` for Chrome.
- * @returns {boolean} - `true` if Chrome ran, `false` if the test was skipped.
- */
-function chromeRan(t, result) {
-    // Cast: a spawn failure is a system error, which has a code.
-    if (
-        result.error &&
-        ["ENOENT", "EACCES"].includes(/** @type {Error & {code: string}} */ (result.error).code)
-    ) {
-        t.skip(`headless Chrome could not be run: ${result.error}`);
-        return false;
-    }
-    assert.ifError(result.error);
-    assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
-    return true;
-}
-
-/** The DOM of an HTML file after its scripts ran in headless Chrome.
- *
- * Skips the test and returns null when Chrome is missing or cannot be spawned;
- * a Chrome run that fails is a test failure, and one that times out throws with its output.
- *
- * @param {TestContext} t - The context of the running test, to skip it.
- * @param {string} file - The path of the HTML file.
- * @returns {?string} - The serialized DOM, or null when the test was skipped.
- */
-function browserDom(t, file) {
-    if (!fs.existsSync(CHROME)) {
-        t.skip(`${CHROME} not found`);
-        return null;
-    }
-    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
-    try {
-        const result = spawnKeepingOutput(
-            CHROME,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                `--user-data-dir=${profile}`,
-                "--dump-dom",
-                "file://" + file
-            ],
-            {
-                encoding: "utf8",
-                timeout: limit(60000),
-                killSignal: "SIGKILL",
-                maxBuffer: 64 * 1024 * 1024
-            }
-        );
-        if (!chromeRan(t, result)) {
-            return null;
-        }
-        return result.stdout;
-    } finally {
-        fs.rmSync(profile, {recursive: true, force: true});
-    }
-}
-
-/** A PNG screenshot of an HTML file in headless Chrome, after its scripts ran.
- *
- * Skips the test and returns null when Chrome is missing or cannot be spawned;
- * a Chrome run that fails is a test failure, and one that times out throws with its output.
- *
- * @param {TestContext} t - The context of the running test, to skip it.
- * @param {string} file - The path of the HTML file.
- * @param {object} [size] - The size of the browser window.
- * @param {number} [size.width] - The width in pixels (default: 800).
- * @param {number} [size.height] - The height in pixels (default: 450).
- * @returns {?{width: number, height: number, pixel: Function}} - The decoded screenshot, or
- *  null when the test was skipped.
- */
-function browserScreenshot(t, file, {width = 800, height = 450} = {}) {
-    if (!fs.existsSync(CHROME)) {
-        t.skip(`${CHROME} not found`);
-        return null;
-    }
-    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
-    try {
-        const png = path.join(profile, "shot.png");
-        const result = spawnKeepingOutput(
-            CHROME,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                "--hide-scrollbars",
-                `--user-data-dir=${profile}`,
-                // Let the player run its initial transition before the screenshot.
-                "--virtual-time-budget=5000",
-                `--window-size=${width},${height}`,
-                `--screenshot=${png}`,
-                "file://" + file
-            ],
-            {encoding: "utf8", timeout: limit(60000), killSignal: "SIGKILL"}
-        );
-        if (!chromeRan(t, result)) {
-            return null;
-        }
-        return decodePng(fs.readFileSync(png));
-    } finally {
-        fs.rmSync(profile, {recursive: true, force: true});
-    }
 }
 
 /**
