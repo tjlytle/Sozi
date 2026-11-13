@@ -27,6 +27,8 @@ const {
 
 /** Run an export function of the built exporter module in the Electron main process.
  *
+ * Electron starts with ELECTRON_TEST_SWITCHES, in front of the harness path.
+ *
  * @param {object} args - `{fn, presentation, html, opts}`.
  * @returns {object} - The report of the harness: `{ok, result | error, elapsedMs, windows, isolation}`.
  */
