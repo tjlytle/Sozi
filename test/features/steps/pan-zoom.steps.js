@@ -10,10 +10,7 @@
 import {Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
-import {WAIT} from "../support/panels.js";
-
-/** The iframe of the current-frame preview. */
-const CURRENT = ".sozi-current-frame";
+import {CURRENT, WAIT, currentPreviewDeck} from "../support/panels.js";
 
 /** The box the current-frame preview draws into, which holds its button. */
 const CURRENT_BOX = `.sozi-preview-box:has(> ${CURRENT})`;
@@ -67,23 +64,6 @@ function relativeView(page) {
             y: ((frame.cy - camera.cy) * camera.scale) / vh
         };
     });
-}
-
-/** The deck inside a page's current-frame preview, once it shows its frame.
- *
- * @param {import("playwright").Page} page - A presenter page.
- * @returns {Promise<import("playwright").Frame>} - The preview's window.
- */
-async function currentPreviewDeck(page) {
-    const iframe = await page.locator(CURRENT).elementHandle(WAIT);
-    const frame = await iframe?.contentFrame();
-    assert.ok(frame, "the current-frame preview has a window");
-    await frame.waitForFunction(
-        () => Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame),
-        null,
-        WAIT
-    );
-    return frame;
 }
 
 /** The box of the current-frame preview on a page, once its deck is ready.
