@@ -206,9 +206,10 @@ Then("the {string} button in the {string} panel is enabled", async function (nam
     await expect(button).toBeEnabled(WAIT);
 });
 
-Then("the deck's {string}, {string} and {string} files are unchanged", async function (...kinds) {
+// Cucumber counts a step's declared parameters, so each of the three is named: `...kinds` has none.
+Then("the deck's {string}, {string} and {string} files are unchanged", async function (a, b, c) {
     // `deckFileHashes` reads these three, as `buildDeck` did.
-    assert.deepEqual(kinds, [".svg", ".sozi.json", ".sozi.html"], "the deck's own files");
+    assert.deepEqual([a, b, c], [".svg", ".sozi.json", ".sozi.html"], "the deck's own files");
     // The export has finished before the files are read, so a write it made would show.
     await savedFile(this);
     const deck = builtDeck(this.fixture);
