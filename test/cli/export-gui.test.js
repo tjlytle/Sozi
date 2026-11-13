@@ -31,7 +31,7 @@ const {
  *
  * @param {object} deck - A temp deck from withTempDeck.
  * @param {string} type - The export type: pdf, pptx or video.
- * @param {string[]} [switches] - Chromium switches for Electron.
+ * @param {string[]} [switches] - More Chromium switches for Electron, after ELECTRON_TEST_SWITCHES.
  * @returns {{code: number|null, output: string}} - The exit code and the console output.
  */
 function guiExport(deck, type, switches = []) {
