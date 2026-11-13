@@ -17,7 +17,7 @@
         <title>{{ pres.title | escape }}</title>
         {% endif %}
 {% endraw %}
-        <style>{{'{% raw %}'}}{{ markdownCss|safe }}{{ highlightCss|safe }}{{'{% endraw %}'}}</style>
+        <style>{{'{% raw %}'}}{{ markdownCss|safe }}{{ highlightCss|safe }}{{ presenterCss|safe }}{{'{% endraw %}'}}</style>
 {% raw %}
         <style>
             /* The deck's aspect ratio until the display reports its own. */
@@ -37,6 +37,13 @@
                 --sozi-shadow: rgba(0, 0, 0, 0.2);
                 --sozi-clock-near: rgb(140, 95, 0);
                 --sozi-clock-over: rgb(170, 50, 40);
+                /* The drawing toolbar's swatches: the colours DrawingToolbar.js sends. */
+                --sozi-ink-red: #e53935;
+                --sozi-ink-blue: #1e88e5;
+                --sozi-ink-green: #43a047;
+                --sozi-ink-yellow: #fdd835;
+                --sozi-space-half: 0.25rem;
+                --sozi-space-double: 1rem;
             }
 
             html, body {

@@ -7,6 +7,7 @@
  * A surface sends a command (begin a stroke, add points to it, end it, erase it, undo, clear,
  * show or hide); the display carries it out and relays it to every surface. The whole drawings
  * go only in the display's `hello` and, as `drawings`, from a presenter to its preview decks.
+ * A presenter also tells its current-frame preview what its pen draws with, in `drawingTool`.
  * `readMessage` in `messages.js` reads these messages too; `strokes.js` applies them.
  *
  * @module
@@ -17,6 +18,19 @@
  * @readonly
  */
 export const Tools = Object.freeze({pen: "pen", highlighter: "highlighter"});
+
+/** The tools a preview's pen takes: those a stroke is drawn with, and the eraser.
+ *
+ * @readonly
+ */
+export const PenTools = Object.freeze({...Tools, eraser: "eraser"});
+
+/** The widest a preview's pen draws, as a share of the preview's shorter side.
+ *
+ * @readonly
+ * @type {number}
+ */
+export const MAX_TOOL_WIDTH = 0.1;
 
 /** The most points one message carries.
  *
@@ -77,6 +91,19 @@ const MAX_ID_LENGTH = 64;
 /** @typedef {{name: "drawingClear"}} DrawingClearMessage */
 /** @typedef {{name: "drawingVisible", visible: boolean}} DrawingVisibleMessage */
 /** @typedef {{name: "drawings"} & Drawings} DrawingsMessage */
+
+/**
+ * What a preview's pen draws with.
+ *
+ * @typedef {object} DrawingTool
+ * @property {boolean} draw - Is draw mode on, so that a mouse or a finger draws too?
+ * @property {string} tool - One of `PenTools`.
+ * @property {string} color - The colour, as `#rrggbb`.
+ * @property {number} width - The width, as a share of the preview's shorter side, up to
+ *   `MAX_TOOL_WIDTH`.
+ */
+
+/** @typedef {{name: "drawingTool"} & DrawingTool} DrawingToolMessage */
 
 /** A command a surface sends to change the drawings, which the display relays.
  *
@@ -189,6 +216,26 @@ export function drawingsMessage({visible, strokes}) {
 }
 
 /**
+ * Build a `drawingTool`: what the current-frame preview's pen draws with.
+ *
+ * @param {DrawingTool} tool - The tool.
+ * @returns {DrawingToolMessage} The message.
+ */
+export function drawingToolMessage({draw, tool, color, width}) {
+    return {name: "drawingTool", draw, tool, color, width};
+}
+
+/**
+ * Is it a colour as the protocol carries one: `#rrggbb`?
+ *
+ * @param {any} v - The value.
+ * @returns {boolean} True for a colour.
+ */
+function isColor(v) {
+    return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+}
+
+/**
  * Is it a stroke id: a string of 1 to 64 characters?
  *
  * @param {any} v - The value.
@@ -248,8 +295,7 @@ function readStrokeStart(data, maxPoints) {
     const valid =
         isId(id) &&
         Object.values(Tools).includes(tool) &&
-        typeof color === "string" &&
-        /^#[0-9a-f]{6}$/i.test(color) &&
+        isColor(color) &&
         isNumber(width) &&
         width > 0 &&
         points !== null;
@@ -361,4 +407,21 @@ export function readDrawingVisible({visible}) {
 export function readDrawingsMessage(data) {
     const drawings = readDrawings(data);
     return drawings && drawingsMessage(drawings);
+}
+
+/**
+ * Read a received `drawingTool`.
+ *
+ * @param {any} data - The message.
+ * @returns {DrawingToolMessage | null} The message, or null if a field is malformed.
+ */
+export function readDrawingTool({draw, tool, color, width}) {
+    const valid =
+        typeof draw === "boolean" &&
+        Object.values(PenTools).includes(tool) &&
+        isColor(color) &&
+        isNumber(width) &&
+        width > 0 &&
+        width <= MAX_TOOL_WIDTH;
+    return valid ? drawingToolMessage({draw, tool, color, width}) : null;
 }

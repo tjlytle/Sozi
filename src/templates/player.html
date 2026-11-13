@@ -151,6 +151,16 @@
                 touch-action: none;
             }
 
+            /* The current-frame preview's pen (PreviewPen): a crosshair in draw mode, and a
+               cell for the eraser. A stylus draws in pan mode too, with its own cursor. */
+            [data-sozi-draw="true"] {
+                cursor: crosshair;
+            }
+
+            [data-sozi-draw="true"][data-sozi-tool="eraser"] {
+                cursor: cell;
+            }
+
             @keyframes spinner {
                 to { transform: rotate(360deg); }
             }

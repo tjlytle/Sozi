@@ -29,6 +29,7 @@ import {ThumbnailSource} from "./presenter/ThumbnailSource";
 
 /** @typedef {import("./protocol/messages").Message} Message */
 /** @typedef {import("./presenter/panels").PanelDefinition} PanelDefinition */
+/** @typedef {import("./presenter/panels").PanelHandle} PanelHandle */
 
 /** The width of a thumbnail in the Frames panel, in pixels: a tile's width on a sharp phone.
  *
@@ -204,9 +205,10 @@ function panelSpecs(presenter, mirror, send, src) {
      * @param {string} id - The panel's id.
      * @param {string} title - Its title, the name of a preview's iframe.
      * @param {HTMLElement} element - Its element.
+     * @param {PanelHandle} panel - Its handle, for the current preview's Maximise.
      * @returns {{dispose: () => void}} The panel.
      */
-    const create = (id, title, element) => {
+    const create = (id, title, element, panel) => {
         switch (id) {
             case "notes":
                 return new NotesPanel(element, mirror, {
@@ -229,7 +231,8 @@ function panelSpecs(presenter, mirror, send, src) {
                     offset,
                     className: `sozi-${id}-frame`,
                     title,
-                    src: src()
+                    src: src(),
+                    panel
                 });
             }
         }
@@ -240,8 +243,8 @@ function panelSpecs(presenter, mirror, send, src) {
         icon,
         description,
         defaults,
-        render: element => {
-            const drawn = create(id, title, element);
+        render: (element, panel) => {
+            const drawn = create(id, title, element, panel);
             return () => drawn.dispose();
         }
     }));

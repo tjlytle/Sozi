@@ -10,6 +10,18 @@
 /** @typedef {import("./Workspace.js").PanelSpec} PanelSpec */
 
 /**
+ * What a panel's `render` is given besides its element: a way to ask the workspace for what
+ * the panel's ⋯ menu does.
+ *
+ * @typedef {object} PanelHandle
+ * @property {() => void} maximise - Fill the workspace with the panel, or bring the layout
+ *   back if a panel fills it.
+ * @property {boolean} maximised - Does a panel fill the workspace?
+ * @property {(listener: () => void) => () => void} onMaximisedChange - Calls the listener each
+ *   time a panel fills the workspace or stops filling it; gives the function that stops it.
+ */
+
+/**
  * What an add-on, or the presenter itself, registers.
  *
  * @typedef {object} PanelDefinition
@@ -19,8 +31,8 @@
  *   title's first letter.
  * @property {string} [description] - One line that says what it is, under its title in the +
  *   menu; empty by default.
- * @property {(element: HTMLElement) => (void | (() => void))} [render] - Draws the panel;
- *   may return the function that cleans it up.
+ * @property {(element: HTMLElement, handle: PanelHandle) => (void | (() => void))} [render] -
+ *   Draws the panel; may return the function that cleans it up.
  * @property {string} [url] - The page to embed instead: exactly one of `render` or `url`.
  * @property {{position?: object, inactive?: boolean, initialHeight?: number}} [defaults] -
  *   Its place in the default layout, as a `PanelSpec` has it.
@@ -57,14 +69,16 @@ function noCleanup() {}
 /**
  * Keep an add-on's render from stopping the panels that come after it.
  *
- * @param {(element: HTMLElement) => any} render - The panel's render.
+ * @param {(element: HTMLElement, handle: PanelHandle) => any} render - The panel's render.
  * @param {string} title - The panel's title.
- * @returns {(element: HTMLElement) => () => void} A render that always gives a cleanup.
+ * @returns {(element: HTMLElement, handle?: PanelHandle) => () => void} A render that always
+ *   gives a cleanup, and hands the panel's handle on.
  */
 function safeRender(render, title) {
-    return element => {
+    return (element, handle) => {
         try {
-            const cleanup = render(element);
+            // Cast: the workspace always passes a handle; only a unit test leaves it out.
+            const cleanup = render(element, /** @type {PanelHandle} */ (handle));
             return typeof cleanup === "function" ? cleanup : noCleanup;
         } catch (err) {
             // The speaker sees which panel failed; the stack is for the add-on's author.

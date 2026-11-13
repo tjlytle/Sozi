@@ -204,7 +204,8 @@ When("the {string} tab is chosen", async function (title) {
 When("the {string} button in the {string} panel is pressed", async function (name, title) {
     // Dockview hides a tab that is behind another one, its buttons with it.
     await tabOf(this.presenter, title).click(WAIT);
-    await contentOf(this.presenter, title).getByRole("button", {name}).click(WAIT);
+    // Exact, so that "Draw" is not also "Hide drawings".
+    await contentOf(this.presenter, title).getByRole("button", {name, exact: true}).click(WAIT);
 });
 
 When("the {string} panel is scrolled into view", async function (title) {

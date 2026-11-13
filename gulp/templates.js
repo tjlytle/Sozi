@@ -5,6 +5,9 @@ const newer = require("gulp-newer");
 const nunjucks = require("gulp-nunjucks");
 const fs = require("fs");
 
+/** The presenter's component stylesheets, inlined in its page in this order. */
+const PRESENTER_CSS = ["src/css/presenter/drawing-toolbar.css"];
+
 /**
  * What a page's template inlines in the first of its two renderings.
  *
@@ -16,7 +19,9 @@ function templateFiles(jsPath) {
         js: fs.readFileSync(jsPath),
         // The presenter's notes styles are inlined: nothing comes from a CDN (standard 4).
         markdownCss: fs.readFileSync("node_modules/github-markdown-css/github-markdown-light.css"),
-        highlightCss: fs.readFileSync("node_modules/highlight.js/styles/github.min.css")
+        highlightCss: fs.readFileSync("node_modules/highlight.js/styles/github.min.css"),
+        // The presenter's own component styles (standard 3.1).
+        presenterCss: PRESENTER_CSS.map(file => fs.readFileSync(file)).join("\n")
     };
 }
 
@@ -32,7 +37,7 @@ function makeTemplateTask(target, tpl) {
     const destPath = `build/${target}/src/templates/`;
     return function templateTask() {
         return src(`src/templates/${tpl}.html`)
-            .pipe(newer({dest: destPath, extra: jsPath}))
+            .pipe(newer({dest: destPath, extra: [jsPath, ...PRESENTER_CSS]}))
             .pipe(nunjucks.compile(templateFiles(jsPath)))
             .pipe(dest(destPath));
     };

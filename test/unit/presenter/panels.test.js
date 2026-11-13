@@ -120,6 +120,34 @@ describe("panels", () => {
         }
     });
 
+    test("render is handed the panel's handle", () => {
+        const handle = {maximise() {}, maximised: false, onMaximisedChange: () => () => {}};
+        const given = [];
+        const panel = readPanel({
+            id: "a",
+            title: "A",
+            render: (element, h) => {
+                given.push(h);
+            }
+        });
+        panel.render(/** @type {any} */ (fakeElement()), handle);
+        assert.deepEqual(given, [handle]);
+    });
+
+    test("a render that takes the element only still works", () => {
+        const drawn = [];
+        const panel = readPanel({
+            id: "a",
+            title: "A",
+            render: element => {
+                drawn.push(element);
+            }
+        });
+        const element = fakeElement();
+        assert.equal(typeof panel.render(/** @type {any} */ (element)), "function");
+        assert.deepEqual(drawn, [element]);
+    });
+
     test("a panel's description is kept, and is empty when it gives none", () => {
         assert.equal(readPanel({id: "a", title: "A", render}).description, "");
         const described = readPanel({id: "a", title: "A", description: "Says what", render});

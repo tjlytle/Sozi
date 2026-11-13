@@ -21,6 +21,7 @@ import {
     endStroke,
     eraseStroke,
     setVisible,
+    strokesNear,
     undoStroke
 } from "../../../src/js/protocol/strokes.js";
 
@@ -151,5 +152,32 @@ describe("protocol strokes", () => {
         const drawings = drawn("a");
         assert.equal(applyDrawing(drawings, drawingsMessage(EMPTY_DRAWINGS)), drawings);
         assert.equal(applyDrawing(drawings, /** @type {any} */ ({name: "next"})), drawings);
+    });
+
+    test("strokesNear finds a stroke with a segment within the tolerance of the point", () => {
+        // The segment from (10, 20) to (12, 21), and a stroke far away.
+        const far = {
+            ...begun("far"),
+            points: [
+                [100, 100, 0.5],
+                [110, 100, 0.5]
+            ]
+        };
+        const drawings = beginStroke(drawn("a"), far);
+        assert.deepEqual(strokesNear(drawings, [11, 20.5], 1), ["a"]);
+        assert.deepEqual(strokesNear(drawings, [11, 21.5], 1), ["a"]);
+        assert.deepEqual(strokesNear(drawings, [105, 101], 2), ["far"]);
+    });
+
+    test("strokesNear finds nothing off every segment", () => {
+        assert.deepEqual(strokesNear(drawn("a"), [11, 30], 2), []);
+        assert.deepEqual(strokesNear(drawn("a"), [20, 21], 2), []);
+    });
+
+    test("strokesNear measures a one-point stroke from its point", () => {
+        const dot = {...begun("dot"), points: [[50, 50, 0.5]]};
+        const drawings = beginStroke(EMPTY_DRAWINGS, dot);
+        assert.deepEqual(strokesNear(drawings, [52, 50], 3), ["dot"]);
+        assert.deepEqual(strokesNear(drawings, [54, 50], 3), []);
     });
 });

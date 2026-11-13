@@ -24,12 +24,23 @@ export const LAYOUT_KEY = "sozi-presenter-layout:";
 // A panel that is not there fails its step with this wait, not with the step's timeout.
 export const WAIT = {timeout: 5000};
 
+// The iframe of the current-frame preview.
+export const CURRENT = ".sozi-current-frame";
+
+// The drawing layer a deck adds to its SVG, on the audience window and in every preview.
+export const LAYER = ".sozi-drawing";
+
 // One look inside a poll: short, so that a group that is not there yet leaves the poll time
 // to look again.
 const GLANCE = {timeout: 1000};
 
-// The built-in panel the steps read by its own class.
-const CONNECTION = ".sozi-connection";
+// The built-in panels the steps read by their own class: the Connection panel, and the panel
+// that holds the current-frame preview's box (with its toolbar beside the box).
+/** @type {Record<string, string>} */
+const BUILT_IN = {
+    Connection: ".sozi-connection",
+    Current: ":has(> .sozi-preview-box > .sozi-current-frame)"
+};
 
 /** The tab of a panel.
  *
@@ -125,15 +136,34 @@ export async function groupBoxNow(page, title) {
 /** What a panel drew.
  *
  * With `renderer: "always"` dockview keeps a panel's content in an overlay, away from its
- * tab, so a tab does not lead to its content: the Connection panel is found by its own
- * class, an add-on's by the attribute the test/fixtures/addons panels draw.
+ * tab, so a tab does not lead to its content: the Connection and Current panels are found by
+ * their own classes, an add-on's by the attribute the test/fixtures/addons panels draw.
  *
  * @param {import("playwright").Page} page - The presenter page.
  * @param {string} title - The panel's title.
  * @returns {import("playwright").Locator} - The content.
  */
 export function contentOf(page, title) {
-    return page.locator(title === "Connection" ? CONNECTION : `[data-addon-panel="${title}"]`);
+    return page.locator(BUILT_IN[title] ?? `[data-addon-panel="${title}"]`);
+}
+
+/** The deck in a presenter page's current-frame preview, once it shows its frame.
+ *
+ * @param {import("playwright").Page} page - A presenter page.
+ * @returns {Promise<import("playwright").Frame>} - The preview's window.
+ */
+export async function currentPreviewDeck(page) {
+    const iframe = await page.locator(CURRENT).elementHandle(WAIT);
+    const frame = await iframe?.contentFrame();
+    if (!frame) {
+        throw new Error("the current-frame preview has no window");
+    }
+    await frame.waitForFunction(
+        () => Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame),
+        null,
+        WAIT
+    );
+    return frame;
 }
 
 /** The text of what the panels drew where a panel's group is, right now, for use in a poll.

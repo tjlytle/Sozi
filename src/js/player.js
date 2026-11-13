@@ -114,7 +114,7 @@ function startDisplay(display, player, controller, presentation) {
         enterPreviewMode: options => {
             // A preview hands its keys to the presenter: Q is not for it.
             pairing.dispose();
-            enterPreviewMode({player, presentation, ...options});
+            return enterPreviewMode({player, presentation, ...options});
         },
         renderThumbnail: (index, width) => thumbnails.render(index, width),
         // Cast: startPlayer gives the viewport its drawing layer.

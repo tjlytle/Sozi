@@ -1,5 +1,5 @@
 // A display channel started on the fakes of fakeDeck.js, and the hello it sends, shared by
-// DisplayChannel.test.js and DisplayChannel-timer.test.js.
+// DisplayChannel.test.js, DisplayChannel-timer.test.js and DisplayChannel-drawings.test.js.
 
 import {fakeController, fakeHost, fakePlayer, fakeTransport, frames} from "./fakeDeck.js";
 import {DisplayChannel} from "../../../src/js/player/DisplayChannel.js";
@@ -18,6 +18,30 @@ export const secondFrame = Object.freeze({index: 1, id: "f2", title: "Two", note
 
 /** Every frame of the deck, as the protocol reports it. */
 export const everyFrame = Object.freeze([firstFrame, secondFrame]);
+
+/** A stand-in for `enterPreviewMode` that records each preview it makes. A current preview has
+ * a pen, which records the tools it is given.
+ *
+ * @param {any[]} previews - Where each preview goes, with what it reports to and its pen.
+ * @returns {(options: any) => any} - The stand-in; it returns the pen, or null.
+ */
+function fakePreviewMode(previews) {
+    return ({isCurrent, onFollowLink, onKey, onCamera, onDrawing, drawings}) => {
+        /** @type {any[]} */
+        const tools = [];
+        const pen = isCurrent ? {tools, setTool: tool => tools.push(tool)} : null;
+        previews.push({
+            current: isCurrent,
+            onFollowLink,
+            onKey,
+            onCamera,
+            onDrawing,
+            drawings,
+            pen
+        });
+        return pen;
+    };
+}
 
 /** Build a display channel on fakes, started, with what it sent on start cleared.
  *
@@ -51,8 +75,7 @@ export function startedDisplay() {
         presentation,
         transport,
         host,
-        enterPreviewMode: ({isCurrent, onFollowLink, onKey, onCamera}) =>
-            previews.push({current: isCurrent, onFollowLink, onKey, onCamera})
+        enterPreviewMode: fakePreviewMode(previews)
     });
     channel.start();
     const startSent = transport.sent.splice(0);

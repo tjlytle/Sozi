@@ -15,6 +15,7 @@
 import {readCamera, readCameraMove, readCameraReset} from "./camera.js";
 import {
     readDrawingClear,
+    readDrawingTool,
     readDrawingUndo,
     readDrawingVisible,
     readDrawingsMessage,
@@ -41,6 +42,7 @@ import {readViewport} from "./viewport.js";
 /** @typedef {import("./camera.js").CameraResetMessage} CameraResetMessage */
 /** @typedef {import("./drawings.js").DrawingCommand} DrawingCommand */
 /** @typedef {import("./drawings.js").DrawingsMessage} DrawingsMessage */
+/** @typedef {import("./drawings.js").DrawingToolMessage} DrawingToolMessage */
 
 /** The name of every message, the value of its `name` field.
  *
@@ -73,7 +75,8 @@ export const MessageNames = Object.freeze({
     drawingUndo: "drawingUndo",
     drawingClear: "drawingClear",
     drawingVisible: "drawingVisible",
-    drawings: "drawings"
+    drawings: "drawings",
+    drawingTool: "drawingTool"
 });
 
 /** @typedef {{name: "frameChange"} & FrameInfo} FrameChangeMessage */
@@ -104,7 +107,8 @@ export const MessageNames = Object.freeze({
  *   | JumpToFrameMessage | NextMessage | PreviousMessage | CustomMessage | PreviewMessage
  *   | FollowLinkMessage | KeyMessage | ThumbnailRequestMessage | ThumbnailMessage
  *   | TimerMessage | TimerActionMessage | TimerTargetMessage | CameraMoveMessage
- *   | CameraResetMessage | CameraMessage | DrawingCommand | DrawingsMessage} Message
+ *   | CameraResetMessage | CameraMessage | DrawingCommand | DrawingsMessage
+ *   | DrawingToolMessage} Message
  */
 
 /**
@@ -316,7 +320,8 @@ const READERS = Object.freeze({
     [MessageNames.drawingUndo]: readDrawingUndo,
     [MessageNames.drawingClear]: readDrawingClear,
     [MessageNames.drawingVisible]: readDrawingVisible,
-    [MessageNames.drawings]: readDrawingsMessage
+    [MessageNames.drawings]: readDrawingsMessage,
+    [MessageNames.drawingTool]: readDrawingTool
 });
 
 /**
