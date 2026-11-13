@@ -226,7 +226,8 @@ which goes back to its frame and shows the view. A preview sends no `camera`.
 The display holds the drawings on the deck, as it holds the frame and the camera. They live in
 the display's memory for the session: nothing is written to the deck's SVG or `.sozi.json`.
 The display paints them in a layer above the deck that moves with the bottom layer's camera (the
-first layer with SVG groups, where a deck usually holds its artwork), so a
+first layer with SVG groups, where a deck usually holds its artwork; in a deck with no layer
+group, the SVG's own user units), so a
 stroke stays on the artwork it marks through zoom, pan, rotation, transitions and frame
 changes. The layer lets the pointer through, so a link under a stroke still works.
 
