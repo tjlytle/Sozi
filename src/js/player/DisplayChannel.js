@@ -330,7 +330,8 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Turn the deck into a presenter preview, once, and keep the current preview's pen.
+    /** Turn the deck into a presenter preview, once, and hand the current preview's pen to the
+     * drawings.
      *
      * @param {boolean} current - Does it show the current frame?
      */
