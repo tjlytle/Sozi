@@ -6,12 +6,23 @@
  *
  * docs/presenter-protocol.md describes each one. The `hello` lives in `hello.js`, the
  * `viewport` message in `viewport.js`, the thumbnail messages in `thumbnails.js`, the timer's in
- * `timer.js` and the camera's in `camera.js`; `readMessage` reads them too.
+ * `timer.js`, the camera's in `camera.js` and the drawings' in `drawings.js`; `readMessage` reads
+ * them too.
  *
  * @module
  */
 
 import {readCamera, readCameraMove, readCameraReset} from "./camera.js";
+import {
+    readDrawingClear,
+    readDrawingUndo,
+    readDrawingVisible,
+    readDrawingsMessage,
+    readStrokeBegin,
+    readStrokeEnd,
+    readStrokeErase,
+    readStrokePoints
+} from "./drawings.js";
 import {readFrame, readHello} from "./hello.js";
 import {readThumbnail, readThumbnailRequest} from "./thumbnails.js";
 import {readTimer, readTimerAction, readTimerTarget} from "./timer.js";
@@ -28,6 +39,8 @@ import {readViewport} from "./viewport.js";
 /** @typedef {import("./camera.js").CameraMessage} CameraMessage */
 /** @typedef {import("./camera.js").CameraMoveMessage} CameraMoveMessage */
 /** @typedef {import("./camera.js").CameraResetMessage} CameraResetMessage */
+/** @typedef {import("./drawings.js").DrawingCommand} DrawingCommand */
+/** @typedef {import("./drawings.js").DrawingsMessage} DrawingsMessage */
 
 /** The name of every message, the value of its `name` field.
  *
@@ -52,7 +65,15 @@ export const MessageNames = Object.freeze({
     timerTarget: "timerTarget",
     cameraMove: "cameraMove",
     cameraReset: "cameraReset",
-    camera: "camera"
+    camera: "camera",
+    strokeBegin: "strokeBegin",
+    strokePoints: "strokePoints",
+    strokeEnd: "strokeEnd",
+    strokeErase: "strokeErase",
+    drawingUndo: "drawingUndo",
+    drawingClear: "drawingClear",
+    drawingVisible: "drawingVisible",
+    drawings: "drawings"
 });
 
 /** @typedef {{name: "frameChange"} & FrameInfo} FrameChangeMessage */
@@ -83,7 +104,7 @@ export const MessageNames = Object.freeze({
  *   | JumpToFrameMessage | NextMessage | PreviousMessage | CustomMessage | PreviewMessage
  *   | FollowLinkMessage | KeyMessage | ThumbnailRequestMessage | ThumbnailMessage
  *   | TimerMessage | TimerActionMessage | TimerTargetMessage | CameraMoveMessage
- *   | CameraResetMessage | CameraMessage} Message
+ *   | CameraResetMessage | CameraMessage | DrawingCommand | DrawingsMessage} Message
  */
 
 /**
@@ -287,7 +308,15 @@ const READERS = Object.freeze({
     [MessageNames.timerTarget]: readTimerTarget,
     [MessageNames.cameraMove]: readCameraMove,
     [MessageNames.cameraReset]: readCameraReset,
-    [MessageNames.camera]: readCamera
+    [MessageNames.camera]: readCamera,
+    [MessageNames.strokeBegin]: readStrokeBegin,
+    [MessageNames.strokePoints]: readStrokePoints,
+    [MessageNames.strokeEnd]: readStrokeEnd,
+    [MessageNames.strokeErase]: readStrokeErase,
+    [MessageNames.drawingUndo]: readDrawingUndo,
+    [MessageNames.drawingClear]: readDrawingClear,
+    [MessageNames.drawingVisible]: readDrawingVisible,
+    [MessageNames.drawings]: readDrawingsMessage
 });
 
 /**

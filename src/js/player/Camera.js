@@ -397,7 +397,8 @@ export class Camera extends CameraState {
     /** Update the current layer of the SVG document to reflect the properties of this camera.
      *
      * This method applies geometrical transformations to the current layer,
-     * and updates the clipping rectangles and mask.
+     * updates the clipping rectangles and mask, and tells the viewport, which moves the
+     * drawing layer with the bottom layer's camera.
      */
     update() {
         // Adjust the location and size of the clipping rectangle
@@ -460,6 +461,7 @@ export class Camera extends CameraState {
                 svgGroup.classList.toggle("sozi-camera__layer--hidden", this.opacity === 0);
             }
         }
+        this.viewport.cameraUpdated(this);
     }
 
     /** Update this camera by interpolating between two camera states.

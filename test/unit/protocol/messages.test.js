@@ -110,6 +110,19 @@ describe("protocol messages", () => {
         assert.equal(readMessage({...cameraMoveMessage(move), zoom: 0}), null);
     });
 
+    test("the drawings' messages are refused when a field is malformed", () => {
+        for (const bad of [
+            {name: "strokeBegin", id: "s1", tool: "pen", color: "red", width: 6, points: []},
+            {name: "strokePoints", id: "s1", points: [[0, 0, 2]]},
+            {name: "strokeEnd", id: ""},
+            {name: "strokeErase"},
+            {name: "drawingVisible", visible: 1},
+            {name: "drawings", visible: true, strokes: "none"}
+        ]) {
+            assert.equal(readMessage(bad), null, bad.name);
+        }
+    });
+
     test("the timer's messages are refused when a field is malformed", () => {
         for (const bad of [
             {name: "timer", ...timer, running: "yes"},

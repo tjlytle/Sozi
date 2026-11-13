@@ -10,9 +10,12 @@ import {
 import {MessageNames, readMessage} from "../../../src/js/protocol/messages.js";
 import {STOPPED_TIMER} from "../../../src/js/protocol/timer.js";
 import {ON_FRAME} from "../../../src/js/protocol/camera.js";
+import {EMPTY_DRAWINGS} from "../../../src/js/protocol/drawings.js";
 
 const timer = {elapsedMs: 1500, running: true, targetMs: 60000};
 const camera = {offFrame: true, zoom: 2, x: -0.5, y: 0.25};
+const stroke = {id: "s1", tool: "pen", color: "#ff0000", width: 6, points: [[1, 2, 0.5]]};
+const drawings = {visible: false, strokes: [{...stroke, done: true}]};
 const frame = {index: 1, id: "frame2", title: "Two", notes: "<p>Second</p>"};
 const viewport = {width: 1200, height: 400, pixelRatio: 2};
 const frames = [{index: 0, id: "frame1", title: "One", notes: ""}, frame];
@@ -31,7 +34,8 @@ const displayState = {
     blank: false,
     layouts,
     timer,
-    camera
+    camera,
+    drawings
 };
 const hello = helloMessage(Roles.display, displayState);
 
@@ -134,6 +138,24 @@ describe("protocol hello", () => {
     test("a hello with a malformed camera is refused", () => {
         for (const bad of [null, {...camera, zoom: 0}, {...camera, offFrame: "yes"}]) {
             assert.equal(readMessage({...hello, camera: bad}), null, JSON.stringify(bad));
+        }
+    });
+
+    test("a display's hello carries the drawings", () => {
+        const read = /** @type {any} */ (
+            readMessage({...hello, drawings: {...drawings, extra: 1}})
+        );
+        assert.deepEqual(read.drawings, drawings);
+    });
+
+    test("a hello from a deck from before the drawings reads as empty drawings", () => {
+        const older = {...hello, drawings: undefined};
+        assert.deepEqual(/** @type {any} */ (readMessage(older)).drawings, EMPTY_DRAWINGS);
+    });
+
+    test("a hello with malformed drawings is refused", () => {
+        for (const bad of [null, {visible: true}, {...drawings, visible: "yes"}]) {
+            assert.equal(readMessage({...hello, drawings: bad}), null, JSON.stringify(bad));
         }
     });
 

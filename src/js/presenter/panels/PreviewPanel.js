@@ -17,6 +17,7 @@ import {
     readMessage
 } from "../../protocol/messages.js";
 import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protocol/camera.js";
+import {drawingsMessage} from "../../protocol/drawings.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
 /** @typedef {import("../../protocol/messages.js").Message} Message */
@@ -35,7 +36,8 @@ import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protoc
  *
  * The preview of the current frame forwards the links clicked in it and the pans and zooms
  * made on it, shows the display's view, and has a Back to frame button while the display's
- * camera is off its frame; every preview forwards the presentation keys pressed in it.
+ * camera is off its frame; every preview forwards the presentation keys pressed in it and shows
+ * the display's drawings.
  *
  * Workspace.addPanel constructs one instance per preview, once per page, through spec.render.
  * Closing the panel from its ⋯ menu removes its element from the dock without disposing it.
@@ -100,11 +102,13 @@ export class PreviewPanel {
         }
         element.append(box);
 
-        /** Follow the display to a new frame, and the current preview to a new view.
+        /** Follow the display to a new frame, the current preview to a new view, and every
+         * preview to new drawings.
          *
-         * @param {{index?: number, camera?: object}} part - What changed in the mirror.
+         * @param {{index?: number, camera?: object, drawings?: object}} part - What changed in
+         *   the mirror.
          */
-        this.onChange = ({index, camera}) => {
+        this.onChange = ({index, camera, drawings}) => {
             if (index !== undefined) {
                 this.update();
             } else if (camera !== undefined) {
@@ -112,6 +116,9 @@ export class PreviewPanel {
             }
             if (camera !== undefined && this.backButton) {
                 this.backButton.hidden = !mirror.camera.offFrame;
+            }
+            if (drawings !== undefined) {
+                this.showDrawings();
             }
         };
         mirror.on(DisplayMirrorEvents.change, this.onChange);
@@ -164,6 +171,7 @@ export class PreviewPanel {
             this.ready = true;
             transport.send(previewMessage(this.current));
             this.update();
+            this.showDrawings();
         } else if (message.name === MessageNames.followLink && this.current) {
             this.send(followLinkMessage(message.id));
         } else if (message.name === MessageNames.cameraMove && this.current) {
@@ -198,6 +206,13 @@ export class PreviewPanel {
     showCamera() {
         if (this.current && this.ready && this.transport) {
             this.transport.send(cameraMessage(this.mirror.camera));
+        }
+    }
+
+    /** Show the display's drawings on the preview's deck. */
+    showDrawings() {
+        if (this.ready && this.transport) {
+            this.transport.send(drawingsMessage(this.mirror.drawings));
         }
     }
 

@@ -6,6 +6,16 @@ import {blankMessage, frameChangeMessage, nextMessage} from "../../../src/js/pro
 import {TransportStatus} from "../../../src/js/protocol/LocalTransport.js";
 import {STOPPED_TIMER, timerMessage} from "../../../src/js/protocol/timer.js";
 import {ON_FRAME, cameraMessage} from "../../../src/js/protocol/camera.js";
+import {
+    EMPTY_DRAWINGS,
+    drawingClearMessage,
+    drawingUndoMessage,
+    strokeBeginMessage,
+    strokeEndMessage
+} from "../../../src/js/protocol/drawings.js";
+
+const stroke = {id: "s1", tool: "pen", color: "#ff0000", width: 6, points: [[1, 2, 0.5]]};
+const drawn = {visible: true, strokes: [{...stroke, done: true}]};
 
 const one = {index: 0, id: "f1", title: "One", notes: "<p>First</p>"};
 const two = {index: 1, id: "f2", title: "Two", notes: ""};
@@ -85,9 +95,38 @@ describe("DisplayMirror", () => {
                 deckId: "basic",
                 version: "v1",
                 timer: STOPPED_TIMER,
-                camera: ON_FRAME
+                camera: ON_FRAME,
+                drawings: EMPTY_DRAWINGS
             }
         ]);
+    });
+
+    test("holds empty drawings until the display reports some", () => {
+        assert.deepEqual(new DisplayMirror().drawings, EMPTY_DRAWINGS);
+    });
+
+    test("a hello carries the drawings, and each relayed command changes them", () => {
+        const {mirror, changes} = watchedMirror();
+        mirror.apply(helloMessage(Roles.display, {...state, drawings: drawn}));
+        assert.deepEqual(mirror.drawings, drawn);
+        changes.length = 0;
+        mirror.apply(strokeBeginMessage({...stroke, id: "s2"}));
+        mirror.apply(drawingUndoMessage());
+        assert.deepEqual(
+            mirror.drawings.strokes.map(s => s.id),
+            ["s2"]
+        );
+        assert.deepEqual(
+            changes.map(part => Object.keys(part)),
+            [["drawings"], ["drawings"]]
+        );
+    });
+
+    test("a relayed command that changes nothing is not a change", () => {
+        const {mirror, changes} = watchedMirror();
+        mirror.apply(drawingClearMessage());
+        mirror.apply(strokeEndMessage("nope"));
+        assert.deepEqual(changes, []);
     });
 
     test("holds a camera on its frame until the display reports one", () => {

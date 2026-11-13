@@ -4,6 +4,7 @@ import {PreviewPanel} from "../../../src/js/presenter/panels/PreviewPanel.js";
 import {DisplayMirror} from "../../../src/js/presenter/DisplayMirror.js";
 import {Roles, helloMessage} from "../../../src/js/protocol/hello.js";
 import {
+    blankMessage,
     frameChangeMessage,
     jumpToFrameMessage,
     previewMessage
@@ -14,6 +15,13 @@ import {
     cameraMoveMessage,
     cameraResetMessage
 } from "../../../src/js/protocol/camera.js";
+import {
+    EMPTY_DRAWINGS,
+    drawingsMessage,
+    strokeBeginMessage
+} from "../../../src/js/protocol/drawings.js";
+
+const stroke = {id: "s1", tool: "pen", color: "#ff0000", width: 6, points: [[1, 2, 0.5]]};
 
 /** An element with what the panel uses of one. */
 class FakeElement {
@@ -192,7 +200,8 @@ describe("PreviewPanel", () => {
         assert.deepEqual(toDeck, [
             previewMessage(true),
             jumpToFrameMessage(0, false),
-            cameraMessage(panned)
+            cameraMessage(panned),
+            drawingsMessage(EMPTY_DRAWINGS)
         ]);
         toDeck.length = 0;
         mirror.apply(frameChangeMessage({index: 1, id: "f2", title: "Two", notes: ""}));
@@ -209,7 +218,36 @@ describe("PreviewPanel", () => {
         mirror.apply(cameraMessage(panned));
         toDeck.length = 0;
         fromDeck(deckHello);
-        assert.deepEqual(toDeck, [previewMessage(false), jumpToFrameMessage(1, false)]);
+        assert.deepEqual(toDeck, [
+            previewMessage(false),
+            jumpToFrameMessage(1, false),
+            drawingsMessage(EMPTY_DRAWINGS)
+        ]);
+    });
+
+    test("every preview's deck gets the drawings when it is ready and when they change", () => {
+        for (const offset of [0, 1]) {
+            const {fromDeck, toDeck, mirror} = loadedPanel(offset);
+            fromDeck(deckHello);
+            toDeck.length = 0;
+            mirror.apply(strokeBeginMessage(stroke));
+            assert.deepEqual(toDeck, [drawingsMessage(mirror.drawings)], `offset ${offset}`);
+        }
+    });
+
+    test("a frame change does not send the drawings again", () => {
+        const {fromDeck, toDeck, mirror} = loadedPanel(1);
+        fromDeck(deckHello);
+        toDeck.length = 0;
+        mirror.apply(frameChangeMessage({index: 1, id: "f2", title: "Two", notes: ""}));
+        assert.deepEqual(toDeck, [blankMessage(true)]);
+    });
+
+    test("a deck that has not said hello gets no drawings", () => {
+        const {toDeck, mirror} = loadedPanel(0);
+        toDeck.length = 0;
+        mirror.apply(strokeBeginMessage(stroke));
+        assert.deepEqual(toDeck, []);
     });
 
     test("dispose stops following the camera", () => {

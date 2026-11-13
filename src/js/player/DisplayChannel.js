@@ -25,12 +25,15 @@ import {thumbnailMessage} from "../protocol/thumbnails.js";
 import {timerMessage} from "../protocol/timer.js";
 import {viewportMessage, readViewport} from "../protocol/viewport.js";
 import {TransportSet} from "../protocol/TransportSet.js";
+import {DRAWING_COMMANDS, EMPTY_DRAWINGS} from "../protocol/drawings.js";
+import {applyDrawing} from "../protocol/strokes.js";
 
 /** @typedef {import("../protocol/messages.js").Message} Message */
 /** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
 /** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 /** @typedef {import("../protocol/TransportSet.js").Transport} Transport */
 /** @typedef {import("../protocol/camera.js").CameraMove} CameraMove */
+/** @typedef {import("../protocol/drawings.js").Drawings} Drawings */
 
 /**
  * What a deck needs to become a presenter preview.
@@ -65,6 +68,8 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  *   presenter preview that reports its link clicks, its keys and its pans and zooms.
  * @property {(index: number, width: number) => Promise<string>} renderThumbnail - Moves the deck
  *   to a frame and draws it, as a JPEG `data:` URL.
+ * @property {{render: (drawings: Drawings) => void}} drawingLayer - Paints the drawings on the
+ *   deck.
  */
 
 /** A frame of the deck, as the protocol reports it.
@@ -96,6 +101,8 @@ function legacyStateOf({frames}, player) {
  * reports frame changes, the window size, the blank screen, the timer and the camera's view as
  * they change; its `CameraTracker` follows the camera. It hands each command to its
  * `DisplayCommands`, and tells them whether the deck is a preview. A preview also answers requests for thumbnails of its frames.
+ * It holds the drawings: it applies each drawing command, paints the result and relays the
+ * command; a preview takes whole drawings from its presenter instead.
  *
  * @extends EventEmitter
  */
@@ -112,13 +119,21 @@ export class DisplayChannel extends EventEmitter {
         transport,
         host,
         enterPreviewMode,
-        renderThumbnail
+        renderThumbnail,
+        drawingLayer
     }) {
         super();
         this.player = player;
         this.controller = controller;
         this.presentation = presentation;
         this.timer = timer;
+        this.drawingLayer = drawingLayer;
+
+        /** The drawings on the deck, which the display holds for the session.
+         *
+         * @type {Drawings}
+         */
+        this.drawings = EMPTY_DRAWINGS;
 
         /** The links to the surfaces: a report goes out on all of them.
          *
@@ -209,7 +224,15 @@ export class DisplayChannel extends EventEmitter {
             [MessageNames.timerTarget]: ({targetMs}) => timer.setTarget(targetMs),
             [MessageNames.cameraMove]: move => this.commands.moveCamera(move),
             [MessageNames.cameraReset]: () => this.commands.resetCamera(),
-            [MessageNames.camera]: view => this.commands.showView(view)
+            [MessageNames.camera]: view => this.commands.showView(view),
+            [MessageNames.drawings]: ({visible, strokes}) => {
+                if (this.previewMode) {
+                    this.showDrawings({visible, strokes});
+                }
+            },
+            ...Object.fromEntries(
+                DRAWING_COMMANDS.map(name => [name, command => this.draw(command)])
+            )
         });
     }
 
@@ -244,8 +267,31 @@ export class DisplayChannel extends EventEmitter {
             blank: this.player.blankScreenIsVisible,
             layouts: this.presentation.presenterLayouts,
             timer: this.timer.state,
-            camera: this.cameraTracker.view
+            camera: this.cameraTracker.view,
+            drawings: this.drawings
         });
+    }
+
+    /** Carry out a drawing command from a surface: paint the drawings after it and relay it.
+     * A command that changes nothing is not relayed.
+     *
+     * @param {import("../protocol/drawings.js").DrawingCommand} command - The command.
+     */
+    draw(command) {
+        const drawings = applyDrawing(this.drawings, command);
+        if (drawings !== this.drawings) {
+            this.showDrawings(drawings);
+            this.report(command);
+        }
+    }
+
+    /** Hold and paint new drawings.
+     *
+     * @param {Drawings} drawings - The drawings.
+     */
+    showDrawings(drawings) {
+        this.drawings = drawings;
+        this.drawingLayer.render(drawings);
     }
 
     /** Send a message about the display, unless the deck is a preview.

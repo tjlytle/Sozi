@@ -33,7 +33,14 @@ export function startedDisplay() {
     const renders = [];
     const clock = {time: 0};
     const timer = new TalkTimer(() => clock.time);
+    const drawingLayer = {
+        rendered: /** @type {any[]} */ ([]),
+        render(drawings) {
+            this.rendered.push(drawings);
+        }
+    };
     const channel = new DisplayChannel({
+        drawingLayer,
         renderThumbnail: async (index, width) => {
             renders.push([index, width]);
             return JPEG;
@@ -59,7 +66,8 @@ export function startedDisplay() {
         renders,
         startSent,
         timer,
-        clock
+        clock,
+        drawingLayer
     };
 }
 
