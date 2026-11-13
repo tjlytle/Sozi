@@ -4,18 +4,14 @@
 
 const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
-const {spawnSync} = require("node:child_process");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 
-const {limit, runSozi, runReport, withTempDeck} = require("./helpers.js");
+const {runSozi, runReport, withTempDeck} = require("./helpers.js");
+const {browserTitle} = require("./chrome.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
-/** @typedef {import("node:test").TestContext} TestContext */
-
-const CHROME = "/usr/bin/google-chrome";
 
 /**
  * Run `build` on a temp deck and check that it succeeded.
@@ -74,65 +70,6 @@ function setJsonTitle(deck, title) {
 
 /** A title with characters that HTML must escape. */
 const TRICKY = '<b>&"';
-
-/**
- * Decode the character references that the HTML serializer emits in text.
- *
- * @param {string} text - Text with character references.
- * @returns {string} - The decoded text.
- */
-function decodeHtml(text) {
-    return text.replace(
-        /&(lt|gt|quot|#39|nbsp|amp);/g,
-        (m, name) => ({lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: "\u00a0", amp: "&"})[name]
-    );
-}
-
-/** The document title of an HTML file after its scripts ran in headless Chrome.
- *
- * Skips the test and returns null when Chrome is missing or cannot be spawned;
- * a Chrome run that fails is a test failure.
- *
- * @param {TestContext} t - The context of the running test, to skip it.
- * @param {string} file - The path of the HTML file.
- * @returns {?string} - The decoded document title, or null when the test was skipped.
- */
-function browserTitle(t, file) {
-    if (!fs.existsSync(CHROME)) {
-        t.skip(`${CHROME} not found`);
-        return null;
-    }
-    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "sozi-cli-chrome-"));
-    try {
-        const result = spawnSync(
-            CHROME,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                `--user-data-dir=${profile}`,
-                "--dump-dom",
-                "file://" + file
-            ],
-            {
-                encoding: "utf8",
-                timeout: limit(60000),
-                killSignal: "SIGKILL",
-                maxBuffer: 64 * 1024 * 1024
-            }
-        );
-        if (result.error) {
-            t.skip(`headless Chrome could not be run: ${result.error}`);
-            return null;
-        }
-        assert.equal(result.status, 0, `headless Chrome failed: ${result.stderr}`);
-        const match = /<title>([^<]*)<\/title>/.exec(result.stdout);
-        assert.ok(match, "no <title> in the dumped DOM");
-        return decodeHtml(match[1]);
-    } finally {
-        fs.rmSync(profile, {recursive: true, force: true});
-    }
-}
 
 /**
  * Run a command on a temp deck and check that stdout is JSON; leave the exit code to the caller.
