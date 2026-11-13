@@ -1,9 +1,10 @@
 // test/cli/helpers.test.js
 // The time limits the CLI tests give a spawned Electron: a scale from the environment
 // stretches every limit on a slow runner (#232), and the command's own --timeout follows.
+// The Chromium switches every test Electron starts with (#191).
 const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
-const {limit, withCommandTimeout} = require("./helpers");
+const {limit, withCommandTimeout, runSozi, ELECTRON_TEST_SWITCHES} = require("./helpers");
 
 describe("CLI test time limits", () => {
     test("a limit is the given milliseconds when no scale is set", () => {
@@ -32,5 +33,17 @@ describe("CLI test time limits", () => {
             "a.svg"
         ]);
         assert.deepEqual(withCommandTimeout(["build", "a.svg"], 180000), ["build", "a.svg"]);
+    });
+});
+
+describe("CLI test Chromium switches", () => {
+    test("the test Electron keeps its shared memory out of /dev/shm", () => {
+        assert.ok(ELECTRON_TEST_SWITCHES.includes("--disable-dev-shm-usage"));
+    });
+    test("the CLI accepts the test switches in front of --cli", () => {
+        const {code, json} = runSozi(["build", "--help"]);
+        assert.equal(code, 2);
+        assert.equal(json?.error, "help requested");
+        assert.match(json?.usage ?? "", /^sozi --cli /);
     });
 });

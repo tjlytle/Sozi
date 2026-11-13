@@ -23,6 +23,17 @@ const fixturesDir = path.join(repoDir, "test", "fixtures");
 // the API inside Electron instead.
 const electronBinary = /** @type {string} */ (/** @type {unknown} */ (require("electron")));
 
+/** The Chromium switches that every Electron a test starts gets, before the test's own.
+ *
+ * `--disable-dev-shm-usage` puts Chromium's shared memory in /tmp instead of /dev/shm,
+ * so the tests pass in a container whose /dev/shm is Docker's 64 MB default, where the
+ * GPU process fails to start and the renderer hangs or crashes (#164, #191). Sozi itself
+ * starts without it: a user's machine has a normal /dev/shm.
+ *
+ * @type {string[]}
+ */
+const ELECTRON_TEST_SWITCHES = ["--disable-dev-shm-usage"];
+
 // The longest delay a Node timer accepts; spawn turns a longer timeout into 1 ms.
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
@@ -77,7 +88,7 @@ function withCommandTimeout(args, timeoutMs) {
     return [args[0], "--timeout", String(seconds), ...args.slice(1)];
 }
 
-/** Run `electron build/electron --cli ...args`.
+/** Run `electron build/electron --cli ...args`, with the test Chromium switches before `--cli`.
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
  * @param {object} [opts] - Options for the run.
@@ -85,7 +96,8 @@ function withCommandTimeout(args, timeoutMs) {
  * @param {object} [opts.env] - The environment variables (default: process.env).
  * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000), stretched
  *  by `limit`; `render` and `export` get a `--timeout` below it, unless they have one.
- * @param {string[]} [opts.switches] - Chromium switches placed before `--cli` (default: none).
+ * @param {string[]} [opts.switches] - Chromium switches placed before `--cli`, after
+ *  `ELECTRON_TEST_SWITCHES` (default: none).
  * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
  * @throws {Error} - When Electron cannot start, or when it reaches the time limit: then with
  *  code `ETIMEDOUT` and the output it printed so far in the message.
@@ -93,7 +105,8 @@ function withCommandTimeout(args, timeoutMs) {
 function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switches = []} = {}) {
     const ms = limit(timeout);
     const cliArgs = withCommandTimeout(args, ms);
-    const result = spawnKeepingOutput(electronBinary, [appDir, ...switches, "--cli", ...cliArgs], {
+    const electronArgs = [appDir, ...ELECTRON_TEST_SWITCHES, ...switches, "--cli", ...cliArgs];
+    const result = spawnKeepingOutput(electronBinary, electronArgs, {
         cwd,
         env,
         encoding: "utf8",
@@ -107,8 +120,8 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
     return soziRun(result.status, result.stdout, result.stderr);
 }
 
-/** Start `electron build/electron --cli ...args` without waiting for it, so that a test
- * can act while it runs.
+/** Start `electron build/electron --cli ...args`, with the test Chromium switches before
+ * `--cli`, without waiting for it, so that a test can act while it runs.
  *
  * @param {string[]} args - The CLI arguments after `--cli`.
  * @param {object} [opts] - Options for the run.
@@ -120,7 +133,7 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
  *  running process, and its result once it exits.
  */
 function runSoziAsync(args, {cwd = repoDir, env = process.env, timeout = 60000} = {}) {
-    const child = spawn(electronBinary, [appDir, "--cli", ...args], {
+    const child = spawn(electronBinary, [appDir, ...ELECTRON_TEST_SWITCHES, "--cli", ...args], {
         cwd,
         env,
         timeout: limit(timeout),
@@ -445,6 +458,7 @@ function zipEntries(buf) {
 }
 
 module.exports = {
+    ELECTRON_TEST_SWITCHES,
     limit,
     withCommandTimeout,
     runSozi,
