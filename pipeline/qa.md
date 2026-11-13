@@ -63,6 +63,12 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
      "Build, test, scenarios" job is green on the PR, record "environmental, passes alone,
      #191" in the table with the first failure's output, and go on; it does not hold the
      merge. A failure that repeats alone, or in a file the PR touched, is a failure.
+   Before you wait for CI, read the newest CI run on the branch: `gh-as qa run list -R
+   tjlytle/Sozi --branch {N}-<slug> --workflow CI --limit 1 --json
+   databaseId,status,createdAt`, then `gh-as qa run view <id> -R tjlytle/Sozi --json jobs`.
+   Queued with no jobs and created over 20 minutes ago: nobody on the PR can fix it, so
+   write `/outbox/req-rerun.json` (`{"rerun": {"run": <id>}}`) and stop with no done
+   request; the loop reruns it as ops. Likewise a finished run the plan asks to rerun.
    Then wait for CI on the PR: `gh-as qa pr checks <pr> -R tjlytle/Sozi --watch`. Read the
    jobs of the newest CI run on master: `gh-as qa run list -R tjlytle/Sozi --branch master
    --workflow CI --limit 1 --json databaseId`, then `gh-as qa run view <id> -R tjlytle/Sozi
@@ -106,7 +112,7 @@ prove it does what the issue asked without breaking anything, then merge it. Loa
      `/outbox/req-missing-digest.json` (`{"note": "..."}`); the merge stands.
      `<label>` is `stage:done`.
    - Anything red, a conflict, a failing scenario, or no approval that counts: the output
-     is in your comment; `<label>` is `stage:in-progress`.
+     is in your comment; `<label>` is `stage:in-progress`. A run stuck queued is step 3's.
 
 Finish by writing `/outbox/req-done.json` with `{"done": {"issue": {N}, "to": "<label>"}}`
-unless a step above told you to stop with a wait request instead; never write both.
+unless a step above told you to stop with a wait or rerun request instead; never write both.

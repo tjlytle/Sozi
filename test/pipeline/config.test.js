@@ -19,6 +19,16 @@ describe("pipeline settings", () => {
         assert.equal(s.modelFor("qa"), "claude-opus-5-5");
         assert.equal(s.harnessFor("build"), "claude");
         assert.equal(s.shmSize, "1g");
+        assert.equal(s.sessionWarnMinutes, 5);
+    });
+    test("PIPELINE_SESSION_WARN_MINUTES overrides the 5-minute warning", () => {
+        const s = loadConfig({root: "/nonexistent", env: {PIPELINE_SESSION_WARN_MINUTES: "10"}});
+        assert.equal(s.sessionWarnMinutes, 10);
+        assert.equal(s.values.PIPELINE_SESSION_WARN_MINUTES, "10");
+        assert.throws(
+            () => loadConfig({root: "/nonexistent", env: {PIPELINE_SESSION_WARN_MINUTES: "x"}}),
+            /PIPELINE_SESSION_WARN_MINUTES/
+        );
     });
     test("the advisor settings default to Fable, two consults, half the session", () => {
         const s = loadConfig({root: "/nonexistent", env: {}});
@@ -39,6 +49,17 @@ describe("pipeline settings", () => {
             () => loadConfig({root: "/nonexistent", env: {PIPELINE_ADVISOR_MAX: "two"}}),
             /PIPELINE_ADVISOR_MAX/
         );
+    });
+    test("the supervisor runs on Fable unless PIPELINE_MODEL_SUPERVISOR says otherwise", () => {
+        assert.equal(
+            loadConfig({root: "/nonexistent", env: {}}).supervisorModel,
+            "claude-fable-5-1"
+        );
+        const set = loadConfig({
+            root: "/nonexistent",
+            env: {PIPELINE_MODEL_SUPERVISOR: "claude-opus-5-5"}
+        });
+        assert.equal(set.supervisorModel, "claude-opus-5-5");
     });
     test("file values override defaults and env overrides the file", () => {
         const file = parseConfigText(

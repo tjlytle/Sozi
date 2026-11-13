@@ -128,7 +128,7 @@ Then("the presenter page says to run {string}", async function (command) {
     await expect(this.presenter.locator(NOTICE)).toContainText(command);
 });
 
-Then("the file {string} is downloaded", async function (name) {
+Then("the preset file {string} is downloaded", async function (name) {
     assert.equal(this.download.suggestedFilename(), name);
     const preset = JSON.parse(fs.readFileSync(await this.download.path(), "utf8"));
     assert.equal(preset.match, "laptop");

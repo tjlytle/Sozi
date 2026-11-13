@@ -9,6 +9,7 @@ import {execFile} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {runsClient} from "./github-runs.js";
 
 const RATE_LIMIT = /rate limit|\b429\b/i;
 const FORBIDDEN = /\b403\b/;
@@ -38,7 +39,11 @@ const ISSUE_FIELDS = "number,title,labels,body,state,updatedAt";
  */
 
 /**
- * @typedef {object} Github
+ * @typedef {GithubIssues & import("./github-runs.js").RunsClient} Github
+ */
+
+/**
+ * @typedef {object} GithubIssues
  * @property {(opts?: {since?: string}) => Promise<Issue[]>} searchIssues - Open issues, plus closed ones updated since.
  * @property {(n: number) => Promise<string[]>} labelsOf - Label names of an issue.
  * @property {(n: number) => Promise<string>} issueBody - The body of an issue.
@@ -262,6 +267,7 @@ export function createGithub({repo, run = defaultRun}) {
     }
 
     return {
+        ...runsClient({repo, exec, json}),
         async searchIssues({since} = {}) {
             const issues = await list(["--state", "open", "--limit", "200"]);
             if (since) {

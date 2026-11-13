@@ -22,7 +22,7 @@ export function loggedIn() {
 
 /**
  * A fake GitHub that serves the given issues and labels from the state, and records each
- * write in calls.
+ * write in calls. Every CI run it reads is a finished one on issue 25's branch.
  *
  * @param {any} state - The pass state; labelsOf reads an issue's labels from it.
  * @param {any[]} issues - What searchIssues returns.
@@ -44,7 +44,20 @@ function fakeGithub(state, issues, calls) {
         openPrFor: async () => null,
         parentOf: async () => /** @type {number | null} */ (null),
         linkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["linkSubIssue", ...a]),
-        unlinkSubIssue: async (/** @type {number[]} */ ...a) => calls.push(["unlinkSubIssue", ...a])
+        unlinkSubIssue: async (/** @type {number[]} */ ...a) =>
+            calls.push(["unlinkSubIssue", ...a]),
+        // Every run is a finished one on issue 25's branch, so a rerun of it is allowed.
+        runView: async (/** @type {number} */ id) => ({
+            databaseId: id,
+            status: "completed",
+            conclusion: "failure",
+            createdAt: "2026-10-21T18:00:00Z",
+            headBranch: "25-fake",
+            jobs: [{name: "check"}]
+        }),
+        recentRuns: async () => [],
+        cancelRun: async (/** @type {number} */ id) => calls.push(["cancelRun", id]),
+        rerunRun: async (/** @type {number} */ id) => calls.push(["rerunRun", id])
     };
 }
 
@@ -101,6 +114,7 @@ function fakeAdvisor() {
  * @property {any[]} outboxes - What each prepareOutbox call was given.
  * @property {any[]} starts - What each sandbox start was given.
  * @property {Record<string, any>} profiles - What inspectProfile answers, by persona.
+ * @property {string} protectedDir - A new directory where the pass keeps protected patches.
  */
 
 /**
@@ -115,7 +129,8 @@ function emptyRecords() {
         logs: [],
         outboxes: [],
         starts: [],
-        profiles: Object.fromEntries(PERSONAS.map(p => [p, loggedIn()]))
+        profiles: Object.fromEntries(PERSONAS.map(p => [p, loggedIn()])),
+        protectedDir: fs.mkdtempSync(path.join(os.tmpdir(), "protected-"))
     };
 }
 
@@ -139,7 +154,8 @@ function fakeClock(now) {
  * A pass over fakes. Its advisor answers nothing; it records each question in `asks`.
  *
  * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void, configRoot?: string, reload?: () => void}} [options] - The world; configRoot is where the settings files are read.
- * @returns {any} - The pass, the state, the fakes, the records they write (`Records`) and `asks`.
+ * @returns {any} - The pass, the state, the fakes, the records they write (`Records`, with
+ *     `protectedDir`, where the pass keeps protected patches) and `asks`.
  */
 export function world({
     issues = [],
@@ -164,6 +180,7 @@ export function world({
     const clock = fakeClock(now);
     const advisor = fakeAdvisor();
     const p = createPass({
+        protectedDir: records.protectedDir,
         advisor,
         settings,
         state,

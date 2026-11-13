@@ -6,6 +6,7 @@
 // the run has anything left to do.
 
 import {promptFor} from "./state.js";
+import {isSupervised} from "./supervised.js";
 
 /**
  * @typedef {import("./state.js").State} State
@@ -22,15 +23,31 @@ function blockersClosed(state, record) {
     return record.blockers.every(n => state.issues[n]?.closed === true);
 }
 
-/** Tells whether a session can start for an issue now: not closed, running, waiting for
- * a person or labelled working by someone else.
+/** Tells whether the supervisor runs an issue and this run is not the supervisor's
+ * foreground run of it (`state.run.only`), so the loop leaves it alone.
  *
  * @param {State} state - The state.
+ * @param {number} n - The issue number.
+ * @param {IssueRecord} r - The issue.
+ * @returns {boolean} - True when the loop skips the issue.
+ */
+function leftToSupervisor(state, n, r) {
+    return isSupervised(r) && state.run.only !== n;
+}
+
+/** Tells whether a session can start for an issue now: not closed, running, waiting for
+ * a person, labelled working by someone else, or left to the supervisor.
+ *
+ * @param {State} state - The state.
+ * @param {number} n - The issue number.
  * @param {IssueRecord} r - The issue.
  * @returns {boolean} - True when the issue is startable.
  */
-function isStartable(state, r) {
+function isStartable(state, n, r) {
     if (r.closed || r.session || r.waiting || r.labels.includes("working")) {
+        return false;
+    }
+    if (leftToSupervisor(state, n, r)) {
         return false;
     }
     const startable =
@@ -65,7 +82,7 @@ export function startOrder([an, a], [bn, b]) {
  */
 export function dueIssues(state, _settings, _now) {
     return Object.entries(state.issues)
-        .filter(([, r]) => isStartable(state, r))
+        .filter(([n, r]) => isStartable(state, Number(n), r))
         .map(([n, r]) => /** @type {[number, IssueRecord]} */ ([Number(n), r]))
         .sort(startOrder)
         .map(([n]) => n);
@@ -86,9 +103,9 @@ export function scope(state, {epic} = {}) {
 }
 
 /** Tells whether an issue can make no progress on its own: closed, done, parked, waiting
- * for a person, in triage or an idea, or blocked by issues none of which can make
- * progress (closed, outside the scope, or themselves quiet). A blocked issue with no
- * blockers is quiet. A blocker already being looked at (a cycle) counts as quiet.
+ * for a person, left to the supervisor, in triage or an idea, or blocked by issues none of
+ * which can make progress (closed, outside the scope, or themselves quiet). A blocked issue
+ * with no blockers is quiet. A blocker already being looked at (a cycle) counts as quiet.
  *
  * @param {State} state - The state.
  * @param {number} n - The issue number.
@@ -101,10 +118,13 @@ function quietIssue(state, n, scopeNumbers, visited) {
     if (!r) {
         return true;
     }
-    if (r.session || isStartable(state, r)) {
+    if (r.session || isStartable(state, n, r)) {
         return false;
     }
-    if (r.closed || r.waiting || r.stage === "stage:done" || r.stage === "stage:parked") {
+    if (r.closed || r.waiting || leftToSupervisor(state, n, r)) {
+        return true;
+    }
+    if (r.stage === "stage:done" || r.stage === "stage:parked") {
         return true;
     }
     if (r.stage === null) {

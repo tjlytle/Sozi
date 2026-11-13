@@ -101,6 +101,14 @@ describe("stage prompts", () => {
         assert.match(text.qa, /req-missing-evidence\.json/);
         assert.match(text.qa, /req-missing-digest\.json/);
     });
+    test("work is pushed as it turns green, and at once when the runner warns of the stop", () => {
+        assert.match(text.build, /each time a step turns its tests green/);
+        assert.match(text.build, /not held for the end/);
+        for (const name of ["build", "tests"]) {
+            assert.match(text[name], /runner warns that the session will stop/, name);
+            assert.match(text[name], /commit and push what you have at once/, name);
+        }
+    });
     test("the PR is found by its branch", () => {
         for (const name of ["build", "review", "qa"]) {
             assert.ok(text[name].includes("--head {N}-<slug>"), name);
@@ -193,6 +201,22 @@ test("no prompt pushes with -u", () => {
         const text = fs.readFileSync(`pipeline/${f}`, "utf8");
         assert.doesNotMatch(text, /--push [^\n]*-u\b/, f);
     }
+});
+
+describe("the supervisor (#516)", () => {
+    test("its prompt names the stage command, --apply, and what it must not do", () => {
+        const text = fs.readFileSync("pipeline/supervisor/PROMPT.md", "utf8");
+        assert.ok(text.includes("node bin/pipeline.js <#>"), "bin/pipeline.js <#>");
+        assert.ok(text.includes("npm run supervise -- --apply <#>"), "--apply");
+        assert.ok(text.includes("--build-image"), "--build-image");
+        assert.match(text, /one patch, never a class of changes/);
+        assert.match(text, /never restart/i);
+    });
+    test("build leaves a refused .claude/ write as /outbox/protected.patch and waits", () => {
+        const build = fs.readFileSync("pipeline/build.md", "utf8");
+        const line = build.split("\n").find(l => l.includes("/outbox/protected.patch")) ?? "";
+        assert.match(line, /wait request/);
+    });
 });
 
 test("older check failures are filed, not fixed, and not a review defect (#90)", () => {

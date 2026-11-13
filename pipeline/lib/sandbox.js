@@ -2,40 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The containers stages run in: the bare mirror they clone from, the image, the
-// outbox each session writes to, and the docker commands that start, watch and
-// remove them. Every command goes through an injectable runner.
+// The containers stages run in: the bare mirror they clone from, the image, and the
+// docker commands that start, watch and remove them. Every command goes through an
+// injectable runner. The arguments come from container-args.js, the outbox from
+// outbox-prepare.js and the profile runs from profile.js.
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
 import {defaultRun} from "./github.js";
-import {copyCarry, copyPatches} from "./outbox.js";
-import {PERSONAS, inspectProfile, profileArgs, volumeName} from "./profile.js";
-
-/** Credentials (the mint key among them) and per-session values passed by name, so Docker reads them from the
- * environment of the docker command and they never appear in a process listing.
- */
-const BY_NAME = [
-    "CLAUDE_CODE_OAUTH_TOKEN",
-    "ANTHROPIC_API_KEY",
-    "NOTION_TOKEN",
-    "PIPELINE_NOTION_PAGE",
-    "PIPELINE_EVIDENCE_ACCOUNT",
-    "PIPELINE_EVIDENCE_BUCKET",
-    "PIPELINE_EVIDENCE_TOKEN",
-    "PIPELINE_EVIDENCE_URL",
-    "PIPELINE_RUN",
-    "PIPELINE_ISSUE",
-    "PIPELINE_BRANCH",
-    "GH_MINT_KEY"
-];
-
-/** The fallback credentials a mounted profile's login replaces. */
-const PROFILE_REPLACES = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"];
-
-const MAX_RESUMES = "3";
+import {consultArgs, loginArgs, startArgs, startEnv} from "./container-args.js";
+import {prepareOutbox} from "./outbox-prepare.js";
+import {copyProfile, inspectProfile} from "./profile.js";
 
 /**
  * Run a command with the terminal attached.
@@ -49,23 +28,7 @@ function spawnInteractive(cmd) {
 
 /**
  * @typedef {import("./github.js").Runner} Runner
- */
-
-/**
- * @typedef {object} StartOptions
- * @property {number} issue - The issue number; 0 for a spawned session with no issue.
- * @property {string} stage - The prompt stage name: plan, tests, build, review, qa or spawn.
- * @property {string} outbox - The host directory mounted at /outbox.
- * @property {string} mintUrl - The mint endpoint as the container reaches it.
- * @property {string} mintKey - The run's mint credential.
- * @property {string} [harness] - The harness; the stage's setting when absent.
- * @property {string} [model] - The model; the stage's setting when absent.
- * @property {string} [tag] - A suffix that keeps the container name unique.
- * @property {string} [persona] - The persona the stage runs as: passed as PIPELINE_PERSONA, and its profile volume is the one mounted.
- * @property {boolean} [profile] - Whether to mount the persona's profile; nothing is mounted when absent.
- * @property {Date} [now] - The time the name carries; the current time when absent.
- * @property {Record<string, string>} [env] - Values for the names passed through, such as PIPELINE_ISSUE.
- * @property {{session: string, carryFrom: string}} [resume] - The harness session to resume, passed as PIPELINE_RESUME_SESSION, and the outbox its carry came from.
+ * @typedef {import("./container-args.js").StartOptions} StartOptions
  */
 
 /**
@@ -86,62 +49,63 @@ function spawnInteractive(cmd) {
  */
 
 /**
- * Two digits.
+ * Run a command and fail on a non-zero exit.
  *
- * @param {number} n - A number below 100.
- * @returns {string} The number, zero padded.
+ * @param {Runner} run - The command runner.
+ * @param {string[]} cmd - The command.
+ * @param {{env?: Record<string, string>}} [opts] - Extra environment.
+ * @returns {Promise<string>} Standard output.
  */
-function pad(n) {
-    return String(n).padStart(2, "0");
+async function must(run, cmd, opts) {
+    const r = await run(cmd, opts);
+    if (r.code !== 0) {
+        throw new Error(`${cmd.slice(0, 2).join(" ")} failed: ${r.stderr.trim().slice(0, 300)}`);
+    }
+    return r.stdout;
 }
 
 /**
- * Copy each persona's commit identity (the BOT_GIT_NAME and BOT_GIT_EMAIL lines of the
- * host's gh-bot bot-env, nothing else) into a session's outbox, so gh-as commits from a
- * container carry the App identity (#80). A persona without a host file is skipped.
+ * Clone the bare mirror once, then update it.
  *
- * @param {string} from - The host gh-bot directory.
- * @param {string} to - The outbox's gh-bot directory.
- * @returns {void}
+ * @param {{run: Runner, settings: any, varDir: string, mirror: string}} options - The
+ *     runner, the loop settings, var/pipeline and the mirror's path.
+ * @returns {Promise<void>}
  */
-export function copyIdentities(from, to) {
-    for (const persona of PERSONAS) {
-        let text;
-        try {
-            text = fs.readFileSync(path.join(from, persona, "bot-env"), "utf8");
-        } catch {
-            continue;
-        }
-        const lines = text
-            .split("\n")
-            .map(line => line.trim())
-            .filter(line => /^BOT_GIT_(NAME|EMAIL)=/.test(line));
-        if (lines.length > 0) {
-            fs.mkdirSync(path.join(to, persona), {recursive: true});
-            fs.writeFileSync(path.join(to, persona, "bot-env"), `${lines.join("\n")}\n`);
-        }
+async function refreshMirror({run, settings, varDir, mirror}) {
+    if (fs.existsSync(mirror)) {
+        // No automatic gc: a gc while a container clones would race it.
+        await must(run, ["git", "-c", "gc.auto=0", "-C", mirror, "remote", "update", "--prune"]);
+        return;
     }
+    fs.mkdirSync(varDir, {recursive: true});
+    await must(run, [
+        "git",
+        "clone",
+        "--mirror",
+        `https://github.com/${settings.repo}.git`,
+        mirror
+    ]);
 }
 
 /**
- * The docker run arguments that cap a stage container's memory, CPUs and /dev/shm, for each
- * of them the settings set.
+ * Build the stage image from docker/factory/Dockerfile.
  *
- * @param {any} settings - The loop settings from loadConfig.
- * @returns {string[]} The arguments.
+ * @param {{run: Runner, settings: any, root: string}} options - The runner, the loop
+ *     settings and the repository root.
+ * @returns {Promise<void>}
  */
-function resourceArgs(settings) {
-    const args = [];
-    if (settings.memory) {
-        args.push("--memory", settings.memory);
-    }
-    if (settings.cpus > 0) {
-        args.push("--cpus", String(settings.cpus));
-    }
-    if (settings.shmSize) {
-        args.push("--shm-size", settings.shmSize);
-    }
-    return args;
+async function buildImage({run, settings, root}) {
+    await must(run, [
+        "docker",
+        "build",
+        "-t",
+        settings.image,
+        "--build-arg",
+        `FACTORY_UID=${process.getuid?.() ?? 1000}`,
+        "-f",
+        path.join(root, "docker", "factory", "Dockerfile"),
+        root
+    ]);
 }
 
 /**
@@ -169,222 +133,23 @@ export function createSandbox({
 }) {
     const varDir = path.join(root, "var", "pipeline");
     const mirror = path.join(varDir, "mirror.git");
-
-    /**
-     * Run a command and fail on a non-zero exit.
-     *
-     * @param {string[]} cmd - The command.
-     * @param {{env?: Record<string, string>}} [opts] - Extra environment.
-     * @returns {Promise<string>} Standard output.
-     */
-    async function must(cmd, opts) {
-        const r = await run(cmd, opts);
-        if (r.code !== 0) {
-            throw new Error(
-                `${cmd.slice(0, 2).join(" ")} failed: ${r.stderr.trim().slice(0, 300)}`
-            );
-        }
-        return r.stdout;
-    }
-
-    /** @type {Sandbox["startArgs"]} */
-    function startArgs({
-        issue,
-        stage,
-        outbox,
-        mintUrl,
-        harness,
-        model,
-        tag,
-        now,
-        persona,
-        profile,
-        resume
-    }) {
-        const at = now ?? new Date();
-        const name = `factory-${issue}-${stage}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
-        const args = ["run", "-d", "--name", tag ? `${name}-${tag}` : name];
-        args.push("--add-host=host.docker.internal:host-gateway", ...resourceArgs(settings));
-        args.push("-v", `${mirror}:/mirror:ro`, "-v", `${outbox}:/outbox`);
-        // With a profile no token name is passed: docker would read it from its own
-        // environment, and a token takes precedence over the profile login.
-        for (const name of BY_NAME) {
-            if (!(profile && PROFILE_REPLACES.includes(name))) {
-                args.push("-e", name);
-            }
-        }
-        const values = {
-            GH_MINT_URL: mintUrl,
-            PIPELINE_REPO: settings.repo,
-            PIPELINE_HARNESS: harness ?? settings.harnessFor(stage),
-            PIPELINE_MODEL: model ?? settings.modelFor(stage),
-            PIPELINE_SESSION_BUDGET_USD: String(settings.sessionBudgetUsd),
-            PIPELINE_MAX_RESUMES: MAX_RESUMES,
-            PIPELINE_ADVISOR_WAIT_MINUTES: String(settings.advisor.waitMinutes),
-            GH_BOT_CONFIG_DIR: "/outbox/gh-bot",
-            // What stage.sh signs gh-as bodies and commits with (#166).
-            ...(persona ? {PIPELINE_PERSONA: persona} : {}),
-            ...(resume ? {PIPELINE_RESUME_SESSION: resume.session} : {})
-        };
-        for (const [key, value] of Object.entries(values)) {
-            args.push("-e", `${key}=${value}`);
-        }
-        if (profile) {
-            args.push(...profileArgs(/** @type {string} */ (persona)));
-        }
-        args.push(settings.image, "/pipeline/stage.sh", String(issue), stage);
-        return args;
-    }
-
-    /** @type {Sandbox["loginArgs"]} */
-    function loginArgs({persona, harness}) {
-        return [
-            "run",
-            "-it",
-            "--rm",
-            "--network",
-            "host",
-            "--name",
-            `factory-login-${persona}`,
-            ...profileArgs(persona),
-            "-e",
-            `PIPELINE_LOGIN_PERSONA=${persona}`,
-            "-e",
-            `PIPELINE_LOGIN_HARNESS=${harness}`,
-            settings.image,
-            "/pipeline/login.sh"
-        ];
-    }
-
+    const image = settings.image;
     return {
-        async refreshMirror() {
-            if (fs.existsSync(mirror)) {
-                // No automatic gc: a gc while a container clones would race it.
-                await must(["git", "-c", "gc.auto=0", "-C", mirror, "remote", "update", "--prune"]);
-                return;
-            }
-            fs.mkdirSync(varDir, {recursive: true});
-            await must([
-                "git",
-                "clone",
-                "--mirror",
-                `https://github.com/${settings.repo}.git`,
-                mirror
-            ]);
-        },
-        async buildImage() {
-            await must([
-                "docker",
-                "build",
-                "-t",
-                settings.image,
-                "--build-arg",
-                `FACTORY_UID=${process.getuid?.() ?? 1000}`,
-                "-f",
-                path.join(root, "docker", "factory", "Dockerfile"),
-                root
-            ]);
-        },
-        startArgs,
-        loginArgs,
-        async login(opts) {
-            return runInteractive(["docker", ...loginArgs(opts)]);
-        },
-        async copyProfile({from, to}) {
-            const source = volumeName(from);
-            const target = volumeName(to);
-            if ((await run(["docker", "volume", "inspect", source])).code !== 0) {
-                throw new Error(`no profile for ${from}: run npm run pipeline -- --login ${from}`);
-            }
-            if ((await run(["docker", "volume", "inspect", target])).code === 0) {
-                throw new Error(`profile of ${to} exists; remove the volume first`);
-            }
-            await must(["docker", "volume", "create", target]);
-            // The target mounts at /profile, which the image creates for the factory user, so the
-            // fresh volume takes that owner. The script copies everything but the Claude login.
-            try {
-                await must([
-                    "docker",
-                    "run",
-                    "--rm",
-                    "-v",
-                    `${source}:/from:ro`,
-                    "-v",
-                    `${target}:/profile`,
-                    settings.image,
-                    "/pipeline/profile-copy.sh"
-                ]);
-            } catch (err) {
-                await run(["docker", "volume", "rm", target]);
-                throw err;
-            }
-        },
-        inspectProfile(persona) {
-            return inspectProfile(run, {image: settings.image, persona});
-        },
+        refreshMirror: () => refreshMirror({run, settings, varDir, mirror}),
+        buildImage: () => buildImage({run, settings, root}),
+        startArgs: opts => startArgs(settings, mirror, opts),
+        loginArgs: opts => loginArgs(image, opts),
+        login: async opts => runInteractive(["docker", ...loginArgs(image, opts)]),
+        copyProfile: ({from, to}) => copyProfile(run, {image, from, to}),
+        inspectProfile: persona => inspectProfile(run, {image, persona}),
         async start(opts) {
-            const ev = settings.evidence;
-            /** @type {Record<string, string>} */
-            const env = {};
-            // With a profile its login is what the CLI uses; a token would take precedence over it.
-            const skip = opts.profile ? PROFILE_REPLACES : [];
-            for (const name of BY_NAME) {
-                const value = loopEnv[name];
-                if (value && !skip.includes(name)) {
-                    env[name] = value;
-                }
-            }
-            const fromSettings = {
-                PIPELINE_EVIDENCE_ACCOUNT: ev.account,
-                PIPELINE_EVIDENCE_BUCKET: ev.bucket,
-                PIPELINE_EVIDENCE_TOKEN: ev.token,
-                PIPELINE_EVIDENCE_URL: ev.url
-            };
-            for (const [key, value] of Object.entries(fromSettings)) {
-                if (value) {
-                    env[key] = value;
-                }
-            }
-            const out = await must(["docker", ...startArgs(opts)], {
-                env: {...env, ...opts.env, GH_MINT_KEY: opts.mintKey}
-            });
-            return out.trim();
+            const cmd = ["docker", ...startArgs(settings, mirror, opts)];
+            const env = startEnv(settings, loopEnv, opts);
+            return (await must(run, cmd, {env})).trim();
         },
-        async consult({key, checkout, out, session, model}) {
-            const call = session
-                ? ["resume", "--session", session, "--message", "/consult/prompt.md"]
-                : ["run", "--prompt", "/consult/prompt.md"];
-            const profile = settings.profiles !== "off";
-            const tokens = Object.fromEntries(
-                PROFILE_REPLACES.filter(name => !profile && loopEnv[name]).map(name => [
-                    name,
-                    String(loopEnv[name])
-                ])
-            );
-            const args = ["run", "--rm", "--name", `factory-advisor-${key}-${Date.now()}`];
-            args.push(
-                ...resourceArgs(settings),
-                "-v",
-                `${checkout}:/advisor`,
-                "-v",
-                `${out}:/consult`
-            );
-            args.push(
-                ...(profile ? profileArgs("architect") : PROFILE_REPLACES.flatMap(n => ["-e", n]))
-            );
-            // The image's entrypoint is bash; timeout bounds the call to how long bin/advise waits.
-            args.push("--entrypoint", "timeout", settings.image);
-            args.push(String(Math.ceil(settings.advisor.waitMinutes * 60)));
-            args.push("/pipeline/harness/claude", ...call, "--model", model);
-            args.push(
-                "--allow",
-                "/consult/allow.txt",
-                "--checkout",
-                "/advisor",
-                "--out",
-                "/consult"
-            );
-            return (await run(["docker", ...args], {env: tokens})).code;
+        async consult(opts) {
+            const {args, env} = consultArgs(settings, loopEnv, opts);
+            return (await run(["docker", ...args], {env})).code;
         },
         async status(container) {
             const r = await run(["docker", "inspect", "-f", "{{.State.Status}}", container]);
@@ -399,36 +164,6 @@ export function createSandbox({
         async remove(container) {
             await run(["docker", "rm", "-f", container]);
         },
-        prepareOutbox({issue, stage, prompt, allow, carryFrom, resume, patches}) {
-            const at = new Date();
-            const time = `${at.getUTCFullYear()}${pad(at.getUTCMonth() + 1)}${pad(at.getUTCDate())}-${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}`;
-            const base = path.join(varDir, `out-${issue}-${stage}-${time}`);
-            fs.mkdirSync(varDir, {recursive: true});
-            let dir = base;
-            for (let n = 2; ; n++) {
-                try {
-                    fs.mkdirSync(dir);
-                    break;
-                } catch (error) {
-                    if (/** @type {{code?: string}} */ (error).code !== "EEXIST") {
-                        throw error;
-                    }
-                    dir = `${base}-${n}`;
-                }
-            }
-            fs.writeFileSync(path.join(dir, "prompt.md"), prompt);
-            fs.writeFileSync(path.join(dir, "allow.txt"), allow);
-            copyIdentities(botConfigDir, path.join(dir, "gh-bot"));
-            if (carryFrom) {
-                copyCarry(carryFrom, dir);
-            }
-            if (patches) {
-                copyPatches(patches.from, patches.names, dir);
-            }
-            if (resume !== undefined) {
-                fs.writeFileSync(path.join(dir, "resume.md"), resume);
-            }
-            return dir;
-        }
+        prepareOutbox: opts => prepareOutbox(varDir, botConfigDir, opts)
     };
 }

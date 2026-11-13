@@ -5,12 +5,14 @@
 // Judging a session that ended: its usage, its requests, and whether it moved its
 // issue. A session that moved nothing is a try; park.js counts it and parks the issue.
 
+import {keepProtected, labelIfPlanned} from "./finish-supervised.js";
 import {RateLimited, blockedBy} from "./github.js";
 import {loggedOutLine, markLoggedOut} from "./logins.js";
 import {listPatches, readResult} from "./outbox.js";
 import {countTry, parkBranches, parkStub} from "./park.js";
 import {personaFor} from "./profile.js";
 import {readRequests} from "./requests.js";
+import {applyRerun} from "./rerun.js";
 import {keepLeftover, stageOf} from "./state.js";
 import {
     applyLabels,
@@ -177,6 +179,7 @@ async function movedByHand(ctx, n) {
     record.labels = [...labels];
     record.stage = stage;
     record.tries = 0;
+    record.reruns = 0;
     record.waiting = false;
     ctx.changed.add(n);
     return true;
@@ -184,17 +187,20 @@ async function movedByHand(ctx, n) {
 
 /**
  * Apply the requests of an issue's session. A done request must name a move the stage
- * the session ran may make; any other is refused and the session moved nothing.
+ * the session ran may make; any other is refused and the session moved nothing. A plan's
+ * done labels its issue supervised when the plan changes the pipeline or .claude/. A rerun
+ * request goes to rerun.js, which checks it against GitHub.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
  * @param {Request[]} accepted - The accepted requests.
  * @param {string | null} unverified - Why they cannot be trusted, if so.
- * @returns {Promise<{moved: boolean, wait: string | null}>} Whether the issue moved, and why it waits for a person.
+ * @returns {Promise<{moved: boolean, wait: string | null, rerun: boolean}>} Whether the issue moved, why it waits for a person, and whether its CI run was rerun.
  */
 async function applyRequests(ctx, n, accepted, unverified) {
     const stage = ctx.state.issues[n].session.stage;
     let moved = false;
+    let rerun = false;
     /** @type {string | null} */
     let wait = null;
     for (const request of accepted) {
@@ -217,16 +223,21 @@ async function applyRequests(ctx, n, accepted, unverified) {
             if (request.to === "stage:blocked") {
                 await readBlockers(ctx, n);
             }
+            if (stage === "plan") {
+                await labelIfPlanned(ctx, n);
+            }
         } else if (request.kind === "label") {
             const changed = await applyLabels(ctx, request);
             moved ||= changed && request.issue === n;
         } else if (request.kind === "wait") {
             wait = request.reason;
+        } else if (request.kind === "rerun") {
+            rerun = (await applyRerun(ctx, n, request)) || rerun;
         } else {
             queueSpawn(ctx, request, `#${n}`);
         }
     }
-    return {moved, wait};
+    return {moved, wait, rerun};
 }
 
 /**
@@ -253,13 +264,14 @@ function interruption(ctx, session, result) {
 
 /**
  * Judge an issue's ended session: usage, requests, and a try when it moved nothing,
- * unless it asked to wait for a person or the model's usage limit stopped it. A session the
+ * unless it asked to wait for a person, the loop reran its CI run, or the model's usage
+ * limit stopped it. A session the
  * usage limit stopped is recorded as interrupted, for the next session of its stage to carry
  * on; one whose carried work did not apply puts back the interruption it carried, and counts a
  * try. A session whose login died marks its persona logged out. A session on a stub harness
  * parks the issue at once, and so does one that found several issue branches and no PR head,
  * keeping the interruption it carried. A try that counts keeps the patches it left for the next
- * one.
+ * one. A protected patch is kept for the supervisor, and the issue waits for a person.
  *
  * @param {PassContext} ctx - The pass context.
  * @param {number} n - The issue number.
@@ -284,7 +296,9 @@ async function judgeIssue(ctx, n, outcome) {
         ctx.log(`${who}: unverified session: ${unverified}`);
     }
     const {accepted, refused} = readRequests(outbox, {issue: n});
-    const {moved, wait} = await applyRequests(ctx, n, accepted, unverified);
+    const {moved, wait: asked, rerun} = await applyRequests(ctx, n, accepted, unverified);
+    const kept = unverified ? null : await keepProtected(ctx, n, outbox);
+    const wait = asked ?? kept;
     await notesAndRefusals(ctx, accepted, refused, n, who);
     if (moved) {
         return;
@@ -306,6 +320,8 @@ async function judgeIssue(ctx, n, outcome) {
         await ctx.digest.add({issue: n, text: `waits for a person: ${wait}`}).catch(error => {
             ctx.log(`${who}: digest note failed: ${String(error)}`);
         });
+    } else if (rerun) {
+        ctx.log(`${who}: CI rerun requested; no try, stays at ${record.stage}`);
     } else if (unverified || !(await movedByHand(ctx, n))) {
         const kept = keepLeftover(ctx.state, n, {stage, outbox, patches: listPatches(outbox)});
         if (kept > 0) {

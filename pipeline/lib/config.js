@@ -14,6 +14,7 @@ const DEFAULT_MODEL = "claude-opus-5-5";
 const DEFAULTS = {
     PIPELINE_PARALLEL: "2",
     PIPELINE_SESSION_MINUTES: "45",
+    PIPELINE_SESSION_WARN_MINUTES: "5",
     PIPELINE_SYNC_MINUTES: "10",
     PIPELINE_RATE_LIMIT_BACKOFF_MINUTES: "15",
     PIPELINE_MAX_TRIES: "3",
@@ -44,6 +45,7 @@ const DEFAULTS = {
     PIPELINE_BACKLOG: "",
     PIPELINE_ON_LIMIT: "wait",
     PIPELINE_MODEL_ADVISOR: "claude-fable-5-1",
+    PIPELINE_MODEL_SUPERVISOR: "claude-fable-5-1",
     PIPELINE_ADVISOR_MAX: "2",
     PIPELINE_ADVISOR_NUDGE_SHARE: "0.5",
     PIPELINE_ADVISOR_MAX_CONTEXT: "300000",
@@ -61,6 +63,7 @@ const CHOICES = {
 const NUMBERS = [
     "PIPELINE_PARALLEL",
     "PIPELINE_SESSION_MINUTES",
+    "PIPELINE_SESSION_WARN_MINUTES",
     "PIPELINE_SYNC_MINUTES",
     "PIPELINE_RATE_LIMIT_BACKOFF_MINUTES",
     "PIPELINE_MAX_TRIES",
@@ -260,6 +263,7 @@ export function loadConfig({root, env, files}) {
     return {
         parallel: num("PIPELINE_PARALLEL"),
         sessionMinutes: num("PIPELINE_SESSION_MINUTES"),
+        sessionWarnMinutes: num("PIPELINE_SESSION_WARN_MINUTES"),
         syncMinutes: num("PIPELINE_SYNC_MINUTES"),
         rateLimitBackoffMinutes: num("PIPELINE_RATE_LIMIT_BACKOFF_MINUTES"),
         maxTries: num("PIPELINE_MAX_TRIES"),
@@ -320,6 +324,7 @@ export function loadConfig({root, env, files}) {
             maxContext: num("PIPELINE_ADVISOR_MAX_CONTEXT"),
             waitMinutes: num("PIPELINE_ADVISOR_WAIT_MINUTES")
         },
+        supervisorModel: raw.PIPELINE_MODEL_SUPERVISOR,
         /** The MCP servers a persona's profile may hold.
          *
          * @param {string} persona - The persona name.

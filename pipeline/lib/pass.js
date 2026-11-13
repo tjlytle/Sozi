@@ -4,19 +4,21 @@
 
 // One pass of the factory loop, as a function the watch loop, --once and a single issue
 // all call: reread changed settings, write queued label changes, reap ended sessions, hand
-// questions to the advisor and nudge, refresh the mirror, sync with GitHub when due, unblock,
-// test the stop condition, start what is due, save.
+// questions to the advisor and nudge, warn the sessions near the cap, refresh the mirror,
+// sync with GitHub when due, unblock, test the stop condition, start what is due, sync the
+// board when GitHub was read, save and say when the next cap warning is due.
 
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {Advisor} from "./advisor.js";
+import {secondsToNextWarning, warnSessions} from "./cap-warning.js";
 import {consult} from "./consults.js";
 import {isQuiet, scope} from "./due.js";
 import {ceiling} from "./state.js";
 import {finishIssue, finishSpawn} from "./finish.js";
 import {running} from "./running.js";
 import {start} from "./start.js";
-import {drainIfFree, syncIfDue, unblock, writeComment} from "./sync.js";
+import {drainIfFree, syncBoard, syncIfDue, unblock, writeComment} from "./sync.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -37,6 +39,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * @property {(line: string) => void} log - The log.
  * @property {Record<string, string | undefined>} env - The loop's environment, as the sandbox gets it.
  * @property {string} [root] - The repository root, where pipeline/*.md live; this checkout when absent.
+ * @property {string} [protectedDir] - Where protected patches are kept; var/pipeline/protected under the root when absent.
  * @property {() => void} [save] - Writes the state; called at the end of every pass.
  * @property {() => void} [reload] - Rereads the settings; called first in every pass.
  * @property {{ask: (job: import("./advisor.js").Job) => Promise<void>, dispose: () => Promise<void>}} [advisor] - The advisor; one over the sandbox, under var/pipeline/advisors, when absent.
@@ -117,6 +120,7 @@ function stopCheck(ctx) {
  */
 export function createPass({
     root = REPO_ROOT,
+    protectedDir = path.join(root, "var", "pipeline", "protected"),
     save = () => {},
     reload = () => {},
     advisor,
@@ -131,6 +135,7 @@ export function createPass({
     const ctx = {
         ...parts,
         root,
+        protectedDir,
         save,
         changed: new Set(),
         syncs: 0,
@@ -156,18 +161,24 @@ export function createPass({
             await drainIfFree(ctx);
             await reap(ctx);
             consult(ctx);
+            warnSessions(ctx);
             try {
                 await ctx.sandbox.refreshMirror();
             } catch (error) {
                 ctx.log(`mirror refresh failed: ${String(error)}`);
             }
-            await syncIfDue(ctx);
+            const synced = await syncIfDue(ctx);
             await unblock(ctx);
             const {noStarts, stopped} = stopCheck(ctx);
             if (starts && !stopped && !noStarts) {
                 await start(ctx);
             }
+            // After the starts, so a full board walk never holds up a free slot.
+            if (synced) {
+                await syncBoard(ctx);
+            }
             ctx.summary.stopped = stopped;
+            ctx.summary.wakeIn = secondsToNextWarning(ctx.state, ctx.settings, ctx.clock.now());
             save();
             return ctx.summary;
         }
@@ -187,6 +198,7 @@ function emptySummary() {
         parked: [],
         spawns: 0,
         consults: 0,
-        stopped: null
+        stopped: null,
+        wakeIn: null
     };
 }

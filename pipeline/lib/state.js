@@ -62,6 +62,7 @@ const DEFAULT_MAX_TRIES = 3;
  * @property {boolean} [waiting] - A session ended asking a person to act; cleared by a stage change.
  * @property {Interrupted | null} [interrupted] - The session a usage limit stopped, whose work the next session of its stage carries on; cleared when that one starts.
  * @property {Leftover | null} [leftover] - The patches the last try of the stage left in its outbox for the next one; cleared by a stage change.
+ * @property {number} [reruns] - CI reruns the loop made for the issue at its current stage (rerun.js); reset by a stage change.
  */
 
 /**
@@ -182,7 +183,7 @@ export function promptFor(stage) {
 /** Adds or refreshes an issue from its GitHub data. An issue waiting for a person keeps
  * waiting while its stage holds and it stays open; a parked one keeps its park time; the
  * board card, the sub-issue link and an interrupted session carry over, and the patches
- * the last try left while the stage holds. A new issue, or one whose stage changed, entered
+ * the last try left and the CI reruns made while the stage holds. A new issue, or one whose stage changed, entered
  * its stage at its updatedAt; otherwise that time holds.
  *
  * @param {State} state - The state.
@@ -217,6 +218,7 @@ export function applyIssue(state, issue) {
         ...(existing?.interrupted && {interrupted: existing.interrupted}),
         ...(existing?.leftover &&
             existing.stage === stageOf(issue.labels) && {leftover: existing.leftover}),
+        ...(sameStage && existing.reruns && {reruns: existing.reruns}),
         seen: issue.updatedAt ?? null,
         waiting:
             issue.state !== "CLOSED" && existing?.stage === stageOf(issue.labels)
@@ -238,8 +240,8 @@ export function recordTry(state, n, maxTries = DEFAULT_MAX_TRIES) {
     return {tries: record.tries, park: record.tries >= maxTries};
 }
 
-/** Sets an issue's stage: the stage field, the stage label, when it entered the stage, a
- * fresh count of tries, and no person awaited. A change of stage drops the patches the last
+/** Sets an issue's stage: the stage field, the stage label, when it entered the stage, fresh
+ * counts of tries and CI reruns, and no person awaited. A change of stage drops the patches the last
  * try left.
  *
  * @param {State} state - The state.
@@ -257,6 +259,7 @@ export function setStage(state, n, stage, since) {
     record.stage = stage;
     record.stageSince = since;
     record.tries = 0;
+    record.reruns = 0;
     record.waiting = false;
 }
 
