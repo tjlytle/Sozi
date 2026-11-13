@@ -61,6 +61,8 @@ function unfilter(raw: Buffer, width: number, height: number, channels: number):
 
 /** Decode an 8-bit, non-interlaced RGB or RGBA PNG (what Chrome writes).
  *
+ * The image's `pixel(x, y)` gives `[r, g, b]`; an RGBA image's alpha channel is dropped.
+ *
  * @throws {Error} An assertion error when the signature is wrong, or the image is not 8-bit,
  *  non-interlaced RGB or RGBA.
  */
