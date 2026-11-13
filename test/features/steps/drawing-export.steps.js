@@ -35,89 +35,98 @@ async function savedFile(world) {
 
 /** @typedef {{x: number, y: number, width: number, height: number}} Box */
 
-/** What an SVG file holds, read in a blank page of the scenario.
+// The next three functions run in a browser page, through `evaluate` and `evaluateAll`, so each
+// one stands alone: it reaches nothing of this module.
+
+/** Put the root of an SVG file into a blank page's body, where it is drawn and can be measured.
  *
- * Each path's box is in the root's user units, the `viewBox`'s; its opacity is its
- * `fill-opacity` times the opacity of every group it is in.
+ * @param {string} svg - The SVG text.
+ */
+function mountSvg(svg) {
+    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+    document.body.append(document.importNode(parsed.documentElement, true));
+}
+
+/** The box of each element of a mounted SVG file, in the root's user units: the `viewBox`'s.
+ *
+ * @param {Element[]} elements - Elements of the file.
+ * @returns {Box[]} - The box of each.
+ */
+function boxesInRoot(elements) {
+    // Cast: the mounted file's root is an SVG element, and the elements are drawn in it.
+    const root = /** @type {SVGSVGElement} */ (document.querySelector("body > svg"));
+    return elements.map(element => {
+        const graphic = /** @type {SVGGraphicsElement} */ (/** @type {unknown} */ (element));
+        const toRoot = /** @type {DOMMatrix} */ (root.getScreenCTM())
+            .inverse()
+            .multiply(/** @type {DOMMatrix} */ (graphic.getScreenCTM()));
+        const b = graphic.getBBox();
+        const corners = [
+            [b.x, b.y],
+            [b.x + b.width, b.y],
+            [b.x, b.y + b.height],
+            [b.x + b.width, b.y + b.height]
+        ].map(([x, y]) => new DOMPoint(x, y).matrixTransform(toRoot));
+        const xs = corners.map(p => p.x);
+        const ys = corners.map(p => p.y);
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        return {x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y};
+    });
+}
+
+/** The opacity each path is painted with: its `fill-opacity` times the opacity of every element
+ * it is in, so a value on the path and one on its group read the same.
+ *
+ * @param {Element[]} paths - Paths in a page.
+ * @returns {number[]} - The opacity of each.
+ */
+function paintedOpacities(paths) {
+    return paths.map(path => {
+        let opacity = Number(getComputedStyle(path).fillOpacity);
+        for (let e = path.parentElement; e; e = e.parentElement) {
+            opacity *= Number(getComputedStyle(e).opacity);
+        }
+        return opacity;
+    });
+}
+
+/** What an SVG file holds, read in a blank page of the scenario.
  *
  * @param {any} world - The scenario's world.
  * @param {string} text - The SVG text.
  * @param {string} [elementId] - An element whose box to read too.
  * @returns {Promise<{root: string, viewBox: ?string, width: ?string, height: ?string, layers: number, paths: {fill: string, opacity: number, box: Box}[], element: ?Box}>}
- *     - What the file holds.
+ *     - The root's name and size, its Inkscape layers, its paths and the element's box.
  */
 async function readSvg(world, text, elementId) {
     const page = await world.context.newPage();
     try {
-        return await page.evaluate(
-            ([svg, id, inkscape]) => {
-                const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-                // Cast: an SVG parse's root is an SVG element, which DOMParser's type does not say.
-                const root = /** @type {SVGSVGElement} */ (
-                    /** @type {unknown} */ (document.importNode(parsed.documentElement, true))
-                );
-                document.body.append(root);
-                /**
-                 * @param {SVGGraphicsElement} element - An element of the file.
-                 * @returns {{x: number, y: number, width: number, height: number}} - Its box.
-                 */
-                const boxOf = element => {
-                    const toRoot = /** @type {DOMMatrix} */ (root.getScreenCTM())
-                        .inverse()
-                        .multiply(/** @type {DOMMatrix} */ (element.getScreenCTM()));
-                    const b = element.getBBox();
-                    const corners = [
-                        [b.x, b.y],
-                        [b.x + b.width, b.y],
-                        [b.x, b.y + b.height],
-                        [b.x + b.width, b.y + b.height]
-                    ].map(([x, y]) => new DOMPoint(x, y).matrixTransform(toRoot));
-                    const xs = corners.map(p => p.x);
-                    const ys = corners.map(p => p.y);
-                    const x = Math.min(...xs);
-                    const y = Math.min(...ys);
-                    return {x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y};
-                };
-                /**
-                 * @param {Element} path - A path of the file.
-                 * @returns {number} - The opacity it is painted with.
-                 */
-                const opacityOf = path => {
-                    let opacity = Number(getComputedStyle(path).fillOpacity);
-                    for (
-                        let e = /** @type {?Element} */ (path.parentElement);
-                        e && e !== root;
-                        e = e.parentElement
-                    ) {
-                        opacity *= Number(getComputedStyle(e).opacity);
-                    }
-                    return opacity * Number(getComputedStyle(root).opacity);
-                };
-                const element = id ? document.getElementById(id) : null;
-                return {
-                    root: root.localName,
-                    viewBox: root.getAttribute("viewBox"),
-                    width: root.getAttribute("width"),
-                    height: root.getAttribute("height"),
-                    layers: Array.from(root.querySelectorAll("g")).filter(
-                        g => g.getAttributeNS(inkscape, "groupmode") === "layer"
-                    ).length,
-                    paths: Array.from(root.querySelectorAll("path"), path => ({
-                        fill: getComputedStyle(path).fill,
-                        opacity: opacityOf(path),
-                        box: boxOf(
-                            /** @type {SVGGraphicsElement} */ (/** @type {unknown} */ (path))
-                        )
-                    })),
-                    element: element
-                        ? boxOf(
-                              /** @type {SVGGraphicsElement} */ (/** @type {unknown} */ (element))
-                          )
-                        : null
-                };
-            },
-            /** @type {[string, string, string]} */ ([text, elementId ?? "", INKSCAPE])
+        await page.evaluate(mountSvg, text);
+        const root = await page.locator("body > *").evaluate(
+            (r, inkscape) => ({
+                root: r.localName,
+                viewBox: r.getAttribute("viewBox"),
+                width: r.getAttribute("width"),
+                height: r.getAttribute("height"),
+                layers: Array.from(r.querySelectorAll("g")).filter(
+                    g => g.getAttributeNS(inkscape, "groupmode") === "layer"
+                ).length
+            }),
+            INKSCAPE
         );
+        const paths = page.locator("body > * path");
+        const fills = await paths.evaluateAll(all => all.map(p => getComputedStyle(p).fill));
+        const opacities = await paths.evaluateAll(paintedOpacities);
+        const boxes = await paths.evaluateAll(boxesInRoot);
+        const [element = null] = elementId
+            ? await page.locator(`[id="${elementId}"]`).evaluateAll(boxesInRoot)
+            : [];
+        return {
+            ...root,
+            paths: fills.map((fill, i) => ({fill, opacity: opacities[i], box: boxes[i]})),
+            element
+        };
     } finally {
         await page.close();
     }
@@ -170,18 +179,12 @@ Then("the saved path lies over {string} of {string}", async function (elementId,
 Then(
     "the saved path has the fill and opacity of the highlighter stroke in the audience window",
     async function () {
-        const shown = await this.audience.evaluate(selector => {
-            const path = document.querySelector(`${selector} .sozi-drawing__highlighter path`);
-            if (!path) {
-                return null;
-            }
-            let opacity = Number(getComputedStyle(path).fillOpacity);
-            for (let e = path.parentElement; e && !e.matches(selector); e = e.parentElement) {
-                opacity *= Number(getComputedStyle(e).opacity);
-            }
-            return {fill: getComputedStyle(path).fill, opacity};
-        }, LAYER);
-        assert.ok(shown, "the audience window shows a highlighter stroke");
+        const highlighters = this.audience.locator(`${LAYER} .sozi-drawing__highlighter path`);
+        await expect(highlighters).toHaveCount(1, WAIT);
+        const shown = {
+            fill: await highlighters.evaluate(path => getComputedStyle(path).fill),
+            opacity: (await highlighters.evaluateAll(paintedOpacities))[0]
+        };
         const saved = await readSvg(this, (await savedFile(this)).text);
         assert.equal(saved.paths.length, 1, "the saved file holds one path");
         assert.equal(saved.paths[0].fill, shown.fill, "the saved path's fill");
