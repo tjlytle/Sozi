@@ -71,13 +71,14 @@ function noCleanup() {}
  *
  * @param {(element: HTMLElement, handle: PanelHandle) => any} render - The panel's render.
  * @param {string} title - The panel's title.
- * @returns {(element: HTMLElement, handle: PanelHandle) => () => void} A render that always
+ * @returns {(element: HTMLElement, handle?: PanelHandle) => () => void} A render that always
  *   gives a cleanup, and hands the panel's handle on.
  */
 function safeRender(render, title) {
     return (element, handle) => {
         try {
-            const cleanup = render(element, handle);
+            // Cast: the workspace always passes a handle; only a unit test leaves it out.
+            const cleanup = render(element, /** @type {PanelHandle} */ (handle));
             return typeof cleanup === "function" ? cleanup : noCleanup;
         } catch (err) {
             // The speaker sees which panel failed; the stack is for the add-on's author.

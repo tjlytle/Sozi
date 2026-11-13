@@ -136,9 +136,15 @@ describe("panels", () => {
 
     test("a render that takes the element only still works", () => {
         const drawn = [];
-        const panel = readPanel({id: "a", title: "A", render: element => drawn.push(element)});
+        const panel = readPanel({
+            id: "a",
+            title: "A",
+            render: element => {
+                drawn.push(element);
+            }
+        });
         const element = fakeElement();
-        assert.equal(typeof panel.render(/** @type {any} */ (element), undefined), "function");
+        assert.equal(typeof panel.render(/** @type {any} */ (element)), "function");
         assert.deepEqual(drawn, [element]);
     });
 

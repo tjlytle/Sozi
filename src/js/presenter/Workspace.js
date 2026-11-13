@@ -28,7 +28,7 @@ import {dockedLayout, layoutOf} from "./layout.js";
  * @property {string} title - The title of its tab and of its item in the menus.
  * @property {string} icon - The glyph before its title in the menus.
  * @property {string} [description] - One line under its title in the + menu.
- * @property {(element: HTMLElement, handle: PanelHandle) => () => void} render - Draws the
+ * @property {(element: HTMLElement, handle?: PanelHandle) => () => void} render - Draws the
  *   panel into an element, once; returns the function that cleans it up.
  * @property {object} [position] - Where it goes in the default layout, as dockview's
  *   `addPanel` takes it (`referencePanel` and `direction`); the first panel has none.
