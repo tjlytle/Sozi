@@ -107,11 +107,13 @@ class FakeElement {
 
 const doc = {createElement: localName => new FakeElement(localName)};
 
-/** A toolbar on a fake mirror and panel handle, with what it sends and the tools it sets.
+/** A toolbar on a fake mirror, panel handle and downloads, with what it sends, the tools it sets
+ * and the files it saves.
  *
  * @param {object} [options] - The handle, or null for none.
  * @param {any} [options.panel] - The panel handle.
- * @returns {any} - The toolbar, the mirror, the handle, the messages and the tools.
+ * @returns {any} - The toolbar, the mirror, the handle, the messages, the tools and the saved
+ *   files, each as `[fileName, text, type]`.
  */
 function toolbarOn({panel = fakeHandle()} = {}) {
     const mirror = Object.assign(new EventEmitter(), {
