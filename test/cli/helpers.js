@@ -43,9 +43,16 @@ const MAX_TIMEOUT_MS = 2 ** 31 - 1;
  */
 
 /** The result of a CLI run, as `runSozi` returns it: the exit code, the output streams,
- * and stdout parsed as JSON (null when it is not JSON).
+ * stdout parsed as JSON (null when it is not JSON), and the signal that ended the run
+ * (null when it exited by itself).
  *
- * @typedef {{code: number|null, stdout: string, stderr: string, json: object|null}} SoziRun
+ * @typedef {{
+ *  code: number|null,
+ *  stdout: string,
+ *  stderr: string,
+ *  json: object|null,
+ *  signal: string|null
+ * }} SoziRun
  */
 
 /** A time limit for a spawned browser, stretched by `SOZI_TEST_TIMEOUT_SCALE`.
@@ -98,7 +105,8 @@ function withCommandTimeout(args, timeoutMs) {
  *  by `limit`; `render` and `export` get a `--timeout` below it, unless they have one.
  * @param {string[]} [opts.switches] - Chromium switches placed before `--cli`, after
  *  `ELECTRON_TEST_SWITCHES` (default: none).
- * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
+ * @returns {SoziRun} - The exit code, the output streams, stdout parsed as JSON, and the
+ *  signal that ended the run.
  * @throws {Error} - When Electron cannot start, or when it reaches the time limit: then with
  *  code `ETIMEDOUT` and the output it printed so far in the message.
  */
@@ -117,7 +125,7 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
     if (result.error) {
         throw result.error;
     }
-    return soziRun(result.status, result.stdout, result.stderr);
+    return soziRun(result.status, result.stdout, result.stderr, result.signal);
 }
 
 /** Start `electron build/electron --cli ...args`, with the test Chromium switches before
@@ -130,7 +138,7 @@ function runSozi(args, {cwd = repoDir, env = process.env, timeout = 60000, switc
  * @param {number} [opts.timeout] - The time limit in milliseconds (default: 60000), stretched
  *  by `limit`.
  * @returns {{child: import("node:child_process").ChildProcess, done: Promise<SoziRun>}} - The
- *  running process, and its result once it exits.
+ *  running process, and its result, with the signal that ended it, once it exits.
  */
 function runSoziAsync(args, {cwd = repoDir, env = process.env, timeout = 60000} = {}) {
     const child = spawn(electronBinary, [appDir, ...ELECTRON_TEST_SWITCHES, "--cli", ...args], {
@@ -145,7 +153,7 @@ function runSoziAsync(args, {cwd = repoDir, env = process.env, timeout = 60000} 
     child.stderr.setEncoding("utf8").on("data", chunk => (stderr += chunk));
     const done = new Promise((resolve, reject) => {
         child.on("error", reject);
-        child.on("close", code => resolve(soziRun(code, stdout, stderr)));
+        child.on("close", (code, signal) => resolve(soziRun(code, stdout, stderr, signal)));
     });
     return {child, done};
 }
@@ -155,16 +163,27 @@ function runSoziAsync(args, {cwd = repoDir, env = process.env, timeout = 60000} 
  * @param {number|null} code - The exit code.
  * @param {string} stdout - The standard output.
  * @param {string} stderr - The standard error.
- * @returns {SoziRun} - The exit code, the output streams, and stdout parsed as JSON.
+ * @param {string|null} [signal] - The signal that ended the run (default: none).
+ * @returns {SoziRun} - The exit code, the output streams, stdout parsed as JSON, and the signal.
  */
-function soziRun(code, stdout, stderr) {
+function soziRun(code, stdout, stderr, signal = null) {
     let json = null;
     try {
         json = JSON.parse(stdout);
     } catch {
         // Leave json null; tests assert on it.
     }
-    return {code, stdout, stderr, json};
+    return {code, stdout, stderr, json, signal};
+}
+
+/** Describe a CLI run for a failure message, so that a run that ends without JSON says how
+ * it ended (#210).
+ *
+ * @param {SoziRun} run - The result of the run.
+ * @returns {string} - The exit code, the signal, stdout and stderr.
+ */
+function runReport({code, signal, stdout, stderr}) {
+    return `exit ${code}, signal ${signal}\nstdout: ${stdout}\nstderr: ${stderr}`;
 }
 
 /** Copy a fixture deck into a fresh temporary directory.
@@ -463,6 +482,8 @@ module.exports = {
     withCommandTimeout,
     runSozi,
     runSoziAsync,
+    soziRun,
+    runReport,
     withTempDeck,
     privateTmp,
     decodePng,

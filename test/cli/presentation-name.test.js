@@ -10,7 +10,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const {runSozi, withTempDeck, fixturesDir} = require("./helpers.js");
+const {runSozi, runReport, withTempDeck, fixturesDir} = require("./helpers.js");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -29,7 +29,7 @@ function sozi(deck, ...args) {
         1,
         `stdout: ${run.stdout}\nstderr: ${run.stderr}`
     );
-    assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.ok(run.json, `stdout is not JSON: ${runReport(run)}`);
     return run;
 }
 
