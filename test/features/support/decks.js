@@ -5,6 +5,7 @@
 // The decks scenarios open: fixtures copied to a temp folder, built once by the real CLI and
 // shared, the copies a scenario changes for itself, and their removal at the end of the run.
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import {createRequire} from "node:module";
 import path from "node:path";
@@ -14,8 +15,30 @@ const {runSozi, withTempDeck} = require("../../cli/helpers.js");
 
 /** A built deck: where its files and pages are, and the function that removes them.
  *
- * @typedef {{dir: string, svg: string, html: string, presenter: string, cleanup: Function}} BuiltDeck
+ * `files` holds a hash of the deck's own files (its `.svg`, `.sozi.json` and `.sozi.html`) as
+ * the build left them, so that a step can tell nothing wrote to them since.
+ *
+ * @typedef {{dir: string, svg: string, html: string, presenter: string, files?: Record<string, string>, cleanup: Function}} BuiltDeck
  */
+
+/** A hash of each of a deck's own files: its `.svg`, `.sozi.json` and `.sozi.html`.
+ *
+ * @param {string} svg - The path of the deck's SVG.
+ * @returns {Record<string, string>} - The SHA-256 of each file, by path; "missing" for a file
+ *     that is not there.
+ */
+export function deckFileHashes(svg) {
+    const base = svg.replace(/\.svg$/, "");
+    const paths = [svg, base + ".sozi.json", base + ".sozi.html"];
+    return Object.fromEntries(
+        paths.map(file => [
+            file,
+            fs.existsSync(file)
+                ? crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")
+                : "missing"
+        ])
+    );
+}
 
 /** @type {Map<string, BuiltDeck>} */
 const decks = new Map();
@@ -28,7 +51,7 @@ const copies = [];
 /** Build a deck with the CLI.
  *
  * @param {{dir: string, svg: string, cleanup: Function}} deck - A deck `withTempDeck` copied.
- * @returns {BuiltDeck} - Where the built pages are.
+ * @returns {BuiltDeck} - Where the built pages are, and a hash of the deck's own files.
  */
 export function buildDeck(deck) {
     const run = runSozi(["build", path.basename(deck.svg)], {cwd: deck.dir});
@@ -41,6 +64,7 @@ export function buildDeck(deck) {
         svg: deck.svg,
         html: base + ".sozi.html",
         presenter: base + "-presenter.sozi.html",
+        files: deckFileHashes(deck.svg),
         cleanup: deck.cleanup
     };
 }

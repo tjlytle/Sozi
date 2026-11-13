@@ -68,9 +68,9 @@ function recordAddedIframes() {
     }).observe(document, {childList: true, subtree: true});
 }
 
-/** Open a browser context for a scenario: its pages record the iframes they add, and every
+/** Open a browser context for a scenario: its pages record the iframes they add, every
  * alert, confirm or prompt is recorded in the world's dialogs, then dismissed so that the page
- * goes on.
+ * goes on, and every file a page downloads is recorded in the world's downloads.
  *
  * @param {SoziWorld} world - The scenario's world.
  * @param {import("playwright").BrowserContextOptions} options - The context's viewport, touch
@@ -80,17 +80,18 @@ function recordAddedIframes() {
 async function newContext(world, options) {
     const context = await browser.newContext(options);
     await context.addInitScript(recordAddedIframes);
-    context.on("page", page =>
+    context.on("page", page => {
         page.on("dialog", dialog => {
             world.dialogs.push(dialog.message());
             dialog.dismiss().catch(() => {});
-        })
-    );
+        });
+        page.on("download", download => world.downloads.push(download));
+    });
     return context;
 }
 
-/** What a scenario can reach: the browser context, the pages it opened and the dialogs they
- * showed, a second copy of its deck and how many pages were open before the first deck's
+/** What a scenario can reach: the browser context, the pages it opened, the dialogs they
+ * showed and the files they downloaded, a second copy of its deck and how many pages were open before the first deck's
  * presenter page came back, the deck's first view, the notes' font size before a change and what
  * a click in them left, the deck and the shell it serves over http and Cucumber's attach.
  */
@@ -138,6 +139,11 @@ export class SoziWorld extends World {
          * @type {string[]}
          */
         this.dialogs = [];
+        /** Every file a page of the scenario downloaded, in order.
+         *
+         * @type {import("playwright").Download[]}
+         */
+        this.downloads = [];
         /** The font size of the notes before a step changed it, in pixels.
          *
          * @type {number}

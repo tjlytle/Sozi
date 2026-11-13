@@ -1,4 +1,4 @@
-# covers: src/js/protocol/drawings.js, src/js/protocol/strokes.js, src/js/protocol/hello.js, src/js/player/DrawingLayer.js, src/js/player/Viewport.js, src/js/player/DisplayChannel.js, src/js/player.js, src/js/presenter/DisplayMirror.js, src/js/presenter/panels/PreviewPanel.js, src/templates/player.html, src/js/player/PreviewPen.js, src/js/player/PreviewMode.js, src/js/presenter/DrawingToolbar.js, src/js/presenter/Workspace.js, src/js/presenter/panels.js, src/css/presenter/drawing-toolbar.css
+# covers: src/js/protocol/drawings.js, src/js/protocol/strokes.js, src/js/protocol/hello.js, src/js/player/DrawingLayer.js, src/js/player/Viewport.js, src/js/player/DisplayChannel.js, src/js/player.js, src/js/presenter/DisplayMirror.js, src/js/presenter/panels/PreviewPanel.js, src/templates/player.html, src/js/player/PreviewPen.js, src/js/player/PreviewMode.js, src/js/presenter/DrawingToolbar.js, src/js/presenter/Workspace.js, src/js/presenter/panels.js, src/css/presenter/drawing-toolbar.css, src/js/protocol/strokeOutline.js, src/js/protocol/canvas.js, src/js/svg/SVGDocumentWrapper.js, src/js/presenter/drawingsSvg.js, src/js/presenter/Downloads.js
 Feature: Drawings on the audience window
 
   A speaker marks up the talk as it runs: a pen line under a word, a highlighter over a
@@ -21,6 +21,12 @@ Feature: Drawings on the audience window
   pans the audience window as before. A stylus always draws, so one hand draws while a finger
   pans. The room sees the stroke as it is drawn, on a small preview, a maximised one or a
   phone. A click on the toolbar does not take the talk's keys.
+
+  After the talk the speaker can keep what was drawn. Export saves the drawings as one SVG
+  file with one layer, in the deck's own canvas: it opens alone, and pasted in place over the
+  deck in Inkscape every stroke sits on the artwork it marked. Hidden drawings are saved too,
+  a highlight keeps its colour and its see-through look, and with nothing drawn there is
+  nothing to export. The export never writes to the deck's own files.
 
   Background:
     Given the "basic" deck is built
@@ -159,3 +165,49 @@ Feature: Drawings on the audience window
       And a finger drags across "r1" on the current-frame preview
       Then the audience window shows 1 stroke
       And a screenshot "draw-preview-phone" is saved
+
+  Rule: The speaker keeps the drawings as an SVG layer
+
+    @issue-522
+    Scenario: Export saves the drawings as one SVG layer that lines up with the deck
+      When the "Draw" button in the "Current" panel is pressed
+      And a mouse drags across "r1" on the current-frame preview
+      And the "Export" button in the "Current" panel is pressed
+      Then the file "basic-drawings.svg" is saved
+      And the saved file holds 1 path in 1 layer
+      And the saved file has the viewBox "0 0 800 600", the width "800" and the height "600"
+      And the saved path lies over "r1" of "basic.svg"
+      And a screenshot "drawings-export" is saved
+
+    @issue-522
+    Scenario: Hidden drawings are exported too
+      When the "Draw" button in the "Current" panel is pressed
+      And a mouse drags across "r1" on the current-frame preview
+      And a mouse drags across "r2" on the current-frame preview
+      And the "Hide drawings" button in the "Current" panel is pressed
+      And the "Export" button in the "Current" panel is pressed
+      Then the saved file holds 2 paths in 1 layer
+
+    @issue-522
+    Scenario: The highlighter keeps its colour and opacity in the file
+      When the "Draw" button in the "Current" panel is pressed
+      And the "Highlighter" button in the "Current" panel is pressed
+      And a mouse drags across "r1" on the current-frame preview
+      And the "Export" button in the "Current" panel is pressed
+      Then the saved path has the fill and opacity of the highlighter stroke in the audience window
+
+    @issue-522
+    Scenario: With no drawings there is nothing to export
+      Then the "Export" button in the "Current" panel is disabled
+      When the "Draw" button in the "Current" panel is pressed
+      And a mouse drags across "r1" on the current-frame preview
+      Then the "Export" button in the "Current" panel is enabled
+      When the "Clear" button in the "Current" panel is pressed
+      Then the "Export" button in the "Current" panel is disabled
+
+    @issue-522
+    Scenario: Export leaves the deck's files as they were
+      When the "Draw" button in the "Current" panel is pressed
+      And a mouse drags across "r1" on the current-frame preview
+      And the "Export" button in the "Current" panel is pressed
+      Then the deck's ".svg", ".sozi.json" and ".sozi.html" files are unchanged
