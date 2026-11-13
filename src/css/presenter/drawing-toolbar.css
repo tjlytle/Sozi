@@ -1,0 +1,67 @@
+/* The drawing toolbar of the current-frame preview (src/js/presenter/DrawingToolbar.js).
+ * The presenter page inlines this file; its tokens are in src/templates/presenter.html. */
+
+/* The current preview's panel: its drawing toolbar above its box. */
+.sozi-panel:has(> .sozi-drawing-toolbar) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sozi-drawing-toolbar + .sozi-preview-box {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+}
+
+/* It wraps on a narrow preview; a group of buttons stays together. */
+.sozi-drawing-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sozi-space);
+    padding: var(--sozi-space-half);
+    background: var(--sozi-bar-background);
+}
+
+.sozi-drawing-toolbar__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sozi-space-half);
+}
+
+.sozi-drawing-toolbar__button {
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: 0 var(--sozi-space);
+    border: 1px solid var(--sozi-button-border);
+    border-radius: 4px;
+    background: var(--sozi-button-background);
+    font: inherit;
+    cursor: pointer;
+}
+
+.sozi-drawing-toolbar__button[aria-pressed="true"] {
+    outline: 2px solid var(--sozi-accent);
+    outline-offset: -2px;
+}
+
+/* Clear sits apart from Undo, so it is not pressed by mistake. */
+.sozi-drawing-toolbar__button--clear {
+    margin-left: var(--sozi-space-double);
+}
+
+.sozi-drawing-toolbar__button--red {
+    background: var(--sozi-ink-red);
+}
+
+.sozi-drawing-toolbar__button--blue {
+    background: var(--sozi-ink-blue);
+}
+
+.sozi-drawing-toolbar__button--green {
+    background: var(--sozi-ink-green);
+}
+
+.sozi-drawing-toolbar__button--yellow {
+    background: var(--sozi-ink-yellow);
+}

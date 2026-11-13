@@ -49,12 +49,21 @@ function runTask(task) {
 }
 
 describe("templateFiles", () => {
-    test("returns the script's bytes and the two inlined stylesheets", () => {
+    test("returns the script's bytes and the inlined stylesheets", () => {
         const dir = scratchDir();
         const jsPath = path.join(dir, "page.js");
         fs.writeFileSync(jsPath, "console.log('page');");
         const files = templateFiles(jsPath);
-        assert.deepEqual(Object.keys(files).sort(), ["highlightCss", "js", "markdownCss"]);
+        assert.deepEqual(Object.keys(files).sort(), [
+            "highlightCss",
+            "js",
+            "markdownCss",
+            "presenterCss"
+        ]);
+        assert.equal(
+            files.presenterCss,
+            fs.readFileSync(path.join(ROOT, "src/css/presenter/drawing-toolbar.css"), "utf8")
+        );
         assert.equal(files.js.toString(), "console.log('page');");
         assert.deepEqual(
             files.markdownCss,
@@ -75,6 +84,7 @@ describe("makeTemplateTask", () => {
         fs.mkdirSync(path.join(dir, "src/templates"), {recursive: true});
         fs.mkdirSync(path.join(dir, "build/tmp"), {recursive: true});
         fs.symlinkSync(path.join(ROOT, "node_modules"), path.join(dir, "node_modules"));
+        fs.symlinkSync(path.join(ROOT, "src/css"), path.join(dir, "src/css"));
         fs.writeFileSync(
             path.join(dir, "src/templates/page.html"),
             "<script>{{ js }}</script>{% raw %}{{ later }}{% endraw %}"
