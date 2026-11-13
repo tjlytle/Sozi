@@ -17,7 +17,7 @@ import {_electron} from "playwright";
 import {SCREENSHOTS} from "./world.js";
 
 const require = createRequire(import.meta.url);
-const {withTempDeck} = require("../../cli/helpers.js");
+const {withTempDeck, ELECTRON_TEST_SWITCHES} = require("../../cli/helpers.js");
 
 const root = path.resolve(import.meta.dirname, "..", "..", "..");
 
@@ -35,8 +35,8 @@ const openEditors = new Set();
 
 /** Copy a fixture deck into a temporary directory and open it in the editor.
  *
- * A system language is given to Chromium with --lang, before the app path, and in LANG,
- * which Electron reads on Linux.
+ * The test Chromium switches and a system language (--lang) go before the app path; the
+ * language goes in LANG too, which Electron reads on Linux.
  *
  * @param {string} fixture - The fixture name under test/fixtures.
  * @param {{lang?: string}} [options] - The system language the editor starts with.
@@ -50,7 +50,12 @@ export async function launchEditor(fixture, {lang} = {}) {
     const langEnv = lang ? {LANG: `${lang.replace(/-/g, "_")}.UTF-8`, LANGUAGE: lang} : {};
     const app = await _electron.launch({
         // The editor opens the last argument as the deck.
-        args: [...langArgs, path.join(root, "build", "electron"), deck.svg],
+        args: [
+            ...ELECTRON_TEST_SWITCHES,
+            ...langArgs,
+            path.join(root, "build", "electron"),
+            deck.svg
+        ],
         // Electron keeps its profile, and the preferences in it, under XDG_CONFIG_HOME when
         // the environment sets it, so it is pointed into the fresh HOME too.
         env: {
