@@ -9,7 +9,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {limit, runSozi, withTempDeck} = require("./helpers.js");
+const {limit, runSozi, runReport, withTempDeck} = require("./helpers.js");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -26,7 +26,7 @@ const CHROME = "/usr/bin/google-chrome";
  */
 function build(deck, ...flags) {
     const run = runSozi(["build", ...flags, path.basename(deck.svg)], {cwd: deck.dir});
-    assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.ok(run.json, `stdout is not JSON: ${runReport(run)}`);
     assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`);
     return run;
 }
@@ -144,7 +144,7 @@ function browserTitle(t, file) {
  */
 function run(deck, command, ...flags) {
     const result = runSozi([command, ...flags, path.basename(deck.svg)], {cwd: deck.dir});
-    assert.ok(result.json, `stdout is not JSON: ${result.stdout}\nstderr: ${result.stderr}`);
+    assert.ok(result.json, `stdout is not JSON: ${runReport(result)}`);
     return result;
 }
 

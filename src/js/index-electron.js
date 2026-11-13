@@ -3,6 +3,7 @@ import * as remoteMain from "@electron/remote/main";
 import settings from "electron-app-settings";
 import {DEFAULT_SIZE, DEFAULT_TIMEOUT_S, parseArgs, parseSize, sizeError} from "./cli/args";
 import {COMMAND_FLAGS} from "./cli";
+import {cliSwitches, processGoneLine} from "./cli/switches";
 
 remoteMain.initialize();
 
@@ -105,16 +106,29 @@ function cliExit(code, result) {
     process.stdout.write(JSON.stringify(Object.assign(base, result)) + "\n", () => app.exit(code));
 }
 
+/** Append the Chromium switches of command-line mode, and report lost helper processes. */
+function setUpCliChromium() {
+    // These override the same switches given on the command line.
+    for (const [name, value] of cliSwitches(process.platform)) {
+        app.commandLine.appendSwitch(name, value);
+    }
+
+    // Chromium restarts or falls back from a lost GPU or utility process, so the command
+    // may still succeed: say so on stderr, so that a run that ends without JSON shows why.
+    app.on("child-process-gone", (event, details) => {
+        if (details.reason !== "clean-exit") {
+            process.stderr.write(processGoneLine(details) + "\n");
+        }
+    });
+}
+
 function cliMain() {
     // Stdout holds the JSON result only, which cliExit() writes directly. Libraries log
     // there too (electron-app-settings prints "changed" whenever another Sozi process
     // rewrites the shared settings file), so send their lines to stderr.
     console.log = console.info = console.debug = console.error;
 
-    // The command line never shows a window: render at device scale 1 on any
-    // display, so that the export window has the requested size in pixels.
-    // This overrides a --force-device-scale-factor given on the command line.
-    app.commandLine.appendSwitch("force-device-scale-factor", "1");
+    setUpCliChromium();
 
     if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
         cliExit(2, {error: "no display; run under xvfb-run"});

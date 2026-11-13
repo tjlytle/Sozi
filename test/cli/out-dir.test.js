@@ -12,7 +12,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {limit, runSozi, withTempDeck} = require("./helpers.js");
+const {limit, runSozi, runReport, withTempDeck} = require("./helpers.js");
 const {decodePng} = require("./decode.ts");
 const {spawnKeepingOutput} = require("./spawn.ts");
 
@@ -30,7 +30,7 @@ const {spawnKeepingOutput} = require("./spawn.ts");
 function soziOk(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
     assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`);
-    assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.ok(run.json, `stdout is not JSON: ${runReport(run)}`);
     assert.equal(run.json.ok, true);
     return run;
 }
@@ -44,7 +44,7 @@ function soziOk(deck, ...args) {
  */
 function soziUsageError(deck, ...args) {
     const run = runSozi(args, {cwd: deck.dir});
-    assert.ok(run.json, `stdout is not JSON: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.ok(run.json, `stdout is not JSON: ${runReport(run)}`);
     assert.equal(run.code, 2, `${run.stdout}\n${run.stderr}`);
     assert.equal(run.json.ok, false);
     assert.ok(!("exitCode" in run.json));
