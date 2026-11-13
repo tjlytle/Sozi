@@ -19,6 +19,7 @@ import {
 import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protocol/camera.js";
 import {DRAWING_COMMANDS, drawingToolMessage, drawingsMessage} from "../../protocol/drawings.js";
 import {DrawingToolbar} from "../DrawingToolbar.js";
+import {Downloads} from "../Downloads.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
 /** @typedef {import("../panels.js").PanelHandle} PanelHandle */
@@ -105,6 +106,12 @@ export class PreviewPanel {
             box.append(this.backButton);
         }
 
+        /** Where the toolbar's Export saves the drawings from.
+         *
+         * @type {Downloads}
+         */
+        this.downloads = new Downloads(doc, doc.defaultView);
+
         /** The drawing toolbar of the current preview, null in another.
          *
          * @type {?DrawingToolbar}
@@ -114,7 +121,8 @@ export class PreviewPanel {
                   mirror,
                   send,
                   panel: panel || null,
-                  onTool: () => this.showTool()
+                  onTool: () => this.showTool(),
+                  downloads: this.downloads
               })
             : null;
         if (this.toolbar) {
@@ -247,14 +255,15 @@ export class PreviewPanel {
         }
     }
 
-    /** Stop following the display, dispose of the toolbar, close the transport and empty the
-     * element.
+    /** Stop following the display, dispose of the toolbar and the downloads, close the transport
+     * and empty the element.
      */
     dispose() {
         this.mirror.off(DisplayMirrorEvents.change, this.onChange);
         if (this.toolbar) {
             this.toolbar.dispose();
         }
+        this.downloads.dispose();
         this.iframe.removeEventListener("load", this.onLoad, false);
         this.disconnect();
         this.element.replaceChildren();

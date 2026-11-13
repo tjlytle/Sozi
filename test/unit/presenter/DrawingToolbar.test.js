@@ -10,6 +10,17 @@ import {
     drawingUndoMessage,
     drawingVisibleMessage
 } from "../../../src/js/protocol/drawings.js";
+import {drawingsSvg} from "../../../src/js/presenter/drawingsSvg.js";
+
+const canvas = {viewBox: [0, 0, 800, 600], width: "800", height: "600"};
+const points = [
+    [10, 10, 0.5],
+    [60, 10, 0.5]
+];
+const drawn = {
+    visible: true,
+    strokes: [{id: "s1", tool: "pen", color: "#e53935", width: 4, points, done: true}]
+};
 
 /** An element with what the toolbar uses of one. */
 class FakeElement {
@@ -103,16 +114,23 @@ const doc = {createElement: localName => new FakeElement(localName)};
  * @returns {any} - The toolbar, the mirror, the handle, the messages and the tools.
  */
 function toolbarOn({panel = fakeHandle()} = {}) {
-    const mirror = Object.assign(new EventEmitter(), {drawings: EMPTY_DRAWINGS});
+    const mirror = Object.assign(new EventEmitter(), {
+        drawings: EMPTY_DRAWINGS,
+        deckId: "basic",
+        canvas
+    });
     const sent = [];
     const tools = [];
+    const saved = [];
+    const downloads = {download: (...file) => saved.push(file)};
     const toolbar = new DrawingToolbar(/** @type {any} */ (doc), {
         mirror: /** @type {any} */ (mirror),
         send: message => sent.push(message),
         panel,
-        onTool: tool => tools.push(tool)
+        onTool: tool => tools.push(tool),
+        downloads: /** @type {any} */ (downloads)
     });
-    return {toolbar, mirror, panel, sent, tools};
+    return {toolbar, mirror, panel, sent, tools, saved};
 }
 
 /** A panel handle that records what is asked of it.
@@ -235,6 +253,36 @@ describe("DrawingToolbar", () => {
     test("without a panel handle there is no Maximise", () => {
         const {toolbar} = toolbarOn({panel: null});
         assert.equal(button(toolbar, "Maximise"), undefined);
+    });
+
+    test("Export is disabled while there is no stroke, and follows the mirror", () => {
+        const {toolbar, mirror} = toolbarOn();
+        assert.equal(button(toolbar, "Export").disabled, true);
+        mirror.drawings = drawn;
+        mirror.emit(DisplayMirrorEvents.change, {drawings: drawn});
+        assert.equal(button(toolbar, "Export").disabled, false);
+        mirror.drawings = EMPTY_DRAWINGS;
+        mirror.emit(DisplayMirrorEvents.change, {drawings: EMPTY_DRAWINGS});
+        assert.equal(button(toolbar, "Export").disabled, true);
+    });
+
+    test("Export downloads the drawings as the deck's drawings SVG, hidden ones too", () => {
+        const {toolbar, mirror, saved} = toolbarOn();
+        mirror.drawings = {...drawn, visible: false};
+        mirror.emit(DisplayMirrorEvents.change, {drawings: mirror.drawings});
+        button(toolbar, "Export").fire("click");
+        assert.deepEqual(saved, [
+            ["basic-drawings.svg", drawingsSvg(mirror.drawings, canvas), "image/svg+xml"]
+        ]);
+    });
+
+    test("Export sits in a group of its own, after Clear", () => {
+        const {toolbar} = toolbarOn();
+        const groups = /** @type {any} */ (toolbar.element).children;
+        const at = name =>
+            groups.findIndex(group => group.children.includes(button(toolbar, name)));
+        assert.ok(at("Export") > at("Clear"));
+        assert.equal(groups[at("Export")].children.length, 1);
     });
 
     test("a press on the toolbar does not take the focus", () => {

@@ -11,8 +11,10 @@ import {
     drawingUndoMessage,
     drawingVisibleMessage
 } from "../protocol/drawings.js";
+import {drawingsFileName, drawingsSvg} from "./drawingsSvg.js";
 
 /** @typedef {import("./DisplayMirror.js").DisplayMirror} DisplayMirror */
+/** @typedef {import("./Downloads.js").Downloads} Downloads */
 /** @typedef {import("./panels.js").PanelHandle} PanelHandle */
 /** @typedef {import("../protocol/drawings.js").DrawingTool} DrawingTool */
 /** @typedef {import("../protocol/messages.js").Message} Message */
@@ -55,7 +57,8 @@ const COLORS = Object.freeze([
  * It holds draw mode, the tool and the colour, and hands them on each time they change. `Draw`
  * turns draw mode on and off; the tool and colour buttons choose one each; `aria-pressed` says
  * which. Undo, Clear and Hide or Show send their messages to the display; Hide reads Show while
- * the display hides the drawings. Maximise, when the panel has a handle, reads Restore while a
+ * the display hides the drawings. Export saves the drawings, hidden ones too, as an SVG file; it is
+ * disabled while there is no stroke. Maximise, when the panel has a handle, reads Restore while a
  * panel fills the workspace. A press on the toolbar does not take the focus, so the talk's keys
  * keep working; a person can still Tab to a button.
  */
@@ -69,8 +72,9 @@ export class DrawingToolbar {
      * @param {?PanelHandle} options.panel - The panel's handle, for Maximise; null for none.
      * @param {(tool: DrawingTool) => void} options.onTool - Called with what the pen draws with,
      *   each time it changes.
+     * @param {Downloads} options.downloads - Where Export saves the drawings from.
      */
-    constructor(doc, {mirror, send, panel, onTool}) {
+    constructor(doc, {mirror, send, panel, onTool, downloads}) {
         this.doc = doc;
         this.mirror = mirror;
         this.panel = panel;
@@ -115,12 +119,20 @@ export class DrawingToolbar {
             send(drawingVisibleMessage(!mirror.drawings.visible))
         );
         const clear = this.button("Clear", () => send(drawingClearMessage()), "--clear");
+        this.exportButton = this.button("Export", () =>
+            downloads.download(
+                drawingsFileName(mirror.deckId),
+                drawingsSvg(mirror.drawings, mirror.canvas),
+                "image/svg+xml"
+            )
+        );
         this.maximiseButton = panel ? this.button("", () => panel.maximise()) : null;
 
         this.element.append(
             this.group(this.drawButton, ...this.toolButtons),
             this.group(...this.colorButtons),
             this.group(undo, this.visibleButton, clear),
+            this.group(this.exportButton),
             ...(this.maximiseButton ? [this.group(this.maximiseButton)] : [])
         );
 
@@ -186,7 +198,9 @@ export class DrawingToolbar {
         this.onTool(this.state);
     }
 
-    /** Show what is chosen, and the labels that follow the display and the panel. */
+    /** Show what is chosen, and the labels and the Export button that follow the display and the
+     * panel.
+     */
     update() {
         this.drawButton.setAttribute("aria-pressed", String(this.draw));
         TOOLS.forEach(({tool}, i) =>
@@ -198,6 +212,7 @@ export class DrawingToolbar {
         this.visibleButton.textContent = this.mirror.drawings.visible
             ? "Hide drawings"
             : "Show drawings";
+        this.exportButton.disabled = this.mirror.drawings.strokes.length === 0;
         if (this.maximiseButton && this.panel) {
             this.maximiseButton.textContent = this.panel.maximised ? "Restore" : "Maximise";
         }
