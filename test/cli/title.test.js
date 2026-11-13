@@ -135,7 +135,7 @@ function browserTitle(t, file) {
 }
 
 /**
- * Run a command on a temp deck; return the result without checking it.
+ * Run a command on a temp deck and check that stdout is JSON; leave the exit code to the caller.
  *
  * @param {Deck} deck - A temp deck from `withTempDeck`.
  * @param {string} command - The CLI command (`build`, `set`, ...).
