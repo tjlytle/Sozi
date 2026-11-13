@@ -135,6 +135,41 @@ export function setVisible(drawings, visible) {
     return drawings.visible === visible ? drawings : {...drawings, visible};
 }
 
+/**
+ * How far a point is from a segment.
+ *
+ * @param {number[]} p - The point, `[x, y]`.
+ * @param {Point} a - One end of the segment.
+ * @param {Point} b - The other end.
+ * @returns {number} The distance.
+ */
+function distanceToSegment([x, y], [ax, ay], [bx, by]) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const length2 = dx * dx + dy * dy;
+    // The share of the segment where the nearest point lies, 0 for a segment of no length.
+    const t =
+        length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / length2));
+    return Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+}
+
+/**
+ * The ids of the strokes that pass within a distance of a point: those with a segment, or for a
+ * one-point stroke its point, that near.
+ *
+ * @param {Drawings} drawings - The drawings.
+ * @param {number[]} point - The point, `[x, y]`, in canvas units.
+ * @param {number} tolerance - The distance, in canvas units.
+ * @returns {string[]} The ids, in the order the strokes were begun.
+ */
+export function strokesNear(drawings, point, tolerance) {
+    return drawings.strokes
+        .filter(({points}) =>
+            points.some((p, i) => distanceToSegment(point, p, points[i + 1] || p) <= tolerance)
+        )
+        .map(stroke => stroke.id);
+}
+
 /** What each command does to the drawings, by name (standard 2.5).
  *
  * @readonly

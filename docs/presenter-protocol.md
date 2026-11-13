@@ -51,6 +51,7 @@ the message.
 | `drawingClear` | both ways        | none                                                      |
 | `drawingVisible` | both ways      | `visible`                                                 |
 | `drawings`    | surface → preview deck | `visible`, `strokes`                                 |
+| `drawingTool` | surface → preview deck | `draw`, `tool`, `color`, `width`                     |
 | `custom`      | both ways         | `type`, `data`                                            |
 
 ### Notes
@@ -258,6 +259,22 @@ surface applies it to its own copy (`applyDrawing` in `src/js/protocol/strokes.j
 that changes nothing is not relayed. The whole drawings go only in the display's `hello`. A
 presenter sends them as `drawings` to each of its preview decks when the deck is ready and each
 time they change; a deck takes `drawings` in preview mode only. A preview relays nothing.
+
+The speaker draws on the current-frame preview. The presenter tells that deck what its pen draws
+with in `drawingTool`, when the deck is ready and each time the speaker changes it:
+
+| Field   | Type                                    | Meaning                                       |
+| ------- | --------------------------------------- | --------------------------------------------- |
+| `draw`  | boolean                                 | Draw mode: a mouse or a finger draws too. A stylus always draws; with it off, a mouse or a finger pans. |
+| `tool`  | `"pen"`, `"highlighter"` or `"eraser"`  | The eraser removes each whole stroke it passes over. |
+| `color` | `"#rrggbb"`                             | The colour of the strokes it draws.           |
+| `width` | number above 0, up to 0.1               | The width, as a share of the preview's shorter side; the deck turns it into canvas units when a stroke begins. |
+
+The current preview then reports the speaker's strokes as `strokeBegin`, `strokePoints` and
+`strokeEnd`, and the eraser's as `strokeErase`, to its presenter, which sends them on to the
+display. Their ids start `p-`. The preview shows a stroke only once the display relays it back,
+so it shows what the room sees. Another preview, or a deck that is not a preview, ignores
+`drawingTool`.
 
 The messages are additive: a display that does not know them ignores them, and a surface that
 does not know them ignores the relayed ones and the `hello` field.

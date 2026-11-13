@@ -5,12 +5,16 @@ import {
     EMPTY_DRAWINGS,
     MAX_POINTS_PER_MESSAGE,
     MAX_STROKE_POINTS,
+    MAX_TOOL_WIDTH,
+    PenTools,
     Tools,
     drawingClearMessage,
+    drawingToolMessage,
     drawingUndoMessage,
     drawingVisibleMessage,
     drawingsMessage,
     readDrawingClear,
+    readDrawingTool,
     readDrawingUndo,
     readDrawingVisible,
     readDrawings,
@@ -183,5 +187,32 @@ describe("protocol drawings", () => {
     test("the empty drawings are visible and hold no stroke", () => {
         assert.deepEqual(EMPTY_DRAWINGS, {visible: true, strokes: []});
         assert.ok(Object.isFrozen(EMPTY_DRAWINGS));
+    });
+
+    test("drawingTool carries the mode, the tool, the colour and the width", () => {
+        const tool = {draw: true, tool: PenTools.eraser, color: "#00ff00", width: 0.004};
+        assert.deepEqual(drawingToolMessage(tool), {name: "drawingTool", ...tool});
+        assert.deepEqual(readDrawingTool(drawingToolMessage(tool)), drawingToolMessage(tool));
+        assert.deepEqual(readMessage(drawingToolMessage(tool)), drawingToolMessage(tool));
+        const widest = {...tool, draw: false, tool: PenTools.highlighter, width: MAX_TOOL_WIDTH};
+        assert.deepEqual(readDrawingTool(drawingToolMessage(widest)), drawingToolMessage(widest));
+    });
+
+    test("drawingTool is refused with an unknown tool, a bad colour or a width out of range", () => {
+        const tool = {name: "drawingTool", draw: true, tool: "pen", color: "#00ff00", width: 0.004};
+        for (const bad of [
+            {tool: "brush"},
+            {tool: undefined},
+            {color: "green"},
+            {color: "#00ff00; x"},
+            {width: 0},
+            {width: -0.01},
+            {width: MAX_TOOL_WIDTH + 0.001},
+            {width: Number.NaN},
+            {draw: "yes"}
+        ]) {
+            assert.equal(readDrawingTool({...tool, ...bad}), null, JSON.stringify(bad));
+            assert.equal(readMessage({...tool, ...bad}), null, JSON.stringify(bad));
+        }
     });
 });
