@@ -16,14 +16,12 @@ const {
     runReport,
     withTempDeck,
     privateTmp,
-    decodePng,
-    darkInCorner,
-    zipEntries,
     fakeFfmpeg,
     failingFfmpeg,
     isAlive,
     which
 } = require("./helpers.js");
+const {decodePng, darkInCorner, zipEntries} = require("./decode.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */

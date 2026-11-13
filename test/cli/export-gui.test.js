@@ -17,15 +17,13 @@ const {PDFDocument} = require("pdf-lib");
 
 const {
     withTempDeck,
-    decodePng,
-    darkInCorner,
     electronBinary,
     ELECTRON_TEST_SWITCHES,
     appDir,
     which,
-    zipEntries,
     limit
 } = require("./helpers.js");
+const {decodePng, darkInCorner, zipEntries} = require("./decode.ts");
 
 /** Run the editor on a deck with the export test hook.
  *

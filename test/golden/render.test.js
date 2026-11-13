@@ -4,8 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import {meanAbsDiff, meanAbsDiffDecoded} from "./support/diff.js";
 import {createRequire} from "node:module";
+import {decodePng} from "../cli/decode.ts";
 
-const {decodePng, runSozi, withTempDeck} = createRequire(import.meta.url)("../cli/helpers.js");
+const {runSozi, withTempDeck} = createRequire(import.meta.url)("../cli/helpers.js");
 
 /**
  * Decoded pixels of an image moved to the right, the left edge repeated.
