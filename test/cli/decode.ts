@@ -11,7 +11,11 @@ import {existsSync, readFileSync} from "node:fs";
 import {inflateRawSync, inflateSync} from "node:zlib";
 
 /** A decoded PNG image; `pixel(x, y)` gives `[r, g, b]`. */
-export type DecodedPng = {width: number; height: number; pixel(x: number, y: number): number[]};
+export type DecodedPng = {
+    width: number;
+    height: number;
+    pixel(x: number, y: number): [number, number, number];
+};
 
 /** One entry of a zip file; `data()` gives its uncompressed content. */
 export type ZipEntry = {name: string; data(): Buffer};
@@ -65,7 +69,7 @@ export function decodePng(buf: Buffer): DecodedPng {
     let width = 0;
     let height = 0;
     let channels = 0;
-    const idat = [];
+    const idat: Buffer[] = [];
     for (let o = 8; o < buf.length;) {
         const length = buf.readUInt32BE(o);
         const type = buf.toString("ascii", o + 4, o + 8);
@@ -87,9 +91,10 @@ export function decodePng(buf: Buffer): DecodedPng {
     return {
         width,
         height,
-        pixel: (x, y) => [
-            ...pixels.subarray(y * stride + x * channels, y * stride + x * channels + 3)
-        ]
+        pixel: (x, y) => {
+            const i = y * stride + x * channels;
+            return [pixels[i], pixels[i + 1], pixels[i + 2]];
+        }
     };
 }
 

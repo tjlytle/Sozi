@@ -46,7 +46,7 @@ function predict(filter, a, b, c) {
  * @param {number[][][]} rows - The pixels, row by row, each `[r, g, b]` or `[r, g, b, a]`.
  * @param {object} [opts] - Options.
  * @param {number[]} [opts.filters] - The filter type of each row (default: all 0).
- * @param {Partial<Record<number, number>>} [opts.ihdr] - IHDR bytes to override, by offset.
+ * @param {Record<number, number>} [opts.ihdr] - IHDR bytes to override, by offset.
  * @returns {Buffer} - The PNG file.
  */
 function encodePng(rows, {filters = [], ihdr: overrides = {}} = {}) {

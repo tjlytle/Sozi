@@ -9,15 +9,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const {
-    runSozi,
-    withTempDeck,
-    privateTmp,
-    decodePng,
-    checkPng,
-    checkBasicPng,
-    darkInCorner
-} = require("./helpers.js");
+const {runSozi, withTempDeck, privateTmp} = require("./helpers.js");
+const {decodePng, checkPng, checkBasicPng, darkInCorner} = require("./decode.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -59,7 +52,7 @@ function soziFails(deck, code, args) {
 /**
  * The number of pixels of an image that are clearly green.
  *
- * @param {{width: number, height: number, pixel: Function}} png - An image from `decodePng`.
+ * @param {import("./decode.ts").DecodedPng} png - An image from `decodePng`.
  * @returns {number} - The number of pixels whose green channel exceeds red by 80 and blue by 40.
  */
 function greenPixels(png) {

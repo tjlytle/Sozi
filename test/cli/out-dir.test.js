@@ -12,7 +12,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {limit, runSozi, withTempDeck, decodePng} = require("./helpers.js");
+const {limit, runSozi, withTempDeck} = require("./helpers.js");
+const {decodePng} = require("./decode.ts");
 const {spawnKeepingOutput} = require("./spawn.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */

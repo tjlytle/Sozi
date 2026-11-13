@@ -2,9 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {createRequire} from "node:module";
-
-const {decodePng} = createRequire(import.meta.url)("../../cli/helpers.js");
+import {decodePng} from "../../cli/decode.ts";
 
 /** The mean absolute difference over the RGB channels of two decoded images of the same size.
  *
