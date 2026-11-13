@@ -72,11 +72,12 @@ export class PreviewPen {
         this.onDrawing = onDrawing;
         this.drawings = drawings;
 
-        /** What the pen draws with.
+        /** What the pen draws with; `setTool` gives it its first value.
          *
          * @type {DrawingTool}
          */
         this.tool = DEFAULT_TOOL;
+        this.setTool(DEFAULT_TOOL);
 
         /** The pointer drawing now, or null.
          *
@@ -130,12 +131,15 @@ export class PreviewPen {
         }
     }
 
-    /** Take what the presenter says the pen draws with.
+    /** Take what the presenter says the pen draws with, and show the mode and the tool on the
+     * root, where the player's styles give the pointer its cursor.
      *
      * @param {DrawingTool} tool - The tool.
      */
     setTool({draw, tool, color, width}) {
         this.tool = {draw, tool, color, width};
+        this.root.setAttribute("data-sozi-draw", String(draw));
+        this.root.setAttribute("data-sozi-tool", tool);
     }
 
     /** Keep an event of a drawing pointer from the gestures, the links and the focus.

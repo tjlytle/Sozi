@@ -156,13 +156,48 @@ function toolbarButton(page, name) {
     return contentOf(page, "Current").getByRole("button", {name, exact: true});
 }
 
+/** The tool names on the toolbar, and the deck's name of each. */
+const TOOL_NAMES = Object.freeze({Pen: "pen", Highlighter: "highlighter", Eraser: "eraser"});
+
+/** Wait until the current-frame preview's deck has the mode and the tool the toolbar shows.
+ *
+ * The toolbar tells the deck by postMessage, and Chromium runs input in the deck's window before
+ * a posted message, so a drag that starts at once after a toolbar click can meet the old tool.
+ * A speaker's hand is never that fast. The deck's pen shows its tool on its SVG root.
+ *
+ * @param {import("playwright").Page} page - A presenter page.
+ */
+async function deckHasTool(page) {
+    const draw = await toolbarButton(page, "Draw").getAttribute("aria-pressed", WAIT);
+    let tool = null;
+    for (const [name, deckName] of Object.entries(TOOL_NAMES)) {
+        if ((await toolbarButton(page, name).getAttribute("aria-pressed", WAIT)) === "true") {
+            tool = deckName;
+        }
+    }
+    const deck = await currentPreviewDeck(page);
+    await deck.waitForFunction(
+        ([d, t]) => {
+            const root = document.querySelector("svg");
+            return (
+                root?.getAttribute("data-sozi-draw") === d &&
+                root?.getAttribute("data-sozi-tool") === t
+            );
+        },
+        [draw, tool],
+        WAIT
+    );
+}
+
 When("a mouse drags across {string} on the current-frame preview", async function (elementId) {
+    await deckHasTool(this.presenter);
     await mouseAlong(this.presenter, await lineAcross(this.presenter, elementId, "middle"));
 });
 
 When(
     "a mouse drags across the {word} of {string} on the current-frame preview",
     async function (row, elementId) {
+        await deckHasTool(this.presenter);
         await mouseAlong(this.presenter, await lineAcross(this.presenter, elementId, row));
     }
 );
@@ -170,11 +205,13 @@ When(
 When(
     "a stylus drags across {string} on the current-frame preview with rising pressure",
     async function (elementId) {
+        await deckHasTool(this.presenter);
         await stylusAlong(this, await lineAcross(this.presenter, elementId, "middle"));
     }
 );
 
 When("a finger drags across {string} on the current-frame preview", async function (elementId) {
+    await deckHasTool(this.presenter);
     await fingerAlong(this, await lineAcross(this.presenter, elementId, "middle"));
 });
 

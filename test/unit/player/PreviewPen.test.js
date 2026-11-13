@@ -26,6 +26,10 @@ function fakeRoot() {
         setPointerCapture(id) {
             this.captured.push(id);
         },
+        attributes: {},
+        setAttribute(name, value) {
+            this.attributes[name] = value;
+        },
         fire(type, fields = {}) {
             const evt = {
                 type,
@@ -123,6 +127,13 @@ describe("PreviewPen", () => {
         assert.deepEqual(begin.points, [[10, 10, 0.3]]);
         assert.deepEqual(points, {name: "strokePoints", id: begin.id, points: [[20, 20, 0.7]]});
         assert.deepEqual(end, {name: "strokeEnd", id: begin.id});
+    });
+
+    test("the root shows the mode and the tool, for the cursor", () => {
+        const {pen: p, root} = penOn();
+        assert.deepEqual(root.attributes, {"data-sozi-draw": "false", "data-sozi-tool": "pen"});
+        p.setTool({draw: true, tool: PenTools.eraser, color: "#ff0000", width: 0.004});
+        assert.deepEqual(root.attributes, {"data-sozi-draw": "true", "data-sozi-tool": "eraser"});
     });
 
     test("a mouse in pan mode reports nothing and is not stopped", () => {
