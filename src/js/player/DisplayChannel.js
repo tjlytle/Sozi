@@ -44,6 +44,14 @@ import {applyDrawing} from "../protocol/strokes.js";
  * @property {(key: string, modifiers: KeyModifiers) => void} onKey - Called with each key pressed
  *   in it.
  * @property {(move: CameraMove) => void} onCamera - Called with each pan and zoom made on it.
+ * @property {(command: import("../protocol/drawings.js").DrawingCommand) => void} onDrawing -
+ *   Called with each stroke command the speaker's pen makes on it.
+ * @property {() => Drawings} drawings - The drawings it shows.
+ */
+
+/** The current preview's pen: what it draws with comes from the presenter.
+ *
+ * @typedef {{setTool: (tool: import("../protocol/drawings.js").DrawingTool) => void}} Pen
  */
 
 /** The events a display channel emits.
@@ -64,8 +72,9 @@ export const DisplayChannelEvents = Object.freeze({custom: "custom"});
  * @property {import("./TalkTimer.js").TalkTimer} timer - The talk timer.
  * @property {Transport} transport - The first transport to a surface (a `LocalTransport`).
  * @property {any} host - The window the deck plays in.
- * @property {(options: PreviewOptions) => void} enterPreviewMode - Turns the deck into a
- *   presenter preview that reports its link clicks, its keys and its pans and zooms.
+ * @property {(options: PreviewOptions) => ?Pen} enterPreviewMode - Turns the deck into a
+ *   presenter preview that reports its link clicks, its keys, its pans and zooms and, in the
+ *   current preview, the strokes of the pen it returns.
  * @property {(index: number, width: number) => Promise<string>} renderThumbnail - Moves the deck
  *   to a frame and draws it, as a JPEG `data:` URL.
  * @property {{render: (drawings: Drawings) => void}} drawingLayer - Paints the drawings on the
@@ -102,7 +111,8 @@ function legacyStateOf({frames}, player) {
  * they change; its `CameraTracker` follows the camera. It hands each command to its
  * `DisplayCommands`, and tells them whether the deck is a preview. A preview also answers requests for thumbnails of its frames.
  * It holds the drawings: it applies each drawing command, paints the result and relays the
- * command; a preview takes whole drawings from its presenter instead.
+ * command; a preview takes whole drawings from its presenter instead, and the current preview
+ * reports the strokes of the speaker's pen, which takes its tool from `drawingTool`.
  *
  * @extends EventEmitter
  */
@@ -149,6 +159,12 @@ export class DisplayChannel extends EventEmitter {
          * @type {boolean}
          */
         this.previewMode = false;
+
+        /** The pen of the current preview; null in another deck.
+         *
+         * @type {?Pen}
+         */
+        this.pen = null;
 
         /** What carries out each command a surface sends.
          *
@@ -225,6 +241,11 @@ export class DisplayChannel extends EventEmitter {
             [MessageNames.cameraMove]: move => this.commands.moveCamera(move),
             [MessageNames.cameraReset]: () => this.commands.resetCamera(),
             [MessageNames.camera]: view => this.commands.showView(view),
+            [MessageNames.drawingTool]: tool => {
+                if (this.pen) {
+                    this.pen.setTool(tool);
+                }
+            },
             [MessageNames.drawings]: ({visible, strokes}) => {
                 if (this.previewMode) {
                     this.showDrawings({visible, strokes});
@@ -344,18 +365,20 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Turn the deck into a presenter preview, once.
+    /** Turn the deck into a presenter preview, once, and keep the current preview's pen.
      *
      * @param {boolean} current - Does it show the current frame?
      */
     preview(current) {
         if (!this.previewMode) {
             this.previewMode = true;
-            this.enterPreviewMode({
+            this.pen = this.enterPreviewMode({
                 isCurrent: current,
                 onFollowLink: id => this.transport.broadcast(followLinkMessage(id)),
                 onKey: (key, modifiers) => this.transport.broadcast(keyMessage(key, modifiers)),
-                onCamera: move => this.transport.broadcast(cameraMoveMessage(move))
+                onCamera: move => this.transport.broadcast(cameraMoveMessage(move)),
+                onDrawing: command => this.transport.broadcast(command),
+                drawings: () => this.drawings
             });
         }
     }

@@ -11,6 +11,7 @@ import {previewMessage} from "../../../src/js/protocol/messages.js";
 import {
     EMPTY_DRAWINGS,
     Tools,
+    drawingToolMessage,
     drawingUndoMessage,
     drawingVisibleMessage,
     drawingsMessage,
@@ -73,6 +74,36 @@ describe("DisplayChannel and the drawings", () => {
         assert.deepEqual(drawingLayer.rendered, [finished]);
         transport.deliver(helloMessage(Roles.surface));
         assert.deepEqual(/** @type {any} */ (transport.sent[0]).drawings, finished);
+    });
+
+    test("the current preview's pen takes the drawing tool, and its strokes go to the presenter", () => {
+        const {transport, previews, drawingLayer} = startedDisplay();
+        transport.deliver(previewMessage(true));
+        const tool = {draw: true, tool: "pen", color: "#ff0000", width: 0.004};
+        transport.deliver(drawingToolMessage(tool));
+        assert.deepEqual(previews[0].pen.tools, [drawingToolMessage(tool)]);
+        previews[0].onDrawing(strokeBeginMessage(begun));
+        assert.deepEqual(transport.sent, [strokeBeginMessage(begun)]);
+        // The preview draws what the display relays back, not its own stroke.
+        assert.deepEqual(drawingLayer.rendered, []);
+    });
+
+    test("the eraser reads the drawings the preview holds", () => {
+        const {transport, previews} = startedDisplay();
+        transport.deliver(previewMessage(true));
+        transport.deliver(drawingsMessage(finished));
+        assert.deepEqual(previews[0].drawings(), finished);
+    });
+
+    test("a drawing tool is ignored outside a preview and by another preview", () => {
+        const tool = drawingToolMessage({draw: true, tool: "pen", color: "#ff0000", width: 0.004});
+        const display = startedDisplay();
+        display.transport.deliver(tool);
+        const other = startedDisplay();
+        other.transport.deliver(previewMessage(false));
+        other.transport.deliver(tool);
+        assert.equal(other.previews[0].pen, null);
+        assert.deepEqual([...display.transport.sent, ...other.transport.sent], []);
     });
 
     test("drawings are ignored outside a preview", () => {

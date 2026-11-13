@@ -51,8 +51,20 @@ export function startedDisplay() {
         presentation,
         transport,
         host,
-        enterPreviewMode: ({isCurrent, onFollowLink, onKey, onCamera}) =>
-            previews.push({current: isCurrent, onFollowLink, onKey, onCamera})
+        // A current preview has a pen, which records the tools it is given.
+        enterPreviewMode: ({isCurrent, onFollowLink, onKey, onCamera, onDrawing, drawings}) => {
+            const pen = isCurrent ? {tools: [], setTool: tool => pen.tools.push(tool)} : null;
+            previews.push({
+                current: isCurrent,
+                onFollowLink,
+                onKey,
+                onCamera,
+                onDrawing,
+                drawings,
+                pen
+            });
+            return pen;
+        }
     });
     channel.start();
     const startSent = transport.sent.splice(0);

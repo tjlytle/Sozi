@@ -8,6 +8,7 @@
  */
 
 import {PreviewGestures} from "./PreviewGestures.js";
+import {PreviewPen} from "./PreviewPen.js";
 import {editableField, isEditableTarget} from "../protocol/editable.js";
 
 /** @typedef {import("./Player.js").Player} Player */
@@ -15,6 +16,9 @@ import {editableField, isEditableTarget} from "../protocol/editable.js";
 /** @typedef {import("../svg/SVGDocumentWrapper.js").SVGDocumentWrapper} SVGDocumentWrapper */
 /** @typedef {import("../protocol/messages.js").KeyModifiers} KeyModifiers */
 /** @typedef {import("../protocol/camera.js").CameraMove} CameraMove */
+/** @typedef {import("../protocol/drawings.js").Drawings} Drawings */
+/** @typedef {import("../protocol/drawings.js").DrawingCommand} DrawingCommand */
+/** @typedef {import("./DrawingLayer.js").DrawingLayer} DrawingLayer */
 
 /** Put a player in preview mode.
  *
@@ -24,7 +28,8 @@ import {editableField, isEditableTarget} from "../protocol/editable.js";
  * In preview mode, keyboard and mouse navigation, zoom and rotation are disabled, frame
  * numbers are hidden, hyperlinks in the previous and next views are disabled, and in the
  * current view, hyperlink clicks are reported so that the display follows them, and so are
- * its pans and zooms, which the display makes and the preview then shows. Every key pressed in
+ * its pans and zooms, which the display makes and the preview then shows. The current view also
+ * has the speaker's pen, whose strokes are reported. Every key pressed in
  * a preview, outside a field a person types into, is reported, so that the presentation keys
  * work while it has the focus. A click on such a field gives it the focus.
  *
@@ -38,8 +43,12 @@ import {editableField, isEditableTarget} from "../protocol/editable.js";
  *   pressed in the preview, outside a field a person types into.
  * @param {(move: CameraMove) => void} options.onCamera - Called with each pan and zoom made on
  *   the current view.
+ * @param {(command: DrawingCommand) => void} options.onDrawing - Called with each stroke command
+ *   the pen makes on the current view.
+ * @param {() => Drawings} options.drawings - The drawings the preview shows.
+ * @returns {?PreviewPen} The pen of the current view; null for another view.
  */
-export function enterPreviewMode({player, presentation, isCurrent, onFollowLink, onKey, onCamera}) {
+export function enterPreviewMode({player, presentation, isCurrent, onKey, ...current}) {
     // Cast of presentation.document in this function: previews start after the player has loaded.
     player.disableMedia();
     player.pause();
@@ -61,24 +70,50 @@ export function enterPreviewMode({player, presentation, isCurrent, onFollowLink,
     reportKeys(svg.root, onKey);
 
     if (isCurrent) {
-        // Report hyperlink clicks so that the display follows them.
-        for (const link of svg.root.getElementsByTagName("a")) {
-            link.addEventListener(
-                "click",
-                evt => {
-                    if (link.id) {
-                        onFollowLink(link.id);
-                    }
-                    evt.preventDefault();
-                },
-                false
-            );
-        }
-        // The deck lives as long as the preview, so the gestures are never disposed.
-        new PreviewGestures({root: svg.root, viewport: player.viewport, onMove: onCamera});
-    } else {
-        svg.disableHyperlinks(true);
+        return enterCurrentView(svg.root, player, current);
     }
+    svg.disableHyperlinks(true);
+    return null;
+}
+
+/** Make a preview the current view: report its link clicks, give it the speaker's pen, and
+ * report its pans and zooms.
+ *
+ * @param {SVGSVGElement} root - The root of the deck's SVG document.
+ * @param {Player} player - The deck's player.
+ * @param {object} report - What to report to, as `enterPreviewMode` takes it.
+ * @param {(id: string) => void} report.onFollowLink - Called with each link clicked.
+ * @param {(move: CameraMove) => void} report.onCamera - Called with each pan and zoom.
+ * @param {(command: DrawingCommand) => void} report.onDrawing - Called with each stroke command.
+ * @param {() => Drawings} report.drawings - The drawings the preview shows.
+ * @returns {PreviewPen} The pen.
+ */
+function enterCurrentView(root, player, {onFollowLink, onCamera, onDrawing, drawings}) {
+    // Report hyperlink clicks so that the display follows them.
+    for (const link of root.getElementsByTagName("a")) {
+        link.addEventListener(
+            "click",
+            evt => {
+                if (link.id) {
+                    onFollowLink(link.id);
+                }
+                evt.preventDefault();
+            },
+            false
+        );
+    }
+    // Before the gestures: a pointer that draws never reaches them.
+    const pen = new PreviewPen({
+        root,
+        // Cast: the player page gives the viewport its drawing layer before it plays.
+        layer: /** @type {DrawingLayer} */ (player.viewport.drawingLayer).group,
+        viewport: player.viewport,
+        onDrawing,
+        drawings
+    });
+    // The deck lives as long as the preview, so the gestures and the pen are never disposed.
+    new PreviewGestures({root, viewport: player.viewport, onMove: onCamera});
+    return pen;
 }
 
 /** Report the keys pressed in a preview, outside a field a person types into.
