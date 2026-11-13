@@ -39,6 +39,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * @property {(line: string) => void} log - The log.
  * @property {Record<string, string | undefined>} env - The loop's environment, as the sandbox gets it.
  * @property {string} [root] - The repository root, where pipeline/*.md live; this checkout when absent.
+ * @property {string} [protectedDir] - Where protected patches are kept; var/pipeline/protected under the root when absent.
  * @property {() => void} [save] - Writes the state; called at the end of every pass.
  * @property {() => void} [reload] - Rereads the settings; called first in every pass.
  * @property {{ask: (job: import("./advisor.js").Job) => Promise<void>, dispose: () => Promise<void>}} [advisor] - The advisor; one over the sandbox, under var/pipeline/advisors, when absent.
@@ -119,6 +120,7 @@ function stopCheck(ctx) {
  */
 export function createPass({
     root = REPO_ROOT,
+    protectedDir = path.join(root, "var", "pipeline", "protected"),
     save = () => {},
     reload = () => {},
     advisor,
@@ -133,6 +135,7 @@ export function createPass({
     const ctx = {
         ...parts,
         root,
+        protectedDir,
         save,
         changed: new Set(),
         syncs: 0,

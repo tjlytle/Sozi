@@ -11,6 +11,8 @@ PIPELINE_SYNC_MINUTES=10
 PIPELINE_IMAGE=sozi-factory
 # The epic every finding and idea is filed under, for Tim to triage (2026-10-23).
 PIPELINE_BACKLOG=172
+# The model of the supervisor session `npm run supervise` starts (#516).
+PIPELINE_MODEL_SUPERVISOR=claude-fable-5-1
 # PIPELINE_SHM_SIZE=1g  (the stage container's /dev/shm; Electron renderers crash at Docker's 64m; empty = Docker's default)
 # PIPELINE_PROFILES=auto|off  (auto: a persona's volume when it exists, else the token)
 # PIPELINE_ON_LIMIT=wait|fallback  (a harness at its usage limit: its stages wait for the reset, or run on a fallback)

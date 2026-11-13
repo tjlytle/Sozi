@@ -114,6 +114,7 @@ function fakeAdvisor() {
  * @property {any[]} outboxes - What each prepareOutbox call was given.
  * @property {any[]} starts - What each sandbox start was given.
  * @property {Record<string, any>} profiles - What inspectProfile answers, by persona.
+ * @property {string} protectedDir - A new directory where the pass keeps protected patches.
  */
 
 /**
@@ -128,7 +129,8 @@ function emptyRecords() {
         logs: [],
         outboxes: [],
         starts: [],
-        profiles: Object.fromEntries(PERSONAS.map(p => [p, loggedIn()]))
+        profiles: Object.fromEntries(PERSONAS.map(p => [p, loggedIn()])),
+        protectedDir: fs.mkdtempSync(path.join(os.tmpdir(), "protected-"))
     };
 }
 
@@ -152,7 +154,8 @@ function fakeClock(now) {
  * A pass over fakes. Its advisor answers nothing; it records each question in `asks`.
  *
  * @param {{issues?: any[], now?: number, env?: Record<string, string>, save?: (state: any) => void, configRoot?: string, reload?: () => void}} [options] - The world; configRoot is where the settings files are read.
- * @returns {any} - The pass, the state, the fakes, the records they write (`Records`) and `asks`.
+ * @returns {any} - The pass, the state, the fakes, the records they write (`Records`, with
+ *     `protectedDir`, where the pass keeps protected patches) and `asks`.
  */
 export function world({
     issues = [],
@@ -177,6 +180,7 @@ export function world({
     const clock = fakeClock(now);
     const advisor = fakeAdvisor();
     const p = createPass({
+        protectedDir: records.protectedDir,
         advisor,
         settings,
         state,

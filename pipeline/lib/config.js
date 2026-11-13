@@ -45,6 +45,7 @@ const DEFAULTS = {
     PIPELINE_BACKLOG: "",
     PIPELINE_ON_LIMIT: "wait",
     PIPELINE_MODEL_ADVISOR: "claude-fable-5-1",
+    PIPELINE_MODEL_SUPERVISOR: "claude-fable-5-1",
     PIPELINE_ADVISOR_MAX: "2",
     PIPELINE_ADVISOR_NUDGE_SHARE: "0.5",
     PIPELINE_ADVISOR_MAX_CONTEXT: "300000",
@@ -323,6 +324,7 @@ export function loadConfig({root, env, files}) {
             maxContext: num("PIPELINE_ADVISOR_MAX_CONTEXT"),
             waitMinutes: num("PIPELINE_ADVISOR_WAIT_MINUTES")
         },
+        supervisorModel: raw.PIPELINE_MODEL_SUPERVISOR,
         /** The MCP servers a persona's profile may hold.
          *
          * @param {string} persona - The persona name.

@@ -203,6 +203,22 @@ test("no prompt pushes with -u", () => {
     }
 });
 
+describe("the supervisor (#516)", () => {
+    test("its prompt names the stage command, --apply, and what it must not do", () => {
+        const text = fs.readFileSync("pipeline/supervisor/PROMPT.md", "utf8");
+        assert.ok(text.includes("node bin/pipeline.js <#>"), "bin/pipeline.js <#>");
+        assert.ok(text.includes("npm run supervise -- --apply <#>"), "--apply");
+        assert.ok(text.includes("--build-image"), "--build-image");
+        assert.match(text, /one patch, never a class of changes/);
+        assert.match(text, /never restart/i);
+    });
+    test("build leaves a refused .claude/ write as /outbox/protected.patch and waits", () => {
+        const build = fs.readFileSync("pipeline/build.md", "utf8");
+        const line = build.split("\n").find(l => l.includes("/outbox/protected.patch")) ?? "";
+        assert.match(line, /wait request/);
+    });
+});
+
 test("older check failures are filed, not fixed, and not a review defect (#90)", () => {
     const build = fs.readFileSync("pipeline/build.md", "utf8");
     assert.match(build, /not yours to fix/);
