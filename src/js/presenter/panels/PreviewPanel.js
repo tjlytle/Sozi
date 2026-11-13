@@ -247,7 +247,9 @@ export class PreviewPanel {
         }
     }
 
-    /** Stop following the display, close the transport and empty the element. */
+    /** Stop following the display, dispose of the toolbar, close the transport and empty the
+     * element.
+     */
     dispose() {
         this.mirror.off(DisplayMirrorEvents.change, this.onChange);
         if (this.toolbar) {

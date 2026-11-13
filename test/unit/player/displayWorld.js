@@ -1,5 +1,5 @@
 // A display channel started on the fakes of fakeDeck.js, and the hello it sends, shared by
-// DisplayChannel.test.js and DisplayChannel-timer.test.js.
+// DisplayChannel.test.js, DisplayChannel-timer.test.js and DisplayChannel-drawings.test.js.
 
 import {fakeController, fakeHost, fakePlayer, fakeTransport, frames} from "./fakeDeck.js";
 import {DisplayChannel} from "../../../src/js/player/DisplayChannel.js";
