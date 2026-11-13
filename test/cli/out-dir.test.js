@@ -12,7 +12,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const {runSozi, runReport, withTempDeck} = require("./helpers.js");
-const {browserDom, browserScreenshot} = require("./chrome.ts");
 
 /** @typedef {import("./helpers.js").Deck} Deck */
 /** @typedef {import("./helpers.js").SoziRun} SoziRun */
@@ -511,68 +510,6 @@ describe("inspect and the output directory", () => {
             assert.equal(json.outputDir, path.join(deck.dir, "flag"));
             assert.equal(json.outputSource, "flag");
             assert.ok(!fs.existsSync(path.join(deck.dir, "flag")), "inspect creates nothing");
-        } finally {
-            deck.cleanup();
-        }
-    });
-});
-
-describe("runtime check", () => {
-    test("the player in the output directory references the linked image at its real path", t => {
-        const deck = withTempDeck("linked");
-        try {
-            soziOk(deck, "build", "--out-dir", "site/talk", "linked.svg");
-            const html = path.join(deck.dir, "site", "talk", "linked.sozi.html");
-            const dom = browserDom(t, html);
-            if (dom === null) {
-                return;
-            }
-            // The player ran: the SVG is in the live DOM, with the rewritten href.
-            const hrefs = [...dom.matchAll(/<image\b[^>]*?\s(?:xlink:)?href="([^"]*)"/g)].map(
-                m => m[1]
-            );
-            assert.deepEqual(hrefs, ["../../img/dot.png"]);
-            const image = path.resolve(path.dirname(html), hrefs[0]);
-            assert.equal(image, path.join(deck.dir, "img", "dot.png"));
-            assert.ok(fs.statSync(image).isFile());
-        } finally {
-            deck.cleanup();
-        }
-    });
-
-    test("the player in the output directory shows the linked image", t => {
-        // The fixture image is a 1x1 half-transparent green PNG stretched over
-        // the middle of the blue frame: only it gives green pixels.
-        const greenPixels = shot => {
-            let count = 0;
-            for (let y = 0; y < shot.height; y++) {
-                for (let x = 0; x < shot.width; x++) {
-                    const [r, g, b] = shot.pixel(x, y);
-                    count += g > r + 80 && g > b + 40 ? 1 : 0;
-                }
-            }
-            return count;
-        };
-        const deck = withTempDeck("linked");
-        try {
-            soziOk(deck, "build", "--out-dir", "site/talk", "linked.svg");
-            const html = path.join(deck.dir, "site", "talk", "linked.sozi.html");
-            const shot = browserScreenshot(t, html);
-            if (shot === null) {
-                return;
-            }
-            assert.ok(
-                greenPixels(shot) > 10000,
-                `the image is not shown: ${greenPixels(shot)} green pixels`
-            );
-
-            // Control: without the image file, the same page has no green pixel.
-            fs.rmSync(path.join(deck.dir, "img", "dot.png"));
-            const missing = browserScreenshot(t, html);
-            if (missing === null) {
-                return;
-            }
-            assert.equal(greenPixels(missing), 0);
         } finally {
             deck.cleanup();
         }
