@@ -20,6 +20,7 @@ const {
     decodePng,
     darkInCorner,
     electronBinary,
+    ELECTRON_TEST_SWITCHES,
     appDir,
     which,
     zipEntries,
@@ -34,7 +35,8 @@ const {
  * @returns {{code: number|null, output: string}} - The exit code and the console output.
  */
 function guiExport(deck, type, switches = []) {
-    const result = spawnSync(electronBinary, [appDir, ...switches, deck.svg], {
+    const electronArgs = [appDir, ...ELECTRON_TEST_SWITCHES, ...switches, deck.svg];
+    const result = spawnSync(electronBinary, electronArgs, {
         cwd: deck.dir,
         env: Object.assign({}, process.env, {SOZI_TEST_EXPORT: type, ELECTRON_ENABLE_LOGGING: "1"}),
         encoding: "utf8",

@@ -17,6 +17,7 @@ const {
     runSozi,
     withTempDeck,
     electronBinary,
+    ELECTRON_TEST_SWITCHES,
     appDir,
     fixturesDir,
     fakeFfmpeg,
@@ -32,7 +33,8 @@ const {
 function mainExport(args) {
     const harness = path.join(__dirname, "harness", "export-main.js");
     const exporterModule = path.join(appDir, "src", "js", "exporter", "index.js");
-    const result = spawnSync(electronBinary, [harness, exporterModule, JSON.stringify(args)], {
+    const electronArgs = [...ELECTRON_TEST_SWITCHES, harness, exporterModule, JSON.stringify(args)];
+    const result = spawnSync(electronBinary, electronArgs, {
         encoding: "utf8",
         timeout: limit(60000),
         killSignal: "SIGKILL"
