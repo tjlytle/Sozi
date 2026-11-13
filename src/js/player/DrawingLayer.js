@@ -5,7 +5,7 @@
 /** @module */
 
 import {Tools} from "../protocol/drawings.js";
-import {strokeOutline} from "./strokeOutline.js";
+import {strokeOutline} from "../protocol/strokeOutline.js";
 
 /** @typedef {import("../protocol/drawings.js").Drawings} Drawings */
 /** @typedef {import("../protocol/drawings.js").Stroke} Stroke */

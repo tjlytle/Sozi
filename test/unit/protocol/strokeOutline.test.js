@@ -1,6 +1,6 @@
 import {test, describe} from "node:test";
 import assert from "node:assert/strict";
-import {strokeOutline} from "../../../src/js/player/strokeOutline.js";
+import {strokeOutline} from "../../../src/js/protocol/strokeOutline.js";
 import {Tools} from "../../../src/js/protocol/drawings.js";
 
 /** A finished horizontal stroke along y = 0, from x = 0 to x = 200.
