@@ -77,23 +77,20 @@ async function sendFromSurface(world, message) {
  * @returns {Promise<number[][]>} - The points, `[x, y, pressure]` each.
  */
 function pointsAcross(page, id) {
-    return page.evaluate(
-        ([elementId, count, pressure]) => {
-            const element = /** @type {SVGGraphicsElement|null} */ (
-                document.getElementById(String(elementId))
-            );
-            if (!element) {
-                throw new Error(`the deck has no element "${elementId}"`);
-            }
-            const box = element.getBBox();
-            return Array.from({length: Number(count)}, (_, i) => {
-                const share = 0.1 + (0.8 * i) / (Number(count) - 1);
-                const wave = Math.sin(share * Math.PI * 4) * box.height * 0.1;
-                return [box.x + share * box.width, box.y + box.height / 2 + wave, pressure];
-            });
-        },
-        [id, POINT_COUNT, PRESSURE]
-    );
+    return page.evaluate(([elementId, count, pressure]) => {
+        const element = /** @type {SVGGraphicsElement|null} */ (
+            document.getElementById(String(elementId))
+        );
+        if (!element) {
+            throw new Error(`the deck has no element "${elementId}"`);
+        }
+        const box = element.getBBox();
+        return Array.from({length: Number(count)}, (_, i) => {
+            const share = 0.1 + (0.8 * i) / (Number(count) - 1);
+            const wave = Math.sin(share * Math.PI * 4) * box.height * 0.1;
+            return [box.x + share * box.width, box.y + box.height / 2 + wave, pressure];
+        });
+    }, /** @type {[string, number, number]} */ ([id, POINT_COUNT, PRESSURE]));
 }
 
 /** Begin a stroke from the second surface, and send it all its points but not its end.
