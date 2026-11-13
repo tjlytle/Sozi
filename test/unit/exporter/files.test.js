@@ -2,12 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {test, describe, beforeEach, afterEach} from "node:test";
+import {test, describe, beforeEach, afterEach, mock} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import {syncBuiltinESMExports} from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {partialPath, moveFile, writeOutput} from "../../../src/js/exporter/files.js";
+import {partialPath, moveFile, writeOutput, linkOrCopy} from "../../../src/js/exporter/files.js";
 
 /** A fresh temporary directory for each test. */
 let dir = "";
@@ -74,5 +75,35 @@ describe("writeOutput", () => {
             })
         );
         assert.deepEqual(fs.readdirSync(dir), []);
+    });
+});
+
+describe("linkOrCopy", () => {
+    test("copies the file when the file system has no hard links (ENOTSUP)", () => {
+        // files.js reads the named exports of "fs", which follow the CommonJS object
+        // only after syncBuiltinESMExports().
+        const linkSync = mock.method(fs, "linkSync", () => {
+            throw Object.assign(new Error("operation not supported"), {code: "ENOTSUP"});
+        });
+        syncBuiltinESMExports();
+        try {
+            const from = path.join(dir, "a.png");
+            const to = path.join(dir, "b.png");
+            fs.writeFileSync(from, "image");
+            linkOrCopy(from, to);
+            assert.equal(linkSync.mock.callCount(), 1);
+            assert.equal(fs.readFileSync(to, "utf8"), "image");
+            assert.notEqual(fs.statSync(to).ino, fs.statSync(from).ino, "a copy, not a link");
+        } finally {
+            linkSync.mock.restore();
+            syncBuiltinESMExports();
+        }
+    });
+    test("links the file where hard links work", () => {
+        const from = path.join(dir, "a.png");
+        const to = path.join(dir, "b.png");
+        fs.writeFileSync(from, "image");
+        linkOrCopy(from, to);
+        assert.equal(fs.statSync(to).ino, fs.statSync(from).ino);
     });
 });
