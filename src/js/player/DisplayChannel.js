@@ -289,7 +289,8 @@ export class DisplayChannel extends EventEmitter {
             layouts: this.presentation.presenterLayouts,
             timer: this.timer.state,
             camera: this.cameraTracker.view,
-            drawings: this.drawings
+            drawings: this.drawings,
+            canvas: this.presentation.document.sourceCanvas()
         });
     }
 

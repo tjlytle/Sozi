@@ -43,6 +43,23 @@ function fakePreviewMode(previews) {
     };
 }
 
+/** Stand-in for the deck's presentation: its frames, and a document whose recorded canvas a
+ * test sets.
+ *
+ * @returns {any} - The fake presentation.
+ */
+function fakePresentation() {
+    return {
+        frames,
+        document: {
+            canvas: null,
+            sourceCanvas() {
+                return this.canvas;
+            }
+        }
+    };
+}
+
 /** Build a display channel on fakes, started, with what it sent on start cleared.
  *
  * @returns {any} - The channel and its fakes.
@@ -52,7 +69,7 @@ export function startedDisplay() {
     const controller = fakeController(player);
     const transport = fakeTransport();
     const host = fakeHost();
-    const presentation = {frames};
+    const presentation = fakePresentation();
     const previews = [];
     const renders = [];
     const clock = {time: 0};

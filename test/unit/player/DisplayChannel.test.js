@@ -79,6 +79,14 @@ describe("DisplayChannel", () => {
         assert.deepEqual(transport.sent, [displayHello({layouts: presenterLayouts})]);
     });
 
+    test("a hello carries the source SVG's canvas, as the deck recorded it", () => {
+        const {channel, transport} = startedDisplay();
+        const canvas = {viewBox: [0, 0, 800, 600], width: "800", height: "600"};
+        channel.presentation.document.canvas = canvas;
+        transport.deliver(helloMessage(Roles.surface));
+        assert.deepEqual(transport.sent, [displayHello({canvas})]);
+    });
+
     test("answers a surface hello with its current frame and blank state", () => {
         const {transport, player} = startedDisplay();
         player.showFrame(1);

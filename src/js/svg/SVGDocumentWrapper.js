@@ -4,6 +4,18 @@
 
 /** @module */
 
+import {canvasOf} from "../protocol/canvas.js";
+
+/** @typedef {import("../protocol/canvas.js").Canvas} Canvas */
+
+/** The attributes of the root that hold the source's `viewBox`, `width` and `height`.
+ *
+ * @readonly
+ */
+const VIEW_BOX_ATTRIBUTE = "data-sozi-view-box";
+const WIDTH_ATTRIBUTE = "data-sozi-width";
+const HEIGHT_ATTRIBUTE = "data-sozi-height";
+
 /** The SVG namespace URI.
  *
  * @readonly
@@ -254,10 +266,37 @@ export class SVGDocumentWrapper {
      *
      * This attribute conflicts with the Sozi viewport.
      * This method also sets the dimensions of the SVG root to 100%.
+     * It first records the root's canvas (`canvasOf`) as `data-sozi-*` attributes, which go into
+     * the built page, so the drawings can be saved in the source's coordinates.
      */
     removeViewbox() {
+        const canvas = canvasOf(
+            this.root.getAttribute("viewBox"),
+            this.root.getAttribute("width"),
+            this.root.getAttribute("height")
+        );
+        if (canvas) {
+            this.root.setAttribute(VIEW_BOX_ATTRIBUTE, canvas.viewBox.join(" "));
+            this.root.setAttribute(WIDTH_ATTRIBUTE, canvas.width);
+            this.root.setAttribute(HEIGHT_ATTRIBUTE, canvas.height);
+        }
         this.root.removeAttribute("viewBox");
         this.root.style.width = this.root.style.height = "100%";
+    }
+
+    /** The source SVG's canvas, as `removeViewbox` recorded it.
+     *
+     * @returns {?Canvas} The canvas, null for a page built before it was recorded.
+     */
+    sourceCanvas() {
+        const viewBox = this.root.getAttribute(VIEW_BOX_ATTRIBUTE);
+        return viewBox === null
+            ? null
+            : canvasOf(
+                  viewBox,
+                  this.root.getAttribute(WIDTH_ATTRIBUTE),
+                  this.root.getAttribute(HEIGHT_ATTRIBUTE)
+              );
     }
 
     /** Remove the scripts embedded in the SVG.

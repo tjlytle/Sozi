@@ -82,6 +82,7 @@ lays it over the stored notes itself.
 | `timer`      | `{elapsedMs, running, targetMs}` | The talk timer as it is now (see [`timer`](#timer)). |
 | `camera`     | `{offFrame, zoom, x, y}`        | Where the camera looks (see [`camera`](#cameramove-camerareset-camera)). |
 | `drawings`   | `{visible, strokes}`            | The drawings on the deck, every stroke (see [Drawings](#drawings)). |
+| `canvas`     | `{viewBox, width, height}` or null | The source SVG's `viewBox`, `width` and `height`; null for an older deck. |
 
 `readMessage` refuses a `hello` whose `frames` is not a list or holds a malformed entry. A
 display from the release before this field sends none, which reads as an empty list; a
@@ -108,6 +109,15 @@ join an older deck. A malformed one refuses the `hello`.
 
 `drawings` is new. A `hello` without it reads as no strokes, shown,
 `{visible: true, strokes: []}`. A malformed one refuses the `hello`.
+
+`canvas` is new: the deck's source SVG as it was before the build removed its `viewBox`, so a
+surface can save the drawings in the source's own coordinates. It is
+`{viewBox: [x, y, width, height], width, height}`: the `viewBox` four finite numbers with the
+size above 0, `width` and `height` the root's attributes as written (a number with an optional
+`px`, `mm`, `cm`, `in`, `pt` or `pc`), or an empty string when the source has none usable. A
+source with no `viewBox` and a size in pixels gives `0 0 width height`. A `hello` without it, or
+with null, from a deck built before it was recorded, reads as null. A malformed one refuses the
+`hello`.
 
 A preset's name starts with a letter and holds only letters, digits, `-` and `_`: a numeric
 key would jump to the front of a JSON object, and the order decides which preset wins. A

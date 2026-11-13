@@ -14,6 +14,7 @@ import {DRAWING_COMMANDS, EMPTY_DRAWINGS} from "../protocol/drawings.js";
 import {applyDrawing} from "../protocol/strokes.js";
 
 /** @typedef {import("../protocol/camera.js").CameraView} CameraView */
+/** @typedef {import("../protocol/canvas.js").Canvas} Canvas */
 /** @typedef {import("../protocol/drawings.js").Drawings} Drawings */
 /** @typedef {import("../protocol/layoutPresets.js").LayoutPreset} LayoutPreset */
 /** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
@@ -127,6 +128,13 @@ export class DisplayMirror extends EventEmitter {
          */
         this.drawings = EMPTY_DRAWINGS;
 
+        /** The source SVG's `viewBox`, `width` and `height`, from the display's `hello`; null
+         * until then, and for a deck built before they were recorded.
+         *
+         * @type {?Readonly<Canvas>}
+         */
+        this.canvas = null;
+
         /** When the timer's last report arrived, by this device's clock.
          *
          * @type {number}
@@ -162,7 +170,8 @@ export class DisplayMirror extends EventEmitter {
                     version,
                     ...this.timerPart(message.timer),
                     camera: message.camera,
-                    drawings: message.drawings
+                    drawings: message.drawings,
+                    canvas: message.canvas
                 };
             },
             [MessageNames.frameChange]: ({index, id, title, notes}) => ({

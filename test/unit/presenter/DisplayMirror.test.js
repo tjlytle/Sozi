@@ -96,7 +96,8 @@ describe("DisplayMirror", () => {
                 version: "v1",
                 timer: STOPPED_TIMER,
                 camera: ON_FRAME,
-                drawings: EMPTY_DRAWINGS
+                drawings: EMPTY_DRAWINGS,
+                canvas: null
             }
         ]);
     });
@@ -127,6 +128,16 @@ describe("DisplayMirror", () => {
         mirror.apply(drawingClearMessage());
         mirror.apply(strokeEndMessage("nope"));
         assert.deepEqual(changes, []);
+    });
+
+    test("holds no canvas until the display's hello gives one", () => {
+        const {mirror} = watchedMirror();
+        assert.equal(mirror.canvas, null);
+        const canvas = {viewBox: [0, 0, 800, 600], width: "800", height: "600"};
+        mirror.apply(helloMessage(Roles.display, {...state, canvas}));
+        assert.deepEqual(mirror.canvas, canvas);
+        mirror.apply(helloMessage(Roles.display, state));
+        assert.equal(mirror.canvas, null);
     });
 
     test("holds a camera on its frame until the display reports one", () => {
