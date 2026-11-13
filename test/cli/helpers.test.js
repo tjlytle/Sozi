@@ -4,7 +4,32 @@
 // The Chromium switches every test Electron starts with (#191).
 const {test, describe} = require("node:test");
 const assert = require("node:assert/strict");
-const {limit, withCommandTimeout, runSozi, ELECTRON_TEST_SWITCHES} = require("./helpers");
+const {
+    limit,
+    withCommandTimeout,
+    runSozi,
+    soziRun,
+    runReport,
+    ELECTRON_TEST_SWITCHES
+} = require("./helpers");
+
+describe("CLI run results", () => {
+    test("a run keeps the signal that ended it", () => {
+        const run = soziRun(null, "", "", "SIGKILL");
+        assert.equal(run.code, null);
+        assert.equal(run.signal, "SIGKILL");
+        assert.equal(run.json, null);
+    });
+    test("a run that exited by itself has no signal", () => {
+        assert.equal(soziRun(0, '{"ok":true}', "").signal, null);
+    });
+    test("the report of a run names its exit code, signal and output", () => {
+        assert.equal(
+            runReport(soziRun(3, "", "boom\n", null)),
+            "exit 3, signal null\nstdout: \nstderr: boom\n"
+        );
+    });
+});
 
 describe("CLI test time limits", () => {
     test("a limit is the given milliseconds when no scale is set", () => {

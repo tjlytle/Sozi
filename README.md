@@ -425,6 +425,15 @@ environment variable `SOZI_EXPORT_SHOW=1` to watch the export window.
 | `0`  | Success (`"ok": true`).                                                                       |
 | `1`  | The command failed: missing or invalid file, unparsable JSON, missing SVG of a presentation file, unknown frame, empty export selection, ffmpeg not found or failed, write error, timeout, crash. |
 | `2`  | Usage or environment error: unknown command or option, missing file argument or option value, extra argument, `set` without an option, invalid `--presentation`, output directory that is a file, invalid `render` or `export` options, no display. |
+| other | Electron or Chromium ended the process itself, before Sozi could print a result: stdout holds no JSON, and the standard error holds the last messages, such as `sozi: GPU process gone: crashed (exit 3)`. |
+
+When a Chromium helper process (GPU, utility) dies during a command, Sozi
+prints `sozi: <type> process gone: <reason> (exit <code>)` on the standard
+error. Chromium usually recovers, and the command can still succeed.
+
+On Linux, command-line mode keeps Chromium's shared memory in `/tmp` instead
+of `/dev/shm` (`--disable-dev-shm-usage`), so it runs in a container whose
+`/dev/shm` is small, such as Docker's 64 MB default.
 
 Sozi is an Electron application, so it needs a display even in command-line
 mode. Without one (`DISPLAY` and `WAYLAND_DISPLAY` unset) it exits with code 2.
