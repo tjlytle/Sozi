@@ -10,13 +10,10 @@
 import {Then, When} from "@cucumber/cucumber";
 import assert from "node:assert/strict";
 import {expect} from "playwright/test";
-import {WAIT} from "../support/panels.js";
+import {LAYER, WAIT, currentPreviewDeck} from "../support/panels.js";
 
 /** What the second surface calls to reach the display (see `second-surface.steps.js`). */
 const TO_DISPLAY = "secondSurfaceToDisplay";
-
-/** The drawing layer the display adds to its SVG. */
-const LAYER = ".sozi-drawing";
 
 /** The colours the scenarios name, as the `#rrggbb` the protocol takes. */
 const COLOURS = Object.freeze({
@@ -152,23 +149,6 @@ async function expectStrokeCount(page, count) {
             return layer ? strokes.length : "no drawing layer";
         }, WAIT)
         .toBe(count);
-}
-
-/** The deck in a presenter page's current-frame preview, once it shows its frame.
- *
- * @param {import("playwright").Page} page - A presenter page.
- * @returns {Promise<import("playwright").Frame>} - The preview's window.
- */
-async function currentPreviewDeck(page) {
-    const iframe = await page.locator(".sozi-current-frame").elementHandle(WAIT);
-    const frame = await iframe?.contentFrame();
-    assert.ok(frame, "the current-frame preview has a window");
-    await frame.waitForFunction(
-        () => Boolean(/** @type {any} */ (window).sozi?.player?.currentFrame),
-        null,
-        WAIT
-    );
-    return frame;
 }
 
 When(
