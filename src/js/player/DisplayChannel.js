@@ -9,6 +9,7 @@ import {PlayerEvents} from "./playerEvents.js";
 import {TalkTimerEvents} from "./TalkTimer.js";
 import {DisplayCommands} from "./DisplayCommands.js";
 import {CameraTracker} from "./CameraTracker.js";
+import {DisplayDrawings} from "./DisplayDrawings.js";
 import {cameraMoveMessage} from "../protocol/camera.js";
 import {Roles, helloMessage, deckIdOf} from "../protocol/hello.js";
 import {
@@ -25,8 +26,7 @@ import {thumbnailMessage} from "../protocol/thumbnails.js";
 import {timerMessage} from "../protocol/timer.js";
 import {viewportMessage, readViewport} from "../protocol/viewport.js";
 import {TransportSet} from "../protocol/TransportSet.js";
-import {DRAWING_COMMANDS, EMPTY_DRAWINGS} from "../protocol/drawings.js";
-import {applyDrawing} from "../protocol/strokes.js";
+import {DRAWING_COMMANDS} from "../protocol/drawings.js";
 
 /** @typedef {import("../protocol/messages.js").Message} Message */
 /** @typedef {import("../protocol/hello.js").FrameInfo} FrameInfo */
@@ -49,10 +49,7 @@ import {applyDrawing} from "../protocol/strokes.js";
  * @property {() => Drawings} drawings - The drawings it shows.
  */
 
-/** The current preview's pen: what it draws with comes from the presenter.
- *
- * @typedef {{setTool: (tool: import("../protocol/drawings.js").DrawingTool) => void}} Pen
- */
+/** @typedef {import("./DisplayDrawings.js").Pen} Pen */
 
 /** The events a display channel emits.
  *
@@ -110,9 +107,9 @@ function legacyStateOf({frames}, player) {
  * reports frame changes, the window size, the blank screen, the timer and the camera's view as
  * they change; its `CameraTracker` follows the camera. It hands each command to its
  * `DisplayCommands`, and tells them whether the deck is a preview. A preview also answers requests for thumbnails of its frames.
- * It holds the drawings: it applies each drawing command, paints the result and relays the
- * command; a preview takes whole drawings from its presenter instead, and the current preview
- * reports the strokes of the speaker's pen, which takes its tool from `drawingTool`.
+ * It hands each drawing command, whole drawings and each drawing tool to its `DisplayDrawings`,
+ * which holds the drawings and the current preview's pen; the current preview reports the
+ * strokes of the speaker's pen.
  *
  * @extends EventEmitter
  */
@@ -137,13 +134,6 @@ export class DisplayChannel extends EventEmitter {
         this.controller = controller;
         this.presentation = presentation;
         this.timer = timer;
-        this.drawingLayer = drawingLayer;
-
-        /** The drawings on the deck, which the display holds for the session.
-         *
-         * @type {Drawings}
-         */
-        this.drawings = EMPTY_DRAWINGS;
 
         /** The links to the surfaces: a report goes out on all of them.
          *
@@ -160,11 +150,15 @@ export class DisplayChannel extends EventEmitter {
          */
         this.previewMode = false;
 
-        /** The pen of the current preview; null in another deck.
+        /** The drawings on the deck and the current preview's pen.
          *
-         * @type {?Pen}
+         * @type {DisplayDrawings}
          */
-        this.pen = null;
+        this.drawings = new DisplayDrawings({
+            drawingLayer,
+            isPreview: () => this.previewMode,
+            report: message => this.report(message)
+        });
 
         /** What carries out each command a surface sends.
          *
@@ -241,18 +235,11 @@ export class DisplayChannel extends EventEmitter {
             [MessageNames.cameraMove]: move => this.commands.moveCamera(move),
             [MessageNames.cameraReset]: () => this.commands.resetCamera(),
             [MessageNames.camera]: view => this.commands.showView(view),
-            [MessageNames.drawingTool]: tool => {
-                if (this.pen) {
-                    this.pen.setTool(tool);
-                }
-            },
-            [MessageNames.drawings]: ({visible, strokes}) => {
-                if (this.previewMode) {
-                    this.showDrawings({visible, strokes});
-                }
-            },
+            [MessageNames.drawingTool]: tool => this.drawings.setTool(tool),
+            [MessageNames.drawings]: ({visible, strokes}) =>
+                this.drawings.replace({visible, strokes}),
             ...Object.fromEntries(
-                DRAWING_COMMANDS.map(name => [name, command => this.draw(command)])
+                DRAWING_COMMANDS.map(name => [name, command => this.drawings.draw(command)])
             )
         });
     }
@@ -289,31 +276,9 @@ export class DisplayChannel extends EventEmitter {
             layouts: this.presentation.presenterLayouts,
             timer: this.timer.state,
             camera: this.cameraTracker.view,
-            drawings: this.drawings,
+            drawings: this.drawings.current,
             canvas: this.presentation.document.sourceCanvas()
         });
-    }
-
-    /** Carry out a drawing command from a surface: paint the drawings after it and relay it.
-     * A command that changes nothing is not relayed.
-     *
-     * @param {import("../protocol/drawings.js").DrawingCommand} command - The command.
-     */
-    draw(command) {
-        const drawings = applyDrawing(this.drawings, command);
-        if (drawings !== this.drawings) {
-            this.showDrawings(drawings);
-            this.report(command);
-        }
-    }
-
-    /** Hold and paint new drawings.
-     *
-     * @param {Drawings} drawings - The drawings.
-     */
-    showDrawings(drawings) {
-        this.drawings = drawings;
-        this.drawingLayer.render(drawings);
     }
 
     /** Send a message about the display, unless the deck is a preview.
@@ -366,21 +331,23 @@ export class DisplayChannel extends EventEmitter {
         }
     }
 
-    /** Turn the deck into a presenter preview, once, and keep the current preview's pen.
+    /** Turn the deck into a presenter preview, once, and hand the current preview's pen to the
+     * drawings.
      *
      * @param {boolean} current - Does it show the current frame?
      */
     preview(current) {
         if (!this.previewMode) {
             this.previewMode = true;
-            this.pen = this.enterPreviewMode({
+            const pen = this.enterPreviewMode({
                 isCurrent: current,
                 onFollowLink: id => this.transport.broadcast(followLinkMessage(id)),
                 onKey: (key, modifiers) => this.transport.broadcast(keyMessage(key, modifiers)),
                 onCamera: move => this.transport.broadcast(cameraMoveMessage(move)),
                 onDrawing: command => this.transport.broadcast(command),
-                drawings: () => this.drawings
+                drawings: () => this.drawings.current
             });
+            this.drawings.usePen(pen);
         }
     }
 
