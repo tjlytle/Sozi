@@ -98,6 +98,26 @@ render(element) {
 Without the cleanup, a closed panel keeps listening, and every time it is reopened adds one more
 listener.
 
+`render` is also given a second argument, the panel's handle, for what the panel's ⋯ menu
+does. A `render` that takes the element only keeps working.
+
+| Member                         | What it does                                                      |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `maximise()`                   | Fills the workspace with the panel, or brings the layout back if a panel fills it, as Maximise and Restore in the ⋯ menu do. |
+| `maximised`                    | `true` while a panel fills the workspace.                         |
+| `onMaximisedChange(listener)`  | Calls `listener` each time a panel fills the workspace or stops filling it; returns the function that stops it. Call that in your cleanup. |
+
+```js
+render(element, panel) {
+    const button = document.createElement("button");
+    const label = () => (button.textContent = panel.maximised ? "Restore" : "Maximise");
+    button.addEventListener("click", () => panel.maximise());
+    label();
+    element.append(button);
+    return panel.onMaximisedChange(label);
+}
+```
+
 Put text on the page with `textContent`, not `innerHTML`: a frame title or a message is data,
 and `innerHTML` would run any markup it holds. If `render` throws, the panel shows the error
 instead of its content, and the other panels are not affected.

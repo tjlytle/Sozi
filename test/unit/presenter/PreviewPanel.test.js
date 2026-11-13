@@ -17,8 +17,11 @@ import {
 } from "../../../src/js/protocol/camera.js";
 import {
     EMPTY_DRAWINGS,
+    drawingToolMessage,
     drawingsMessage,
-    strokeBeginMessage
+    strokeBeginMessage,
+    strokeEndMessage,
+    strokeEraseMessage
 } from "../../../src/js/protocol/drawings.js";
 
 const stroke = {id: "s1", tool: "pen", color: "#ff0000", width: 6, points: [[1, 2, 0.5]]};
@@ -52,6 +55,29 @@ class FakeElement {
     /** Remove every child. */
     replaceChildren() {
         this.children = [];
+    }
+
+    /** Set an attribute.
+     *
+     * @param {string} name - Its name.
+     * @param {string} value - Its value.
+     */
+    setAttribute(name, value) {
+        this.attributes = {...this.attributes, [name]: String(value)};
+    }
+
+    /** Read an attribute.
+     *
+     * @param {string} name - Its name.
+     * @returns {?string} - Its value.
+     */
+    getAttribute(name) {
+        return this.attributes?.[name] ?? null;
+    }
+
+    /** Take the element out of its parent. */
+    remove() {
+        this.removed = true;
     }
 
     /** Listen to an event.
@@ -111,7 +137,7 @@ function loadedPanel(offset) {
             src: "basic.sozi.html"
         }
     );
-    const [box] = element.children;
+    const box = element.children.find(child => child.className === "sozi-preview-box");
     const iframe = box.children.find(child => child.localName === "iframe");
     const button = box.children.find(child => child.localName === "button");
     iframe.contentWindow = deck;
@@ -125,17 +151,37 @@ function loadedPanel(offset) {
             listener({source: deck, data});
         }
     };
-    mirror.apply(
-        helloMessage(Roles.display, {
-            deckId: "basic",
-            frameCount: 2,
-            viewport: null,
-            frame: {index: 0, id: "f1", title: "One", notes: ""},
-            frames: [],
-            blank: false
-        })
-    );
+    mirror.apply(deckHello);
     return {panel, mirror, toDisplay, toDeck, fromDeck, button, box, element, messageListeners};
+}
+
+/** The drawing toolbar of a panel's element.
+ *
+ * @param {any} element - The element.
+ * @returns {any} - The toolbar, or undefined.
+ */
+function toolbarOf(element) {
+    return element.children.find(child => child.className === "sozi-drawing-toolbar");
+}
+
+/** A button of a toolbar, by its accessible name.
+ *
+ * @param {any} parent - The toolbar, or an element in it.
+ * @param {string} name - The name.
+ * @returns {any} - The button, or undefined.
+ */
+function toolbarButton(parent, name) {
+    for (const child of parent.children) {
+        const named = child.getAttribute("aria-label") ?? child.textContent;
+        if (child.localName === "button" && named === name) {
+            return child;
+        }
+        const found = toolbarButton(child, name);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
 }
 
 const panned = {offFrame: true, zoom: 1, x: -0.1, y: 0};
@@ -187,6 +233,47 @@ describe("PreviewPanel", () => {
         assert.deepEqual(toDisplay, [cameraResetMessage()]);
     });
 
+    test("the current preview has a drawing toolbar above its box, another has none", () => {
+        const {element} = loadedPanel(0);
+        assert.equal(element.children[0], toolbarOf(element));
+        assert.equal(toolbarOf(loadedPanel(1).element), undefined);
+    });
+
+    test("the deck gets the drawing tool when it is ready and when the toolbar changes", () => {
+        const {fromDeck, toDeck, element} = loadedPanel(0);
+        const toolbar = toolbarOf(element);
+        const pen = {draw: false, tool: "pen"};
+        fromDeck(deckHello);
+        assert.deepEqual(
+            toDeck.filter(m => m.name === "drawingTool").map(({draw, tool}) => ({draw, tool})),
+            [pen]
+        );
+        toDeck.length = 0;
+        toolbarButton(toolbar, "Draw").fire("click");
+        assert.deepEqual(
+            toDeck.map(({name, draw}) => ({name, draw})),
+            [{name: "drawingTool", draw: true}]
+        );
+    });
+
+    test("the current preview forwards its deck's strokes to the display", () => {
+        const {fromDeck, toDisplay} = loadedPanel(0);
+        fromDeck(strokeBeginMessage(stroke));
+        fromDeck(strokeEndMessage("s1"));
+        fromDeck(strokeEraseMessage("s0"));
+        assert.deepEqual(toDisplay, [
+            strokeBeginMessage(stroke),
+            strokeEndMessage("s1"),
+            strokeEraseMessage("s0")
+        ]);
+    });
+
+    test("another preview forwards no stroke", () => {
+        const {fromDeck, toDisplay} = loadedPanel(1);
+        fromDeck(strokeBeginMessage(stroke));
+        assert.deepEqual(toDisplay, []);
+    });
+
     test("only the current preview has Back to frame", () => {
         const {button} = loadedPanel(1);
         assert.equal(button, undefined);
@@ -201,7 +288,8 @@ describe("PreviewPanel", () => {
             previewMessage(true),
             jumpToFrameMessage(0, false),
             cameraMessage(panned),
-            drawingsMessage(EMPTY_DRAWINGS)
+            drawingsMessage(EMPTY_DRAWINGS),
+            drawingToolMessage({draw: false, tool: "pen", color: "#e53935", width: 0.004})
         ]);
         toDeck.length = 0;
         mirror.apply(frameChangeMessage({index: 1, id: "f2", title: "Two", notes: ""}));

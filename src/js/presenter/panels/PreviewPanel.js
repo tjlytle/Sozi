@@ -17,9 +17,11 @@ import {
     readMessage
 } from "../../protocol/messages.js";
 import {cameraMessage, cameraMoveMessage, cameraResetMessage} from "../../protocol/camera.js";
-import {drawingsMessage} from "../../protocol/drawings.js";
+import {DRAWING_COMMANDS, drawingToolMessage, drawingsMessage} from "../../protocol/drawings.js";
+import {DrawingToolbar} from "../DrawingToolbar.js";
 
 /** @typedef {import("../DisplayMirror.js").DisplayMirror} DisplayMirror */
+/** @typedef {import("../panels.js").PanelHandle} PanelHandle */
 /** @typedef {import("../../protocol/messages.js").Message} Message */
 
 /**
@@ -30,14 +32,16 @@ import {drawingsMessage} from "../../protocol/drawings.js";
  * @property {string} className - The class of its iframe.
  * @property {string} title - Its panel's title, the iframe's accessible name.
  * @property {string} src - The deck's page, empty when there is none to show.
+ * @property {PanelHandle} [panel] - The panel's handle, for the current preview's Maximise.
  */
 
 /** A preview panel: the deck in an iframe, kept on a frame relative to the display's.
  *
  * The preview of the current frame forwards the links clicked in it and the pans and zooms
  * made on it, shows the display's view, and has a Back to frame button while the display's
- * camera is off its frame; every preview forwards the presentation keys pressed in it and shows
- * the display's drawings.
+ * camera is off its frame. It also has the drawing toolbar, tells its deck's pen what the
+ * toolbar chose, and forwards the pen's strokes. Every preview forwards the presentation keys
+ * pressed in it and shows the display's drawings.
  *
  * Workspace.addPanel constructs one instance per preview, once per page, through spec.render.
  * Closing the panel from its ⋯ menu removes its element from the dock without disposing it.
@@ -54,7 +58,7 @@ export class PreviewPanel {
      * @param {(message: Message) => void} send - Sends a message to the audience window.
      * @param {PreviewOptions} options - What the preview shows.
      */
-    constructor(element, mirror, send, {offset, className, title, src}) {
+    constructor(element, mirror, send, {offset, className, title, src, panel}) {
         this.element = element;
         this.mirror = mirror;
         this.send = send;
@@ -99,6 +103,22 @@ export class PreviewPanel {
             this.backButton.hidden = !mirror.camera.offFrame;
             this.backButton.addEventListener("click", () => send(cameraResetMessage()));
             box.append(this.backButton);
+        }
+
+        /** The drawing toolbar of the current preview, null in another.
+         *
+         * @type {?DrawingToolbar}
+         */
+        this.toolbar = this.current
+            ? new DrawingToolbar(doc, {
+                  mirror,
+                  send,
+                  panel: panel || null,
+                  onTool: () => this.showTool()
+              })
+            : null;
+        if (this.toolbar) {
+            element.append(this.toolbar.element);
         }
         element.append(box);
 
@@ -172,6 +192,10 @@ export class PreviewPanel {
             transport.send(previewMessage(this.current));
             this.update();
             this.showDrawings();
+            this.showTool();
+        } else if (DRAWING_COMMANDS.includes(message.name) && this.current) {
+            // The pen's strokes: the display draws them and relays them back to the preview.
+            this.send(message);
         } else if (message.name === MessageNames.followLink && this.current) {
             this.send(followLinkMessage(message.id));
         } else if (message.name === MessageNames.cameraMove && this.current) {
@@ -216,9 +240,19 @@ export class PreviewPanel {
         }
     }
 
+    /** Tell the current preview's deck what its pen draws with. */
+    showTool() {
+        if (this.toolbar && this.ready && this.transport) {
+            this.transport.send(drawingToolMessage(this.toolbar.state));
+        }
+    }
+
     /** Stop following the display, close the transport and empty the element. */
     dispose() {
         this.mirror.off(DisplayMirrorEvents.change, this.onChange);
+        if (this.toolbar) {
+            this.toolbar.dispose();
+        }
         this.iframe.removeEventListener("load", this.onLoad, false);
         this.disconnect();
         this.element.replaceChildren();

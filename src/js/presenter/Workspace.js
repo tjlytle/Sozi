@@ -18,6 +18,7 @@ import {dockedLayout, layoutOf} from "./layout.js";
 /** @typedef {import("./layout.js").SavedLayout} SavedLayout */
 /** @typedef {import("./layout.js").WindowEntry} WindowEntry */
 /** @typedef {import("./PanelMenu.js").PanelMenuState} PanelMenuState */
+/** @typedef {import("./panels.js").PanelHandle} PanelHandle */
 
 /**
  * A panel of the workspace.
@@ -27,8 +28,8 @@ import {dockedLayout, layoutOf} from "./layout.js";
  * @property {string} title - The title of its tab and of its item in the menus.
  * @property {string} icon - The glyph before its title in the menus.
  * @property {string} [description] - One line under its title in the + menu.
- * @property {(element: HTMLElement) => () => void} render - Draws the panel into an
- *   element, once; returns the function that cleans it up.
+ * @property {(element: HTMLElement, handle: PanelHandle) => () => void} render - Draws the
+ *   panel into an element, once; returns the function that cleans it up.
  * @property {object} [position] - Where it goes in the default layout, as dockview's
  *   `addPanel` takes it (`referencePanel` and `direction`); the first panel has none.
  * @property {boolean} [inactive] - Is it a tab behind another one in the default layout?
@@ -108,6 +109,26 @@ function dockGroup(dock, entries, position, specs) {
  */
 function inWindow(windows, id) {
     return [...windows.values()].some(w => w.entries.some(e => e.id === id));
+}
+
+/**
+ * What a panel's render is given to ask the workspace for what its ⋯ menu does.
+ *
+ * @param {Workspace} workspace - The workspace.
+ * @param {string} id - The panel's id.
+ * @returns {PanelHandle} The handle.
+ */
+function panelHandle(workspace, id) {
+    return {
+        maximise: () => workspace.maximise(id),
+        get maximised() {
+            return workspace.maximised;
+        },
+        onMaximisedChange: listener => {
+            const subscription = workspace.dock.onDidMaximizedGroupChange(() => listener());
+            return () => subscription.dispose();
+        }
+    };
 }
 
 /** The presenter's workspace: panels docked in dockview, a bar of menus, a narrow stack, and
@@ -257,7 +278,7 @@ export class Workspace {
     addPanel(spec) {
         const content = this.element.ownerDocument.createElement("div");
         content.className = "sozi-panel";
-        const cleanup = spec.render(content);
+        const cleanup = spec.render(content, panelHandle(this, spec.id));
         this.panels.set(spec.id, {spec, content, cleanup});
         this.layouts.whileArranging(() => dockPanel(this.dock, spec, this.stacked));
     }
